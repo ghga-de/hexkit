@@ -1,0 +1,16 @@
+name: Check if PRs have the right target (base) branch
+
+on:
+  pull_request:
+    types: [opened, synchronize, reopened, edited]
+
+jobs:
+  branch_check:
+    runs-on: ubuntu-latest
+    steps:
+      - id: dev2main
+        name: Only allow PRs to main that come from dev
+        if: ${{ github.base_ref == 'main' && github.head_ref != 'dev'}}
+        run: |
+          echo "PRs into 'main' must come from 'dev'" >&2
+          exit 1

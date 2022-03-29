@@ -1,0 +1,15 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "description": "A simple message",
+  "properties": {
+    "count": {
+      "description": "A simple counter.",
+      "type": "integer"
+    }
+  },
+  "required": [
+    "count"
+  ],
+  "title": "Message",
+  "type": "object"
+}

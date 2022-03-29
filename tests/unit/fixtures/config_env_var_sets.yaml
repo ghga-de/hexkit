@@ -1,0 +1,12 @@
+# specifies sets of env variables for specifying config params
+
+basic_complete:
+  some_number: "3"
+  some_string: "string_from_env"
+  some_boolean: "false"
+  another_string_with_default: "overwitten_by_env"
+
+basic_partly:
+  some_number: "3"
+  some_boolean: "false"
+  some_string_with_default: "overwitten_by_env"

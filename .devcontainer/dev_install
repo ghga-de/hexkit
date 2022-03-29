@@ -1,0 +1,15 @@
+#!/bin/bash
+# install service in dev container
+
+cd /workspace
+
+# install in edit mode
+# use future way of installing packages
+# install with testing dependencies
+pip install \
+    --use-feature=in-tree-build \
+    -e \
+    ".[all]"
+
+# install pre-commit hooks to git:
+pre-commit install
