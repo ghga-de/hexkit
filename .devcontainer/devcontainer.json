@@ -60,5 +60,9 @@
 			"version": "latest",
 			"moby": true
 		}
-	}
+	},
+	"forwardPorts": [
+		"kafdrop:9000",
+		"kafka-ui:8080"
+	]
 }

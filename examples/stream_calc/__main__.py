@@ -14,18 +14,18 @@
 # limitations under the License.
 #
 
-"""Protocols related to event handling."""
+"""Main entry point of the package."""
 
-from typing import Protocol
+from stream_calc.config import Config
+from stream_calc.container import Container
 
-from pyquail.custom_types import JSON
+if __name__ == "__main__":
+    config = Config()
+    container = Container()
+    container.config.from_pydantic(config)
+    container.init_resources()
 
-
-class EventPublisherProto(Protocol):
-    """A protocol for publishing events to an event broker."""
-
-    def publish(
-        self, *, event_payload: JSON, event_type: str, event_key: str, topic_name: str
-    ) -> None:
-        """Publish an event."""
-        ...
+    calculator = container.stream_calculator()
+    calculator.multiply(task_id="test-1", multiplier=2, multiplicand=2)
+    calculator.devide(task_id="test-2", dividend=2, divisor=2)
+    calculator.devide(task_id="test-3", dividend=2, divisor=0)

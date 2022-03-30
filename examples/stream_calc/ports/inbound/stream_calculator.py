@@ -14,18 +14,22 @@
 # limitations under the License.
 #
 
-"""Protocols related to event handling."""
+"""Outbound Port(s) for communicating results."""
 
 from typing import Protocol
 
-from pyquail.custom_types import JSON
 
+class StreamCalculatorPort(Protocol):
+    """
+    Perform calculations as streams.
+    Currently, only supports multiplications and divisions but not additions or
+    substractions.
+    """
 
-class EventPublisherProto(Protocol):
-    """A protocol for publishing events to an event broker."""
+    def multiply(self, task_id: str, multiplier: float, multiplicand: float):
+        """Multiply the multiplicand with the multiplier."""
+        ...
 
-    def publish(
-        self, *, event_payload: JSON, event_type: str, event_key: str, topic_name: str
-    ) -> None:
-        """Publish an event."""
+    def devide(self, task_id: str, dividend: float, divisor: float):
+        """Dive the dividend by the divisor."""
         ...

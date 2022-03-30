@@ -14,18 +14,18 @@
 # limitations under the License.
 #
 
-"""Protocols related to event handling."""
+"""Outbound Port(s) for communicating results."""
 
 from typing import Protocol
 
-from pyquail.custom_types import JSON
 
+class ResultEmitterPort(Protocol):
+    """Emits results of a calculation."""
 
-class EventPublisherProto(Protocol):
-    """A protocol for publishing events to an event broker."""
+    def emit_result(self, *, task_id: str, result: float) -> None:
+        """Emits the result of the calc task with the given ID."""
+        ...
 
-    def publish(
-        self, *, event_payload: JSON, event_type: str, event_key: str, topic_name: str
-    ) -> None:
-        """Publish an event."""
+    def emit_failure(self, *, task_id: str, reason: str) -> None:
+        """Emits message that the calc task with the given ID could not be solved."""
         ...

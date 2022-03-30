@@ -14,18 +14,14 @@
 # limitations under the License.
 #
 
-"""Protocols related to event handling."""
+"""Config parameters."""
 
-from typing import Protocol
-
-from pyquail.custom_types import JSON
+from pydantic import BaseSettings
 
 
-class EventPublisherProto(Protocol):
-    """A protocol for publishing events to an event broker."""
+class Config(BaseSettings):
+    """Config parameters and their defaults."""
 
-    def publish(
-        self, *, event_payload: JSON, event_type: str, event_key: str, topic_name: str
-    ) -> None:
-        """Publish an event."""
-        ...
+    service_name: str = "stream_calc"
+    client_suffix: str = "1"
+    kafka_servers: list[str] = ["kafka:9092"]

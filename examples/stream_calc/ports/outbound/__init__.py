@@ -14,18 +14,4 @@
 # limitations under the License.
 #
 
-"""Protocols related to event handling."""
-
-from typing import Protocol
-
-from pyquail.custom_types import JSON
-
-
-class EventPublisherProto(Protocol):
-    """A protocol for publishing events to an event broker."""
-
-    def publish(
-        self, *, event_payload: JSON, event_type: str, event_key: str, topic_name: str
-    ) -> None:
-        """Publish an event."""
-        ...
+"""Outbound ports."""

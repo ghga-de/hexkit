@@ -16,20 +16,6 @@
 
 """Module collecting custom types."""
 
-from __future__ import annotations
+from typing import Any, Union
 
-from typing import TYPE_CHECKING, Protocol, Type, Union
-
-if TYPE_CHECKING:
-
-    class JSONArray(list["JSON"], Protocol):  # type: ignore
-        """For use in type hinting."""
-
-        __class__: Type[list["JSON"]]  # type: ignore
-
-    class JSONObject(dict[str, "JSON"], Protocol):  # type: ignore
-        """For use in type hinting."""
-
-        __class__: Type[dict[str, "JSON"]]  # type: ignore
-
-    JSON = Union[None, float, str, JSONArray, JSONObject]
+JSON = Union[None, float, str, bool, dict[str, Any], list[Any]]
