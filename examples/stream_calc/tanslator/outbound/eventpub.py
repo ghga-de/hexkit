@@ -19,7 +19,7 @@
 # pylint: disable=wrong-import-order
 from stream_calc.ports.outbound.result_emitter import ResultEmitterPort
 
-from pyquail.eventpub.protocol import EventPublisherProto
+from hexkit.eventpub.protocol import EventPublisherProto
 
 
 class EventResultEmitter(ResultEmitterPort):

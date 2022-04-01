@@ -3,7 +3,7 @@
 {
 	"name": "Python 3",
 	"dockerComposeFile": "docker-compose.yml",
-	"service": "pyquail",
+	"service": "hexkit",
 	"workspaceFolder": "/workspace",
 	"settings": {
 		"terminal.integrated.shell.linux": "/bin/bash",

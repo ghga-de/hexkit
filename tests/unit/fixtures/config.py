@@ -24,7 +24,7 @@ from typing import Any, Dict
 
 from pydantic import BaseModel, BaseSettings
 
-from pyquail.config import DEFAULT_CONFIG_PREFIX
+from hexkit.config import DEFAULT_CONFIG_PREFIX
 
 from . import BASE_DIR, utils
 

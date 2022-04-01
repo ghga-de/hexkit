@@ -18,7 +18,7 @@
 
 from typing import Protocol
 
-from pyquail.custom_types import JSON
+from hexkit.custom_types import JSON
 
 
 class EventPublisherProto(Protocol):

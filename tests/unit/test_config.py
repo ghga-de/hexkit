@@ -20,7 +20,7 @@ from pathlib import Path
 
 import pytest
 
-from pyquail.config import config_from_yaml
+from hexkit.config import config_from_yaml
 
 from .fixtures.config import BasicConfig, config_yamls, env_var_sets
 

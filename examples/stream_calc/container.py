@@ -23,8 +23,8 @@ from stream_calc.core.calc import StreamCalculator
 from stream_calc.ports.inbound.stream_calculator import StreamCalculatorPort
 from stream_calc.tanslator.outbound.eventpub import EventResultEmitter
 
-from pyquail.eventpub.protocol import EventPublisherProto
-from pyquail.eventpub.providers.akafka import KafkaEventPublisher
+from hexkit.eventpub.protocol import EventPublisherProto
+from hexkit.eventpub.providers.akafka import KafkaEventPublisher
 
 
 class Container(containers.DeclarativeContainer):

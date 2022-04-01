@@ -24,8 +24,8 @@ import json
 
 from kafka import KafkaProducer
 
-from pyquail.custom_types import JSON
-from pyquail.eventpub.protocol import EventPublisherProto
+from hexkit.custom_types import JSON
+from hexkit.eventpub.protocol import EventPublisherProto
 
 
 class KafkaEventPublisher(EventPublisherProto):

@@ -21,8 +21,8 @@ from datetime import datetime
 import pytest
 from testcontainers.kafka import KafkaContainer
 
-from pyquail.akafka import EventConsumer, EventProducer, KafkaConfigBase
-from pyquail.utils import exec_with_timeout
+from hexkit.akafka import EventConsumer, EventProducer, KafkaConfigBase
+from hexkit.utils import exec_with_timeout
 
 
 class EventSuccessfullyConsumed(RuntimeError):

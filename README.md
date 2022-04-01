@@ -1,16 +1,16 @@
-![tests](https://github.com/ghga-de/pyquail/actions/workflows/unit_and_int_tests.yaml/badge.svg)
-[![PyPI version shields.io](https://img.shields.io/pypi/v/pyquail.svg)](https://pypi.python.org/pypi/pyquail/)
-[![PyPI pyversions](https://img.shields.io/pypi/pyversions/pyquail.svg)](https://pypi.python.org/pypi/pyquail/)
-[![codecov](https://codecov.io/gh/ghga-de/pyquail/branch/main/graph/badge.svg?token=V1VYRI4SEC)](https://codecov.io/gh/ghga-de/pyquail)
+![tests](https://github.com/ghga-de/hexkit/actions/workflows/unit_and_int_tests.yaml/badge.svg)
+[![PyPI version shields.io](https://img.shields.io/pypi/v/hexkit.svg)](https://pypi.python.org/pypi/hexkit/)
+[![PyPI pyversions](https://img.shields.io/pypi/pyversions/hexkit.svg)](https://pypi.python.org/pypi/hexkit/)
+[![codecov](https://codecov.io/gh/ghga-de/hexkit/branch/main/graph/badge.svg?token=V1VYRI4SEC)](https://codecov.io/gh/ghga-de/hexkit)
 
-# pyquail
+# hexkit
 ## Installation
 This package is available at PyPI:
-https://pypi.org/project/pyquail
+https://pypi.org/project/hexkit
 
 You can install it from there using:
 ```
-pip install pyquail
+pip install hexkit
 ```
 
 Thereby, you may specify following extra(s):
@@ -45,8 +45,8 @@ by running the following commands:
 cd ./.devcontainer
 
 # build and run the environment with docker-compose
-docker build -t pyquail .
-docker run -it pyquail /bin/bash
+docker build -t hexkit .
+docker run -it hexkit /bin/bash
 
 ```
 
