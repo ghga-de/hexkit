@@ -13,6 +13,6 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-"""A library that contains the basic chassis functionality used in services of GHGA"""
+"""A Toolkit for Building Microservices using the Hexagonal Architecture"""
 
-__version__ = "0.11.0"
+__version__ = "0.1.0"
