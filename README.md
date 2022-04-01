@@ -4,6 +4,8 @@
 [![codecov](https://codecov.io/gh/ghga-de/hexkit/branch/main/graph/badge.svg?token=V1VYRI4SEC)](https://codecov.io/gh/ghga-de/hexkit)
 
 # hexkit
+A Toolkit for Building Microservices using the Hexagonal Architecture.
+
 ## Installation
 This package is available at PyPI:
 https://pypi.org/project/hexkit
