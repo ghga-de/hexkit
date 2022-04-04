@@ -20,8 +20,6 @@ import signal
 from pathlib import Path
 from typing import Callable, Optional
 
-from pydantic import BaseSettings
-
 TEST_FILE_DIR = Path(__file__).parent.resolve() / "test_files"
 
 TEST_FILE_PATHS = [
@@ -29,60 +27,6 @@ TEST_FILE_PATHS = [
     for filename in os.listdir(TEST_FILE_DIR)
     if filename.startswith("test_") and filename.endswith(".yaml")
 ]
-
-
-class OutOfContextError(RuntimeError):
-    """Thrown when a context manager is used out of context."""
-
-    def __init__(self):
-        message = "Used context manager outside of a with block."
-        super().__init__(message)
-
-
-class DaoGenericBase:
-    """A generic base for implementing DAO interfaces."""
-
-    def __init__(self, config: BaseSettings):  # pylint: disable=unused-argument
-        """Initialize DAO with a config params passed as pydantic BaseSettings object."""
-        ...
-
-    # Every DAO must support the context manager protocol.
-    # However, it is up to the DAO implementation whether
-    # the `__enter__` and `__exit__` functions are doing
-    # something useful. They may remain stubs:
-
-    def __enter__(self):
-        """Setup logic."""
-        ...
-        return self
-
-    def __exit__(self, err_type, err_value, err_traceback):
-        """Teardown logic."""
-        ...
-
-
-# pylint: disable=too-few-public-methods
-class AsyncDaoGenericBase:
-    """A generic base for implementing an asynchronous DAO interfaces."""
-
-    def __init__(self, config: BaseSettings):  # pylint: disable=unused-argument
-        """Initialize DAO with a config params passed as pydantic BaseSettings object."""
-        ...
-
-    # Every DAO must support the context manager protocol.
-    # However, it is up to the DAO implementation whether
-    # the `__enter__` and `__exit__` functions are doing
-    # something useful. They may remain stubs:
-
-    async def __aenter__(self):
-        """Setup logic."""
-        ...
-        return self
-
-    # pylint: disable=unused-argument,no-self-use
-    async def _aexit__(self, err_type, err_value, err_traceback):
-        """Teardown logic."""
-        ...
 
 
 def raise_timeout_error(_, __):
@@ -115,8 +59,3 @@ def exec_with_timeout(
     signal.alarm(0)
 
     return result
-
-
-def create_fake_drs_uri(object_id: str):
-    """Create a fake DRS URI based on an object id."""
-    return f"drs://www.example.org/{object_id}"

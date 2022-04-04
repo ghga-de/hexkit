@@ -61,9 +61,8 @@ class KafkaEventPublisher(EventPublisherProto):
     ) -> None:
         """Publish event to Kafka broker."""
 
-        event_value = {
-            "type": event_type,
-            "payload": event_payload,
-        }
-        self._producer.send(topic_name, key=event_key, value=event_value)
+        event_headers = [("type", event_type.encode("ascii"))]
+        self._producer.send(
+            topic_name, key=event_key, value=event_payload, headers=event_headers
+        )
         self._producer.flush()
