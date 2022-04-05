@@ -70,11 +70,15 @@ disable=
       duplicate-code, # is behaving strangely sometimes and cannot
                      # be disabled on an individual basis:
                      # https://github.com/PyCQA/pylint/issues/214
+
       too-few-public-methods, # says that classes should always have methods
                              # but that is not true anymore (e.g. dataclasses)
+
+      unnecessary-ellipsis, # often used for interfaces/protocols
+
       super-init-not-called # disabled because it falsly triggers when inheriting from
-                            # a typing.Protocol (which should not come with an
-                            # implementation for __init__)
+                              # a typing.Protocol (which should not come with an
+                              # implementation for __init__)
 
 # Enable the message, report, category or checker with the given id(s). You can
 # either give multiple identifier separated by comma (,) or put this option

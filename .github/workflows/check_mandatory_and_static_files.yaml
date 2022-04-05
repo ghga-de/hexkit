@@ -1,0 +1,21 @@
+name: Check mandatory and static files
+
+on: push
+
+jobs:
+  check-mandatory-and-static-files:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v1
+      - name: Set up Python 3.9
+        uses: actions/setup-python@v2
+        with:
+          python-version: 3.9
+      - name: Check mandatory and static files
+        run: |
+          if [ "${{ github.event.repository.name }}" == "microservice-repository-template" ]
+          then
+            echo "Skipping this test as operating on the template repo."
+          else
+            ./scripts/check_mandatory_and_static_files.py
+          fi

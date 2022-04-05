@@ -1,0 +1,31 @@
+# List of all files that are considered static.
+# They should never be changed in a service repo
+# directly.
+# If changes are needed, please first make them in
+# the microservice_template_repository at:
+# https://github.com/ghga-de/microservice-repository-template
+# You pull the updates from the template repository to
+# your repo by running the script at:
+# ./scripts/update_static_files.py
+
+scripts/update_static_files.py
+scripts/license_checker.py
+scripts/get_package_name.py
+scripts/check_mandatory_and_static_files.py
+scripts/README.md
+
+.github/workflows/check_pr_target.yaml
+.github/workflows/static_code_analysis.yaml
+.github/workflows/check_mandatory_and_static_files.yaml
+
+.editorconfig
+.flake8
+.gitattributes
+.gitignore
+.pre-commit-config.yaml
+.pylintrc
+codecov.yml
+
+LICENSE
+requirements.txt
+setup.py
