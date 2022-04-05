@@ -1,7 +1,7 @@
 ![tests](https://github.com/ghga-de/hexkit/actions/workflows/unit_and_int_tests.yaml/badge.svg)
 [![PyPI version shields.io](https://img.shields.io/pypi/v/hexkit.svg)](https://pypi.python.org/pypi/hexkit/)
 [![PyPI pyversions](https://img.shields.io/pypi/pyversions/hexkit.svg)](https://pypi.python.org/pypi/hexkit/)
-[![codecov](https://codecov.io/gh/ghga-de/hexkit/branch/main/graph/badge.svg?token=V1VYRI4SEC)](https://codecov.io/gh/ghga-de/hexkit)
+[![Coverage Status](https://coveralls.io/repos/github/ghga-de/hexkit/badge.svg?branch=main)](https://coveralls.io/github/ghga-de/hexkit?branch=main)
 
 # hexkit
 A Toolkit for Building Microservices using the Hexagonal Architecture.
