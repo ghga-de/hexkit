@@ -17,7 +17,7 @@ docs/README.md
 scripts
 
 tests/__init__.py
-tests/fixtures/__ini
+tests/fixtures/__init__.py
 
 README.md
 setup.py
