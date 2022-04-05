@@ -14,7 +14,6 @@ scripts/get_package_name.py
 scripts/check_mandatory_and_static_files.py
 scripts/README.md
 
-.github/workflows/check_pr_target.yaml
 .github/workflows/static_code_analysis.yaml
 .github/workflows/check_mandatory_and_static_files.yaml
 
