@@ -16,11 +16,8 @@ docs/README.md
 
 scripts
 
-tests/fixtures/__init__.py
-tests/integration/fixtures/__init__.py
-tests/unit/fixtures/__init__.py
-tests/integration/__init__.py
-tests/unit/__init__.py
+tests/__init__.py
+tests/fixtures/__ini
 
 README.md
 setup.py
