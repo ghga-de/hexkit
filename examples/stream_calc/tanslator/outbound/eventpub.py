@@ -40,7 +40,7 @@ class EventResultEmitter(ResultEmitterPort):
             event_payload=event_payload,
             event_type="calc_success",
             event_key=task_id,
-            topic_name="calc_output",
+            topic="calc_output",
         )
 
     def emit_failure(self, *, task_id: str, reason: str) -> None:
@@ -52,5 +52,5 @@ class EventResultEmitter(ResultEmitterPort):
             event_payload=event_payload,
             event_type="calc_failure",
             event_key=task_id,
-            topic_name="calc_output",
+            topic="calc_output",
         )

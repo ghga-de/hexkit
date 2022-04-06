@@ -14,25 +14,36 @@
 # limitations under the License.
 #
 
-"""Protocol related to event publishing."""
+"""Protocol related to event subscription."""
 
 from typing import Protocol
 
 from hexkit.custom_types import JSON
 
 
-class EventPublisherProto(Protocol):
-    """A protocol for publishing events to an event broker."""
+class EventSubscriberProto(Protocol):
+    """
+    A protocol for consuming events to an event broker.
 
-    def publish(
-        self, *, event_payload: JSON, event_type: str, event_key: str, topic: str
-    ) -> None:
-        """Publish an event.
+    In addition to the methods described below, implementations shall expose the
+    the following attributes:
+            topics (list[str]):
+                A list of topics of interest to which the provider shall subscribe.
+            event_types (list[str]):
+                A list of event types of interest. Out of the events arriving in the
+                topics of interest, the provider shall only pass events of these types
+                down to the protocol. Events of other types shall be filtered out.
+    """
+
+    topics: list[str]
+    event_types: list[str]
+
+    def consume(self, *, event_payload: JSON, event_type: str, topic: str) -> None:
+        """Receives an event of interest and prepare it for downstream processing.
 
         Args:
             event_payload (JSON): The data/payload to send with the event.
             event_type (str): The type of the event.
-            event_key (str): Ensures that events with the same key are delivered in order
             topic (str): Name of the topic to publish the event to.
         """
         ...

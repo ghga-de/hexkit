@@ -14,25 +14,15 @@
 # limitations under the License.
 #
 
-"""Protocol related to event publishing."""
+"""Collection of base classes."""
 
-from typing import Protocol
-
-from hexkit.custom_types import JSON
+from abc import ABC, abstractmethod
 
 
-class EventPublisherProto(Protocol):
-    """A protocol for publishing events to an event broker."""
+class InboundProviderBase(ABC):
+    """Base class that should be used by inbound providers."""
 
-    def publish(
-        self, *, event_payload: JSON, event_type: str, event_key: str, topic: str
-    ) -> None:
-        """Publish an event.
-
-        Args:
-            event_payload (JSON): The data/payload to send with the event.
-            event_type (str): The type of the event.
-            event_key (str): Ensures that events with the same key are delivered in order
-            topic (str): Name of the topic to publish the event to.
-        """
+    @abstractmethod
+    def run(self) -> None:
+        """Runs the inbound provider. Typically, it blocks forever."""
         ...

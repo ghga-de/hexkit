@@ -15,7 +15,7 @@
 #
 
 """
-Apache Kafka specific event publishing provider.
+Apache Kafka-specific event publishing provider.
 
 Require dependencies of the `akafka` extra. See the `setup.cfg`.
 """
@@ -29,7 +29,7 @@ from hexkit.eventpub.protocol import EventPublisherProto
 
 
 class KafkaEventPublisher(EventPublisherProto):
-    """Apache Kafka specific event publishing provider."""
+    """Apache Kafka-specific event publishing provider."""
 
     def __init__(self, service_name: str, client_suffix: str, kafka_servers: list[str]):
         """Initialize the provider with some config params.
@@ -45,11 +45,11 @@ class KafkaEventPublisher(EventPublisherProto):
                 List of connection strings pointing to the kafka brokers.
         """
 
-        self.client_id = f"{service_name}.{client_suffix}"
+        client_id = f"{service_name}.{client_suffix}"
 
         self._producer = KafkaProducer(
             bootstrap_servers=kafka_servers,
-            client_id=self.client_id,
+            client_id=client_id,
             key_serializer=lambda event_key: event_key.encode("ascii"),
             value_serializer=lambda event_value: json.dumps(event_value).encode(
                 "ascii"
@@ -57,12 +57,19 @@ class KafkaEventPublisher(EventPublisherProto):
         )
 
     def publish(
-        self, *, event_payload: JSON, event_type: str, event_key: str, topic_name: str
+        self, *, event_payload: JSON, event_type: str, event_key: str, topic: str
     ) -> None:
-        """Publish event to Kafka broker."""
+        """Publish an event.
+
+        Args:
+            event_payload (JSON): The data/payload to send with the event.
+            event_type (str): The type of the event.
+            event_key (str): Ensures that events with the same key are delivered in order
+            topic (str): Name of the topic to publish the event to.
+        """
 
         event_headers = [("type", event_type.encode("ascii"))]
         self._producer.send(
-            topic_name, key=event_key, value=event_payload, headers=event_headers
+            topic, key=event_key, value=event_payload, headers=event_headers
         )
         self._producer.flush()

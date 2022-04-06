@@ -33,7 +33,7 @@ def test_kafka_event_publisher():
     event_payload = {"test_content": random_string}
     event_type = "test_event"
     event_key = "test_key"
-    topic_name = "test_topic"
+    topic = "test_topic"
 
     with KafkaContainer() as kafka:
 
@@ -48,12 +48,12 @@ def test_kafka_event_publisher():
             event_payload=event_payload,
             event_type=event_type,
             event_key=event_key,
-            topic_name=topic_name,
+            topic=topic,
         )
 
         # consume event using the python-kafka library directly:
         consumer = KafkaConsumer(
-            topic_name,
+            topic,
             client_id="test_consumer",
             group_id="test_consumer_group",
             bootstrap_servers=[kafka.get_bootstrap_server()],
