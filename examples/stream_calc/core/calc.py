@@ -14,7 +14,7 @@
 # limitations under the License.
 #
 
-"""Logic for calculating."""
+"""The application logic of the calculator."""
 
 from stream_calc.ports.inbound.stream_calculator import StreamCalculatorPort
 from stream_calc.ports.outbound.result_emitter import ResultEmitterPort
