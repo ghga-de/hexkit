@@ -22,9 +22,9 @@ from stream_calc.ports.outbound.result_emitter import ResultEmitterPort
 
 class StreamCalculator(StreamCalculatorPort):
     """
-    Perform calculations as streams.
-    Currently, only supports multiplications and divisions but not additions or
-    substractions.
+    Perform calculations and stream results.
+    
+    More operations like addition or subtraction could be added in a similar way.
     """
 
     def __init__(self, result_emitter: ResultEmitterPort):
