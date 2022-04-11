@@ -18,4 +18,4 @@
 
 from typing import Any, Union
 
-JSON = Union[None, float, str, bool, dict[str, Any], list[Any]]
+JSON = Union[None, int, float, str, bool, dict[str, Any], list[Any]]
