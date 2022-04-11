@@ -31,7 +31,14 @@ from hexkit.eventpub.protocol import EventPublisherProto
 class KafkaEventPublisher(EventPublisherProto):
     """Apache Kafka specific event publishing provider."""
 
-    def __init__(self, service_name: str, client_suffix: str, kafka_servers: list[str]):
+    def __init__(
+        self,
+        *,
+        service_name: str,
+        client_suffix: str,
+        kafka_servers: list[str],
+        kafka_producer_class=KafkaProducer,
+    ):
         """Initialize the provider with some config params.
 
         Args:
@@ -42,11 +49,13 @@ class KafkaEventPublisher(EventPublisherProto):
                 service. Will create a globally unique Kafka client ID by concatenating
             kafka_servers (list[str]):
                 List of connection strings pointing to the kafka brokers.
+            kafka_producer_class:
+                Overwrite the used Kafka Producer class. Only intented for unit testing.
         """
 
         self.client_id = f"{service_name}.{client_suffix}"
 
-        self._producer = KafkaProducer(
+        self._producer = kafka_producer_class(
             bootstrap_servers=kafka_servers,
             client_id=self.client_id,
             key_serializer=lambda event_key: event_key.encode("ascii"),
