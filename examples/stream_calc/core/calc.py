@@ -23,7 +23,7 @@ from stream_calc.ports.outbound.result_emitter import ResultEmitterPort
 class StreamCalculator(StreamCalculatorPort):
     """
     Perform calculations and stream results.
-    
+
     More operations like addition or subtraction could be added in a similar way.
     """
 
