@@ -14,4 +14,4 @@
 # limitations under the License.
 #
 
-"""Collects Ports"""
+"""All inbound and outbound ports of the application."""
