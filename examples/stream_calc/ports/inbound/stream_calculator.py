@@ -21,9 +21,8 @@ from typing import Protocol
 
 class StreamCalculatorPort(Protocol):
     """
-    Perform calculations as streams.
-    Currently, only supports multiplications and divisions but not additions or
-    substractions.
+    Port for performing calculations and streaming results.
+    More operations like addition or subtraction could be added in a similar way.
     """
 
     def multiply(self, task_id: str, multiplier: float, multiplicand: float):
