@@ -38,9 +38,8 @@ class KafkaEventPublisher(EventPublisherProto):
             service_name (str):
                 The name of the (micro-)service from which messages are published.
             client_suffix (str):
-                String that uniquely this instance across all instances of this service.
-                Will create a globally unique Kafka client IDidentifier by concatenating
-                the service_name and the client_suffix.
+                String that uniquely identifies this instance across all instances of this
+                service. Will create a globally unique Kafka client ID by concatenating
             kafka_servers (list[str]):
                 List of connection strings pointing to the kafka brokers.
         """
@@ -59,7 +58,18 @@ class KafkaEventPublisher(EventPublisherProto):
     def publish(
         self, *, event_payload: JSON, event_type: str, event_key: str, topic_name: str
     ) -> None:
-        """Publish event to Kafka broker."""
+        """Publish an event to an Apache Kafka event broker.
+
+        Args:
+            event_payload (JSON): The payload to ship with the event.
+            event_type (str): The event type. ASCII characters only.
+            event_key (str): The event type. ASCII characters only.
+            topic_name (str): The event type. ASCII characters only.
+        """
+        if not (event_type.isascii() and event_key.isascii() and topic_name.isascii()):
+            raise RuntimeError(
+                "event_type, event_key, and topic_name should be ascii only."
+            )
 
         event_headers = [("type", event_type.encode("ascii"))]
         self._producer.send(

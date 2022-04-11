@@ -27,5 +27,12 @@ class EventPublisherProto(Protocol):
     def publish(
         self, *, event_payload: JSON, event_type: str, event_key: str, topic_name: str
     ) -> None:
-        """Publish an event."""
+        """Publish an event.
+
+        Args:
+            event_payload (JSON): The payload to ship with the event.
+            event_type (str): The event type. ASCII characters only.
+            event_key (str): The event type. ASCII characters only.
+            topic_name (str): The event type. ASCII characters only.
+        """
         ...
