@@ -21,7 +21,7 @@ from typing import Protocol
 from hexkit.custom_types import JSON
 
 
-class EventPublisherProto(Protocol):
+class EventPublisherProtocol(Protocol):
     """A protocol for publishing events to an event broker."""
 
     def publish(
