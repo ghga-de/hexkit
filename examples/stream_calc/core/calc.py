@@ -16,11 +16,12 @@
 
 """The application logic of the calculator."""
 
-from stream_calc.ports.inbound.stream_calculator import StreamCalculatorPort
 from stream_calc.ports.outbound.result_emitter import ResultEmitterPort
 
+from examples.stream_calc.ports.inbound.task_receiver import TaskReceiverPort
 
-class StreamCalculator(StreamCalculatorPort):
+
+class StreamCalculator(TaskReceiverPort):
     """
     Perform calculations and stream results.
 

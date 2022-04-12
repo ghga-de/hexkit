@@ -19,9 +19,9 @@
 from typing import Protocol
 
 
-class StreamCalculatorPort(Protocol):
+class TaskReceiverPort(Protocol):
     """
-    Port for performing calculations and streaming results.
+    Port that excepts calculation tasks.
     More operations like addition or subtraction could be added in a similar way.
     """
 

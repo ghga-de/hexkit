@@ -20,9 +20,9 @@ from dependency_injector import containers, providers
 
 # pylint: disable=wrong-import-order
 from stream_calc.core.calc import StreamCalculator
-from stream_calc.ports.inbound.stream_calculator import StreamCalculatorPort
 from stream_calc.tanslators.outbound.eventpub import EventResultEmitter
 
+from examples.stream_calc.ports.inbound.task_receiver import TaskReceiverPort
 from hexkit.eventpub.protocol import EventPublisherProtocol
 from hexkit.eventpub.providers.akafka import KafkaEventPublisher
 
@@ -46,6 +46,6 @@ class Container(containers.DeclarativeContainer):
     )
 
     # outbound ports:
-    stream_calculator = providers.Factory[StreamCalculatorPort](
+    stream_calculator = providers.Factory[TaskReceiverPort](
         StreamCalculator, result_emitter=result_emitter
     )
