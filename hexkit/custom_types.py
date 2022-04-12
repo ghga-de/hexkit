@@ -18,4 +18,6 @@
 
 from typing import Any, Union
 
-JSON = Union[None, int, float, str, bool, dict[str, Any], list[Any]]
+# This is intended to type objects that could be a potential output of `json.loads`.
+# (Scalar types as well as arrays are excluded from the above assumption.)
+JsonObject = dict[str, Union[int, float, str, bool, list[Any], dict[str, Any]]]

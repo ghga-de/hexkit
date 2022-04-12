@@ -24,7 +24,7 @@ import json
 
 from kafka import KafkaProducer
 
-from hexkit.custom_types import JSON
+from hexkit.custom_types import JsonObject
 from hexkit.eventpub.protocol import EventPublisherProtocol
 
 
@@ -70,7 +70,9 @@ class KafkaEventPublisher(EventPublisherProtocol):
             ),
         )
 
-    def publish(self, *, payload: JSON, type_: str, key_: str, topic: str) -> None:
+    def publish(
+        self, *, payload: JsonObject, type_: str, key_: str, topic: str
+    ) -> None:
         """Publish an event to an Apache Kafka event broker.
 
         Args:

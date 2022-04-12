@@ -18,13 +18,15 @@
 
 from typing import Protocol
 
-from hexkit.custom_types import JSON
+from hexkit.custom_types import JsonObject
 
 
 class EventPublisherProtocol(Protocol):
     """A protocol for publishing events to an event broker."""
 
-    def publish(self, *, payload: JSON, type_: str, key_: str, topic: str) -> None:
+    def publish(
+        self, *, payload: JsonObject, type_: str, key_: str, topic: str
+    ) -> None:
         """Publish an event.
 
         Args:
