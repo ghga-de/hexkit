@@ -14,22 +14,4 @@
 # limitations under the License.
 #
 
-"""Outbound Port(s) for communicating results."""
-
-from typing import Protocol
-
-
-class StreamCalculatorPort(Protocol):
-    """
-    Perform calculations as streams.
-    Currently, only supports multiplications and divisions but not additions or
-    substractions.
-    """
-
-    def multiply(self, task_id: str, multiplier: float, multiplicand: float):
-        """Multiply the multiplicand with the multiplier."""
-        ...
-
-    def devide(self, task_id: str, dividend: float, divisor: float):
-        """Dive the dividend by the divisor."""
-        ...
+"""Sub-package containing unit tests."""

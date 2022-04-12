@@ -17,8 +17,6 @@
 """Testing Apache Kafka based providers."""
 
 import json
-import random
-import string
 
 from kafka import KafkaConsumer
 from testcontainers.kafka import KafkaContainer
@@ -29,8 +27,7 @@ from hexkit.utils import exec_with_timeout
 
 def test_kafka_event_publisher():
     """Test the KafkaEventPublisher."""
-    random_string = "".join(random.choices(string.ascii_letters, k=10))
-    event_payload = {"test_content": random_string}
+    event_payload = {"test_content": "Hello World"}
     event_type = "test_event"
     event_key = "test_key"
     topic = "test_topic"

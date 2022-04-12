@@ -13,3 +13,22 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 #
+
+"""Inbound port for communicating results."""
+
+from typing import Protocol
+
+
+class TaskReceiverPort(Protocol):
+    """
+    Port that excepts calculation tasks.
+    More operations like addition or subtraction could be added in a similar way.
+    """
+
+    def multiply(self, task_id: str, multiplier: float, multiplicand: float):
+        """Multiply the multiplicand with the multiplier."""
+        ...
+
+    def devide(self, task_id: str, dividend: float, divisor: float):
+        """Dive the dividend by the divisor."""
+        ...

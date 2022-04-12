@@ -21,8 +21,7 @@ from pathlib import Path
 import pytest
 
 from hexkit.config import config_from_yaml
-
-from .fixtures.config import BasicConfig, config_yamls, env_var_sets
+from tests.fixtures.config import BasicConfig, config_yamls, env_var_sets
 
 
 def test_config_from_yaml():

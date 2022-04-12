@@ -25,29 +25,43 @@ import json
 from kafka import KafkaProducer
 
 from hexkit.custom_types import JSON
-from hexkit.eventpub.protocol import EventPublisherProto
+from hexkit.eventpub.protocol import EventPublisherProtocol
 
 
-class KafkaEventPublisher(EventPublisherProto):
-    """Apache Kafka-specific event publishing provider."""
+class NonAsciiStrError(RuntimeError):
+    """Thrown when non-ASCII string was unexpectedly provided"""
 
-    def __init__(self, service_name: str, client_suffix: str, kafka_servers: list[str]):
+    pass  # pylint: disable=unnecessary-pass
+
+
+class KafkaEventPublisher(EventPublisherProtocol):
+    """Apache Kafka specific event publishing provider."""
+
+    def __init__(
+        self,
+        *,
+        service_name: str,
+        client_suffix: str,
+        kafka_servers: list[str],
+        kafka_producer_class=KafkaProducer,
+    ):
         """Initialize the provider with some config params.
 
         Args:
             service_name (str):
                 The name of the (micro-)service from which messages are published.
             client_suffix (str):
-                String that uniquely this instance across all instances of this service.
-                Will create a globally unique Kafka client IDidentifier by concatenating
-                the service_name and the client_suffix.
+                String that uniquely identifies this instance across all instances of this
+                service. Will create a globally unique Kafka client ID by concatenating
             kafka_servers (list[str]):
                 List of connection strings pointing to the kafka brokers.
+            kafka_producer_class:
+                Overwrite the used Kafka Producer class. Only intented for unit testing.
         """
 
         client_id = f"{service_name}.{client_suffix}"
 
-        self._producer = KafkaProducer(
+        self._producer = kafka_producer_class(
             bootstrap_servers=kafka_servers,
             client_id=client_id,
             key_serializer=lambda event_key: event_key.encode("ascii"),
@@ -59,14 +73,18 @@ class KafkaEventPublisher(EventPublisherProto):
     def publish(
         self, *, event_payload: JSON, event_type: str, event_key: str, topic: str
     ) -> None:
-        """Publish an event.
+        """Publish an event to an Apache Kafka event broker.
 
         Args:
-            event_payload (JSON): The data/payload to send with the event.
-            event_type (str): The type of the event.
-            event_key (str): Ensures that events with the same key are delivered in order
-            topic (str): Name of the topic to publish the event to.
+            event_payload (JSON): The payload to ship with the event.
+            event_type (str): The event type. ASCII characters only.
+            event_key (str): The event type. ASCII characters only.
+            topic (str): The event type. ASCII characters only.
         """
+        if not (event_type.isascii() and event_key.isascii() and topic.isascii()):
+            raise NonAsciiStrError(
+                "event_type, event_key, and topic_name should be ascii only."
+            )
 
         event_headers = [("type", event_type.encode("ascii"))]
         self._producer.send(

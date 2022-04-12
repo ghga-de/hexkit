@@ -14,7 +14,7 @@
 # limitations under the License.
 #
 
-"""Outbound Port(s) for communicating results."""
+"""Outbound port for communicating results."""
 
 from typing import Protocol
 

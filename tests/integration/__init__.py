@@ -14,4 +14,4 @@
 # limitations under the License.
 #
 
-"""All inbound and outbound ports of the application."""
+"""Sub-package containing intigration tests."""
