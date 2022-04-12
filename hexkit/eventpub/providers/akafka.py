@@ -83,7 +83,7 @@ class KafkaEventPublisher(EventPublisherProtocol):
         """
         if not (event_type.isascii() and event_key.isascii() and topic.isascii()):
             raise NonAsciiStrError(
-                "event_type, event_key, and topic_name should be ascii only."
+                "event_type, event_key, and topic should be ascii only."
             )
 
         event_headers = [("type", event_type.encode("ascii"))]

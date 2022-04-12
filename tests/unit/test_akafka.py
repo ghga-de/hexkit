@@ -25,7 +25,7 @@ from hexkit.eventpub.providers.akafka import KafkaEventPublisher, NonAsciiStrErr
 
 
 @pytest.mark.parametrize(
-    "event_type, event_key, topic_name, expected_headers, exception",
+    "event_type, event_key, topic, expected_headers, exception",
     [
         ("test_type", "test_key", "test_topic", [("type", b"test_type")], None),
         (
@@ -52,7 +52,7 @@ from hexkit.eventpub.providers.akafka import KafkaEventPublisher, NonAsciiStrErr
     ],
 )
 def test_kafka_event_publisher(
-    event_type, event_key, topic_name, expected_headers, exception
+    event_type, event_key, topic, expected_headers, exception
 ):
     """Test the KafkaEventPublisher with mocked KafkaEventPublisher."""
     event_payload = {"test_content": "Hello World"}
@@ -80,14 +80,14 @@ def test_kafka_event_publisher(
             event_payload=event_payload,
             event_type=event_type,
             event_key=event_key,
-            topic_name=topic_name,
+            topic=topic,
         )
 
     if not exception:
         # check if producer was correctly used:
         producer = producer_class.return_value
         producer.send.assert_called_once_with(
-            topic_name,
+            topic,
             value=event_payload,
             key=event_key,
             headers=expected_headers,
