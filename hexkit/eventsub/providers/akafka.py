@@ -26,7 +26,7 @@ from kafka import KafkaConsumer
 
 from hexkit.base import InboundProviderBase
 from hexkit.custom_types import JSON
-from hexkit.eventsub.protocol import EventSubscriberProto
+from hexkit.eventsub.protocol import EventSubscriberProtocol
 
 
 class KafkaEventSubscriber(InboundProviderBase):
@@ -37,7 +37,8 @@ class KafkaEventSubscriber(InboundProviderBase):
         service_name: str,
         client_suffix: str,
         kafka_servers: list[str],
-        translator: EventSubscriberProto,
+        translator: EventSubscriberProtocol,
+        kafka_consumer_cls=KafkaConsumer,
     ):
         """Initialize the provider with some config params.
 
@@ -54,13 +55,15 @@ class KafkaEventSubscriber(InboundProviderBase):
                 The translator that translates between the protocol (mentioned in the
                 type annotation) and an application-specific port
                 (according to the triple hexagonal architecture).
+            kafka_consumer_cls:
+                Overwrite the used Kafka Producer class. Only intented for unit testing.
         """
 
         client_id = f"{service_name}.{client_suffix}"
         topics = translator.topics
         self._types_whitelist = translator.event_types
 
-        self._consumer = KafkaConsumer(
+        self._consumer = kafka_consumer_cls(
             *topics,
             bootstrap_servers=kafka_servers,
             client_id=client_id,

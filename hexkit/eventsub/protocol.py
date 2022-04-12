@@ -21,7 +21,7 @@ from typing import Protocol
 from hexkit.custom_types import JSON
 
 
-class EventSubscriberProto(Protocol):
+class EventSubscriberProtocol(Protocol):
     """
     A protocol for consuming events to an event broker.
 

@@ -43,7 +43,7 @@ class KafkaEventPublisher(EventPublisherProtocol):
         service_name: str,
         client_suffix: str,
         kafka_servers: list[str],
-        kafka_producer_class=KafkaProducer,
+        kafka_producer_cls=KafkaProducer,
     ):
         """Initialize the provider with some config params.
 
@@ -55,13 +55,13 @@ class KafkaEventPublisher(EventPublisherProtocol):
                 service. Will create a globally unique Kafka client ID by concatenating
             kafka_servers (list[str]):
                 List of connection strings pointing to the kafka brokers.
-            kafka_producer_class:
+            kafka_producer_cls:
                 Overwrite the used Kafka Producer class. Only intented for unit testing.
         """
 
         client_id = f"{service_name}.{client_suffix}"
 
-        self._producer = kafka_producer_class(
+        self._producer = kafka_producer_cls(
             bootstrap_servers=kafka_servers,
             client_id=client_id,
             key_serializer=lambda event_key: event_key.encode("ascii"),

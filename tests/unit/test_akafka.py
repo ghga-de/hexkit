@@ -65,7 +65,7 @@ def test_kafka_event_publisher(
         service_name="test_publisher",
         client_suffix="1",
         kafka_servers=["my-fake-kafka-server"],
-        kafka_producer_class=producer_class,
+        kafka_producer_cls=producer_class,
     )
 
     # check if producer class was called correctly:
