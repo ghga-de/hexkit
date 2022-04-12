@@ -19,7 +19,7 @@
 from typing import Protocol
 
 
-class TaskReceiverPort(Protocol):
+class ArithProblemReceiverPort(Protocol):
     """
     Port that excepts calculation tasks.
     More operations like addition or subtraction could be added in a similar way.

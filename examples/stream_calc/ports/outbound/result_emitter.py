@@ -19,7 +19,7 @@
 from typing import Protocol
 
 
-class ResultEmitterPort(Protocol):
+class CalcResultEmitterPort(Protocol):
     """Emits results of a calculation."""
 
     def emit_result(self, *, task_id: str, result: float) -> None:

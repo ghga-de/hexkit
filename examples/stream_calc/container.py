@@ -22,7 +22,7 @@ from dependency_injector import containers, providers
 from stream_calc.core.calc import StreamCalculator
 from stream_calc.tanslators.outbound.eventpub import EventResultEmitter
 
-from examples.stream_calc.ports.inbound.task_receiver import TaskReceiverPort
+from examples.stream_calc.ports.inbound.task_receiver import ArithProblemReceiverPort
 from hexkit.eventpub.protocol import EventPublisherProtocol
 from hexkit.eventpub.providers.akafka import KafkaEventPublisher
 
@@ -46,6 +46,6 @@ class Container(containers.DeclarativeContainer):
     )
 
     # outbound ports:
-    stream_calculator = providers.Factory[TaskReceiverPort](
+    stream_calculator = providers.Factory[ArithProblemReceiverPort](
         StreamCalculator, result_emitter=result_emitter
     )

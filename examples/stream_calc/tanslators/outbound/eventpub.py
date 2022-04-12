@@ -17,12 +17,12 @@
 """Translators that target the event publishing protocol."""
 
 # pylint: disable=wrong-import-order
-from stream_calc.ports.outbound.result_emitter import ResultEmitterPort
+from stream_calc.ports.outbound.result_emitter import CalcResultEmitterPort
 
 from hexkit.eventpub.protocol import EventPublisherProtocol
 
 
-class EventResultEmitter(ResultEmitterPort):
+class EventResultEmitter(CalcResultEmitterPort):
     """Abstract translator translating between the ResultEmitterPort and the
     EventPubProtocol."""
 
