@@ -64,30 +64,24 @@ class KafkaEventPublisher(EventPublisherProtocol):
         self._producer = kafka_producer_class(
             bootstrap_servers=kafka_servers,
             client_id=self.client_id,
-            key_serializer=lambda event_key: event_key.encode("ascii"),
+            key_serializer=lambda key_: key_.encode("ascii"),
             value_serializer=lambda event_value: json.dumps(event_value).encode(
                 "ascii"
             ),
         )
 
-    def publish(
-        self, *, event_payload: JSON, event_type: str, event_key: str, topic_name: str
-    ) -> None:
+    def publish(self, *, payload: JSON, type_: str, key_: str, topic: str) -> None:
         """Publish an event to an Apache Kafka event broker.
 
         Args:
-            event_payload (JSON): The payload to ship with the event.
-            event_type (str): The event type. ASCII characters only.
-            event_key (str): The event type. ASCII characters only.
-            topic_name (str): The event type. ASCII characters only.
+            payload (JSON): The payload to ship with the event.
+            type_ (str): The event type. ASCII characters only.
+            key_ (str): The event type. ASCII characters only.
+            topic (str): The event type. ASCII characters only.
         """
-        if not (event_type.isascii() and event_key.isascii() and topic_name.isascii()):
-            raise NonAsciiStrError(
-                "event_type, event_key, and topic_name should be ascii only."
-            )
+        if not (type_.isascii() and key_.isascii() and topic.isascii()):
+            raise NonAsciiStrError("type_, key_, and topic should be ascii only.")
 
-        event_headers = [("type", event_type.encode("ascii"))]
-        self._producer.send(
-            topic_name, key=event_key, value=event_payload, headers=event_headers
-        )
+        event_headers = [("type", type_.encode("ascii"))]
+        self._producer.send(topic, key=key_, value=payload, headers=event_headers)
         self._producer.flush()

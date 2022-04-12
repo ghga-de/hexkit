@@ -27,10 +27,10 @@ from hexkit.utils import exec_with_timeout
 
 def test_kafka_event_publisher():
     """Test the KafkaEventPublisher."""
-    event_payload = {"test_content": "Hello World"}
-    event_type = "test_event"
-    event_key = "test_key"
-    topic_name = "test_topic"
+    payload = {"test_content": "Hello World"}
+    type_ = "test_event"
+    key_ = "test_key"
+    topic = "test_topic"
 
     with KafkaContainer() as kafka:
 
@@ -42,15 +42,15 @@ def test_kafka_event_publisher():
         )
 
         event_publisher.publish(
-            event_payload=event_payload,
-            event_type=event_type,
-            event_key=event_key,
-            topic_name=topic_name,
+            payload=payload,
+            type_=type_,
+            key_=key_,
+            topic=topic,
         )
 
         # consume event using the python-kafka library directly:
         consumer = KafkaConsumer(
-            topic_name,
+            topic,
             client_id="test_consumer",
             group_id="test_consumer_group",
             bootstrap_servers=[kafka.get_bootstrap_server()],
@@ -62,10 +62,10 @@ def test_kafka_event_publisher():
         received_event = exec_with_timeout(lambda: next(consumer), timeout_after=2)
 
         # check if received event matches the expectations:
-        assert event_payload == received_event.value
+        assert payload == received_event.value
         assert received_event.headers[0][0] == "type"
         received_header_dict = {
             header[0]: header[1].decode("ascii") for header in received_event.headers
         }
-        assert event_type == received_header_dict["type"]
-        assert event_key == received_event.key
+        assert type_ == received_header_dict["type"]
+        assert key_ == received_event.key

@@ -33,23 +33,23 @@ class EventResultEmitter(CalcResultEmitterPort):
     def emit_result(self, *, task_id: str, result: float) -> None:
         """Emits the result of the calc task with the given ID."""
 
-        event_payload = {"task_id": task_id, "result": result}
+        payload = {"task_id": task_id, "result": result}
 
         self._event_publisher.publish(
-            event_payload=event_payload,
-            event_type="calc_success",
-            event_key=task_id,
-            topic_name="calc_output",
+            payload=payload,
+            type_="calc_success",
+            key_=task_id,
+            topic="calc_output",
         )
 
     def emit_failure(self, *, task_id: str, reason: str) -> None:
         """Emits message that the calc task with the given ID could not be solved."""
 
-        event_payload = {"task_id": task_id, "reason": reason}
+        payload = {"task_id": task_id, "reason": reason}
 
         self._event_publisher.publish(
-            event_payload=event_payload,
-            event_type="calc_failure",
-            event_key=task_id,
-            topic_name="calc_output",
+            payload=payload,
+            type_="calc_failure",
+            key_=task_id,
+            topic="calc_output",
         )

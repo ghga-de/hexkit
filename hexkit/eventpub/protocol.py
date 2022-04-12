@@ -24,15 +24,13 @@ from hexkit.custom_types import JSON
 class EventPublisherProtocol(Protocol):
     """A protocol for publishing events to an event broker."""
 
-    def publish(
-        self, *, event_payload: JSON, event_type: str, event_key: str, topic_name: str
-    ) -> None:
+    def publish(self, *, payload: JSON, type_: str, key_: str, topic: str) -> None:
         """Publish an event.
 
         Args:
-            event_payload (JSON): The payload to ship with the event.
-            event_type (str): The event type. ASCII characters only.
-            event_key (str): The event type. ASCII characters only.
-            topic_name (str): The event type. ASCII characters only.
+            payload (JSON): The payload to ship with the event.
+            type_ (str): The event type. ASCII characters only.
+            key_ (str): The event type. ASCII characters only.
+            topic (str): The event type. ASCII characters only.
         """
         ...
