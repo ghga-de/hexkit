@@ -21,7 +21,7 @@ from unittest.mock import Mock
 import pytest
 from black import nullcontext
 
-from hexkit.eventpub.providers.akafka import KafkaEventPublisher, NonAsciiStrError
+from hexkit.providers.akafka import KafkaEventPublisher, NonAsciiStrError
 
 
 @pytest.mark.parametrize(

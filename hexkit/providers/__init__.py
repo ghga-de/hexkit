@@ -14,4 +14,4 @@
 # limitations under the License.
 #
 
-"""Providers for Event Publishing."""
+"""Sub-package containing providers."""

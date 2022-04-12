@@ -21,7 +21,7 @@ import json
 from kafka import KafkaConsumer
 from testcontainers.kafka import KafkaContainer
 
-from hexkit.eventpub.providers.akafka import KafkaEventPublisher
+from hexkit.providers.akafka import KafkaEventPublisher
 from hexkit.utils import exec_with_timeout
 
 

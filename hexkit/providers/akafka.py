@@ -25,7 +25,7 @@ import json
 from kafka import KafkaProducer
 
 from hexkit.custom_types import JsonObject
-from hexkit.eventpub.protocol import EventPublisherProtocol
+from hexkit.protocols.eventpub import EventPublisherProtocol
 
 
 class NonAsciiStrError(RuntimeError):

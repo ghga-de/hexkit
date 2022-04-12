@@ -23,8 +23,8 @@ from stream_calc.core.calc import StreamCalculator
 
 from examples.stream_calc.ports.task_receiver import ArithProblemReceiverPort
 from examples.stream_calc.tanslators.eventpub import EventResultEmitter
-from hexkit.eventpub.protocol import EventPublisherProtocol
-from hexkit.eventpub.providers.akafka import KafkaEventPublisher
+from hexkit.protocols.eventpub import EventPublisherProtocol
+from hexkit.providers.akafka import KafkaEventPublisher
 
 
 class Container(containers.DeclarativeContainer):

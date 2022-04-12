@@ -18,7 +18,7 @@
 
 from examples.stream_calc.ports.result_emitter import CalcResultEmitterPort
 from hexkit.custom_types import JsonObject
-from hexkit.eventpub.protocol import EventPublisherProtocol
+from hexkit.protocols.eventpub import EventPublisherProtocol
 
 
 class EventResultEmitter(CalcResultEmitterPort):
