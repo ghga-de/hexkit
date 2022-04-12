@@ -25,10 +25,16 @@ import json
 from kafka import KafkaProducer
 
 from hexkit.custom_types import JSON
-from hexkit.eventpub.protocol import EventPublisherProto
+from hexkit.eventpub.protocol import EventPublisherProtocol
 
 
-class KafkaEventPublisher(EventPublisherProto):
+class NonAsciiStrError(RuntimeError):
+    """Thrown when non-ASCII string was unexpectedly provided"""
+
+    pass  # pylint: disable=unnecessary-pass
+
+
+class KafkaEventPublisher(EventPublisherProtocol):
     """Apache Kafka specific event publishing provider."""
 
     def __init__(
@@ -76,7 +82,7 @@ class KafkaEventPublisher(EventPublisherProto):
             topic_name (str): The event type. ASCII characters only.
         """
         if not (event_type.isascii() and event_key.isascii() and topic_name.isascii()):
-            raise RuntimeError(
+            raise NonAsciiStrError(
                 "event_type, event_key, and topic_name should be ascii only."
             )
 

@@ -19,14 +19,14 @@
 # pylint: disable=wrong-import-order
 from stream_calc.ports.outbound.result_emitter import ResultEmitterPort
 
-from hexkit.eventpub.protocol import EventPublisherProto
+from hexkit.eventpub.protocol import EventPublisherProtocol
 
 
 class EventResultEmitter(ResultEmitterPort):
     """Abstract translator translating between the ResultEmitterPort and the
     EventPubProtocol."""
 
-    def __init__(self, event_publisher: EventPublisherProto) -> None:
+    def __init__(self, event_publisher: EventPublisherProtocol) -> None:
         """Configure with provider for the the EventPublisherProto"""
 
         self._event_publisher = event_publisher
