@@ -20,9 +20,9 @@ from dependency_injector import containers, providers
 
 # pylint: disable=wrong-import-order
 from stream_calc.core.calc import StreamCalculator
-from stream_calc.tanslators.outbound.eventpub import EventResultEmitter
 
-from examples.stream_calc.ports.inbound.task_receiver import ArithProblemReceiverPort
+from examples.stream_calc.ports.task_receiver import ArithProblemReceiverPort
+from examples.stream_calc.tanslators.eventpub import EventResultEmitter
 from hexkit.eventpub.protocol import EventPublisherProtocol
 from hexkit.eventpub.providers.akafka import KafkaEventPublisher
 

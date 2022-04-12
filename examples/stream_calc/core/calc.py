@@ -16,9 +16,8 @@
 
 """The application logic of the calculator."""
 
-from stream_calc.ports.outbound.result_emitter import CalcResultEmitterPort
-
-from examples.stream_calc.ports.inbound.task_receiver import ArithProblemReceiverPort
+from examples.stream_calc.ports.result_emitter import CalcResultEmitterPort
+from examples.stream_calc.ports.task_receiver import ArithProblemReceiverPort
 
 
 class StreamCalculator(ArithProblemReceiverPort):
