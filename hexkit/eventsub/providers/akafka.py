@@ -80,7 +80,7 @@ class KafkaEventSubscriber(InboundProviderBase):
     def run(self) -> None:
         """Start consuming events and passing them down to the translator.
         This method blocks forever."""
-        
+
         process_event = process_func_factory(
             self.exec_funcs, event_schemas=self.event_schemas
         )
