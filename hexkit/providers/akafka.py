@@ -55,7 +55,7 @@ class KafkaEventPublisher(EventPublisherProtocol):
                 service. Will create a globally unique Kafka client ID by concatenating
                 it to the service name, separated by a dot.
             kafka_servers (list[str]):
-                List of connection strings pointing to the kafka brokers.
+                List of connection strings pointing to at least one Kafka bootstrap server.
             kafka_producer_class:
                 Overwrite the used Kafka Producer class. Only intented for unit testing.
         """
