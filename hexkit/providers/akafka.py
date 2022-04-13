@@ -64,26 +64,24 @@ class KafkaEventPublisher(EventPublisherProtocol):
         self._producer = kafka_producer_class(
             bootstrap_servers=kafka_servers,
             client_id=self.client_id,
-            key_serializer=lambda key_: key_.encode("ascii"),
+            key_serializer=lambda key: key.encode("ascii"),
             value_serializer=lambda event_value: json.dumps(event_value).encode(
                 "ascii"
             ),
         )
 
-    def publish(
-        self, *, payload: JsonObject, type_: str, key_: str, topic: str
-    ) -> None:
+    def publish(self, *, payload: JsonObject, type_: str, key: str, topic: str) -> None:
         """Publish an event to an Apache Kafka event broker.
 
         Args:
             payload (JSON): The payload to ship with the event.
             type_ (str): The event type. ASCII characters only.
-            key_ (str): The event type. ASCII characters only.
+            key (str): The event type. ASCII characters only.
             topic (str): The event type. ASCII characters only.
         """
-        if not (type_.isascii() and key_.isascii() and topic.isascii()):
-            raise NonAsciiStrError("type_, key_, and topic should be ascii only.")
+        if not (type_.isascii() and key.isascii() and topic.isascii()):
+            raise NonAsciiStrError("type_, key, and topic should be ascii only.")
 
         event_headers = [("type", type_.encode("ascii"))]
-        self._producer.send(topic, key=key_, value=payload, headers=event_headers)
+        self._producer.send(topic, key=key, value=payload, headers=event_headers)
         self._producer.flush()

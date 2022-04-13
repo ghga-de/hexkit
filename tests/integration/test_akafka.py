@@ -29,7 +29,7 @@ def test_kafka_event_publisher():
     """Test the KafkaEventPublisher."""
     payload = {"test_content": "Hello World"}
     type_ = "test_event"
-    key_ = "test_key"
+    key = "test_key"
     topic = "test_topic"
 
     with KafkaContainer() as kafka:
@@ -44,7 +44,7 @@ def test_kafka_event_publisher():
         event_publisher.publish(
             payload=payload,
             type_=type_,
-            key_=key_,
+            key=key,
             topic=topic,
         )
 
@@ -68,4 +68,4 @@ def test_kafka_event_publisher():
             header[0]: header[1].decode("ascii") for header in received_event.headers
         }
         assert type_ == received_header_dict["type"]
-        assert key_ == received_event.key
+        assert key == received_event.key
