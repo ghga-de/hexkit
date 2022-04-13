@@ -16,19 +16,18 @@
 
 """The application logic of the calculator."""
 
-from stream_calc.ports.outbound.result_emitter import ResultEmitterPort
+from examples.stream_calc.ports.result_emitter import CalcResultEmitterPort
+from examples.stream_calc.ports.task_receiver import ArithProblemReceiverPort
 
-from examples.stream_calc.ports.inbound.task_receiver import TaskReceiverPort
 
-
-class StreamCalculator(TaskReceiverPort):
+class StreamCalculator(ArithProblemReceiverPort):
     """
     Perform calculations and stream results.
 
     More operations like addition or subtraction could be added in a similar way.
     """
 
-    def __init__(self, result_emitter: ResultEmitterPort):
+    def __init__(self, result_emitter: CalcResultEmitterPort):
         """Configure relevant ports."""
 
         self._result_emitter = result_emitter

@@ -14,4 +14,4 @@
 # limitations under the License.
 #
 
-"""Protocol and accociated providers for event publishing."""
+"""Sub-package containing protocols."""

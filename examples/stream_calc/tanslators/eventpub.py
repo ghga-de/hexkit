@@ -16,13 +16,12 @@
 
 """Translators that target the event publishing protocol."""
 
-# pylint: disable=wrong-import-order
-from stream_calc.ports.outbound.result_emitter import ResultEmitterPort
+from examples.stream_calc.ports.result_emitter import CalcResultEmitterPort
+from hexkit.custom_types import JsonObject
+from hexkit.protocols.eventpub import EventPublisherProtocol
 
-from hexkit.eventpub.protocol import EventPublisherProtocol
 
-
-class EventResultEmitter(ResultEmitterPort):
+class EventResultEmitter(CalcResultEmitterPort):
     """Abstract translator translating between the ResultEmitterPort and the
     EventPubProtocol."""
 
@@ -34,23 +33,23 @@ class EventResultEmitter(ResultEmitterPort):
     def emit_result(self, *, task_id: str, result: float) -> None:
         """Emits the result of the calc task with the given ID."""
 
-        event_payload = {"task_id": task_id, "result": result}
+        payload: JsonObject = {"task_id": task_id, "result": result}
 
         self._event_publisher.publish(
-            event_payload=event_payload,
-            event_type="calc_success",
-            event_key=task_id,
+            payload=payload,
+            type_="calc_success",
+            key_=task_id,
             topic="calc_output",
         )
 
     def emit_failure(self, *, task_id: str, reason: str) -> None:
         """Emits message that the calc task with the given ID could not be solved."""
 
-        event_payload = {"task_id": task_id, "reason": reason}
+        payload: JsonObject = {"task_id": task_id, "reason": reason}
 
         self._event_publisher.publish(
-            event_payload=event_payload,
-            event_type="calc_failure",
-            event_key=task_id,
+            payload=payload,
+            type_="calc_failure",
+            key_=task_id,
             topic="calc_output",
         )
