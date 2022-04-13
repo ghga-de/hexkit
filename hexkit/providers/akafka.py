@@ -53,6 +53,7 @@ class KafkaEventPublisher(EventPublisherProtocol):
             client_suffix (str):
                 String that uniquely identifies this instance across all instances of this
                 service. Will create a globally unique Kafka client ID by concatenating
+                it to the service name, separated by a dot.
             kafka_servers (list[str]):
                 List of connection strings pointing to the kafka brokers.
             kafka_producer_class:
