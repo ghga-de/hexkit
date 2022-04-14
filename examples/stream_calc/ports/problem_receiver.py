@@ -25,10 +25,10 @@ class ArithProblemReceiverPort(Protocol):
     More operations like addition or subtraction could be added in a similar way.
     """
 
-    def multiply(self, task_id: str, multiplier: float, multiplicand: float):
+    def multiply(self, problem_id: str, multiplier: float, multiplicand: float):
         """Multiply the multiplicand with the multiplier."""
         ...
 
-    def devide(self, task_id: str, dividend: float, divisor: float):
+    def devide(self, problem_id: str, dividend: float, divisor: float):
         """Divide the dividend by the divisor."""
         ...

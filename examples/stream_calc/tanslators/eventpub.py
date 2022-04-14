@@ -22,7 +22,7 @@ from hexkit.protocols.eventpub import EventPublisherProtocol
 
 
 class EventResultEmitter(CalcResultEmitterPort):
-    """Abstract translator translating between the ResultEmitterPort and the
+    """Outbound abstract translator translating between the ResultEmitterPort and the
     EventPubProtocol."""
 
     def __init__(self, event_publisher: EventPublisherProtocol) -> None:
@@ -30,26 +30,26 @@ class EventResultEmitter(CalcResultEmitterPort):
 
         self._event_publisher = event_publisher
 
-    def emit_result(self, *, task_id: str, result: float) -> None:
+    def emit_result(self, *, problem_id: str, result: float) -> None:
         """Emits the result of the calc task with the given ID."""
 
-        payload: JsonObject = {"task_id": task_id, "result": result}
+        payload: JsonObject = {"problem_id": problem_id, "result": result}
 
         self._event_publisher.publish(
             payload=payload,
             type_="calc_success",
-            key=task_id,
+            key=problem_id,
             topic="calc_output",
         )
 
-    def emit_failure(self, *, task_id: str, reason: str) -> None:
+    def emit_failure(self, *, problem_id: str, reason: str) -> None:
         """Emits message that the calc task with the given ID could not be solved."""
 
-        payload: JsonObject = {"task_id": task_id, "reason": reason}
+        payload: JsonObject = {"problem_id": problem_id, "reason": reason}
 
         self._event_publisher.publish(
             payload=payload,
             type_="calc_failure",
-            key=task_id,
+            key=problem_id,
             topic="calc_output",
         )

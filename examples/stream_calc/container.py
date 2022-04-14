@@ -21,10 +21,12 @@ from dependency_injector import containers, providers
 # pylint: disable=wrong-import-order
 from stream_calc.core.calc import StreamCalculator
 
-from examples.stream_calc.ports.task_receiver import ArithProblemReceiverPort
+from examples.stream_calc.ports.problem_receiver import ArithProblemReceiverPort
 from examples.stream_calc.tanslators.eventpub import EventResultEmitter
+from examples.stream_calc.tanslators.eventsub import EventProblemReceiver
 from hexkit.protocols.eventpub import EventPublisherProtocol
-from hexkit.providers.akafka import KafkaEventPublisher
+from hexkit.protocols.eventsub import EventSubscriberProtocol
+from hexkit.providers.akafka import KafkaEventPublisher, KafkaEventSubscriber
 
 
 class Container(containers.DeclarativeContainer):
@@ -41,11 +43,16 @@ class Container(containers.DeclarativeContainer):
     )
 
     # outbound translators:
-    result_emitter = providers.Factory[EventResultEmitter](
+    event_result_emitter = providers.Factory[EventResultEmitter](
         EventResultEmitter, event_publisher=event_publisher
     )
 
     # outbound ports:
-    stream_calculator = providers.Factory[ArithProblemReceiverPort](
-        StreamCalculator, result_emitter=result_emitter
+    problem_receiver = providers.Factory[ArithProblemReceiverPort](
+        StreamCalculator, result_emitter=event_result_emitter
+    )
+
+    # outbound translators:
+    event_problem_receiver = providers.Factory[EventSubscriberProtocol](
+        EventProblemReceiver, problem_receiver=problem_receiver
     )

@@ -14,9 +14,18 @@
 # limitations under the License.
 #
 
-"""Main entry point of the package."""
+"""Implement global logic for running the application."""
 
-from stream_calc.main import run
+from stream_calc.config import Config
+from stream_calc.container import Container
 
-if __name__ == "__main__":
-    run()
+
+def run() -> None:
+    """Run the stream calculator"""
+    config = Config()
+    container = Container()
+    container.config.from_pydantic(config)
+    container.init_resources()
+
+    event_problem_receiver = container.event_problem_receiver()
+    event_problem_receiver.run()

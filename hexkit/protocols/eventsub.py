@@ -35,6 +35,14 @@ class EventSubscriberProtocol(Protocol):
                 down to the protocol. Events of other types shall be filtered out.
     """
 
+    class MalformedPayloadError(RuntimeError):
+        """
+        Raised it the payload of an received event was not formatted as expected given
+        the type.
+        """
+
+        pass
+
     topics_of_interest: list[str]
     types_of_interest: list[str]
 
