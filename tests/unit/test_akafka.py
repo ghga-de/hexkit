@@ -100,19 +100,35 @@ def test_kafka_event_publisher(type_, key, topic, expected_headers, exception):
 
 
 @pytest.mark.parametrize(
-    "type_, headers, is_translator_called, exception",
+    "type_, headers, is_translator_called, processing_failure, exception",
     [
         (
             "test_type",
             [("type", b"test_type")],
             True,
+            False,
             None,
         ),
         (
             "uninteresting_type",
             [("type", b"uninteresting_type")],
             False,
+            False,
             None,
+        ),
+        (
+            "test_type",
+            [],  # type header missing => event should be ignored
+            False,
+            False,
+            None,
+        ),
+        (
+            "test_type",
+            [("type", b"test_type")],
+            True,
+            True,  # Simulate processing failure
+            RuntimeError,
         ),
     ],
 )
@@ -120,6 +136,7 @@ def test_kafka_event_subscriber(
     type_: str,
     headers: list[tuple[str, bytes]],
     is_translator_called: bool,
+    processing_failure: bool,
     exception: Type[Exception],
 ):
     """Test the KafkaEventSubscriber with mocked KafkaEventSubscriber."""
@@ -140,6 +157,8 @@ def test_kafka_event_subscriber(
 
     # create protocol-compatiple translator mock:
     translator = Mock()
+    if processing_failure:
+        translator.consume.side_effect = exception()
     translator.topics_of_interest = [topic]
     translator.types_of_interest = types_of_interest
 
@@ -153,7 +172,8 @@ def test_kafka_event_subscriber(
     )
 
     # consume one event:
-    event_publisher.run(forever=False)
+    with (pytest.raises(exception) if exception else nullcontext()):
+        event_publisher.run(forever=False)
 
     # check if the translator was called correctly:
     if is_translator_called:
