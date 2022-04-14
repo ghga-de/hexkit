@@ -1,0 +1,4 @@
+some_number: 2
+some_string: "Hello World"
+some_boolean: true
+another_string_with_default: "overwritten"

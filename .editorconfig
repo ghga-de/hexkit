@@ -1,0 +1,14 @@
+# Top-most EditorConfig file.
+root = true
+
+# For all files ...
+[*]
+
+# Unix-style LF newlines.
+end_of_line = lf
+
+# Force a newline at the end of the file.
+insert_final_newline = true
+
+# Use UTF-8.
+charset = utf-8
