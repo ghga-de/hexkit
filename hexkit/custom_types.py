@@ -21,3 +21,8 @@ from typing import Any, Union
 # This is intended to type objects that could be a potential output of `json.loads`.
 # (Scalar types as well as arrays are excluded from the above assumption.)
 JsonObject = dict[str, Union[int, float, str, bool, list[Any], dict[str, Any]]]
+
+
+# A type indicating that a string should be ascii-compatible.
+# Techinically it is an alias for `str` so it only serves documention purposes.
+Ascii = str

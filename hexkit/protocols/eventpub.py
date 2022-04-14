@@ -16,15 +16,18 @@
 
 """Protocol related to event publishing."""
 
-from typing import Protocol
+from abc import ABC, abstractmethod
 
-from hexkit.custom_types import JsonObject
+from hexkit.custom_types import Ascii, JsonObject
 
 
-class EventPublisherProtocol(Protocol):
+class EventPublisherProtocol(ABC):
     """A protocol for publishing events to an event broker."""
 
-    def publish(self, *, payload: JsonObject, type_: str, key: str, topic: str) -> None:
+    @abstractmethod
+    def publish(
+        self, *, payload: JsonObject, type_: Ascii, key: Ascii, topic: Ascii
+    ) -> None:
         """Publish an event.
 
         Args:

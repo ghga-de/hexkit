@@ -16,12 +16,12 @@
 
 """Protocol related to event subscription."""
 
-from typing import Protocol
+from abc import ABC, abstractmethod
 
 from hexkit.custom_types import JsonObject
 
 
-class EventSubscriberProtocol(Protocol):
+class EventSubscriberProtocol(ABC):
     """
     A protocol for consuming events to an event broker.
 
@@ -44,6 +44,7 @@ class EventSubscriberProtocol(Protocol):
     topics_of_interest: list[str]
     types_of_interest: list[str]
 
+    @abstractmethod
     def consume(self, *, payload: JsonObject, type_: str, topic: str) -> None:
         """Receive an event of interest and process it according to its type.
 

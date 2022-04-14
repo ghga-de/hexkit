@@ -49,6 +49,20 @@ def generate_client_id(service_name: str, client_suffix: str) -> str:
     return f"{service_name}.{client_suffix}"
 
 
+class EventTypeNotFoundError(RuntimeError):
+    """Thrown when no `type` was set in the headers of an event."""
+
+    pass
+
+
+def generate_client_id(service_name: str, client_suffix: str) -> str:
+    """
+    Generate client id (from the perspective of the Kafka broker) by concatenating
+    the service name and the client suffix.
+    """
+    return f"{service_name}.{client_suffix}"
+
+
 class KafkaEventPublisher(EventPublisherProtocol):
     """Apache Kafka specific event publishing provider."""
 
