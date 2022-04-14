@@ -31,6 +31,7 @@ services:
 
   kafka:
     image: confluentinc/cp-server:7.0.1
+    restart: always
     depends_on:
       - zookeeper
     # used ports: 9092

@@ -16,8 +16,10 @@
 
 """Implement global logic for running the application."""
 
+import logging
+
 from stream_calc.config import Config
-from stream_calc.container import Container
+from stream_calc.container import Container  # type: ignore
 
 
 def run() -> None:
@@ -27,5 +29,7 @@ def run() -> None:
     container.config.from_pydantic(config)
     container.init_resources()
 
-    event_problem_receiver = container.event_problem_receiver()
-    event_problem_receiver.run()
+    logging.basicConfig(level=config.log_level)
+
+    event_subscriber = container.event_subscriber()
+    event_subscriber.run()

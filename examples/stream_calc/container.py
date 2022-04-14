@@ -14,6 +14,11 @@
 # limitations under the License.
 #
 
+# When mypy is started from pre-commit, it exits with an exception when analysing this
+# file without useful error message, thus ignoring.
+# (Please note this does not occur when running mypy directly.)
+#  type: ignore
+
 """Module hosting the dependency injection container."""
 
 from dependency_injector import containers, providers
@@ -47,12 +52,21 @@ class Container(containers.DeclarativeContainer):
         EventResultEmitter, event_publisher=event_publisher
     )
 
-    # outbound ports:
+    # inbound ports:
     problem_receiver = providers.Factory[ArithProblemReceiverPort](
         StreamCalculator, result_emitter=event_result_emitter
     )
 
-    # outbound translators:
+    # inbound translators:
     event_problem_receiver = providers.Factory[EventSubscriberProtocol](
         EventProblemReceiver, problem_receiver=problem_receiver
+    )
+
+    # inbound providers:
+    event_subscriber = providers.Factory[KafkaEventSubscriber](
+        KafkaEventSubscriber,
+        service_name=config.service_name,
+        client_suffix=config.client_suffix,
+        kafka_servers=config.kafka_servers,
+        translator=event_problem_receiver,
     )

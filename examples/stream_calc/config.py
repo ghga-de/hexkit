@@ -16,7 +16,11 @@
 
 """Config parameters."""
 
+from typing import Literal
+
 from pydantic import BaseSettings
+
+LOGLEVEL = Literal["DEBUG", "INFO", "WARNING", "ERROR", "CRITICAL"]
 
 
 class Config(BaseSettings):
@@ -25,3 +29,4 @@ class Config(BaseSettings):
     service_name: str = "stream_calc"
     client_suffix: str = "1"
     kafka_servers: list[str] = ["kafka:9092"]
+    log_level: LOGLEVEL = "INFO"
