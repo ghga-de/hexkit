@@ -1,0 +1,46 @@
+name: Static Code Analysis
+
+on: push
+
+jobs:
+  static-code-analysis:
+    runs-on: ubuntu-latest
+    name: Static Code Analysis
+    steps:
+      - uses: actions/checkout@v1
+      - name: Retrieve main src dir
+        id: main_src_dir
+        run: |
+          echo "::set-output name=MAIN_SRC_DIR::${PWD}/$(./scripts/get_package_name.py)"
+      - name: Set up Python 3.9
+        uses: actions/setup-python@v2
+        with:
+          python-version: 3.9
+      - name: Install Dependencies
+        run: |
+          pip install ".[all]"
+      - uses: pre-commit/action@v2.0.3
+      - name: black
+        run: |
+          black --check .
+      - name: isort
+        run: |
+          isort --check --profile black .
+      - name: mypy
+        run: |
+          mypy \
+            --show-error-codes \
+            --disable-error-code import \
+            "${{ steps.main_src_dir.outputs.MAIN_SRC_DIR }}"
+      - name: pylint
+        run: |
+          pylint "${{ steps.main_src_dir.outputs.MAIN_SRC_DIR }}"
+      - name: flake8
+        run: |
+          flake8 --config .flake8
+      - name: bandit
+        run: |
+          bandit -r "${{ steps.main_src_dir.outputs.MAIN_SRC_DIR }}"
+      - name: Check license header and file
+        run: |
+          ./scripts/license_checker.py
