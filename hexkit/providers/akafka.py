@@ -24,7 +24,7 @@ Require dependencies of the `akafka` extra. See the `setup.cfg`.
 import json
 import logging
 
-from kafka import KafkaProducer, KafkaConsumer
+from kafka import KafkaConsumer, KafkaProducer
 from kafka.consumer.fetcher import ConsumerRecord
 
 from hexkit.base import InboundProviderBase
@@ -36,22 +36,13 @@ from hexkit.protocols.eventsub import EventSubscriberProtocol
 class NonAsciiStrError(RuntimeError):
     """Thrown when non-ASCII string was unexpectedly provided"""
 
-    pass  # pylint: disable=unnecessary-pass
+    pass
 
 
 class EventTypeNotFoundError(RuntimeError):
     """Thrown when no `type` was set in the headers of an event."""
 
     pass
-
-
-class EventConsumptionError(RuntimeError):
-    """Thrown when a fatal error occured during event consumption that prevents further
-    progress."""
-
-    def __init__(self, event_label):
-        """Set exception message."""
-        message = f"A fatal error occured while consuming event: {event_label}"
 
 
 def generate_client_id(service_name: str, client_suffix: str) -> str:
@@ -118,6 +109,8 @@ class KafkaEventPublisher(EventPublisherProtocol):
 class KafkaEventSubscriber(InboundProviderBase):
     """Apache Kafka-specific event subscription provider."""
 
+    # pylint: disable=too-many-arguments
+    # (because some arguments are for testing only)
     def __init__(
         self,
         service_name: str,
@@ -162,14 +155,16 @@ class KafkaEventSubscriber(InboundProviderBase):
             ),
         )
 
-    def _get_type(self, event: ConsumerRecord) -> str:
+    @staticmethod
+    def _get_type(event: ConsumerRecord) -> str:
         """Extract the event type out of an ConsumerRecord."""
         for header in event.headers:
             if header[0] == "type":
                 return header[1].decode("ascii")
         raise EventTypeNotFoundError()
 
-    def _get_event_label(self, event: ConsumerRecord) -> str:
+    @staticmethod
+    def _get_event_label(event: ConsumerRecord) -> str:
         """Get a label that identifies an event."""
         return (
             f"{event.topic} - {event.partition} - {event.offset} "

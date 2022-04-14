@@ -162,9 +162,9 @@ def test_kafka_event_subscriber(
     translator.topics_of_interest = [topic]
     translator.types_of_interest = types_of_interest
 
-    # publish event using the provider:
-    event_publisher = KafkaEventSubscriber(
-        service_name="test_publisher",
+    # setup the provider:
+    event_subscriber = KafkaEventSubscriber(
+        service_name="event_subscriber",
         client_suffix="1",
         kafka_servers=["my-fake-kafka-server"],
         translator=translator,
@@ -173,7 +173,7 @@ def test_kafka_event_subscriber(
 
     # consume one event:
     with (pytest.raises(exception) if exception else nullcontext()):
-        event_publisher.run(forever=False)
+        event_subscriber.run(forever=False)
 
     # check if the translator was called correctly:
     if is_translator_called:
