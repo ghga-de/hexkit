@@ -38,7 +38,7 @@ class EventResultEmitter(CalcResultEmitterPort):
         self._event_publisher.publish(
             payload=payload,
             type_="calc_success",
-            key_=task_id,
+            key=task_id,
             topic="calc_output",
         )
 
@@ -50,6 +50,6 @@ class EventResultEmitter(CalcResultEmitterPort):
         self._event_publisher.publish(
             payload=payload,
             type_="calc_failure",
-            key_=task_id,
+            key=task_id,
             topic="calc_output",
         )

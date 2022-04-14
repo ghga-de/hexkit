@@ -92,7 +92,7 @@ class KafkaEventPublisher(EventPublisherProtocol):
         self._producer = kafka_producer_cls(
             bootstrap_servers=kafka_servers,
             client_id=client_id,
-            key_serializer=lambda key_: key_.encode("ascii"),
+            key_serializer=lambda key: key.encode("ascii"),
             value_serializer=lambda event_value: json.dumps(event_value).encode(
                 "ascii"
             ),
@@ -108,7 +108,7 @@ class KafkaEventPublisher(EventPublisherProtocol):
             topic (str): The event type. ASCII characters only.
         """
         if not (type_.isascii() and key.isascii() and topic.isascii()):
-            raise NonAsciiStrError("type_, key_, and topic should be ascii only.")
+            raise NonAsciiStrError("type_, key, and topic should be ascii only.")
 
         event_headers = [("type", type_.encode("ascii"))]
         self._producer.send(topic, key=key, value=payload, headers=event_headers)

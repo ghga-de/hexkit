@@ -74,7 +74,8 @@ def test_kafka_event_publisher(type_, key, topic, expected_headers, exception):
     # check if producer class was called correctly:
     producer_class.assert_called_once()
     pc_kwargs = producer_class.call_args.kwargs
-    assert "client_id" in pc_kwargs and "bootstrap_servers" in pc_kwargs
+    assert pc_kwargs["client_id"] == "test_publisher.1"
+    assert pc_kwargs["bootstrap_servers"] == ["my-fake-kafka-server"]
     assert callable(pc_kwargs["key_serializer"])
     assert callable(pc_kwargs["value_serializer"])
 

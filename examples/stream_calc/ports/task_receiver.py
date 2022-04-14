@@ -30,5 +30,5 @@ class ArithProblemReceiverPort(Protocol):
         ...
 
     def devide(self, task_id: str, dividend: float, divisor: float):
-        """Dive the dividend by the divisor."""
+        """Divide the dividend by the divisor."""
         ...
