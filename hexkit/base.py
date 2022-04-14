@@ -14,23 +14,19 @@
 # limitations under the License.
 #
 
-"""Protocol related to event publishing."""
+"""Collection of base classes."""
 
-from typing import Protocol
-
-from hexkit.custom_types import JsonObject
+from abc import ABC, abstractmethod
 
 
-class EventPublisherProtocol(Protocol):
-    """A protocol for publishing events to an event broker."""
+class InboundProviderBase(ABC):
+    """Base class that should be used by inbound providers."""
 
-    def publish(self, *, payload: JsonObject, type_: str, key: str, topic: str) -> None:
-        """Publish an event.
-
-        Args:
-            payload (JSON): The payload to ship with the event.
-            type_ (str): The event type. ASCII characters only.
-            key (str): The event type. ASCII characters only.
-            topic (str): The event type. ASCII characters only.
+    @abstractmethod
+    def run(self, forever: bool = True) -> None:
+        """
+        Runs the inbound provider. Typically, it blocks forever.
+        However, you can set `forever` to `False` to make it return after handling one
+        operation.
         """
         ...
