@@ -20,6 +20,3 @@
 Eventually this will be translated into proper documentation.
 
 - Inbound providers should have a `run` method that takes zero arguments
-- If an inbound protocol contains coroutines, the responsibility for managing the async
-  event loop lies with the provider. I.e. the provider's `run` method MUST NOT be a
-  coroutine.
