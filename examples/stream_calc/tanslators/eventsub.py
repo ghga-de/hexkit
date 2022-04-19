@@ -59,7 +59,7 @@ class EventProblemReceiver(EventSubscriberProtocol):
                 multiplicand=payload["multiplicand"],
             )
 
-        elif type_ == "devision_problem":
+        elif type_ == "division_problem":
             self._check_payload(
                 payload, excepted_fields=["problem_id", "dividend", "divisor"]
             )
