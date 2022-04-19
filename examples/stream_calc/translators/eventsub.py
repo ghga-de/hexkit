@@ -41,7 +41,7 @@ class EventProblemReceiver(EventSubscriberProtocol):
                 )
 
     def consume(self, *, payload: JsonObject, type_: str, topic: str) -> None:
-        """Receives an event of interest and prepare it for downstream processing.
+        """Receive an event of interest and process it according to its type.
 
         Args:
             payload (JsonObject): The data/payload to send with the event.
