@@ -124,7 +124,5 @@ def test_error_on_invalid_base_class():
     class WrongClass:
         """Not inheriting from pydantic.BaseSettings"""
 
-        pass
-
     with pytest.raises(TypeError):
         config_from_yaml()(WrongClass)()

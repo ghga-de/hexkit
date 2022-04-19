@@ -41,8 +41,6 @@ class EventSubscriberProtocol(Protocol):
         the type.
         """
 
-        pass
-
     topics_of_interest: list[str]
     types_of_interest: list[str]
 
