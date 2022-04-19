@@ -189,7 +189,7 @@ class KafkaEventSubscriber(InboundProviderBase):
                     self._translator.consume(
                         payload=event.value, type_=type_, topic=event.topic
                     )
-                except:  # pylint: disable=bare-except
+                except Exception:
                     logging.error(
                         "A fatal error occured while processing the event: %s",
                         event_label,
