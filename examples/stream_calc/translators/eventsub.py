@@ -35,7 +35,7 @@ class EventProblemReceiver(EventSubscriberProtocol):
     def _check_payload(self, payload: JsonObject, excepted_fields: list[str]):
         """Check whether all the expected fields are present in the payload."""
         for field in excepted_fields:
-            if not field in payload:
+            if field not in payload:
                 raise self.MalformedPayloadError(
                     f"Payload did not contain the expected field '{field}'"
                 )
