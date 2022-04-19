@@ -26,7 +26,7 @@ class EventProblemReceiver(EventSubscriberProtocol):
     ArithProblemReceiverPort."""
 
     topics_of_interest = ["arithmetic_problems"]
-    types_of_interest = ["multiplication_problem", "devision_problem"]
+    types_of_interest = ["multiplication_problem", "division_problem"]
 
     def __init__(self, problem_receiver: ArithProblemReceiverPort):
         """Configure the translator with a corresponding port implementation."""
