@@ -76,8 +76,7 @@ consumer = KafkaConsumer(
 )
 
 print("\nThe results are:")
-for submitted_event in events:
-    received_event = next(consumer)
+for submitted_event, received_event in zip(events, consumer):
     assert (  # nosec
         submitted_event.value["problem_id"] == received_event.value["problem_id"]
     )
