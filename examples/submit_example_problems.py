@@ -36,7 +36,7 @@ events = [
         descr="24 * 38",
     ),
     Event(
-        headers=[("type", b"devision_problem")],
+        headers=[("type", b"division_problem")],
         key="example",
         value={"problem_id": "d001", "dividend": 24, "divisor": 38},
         descr="24 / 38",

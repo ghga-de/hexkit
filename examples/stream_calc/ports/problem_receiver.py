@@ -29,6 +29,6 @@ class ArithProblemReceiverPort(Protocol):
         """Multiply the multiplicand with the multiplier."""
         ...
 
-    def devide(self, problem_id: str, dividend: float, divisor: float):
+    def divide(self, problem_id: str, dividend: float, divisor: float):
         """Divide the dividend by the divisor."""
         ...
