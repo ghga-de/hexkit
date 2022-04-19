@@ -37,7 +37,7 @@ class EventSubscriberProtocol(Protocol):
 
     class MalformedPayloadError(RuntimeError):
         """
-        Raised it the payload of an received event was not formatted as expected given
+        Raised if the payload of a received event was not formatted as expected given
         the type.
         """
 
