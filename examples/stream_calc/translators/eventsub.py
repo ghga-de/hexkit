@@ -46,7 +46,9 @@ class EventProblemReceiver(EventSubscriberProtocol):
         Args:
             payload (JsonObject): The data/payload to send with the event.
             type_ (str): The type of the event.
-            topic (str): Name of the topic to publish the event to.
+            topic (str):
+                Name of the topic to publish the event to.
+                Not used by this implementation.
         """
 
         if type_ == "multiplication_problem":

@@ -27,8 +27,8 @@ from dependency_injector import containers, providers
 from stream_calc.core.calc import StreamCalculator
 
 from examples.stream_calc.ports.problem_receiver import ArithProblemReceiverPort
-from examples.stream_calc.tanslators.eventpub import EventResultEmitter
-from examples.stream_calc.tanslators.eventsub import EventProblemReceiver
+from examples.stream_calc.translators.eventpub import EventResultEmitter
+from examples.stream_calc.translators.eventsub import EventProblemReceiver
 from hexkit.protocols.eventpub import EventPublisherProtocol
 from hexkit.protocols.eventsub import EventSubscriberProtocol
 from hexkit.providers.akafka import KafkaEventPublisher, KafkaEventSubscriber
