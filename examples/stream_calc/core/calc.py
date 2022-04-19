@@ -38,8 +38,8 @@ class StreamCalculator(ArithProblemReceiverPort):
         result = multiplier * multiplicand
         self._result_emitter.emit_result(problem_id=problem_id, result=result)
 
-    def devide(self, problem_id: str, dividend: float, divisor: float):
-        """Dive the dividend by the divisor."""
+    def divide(self, problem_id: str, dividend: float, divisor: float):
+        """Divide the dividend by the divisor."""
 
         try:
             result = dividend / divisor
