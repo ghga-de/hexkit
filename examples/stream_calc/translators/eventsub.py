@@ -32,9 +32,9 @@ class EventProblemReceiver(EventSubscriberProtocol):
         """Configure the translator with a corresponding port implementation."""
         self._problem_receiver = problem_receiver
 
-    def _check_payload(self, payload: JsonObject, excepted_fields: list[str]):
+    def _check_payload(self, payload: JsonObject, expected_fields: list[str]):
         """Check whether all the expected fields are present in the payload."""
-        for field in excepted_fields:
+        for field in expected_fields:
             if field not in payload:
                 raise self.MalformedPayloadError(
                     f"Payload did not contain the expected field '{field}'"
@@ -53,7 +53,7 @@ class EventProblemReceiver(EventSubscriberProtocol):
 
         if type_ == "multiplication_problem":
             self._check_payload(
-                payload, excepted_fields=["problem_id", "multiplier", "multiplicand"]
+                payload, expected_fields=["problem_id", "multiplier", "multiplicand"]
             )
             self._problem_receiver.multiply(
                 problem_id=payload["problem_id"],
@@ -63,7 +63,7 @@ class EventProblemReceiver(EventSubscriberProtocol):
 
         elif type_ == "division_problem":
             self._check_payload(
-                payload, excepted_fields=["problem_id", "dividend", "divisor"]
+                payload, expected_fields=["problem_id", "dividend", "divisor"]
             )
             self._problem_receiver.devide(
                 problem_id=payload["problem_id"],
