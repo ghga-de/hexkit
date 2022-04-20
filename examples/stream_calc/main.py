@@ -14,19 +14,22 @@
 # limitations under the License.
 #
 
-"""Config parameters."""
+"""Implement global logic for running the application."""
 
-from typing import Literal
+import logging
 
-from pydantic import BaseSettings
+from stream_calc.config import Config
+from stream_calc.container import Container  # type: ignore
 
-LOGLEVEL = Literal["DEBUG", "INFO", "WARNING", "ERROR", "CRITICAL"]
 
+def run() -> None:
+    """Run the stream calculator"""
+    config = Config()
+    container = Container()
+    container.config.from_pydantic(config)
+    container.init_resources()
 
-class Config(BaseSettings):
-    """Config parameters and their defaults."""
+    logging.basicConfig(level=config.log_level)
 
-    service_name: str = "stream_calc"
-    client_suffix: str = "1"
-    kafka_servers: list[str] = ["kafka:9092"]
-    log_level: LOGLEVEL = "INFO"
+    event_subscriber = container.event_subscriber()
+    event_subscriber.run()

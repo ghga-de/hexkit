@@ -14,7 +14,7 @@
 # limitations under the License.
 #
 
-"""Protocols related to event handling."""
+"""Protocol related to event publishing."""
 
 from typing import Protocol
 

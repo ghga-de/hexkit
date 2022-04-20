@@ -14,21 +14,19 @@
 # limitations under the License.
 #
 
-"""Inbound port for communicating results."""
+"""Collection of base classes."""
 
-from typing import Protocol
+from abc import ABC, abstractmethod
 
 
-class ArithProblemReceiverPort(Protocol):
-    """
-    Port that excepts calculation tasks.
-    More operations like addition or subtraction could be added in a similar way.
-    """
+class InboundProviderBase(ABC):
+    """Base class that should be used by inbound providers."""
 
-    def multiply(self, task_id: str, multiplier: float, multiplicand: float):
-        """Multiply the multiplicand with the multiplier."""
-        ...
-
-    def devide(self, task_id: str, dividend: float, divisor: float):
-        """Divide the dividend by the divisor."""
+    @abstractmethod
+    def run(self, forever: bool = True) -> None:
+        """
+        Runs the inbound provider. Typically, it blocks forever.
+        However, you can set `forever` to `False` to make it return after handling one
+        operation.
+        """
         ...

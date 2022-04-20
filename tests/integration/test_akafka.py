@@ -17,18 +17,19 @@
 """Testing Apache Kafka based providers."""
 
 import json
+from unittest.mock import Mock
 
-from kafka import KafkaConsumer
+from kafka import KafkaConsumer, KafkaProducer
 from testcontainers.kafka import KafkaContainer
 
-from hexkit.providers.akafka import KafkaEventPublisher
+from hexkit.providers.akafka import KafkaEventPublisher, KafkaEventSubscriber
 from hexkit.utils import exec_with_timeout
 
 
 def test_kafka_event_publisher():
     """Test the KafkaEventPublisher."""
     payload = {"test_content": "Hello World"}
-    type_ = "test_event"
+    type_ = "test_type"
     key = "test_key"
     topic = "test_topic"
 
@@ -69,3 +70,46 @@ def test_kafka_event_publisher():
         }
         assert type_ == received_header_dict["type"]
         assert key == received_event.key
+
+
+def test_kafka_event_subscriber():
+    """Test the KafkaEventSubscriber with mocked KafkaEventSubscriber."""
+    payload = {"test_content": "Hello World"}
+    type_ = "test_type"
+    key = "test_key"
+    topic = "test_topic"
+    headers = [("type", b"test_type")]
+
+    # create protocol-compatiple translator mock:
+    translator = Mock()
+    translator.topics_of_interest = [topic]
+    translator.types_of_interest = [type_]
+
+    with KafkaContainer() as kafka:
+        # publish one event the python-kafka library directly:
+        producer = KafkaProducer(
+            client_id="test_producer",
+            bootstrap_servers=[kafka.get_bootstrap_server()],
+            key_serializer=lambda key: key.encode("ascii"),
+            value_serializer=lambda event_value: json.dumps(event_value).encode(
+                "ascii"
+            ),
+        )
+
+        producer.send(topic=topic, value=payload, key=key, headers=headers)
+
+        # setup the provider:
+        event_subscriber = KafkaEventSubscriber(
+            service_name="event_subscriber",
+            client_suffix="1",
+            kafka_servers=[kafka.get_bootstrap_server()],
+            translator=translator,
+        )
+
+        # consume one event:
+        exec_with_timeout(lambda: event_subscriber.run(forever=False), timeout_after=2)
+
+        # check if the translator was called correctly:
+        translator.consume.assert_called_once_with(
+            payload=payload, type_=type_, topic=topic
+        )

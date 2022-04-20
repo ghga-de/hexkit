@@ -14,19 +14,21 @@
 # limitations under the License.
 #
 
-"""Config parameters."""
+"""Inbound port for communicating results."""
 
-from typing import Literal
-
-from pydantic import BaseSettings
-
-LOGLEVEL = Literal["DEBUG", "INFO", "WARNING", "ERROR", "CRITICAL"]
+from typing import Protocol
 
 
-class Config(BaseSettings):
-    """Config parameters and their defaults."""
+class ArithProblemReceiverPort(Protocol):
+    """
+    Port that excepts calculation tasks.
+    More operations like addition or subtraction could be added in a similar way.
+    """
 
-    service_name: str = "stream_calc"
-    client_suffix: str = "1"
-    kafka_servers: list[str] = ["kafka:9092"]
-    log_level: LOGLEVEL = "INFO"
+    def multiply(self, problem_id: str, multiplier: float, multiplicand: float):
+        """Multiply the multiplicand with the multiplier."""
+        ...
+
+    def divide(self, problem_id: str, dividend: float, divisor: float):
+        """Divide the dividend by the divisor."""
+        ...

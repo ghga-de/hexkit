@@ -16,16 +16,7 @@
 
 """Main entry point of the package."""
 
-from stream_calc.config import Config
-from stream_calc.container import Container
+from stream_calc.main import run
 
 if __name__ == "__main__":
-    config = Config()
-    container = Container()
-    container.config.from_pydantic(config)
-    container.init_resources()
-
-    calculator = container.stream_calculator()
-    calculator.multiply(task_id="test-1", multiplier=2, multiplicand=2)
-    calculator.devide(task_id="test-2", dividend=2, divisor=2)
-    calculator.devide(task_id="test-3", dividend=2, divisor=0)
+    run()

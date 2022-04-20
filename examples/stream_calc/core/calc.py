@@ -16,8 +16,8 @@
 
 """The application logic of the calculator."""
 
+from examples.stream_calc.ports.problem_receiver import ArithProblemReceiverPort
 from examples.stream_calc.ports.result_emitter import CalcResultEmitterPort
-from examples.stream_calc.ports.task_receiver import ArithProblemReceiverPort
 
 
 class StreamCalculator(ArithProblemReceiverPort):
@@ -32,19 +32,19 @@ class StreamCalculator(ArithProblemReceiverPort):
 
         self._result_emitter = result_emitter
 
-    def multiply(self, task_id: str, multiplier: float, multiplicand: float):
+    def multiply(self, problem_id: str, multiplier: float, multiplicand: float):
         """Multiply the multiplicand with the multiplier."""
 
         result = multiplier * multiplicand
-        self._result_emitter.emit_result(task_id=task_id, result=result)
+        self._result_emitter.emit_result(problem_id=problem_id, result=result)
 
-    def devide(self, task_id: str, dividend: float, divisor: float):
-        """Dive the dividend by the divisor."""
+    def divide(self, problem_id: str, dividend: float, divisor: float):
+        """Divide the dividend by the divisor."""
 
         try:
             result = dividend / divisor
-            self._result_emitter.emit_result(task_id=task_id, result=result)
+            self._result_emitter.emit_result(problem_id=problem_id, result=result)
         except ZeroDivisionError:
             self._result_emitter.emit_failure(
-                task_id=task_id, reason="The divisor may not be zero."
+                problem_id=problem_id, reason="The divisor may not be zero."
             )

@@ -16,12 +16,17 @@
 
 """Testing Apache Kafka based providers."""
 
+from typing import Type
 from unittest.mock import Mock
 
 import pytest
 from black import nullcontext
 
-from hexkit.providers.akafka import KafkaEventPublisher, NonAsciiStrError
+from hexkit.providers.akafka import (
+    KafkaEventPublisher,
+    KafkaEventSubscriber,
+    NonAsciiStrError,
+)
 
 
 @pytest.mark.parametrize(
@@ -63,7 +68,7 @@ def test_kafka_event_publisher(type_, key, topic, expected_headers, exception):
         service_name="test_publisher",
         client_suffix="1",
         kafka_servers=["my-fake-kafka-server"],
-        kafka_producer_class=producer_class,
+        kafka_producer_cls=producer_class,
     )
 
     # check if producer class was called correctly:
@@ -92,3 +97,88 @@ def test_kafka_event_publisher(type_, key, topic, expected_headers, exception):
             headers=expected_headers,
         )
         producer.flush.assert_called_once()
+
+
+@pytest.mark.parametrize(
+    "type_, headers, is_translator_called, processing_failure, exception",
+    [
+        (
+            "test_type",
+            [("type", b"test_type")],
+            True,
+            False,
+            None,
+        ),
+        (
+            "uninteresting_type",
+            [("type", b"uninteresting_type")],
+            False,
+            False,
+            None,
+        ),
+        (
+            "test_type",
+            [],  # type header missing => event should be ignored
+            False,
+            False,
+            None,
+        ),
+        (
+            "test_type",
+            [("type", b"test_type")],
+            True,
+            True,  # Simulate processing failure
+            RuntimeError,
+        ),
+    ],
+)
+def test_kafka_event_subscriber(
+    type_: str,
+    headers: list[tuple[str, bytes]],
+    is_translator_called: bool,
+    processing_failure: bool,
+    exception: Type[Exception],
+):
+    """Test the KafkaEventSubscriber with mocked KafkaEventSubscriber."""
+    topic = "test_topic"
+    types_of_interest = ["test_type"]
+    payload = {"test": "Hello World!"}
+
+    # mock event:
+    event = Mock()
+    event.key = "test_key"
+    event.headers = headers
+    event.value = payload
+    event.topic = topic
+
+    # create kafka consumer mock:
+    consumer_cls = Mock()
+    consumer_cls.return_value = iter([event])
+
+    # create protocol-compatiple translator mock:
+    translator = Mock()
+    if processing_failure:
+        translator.consume.side_effect = exception()
+    translator.topics_of_interest = [topic]
+    translator.types_of_interest = types_of_interest
+
+    # setup the provider:
+    event_subscriber = KafkaEventSubscriber(
+        service_name="event_subscriber",
+        client_suffix="1",
+        kafka_servers=["my-fake-kafka-server"],
+        translator=translator,
+        kafka_consumer_cls=consumer_cls,
+    )
+
+    # consume one event:
+    with (pytest.raises(exception) if exception else nullcontext()):
+        event_subscriber.run(forever=False)
+
+    # check if the translator was called correctly:
+    if is_translator_called:
+        translator.consume.assert_called_once_with(
+            payload=payload, type_=type_, topic=topic
+        )
+    else:
+        assert translator.consume.call_count == 0
