@@ -30,6 +30,7 @@ class ArithProblemReceiverPort(ABC):
         """Multiply the multiplicand with the multiplier."""
         ...
 
+    @abstractmethod
     def divide(self, problem_id: str, dividend: float, divisor: float):
         """Divide the dividend by the divisor."""
         ...
