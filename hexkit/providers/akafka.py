@@ -36,13 +36,9 @@ from hexkit.protocols.eventsub import EventSubscriberProtocol
 class NonAsciiStrError(RuntimeError):
     """Thrown when non-ASCII string was unexpectedly provided"""
 
-    pass
-
 
 class EventTypeNotFoundError(RuntimeError):
     """Thrown when no `type` was set in the headers of an event."""
-
-    pass
 
 
 def generate_client_id(service_name: str, client_suffix: str) -> str:
