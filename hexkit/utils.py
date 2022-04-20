@@ -59,3 +59,19 @@ def exec_with_timeout(
     signal.alarm(0)
 
     return result
+
+
+class NonAsciiStrError(RuntimeError):
+    """Thrown when non-ASCII string was unexpectedly provided"""
+
+    def __init__(self, str_value: str):
+        """Prepare custom message."""
+        super().__init__(f"Non-ASCII string provided: {str_value}")
+
+
+def check_ascii(str_values: list[str]):
+    """Checks that the provided `str_values` are ASCII compatible,
+    raises an exception otherwise."""
+    for str_value in str_values:
+        if not str_value.isascii():
+            raise NonAsciiStrError(str_value=str_value)

@@ -19,6 +19,7 @@
 from abc import ABC, abstractmethod
 
 from hexkit.custom_types import Ascii, JsonObject
+from hexkit.utils import check_ascii
 
 
 class EventPublisherProtocol(ABC):
@@ -36,4 +37,5 @@ class EventPublisherProtocol(ABC):
             key (str): The event type. ASCII characters only.
             topic (str): The event type. ASCII characters only.
         """
+        check_ascii([type_, key, topic])
         ...

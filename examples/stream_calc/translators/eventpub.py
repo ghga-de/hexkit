@@ -27,11 +27,13 @@ class EventResultEmitter(CalcResultEmitterPort):
 
     def __init__(self, event_publisher: EventPublisherProtocol) -> None:
         """Configure with provider for the the EventPublisherProto"""
+        super().__init__()
 
         self._event_publisher = event_publisher
 
     def emit_result(self, *, problem_id: str, result: float) -> None:
         """Emits the result of the calc task with the given ID."""
+        super().emit_result(problem_id=problem_id, result=result)
 
         payload: JsonObject = {"problem_id": problem_id, "result": result}
 
@@ -44,6 +46,7 @@ class EventResultEmitter(CalcResultEmitterPort):
 
     def emit_failure(self, *, problem_id: str, reason: str) -> None:
         """Emits message that the calc task with the given ID could not be solved."""
+        super().emit_failure(problem_id=problem_id, reason=reason)
 
         payload: JsonObject = {"problem_id": problem_id, "reason": reason}
 

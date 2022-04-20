@@ -30,6 +30,7 @@ class EventProblemReceiver(EventSubscriberProtocol):
 
     def __init__(self, problem_receiver: ArithProblemReceiverPort):
         """Configure the translator with a corresponding port implementation."""
+        super().__init__()
         self._problem_receiver = problem_receiver
 
     def _check_payload(self, payload: JsonObject, expected_fields: list[str]):
@@ -50,6 +51,8 @@ class EventProblemReceiver(EventSubscriberProtocol):
                 Name of the topic to publish the event to.
                 Not used by this implementation.
         """
+
+        super().consume(payload=payload, type_=type_, topic=topic)
 
         if type_ == "multiplication_problem":
             self._check_payload(
