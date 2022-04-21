@@ -23,7 +23,7 @@ from kafka import KafkaConsumer, KafkaProducer
 from testcontainers.kafka import KafkaContainer
 
 from hexkit.providers.akafka import KafkaEventPublisher, KafkaEventSubscriber
-from hexkit.utils import exec_with_timeout
+from tests.fixtures.utils import exec_with_timeout
 
 
 def test_kafka_event_publisher():
