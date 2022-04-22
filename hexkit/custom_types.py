@@ -24,5 +24,5 @@ JsonObject = dict[str, Union[int, float, str, bool, list[Any], dict[str, Any]]]
 
 
 # A type indicating that a string should be ascii-compatible.
-# Techinically it is an alias for `str` so it only serves documention purposes.
+# Technically it is an alias for `str` so it only serves documention purposes.
 Ascii = str
