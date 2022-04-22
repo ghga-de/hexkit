@@ -24,7 +24,7 @@ class NonAsciiStrError(RuntimeError):
         super().__init__(f"Non-ASCII string provided: {str_value!r}")
 
 
-def check_ascii(str_values: list[str]):
+def check_ascii(*str_values: str):
     """Checks that the provided `str_values` are ASCII compatible,
     raises an exception otherwise."""
     for str_value in str_values:
