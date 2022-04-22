@@ -24,33 +24,30 @@ from hexkit.utils import NonAsciiStrError
 
 
 @pytest.mark.parametrize(
-    "type_, key, topic, expected_headers, exception",
+    "type_, key, topic, exception",
     [
-        ("test_type", "test_key", "test_topic", [("type", b"test_type")], None),
+        ("test_type", "test_key", "test_topic", None),
         (
             "test_ßtype",  # non ascii
             "test_key",
             "test_topic",
-            [("type", b"test_type")],
             NonAsciiStrError,
         ),
         (
             "test_type",
             "test_ßkey",  # non ascii
             "test_topic",
-            [("type", b"test_type")],
             NonAsciiStrError,
         ),
         (
             "test_type",
             "test_key",
             "test_ßtopic",  # non ascii
-            [("type", b"test_type")],
             NonAsciiStrError,
         ),
     ],
 )
-def test_in_mem_publisher(type_, key, topic, expected_headers, exception):
+def test_in_mem_publisher(type_, key, topic, exception):
     """Test the InMemEventPublisher testing utilities."""
     payload = {"test_content": "Hello World"}
 
