@@ -21,7 +21,7 @@ class NonAsciiStrError(RuntimeError):
 
     def __init__(self, str_value: str):
         """Prepare custom message."""
-        super().__init__(f"Non-ASCII string provided: {str_value}")
+        super().__init__(f"Non-ASCII string provided: {str_value!r}")
 
 
 def check_ascii(str_values: list[str]):
