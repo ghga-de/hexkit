@@ -37,5 +37,5 @@ class EventPublisherProtocol(ABC):
             key (str): The event type. ASCII characters only.
             topic (str): The event type. ASCII characters only.
         """
-        check_ascii([type_, key, topic])
+        check_ascii(type_, key, topic)
         ...
