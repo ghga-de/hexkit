@@ -40,8 +40,8 @@ class Container(containers.DeclarativeContainer):
     config = providers.Configuration()
 
     # outbound providers:
-    event_publisher = providers.Factory[EventPublisherProtocol](
-        KafkaEventPublisher,
+    event_publisher = providers.Resource[EventPublisherProtocol](
+        KafkaEventPublisher.as_resource,
         service_name=config.service_name,
         client_suffix=config.client_suffix,
         kafka_servers=config.kafka_servers,
@@ -63,8 +63,8 @@ class Container(containers.DeclarativeContainer):
     )
 
     # inbound providers:
-    event_subscriber = providers.Factory[KafkaEventSubscriber](
-        KafkaEventSubscriber,
+    event_subscriber = providers.Resource[KafkaEventSubscriber](
+        KafkaEventSubscriber.as_resource,
         service_name=config.service_name,
         client_suffix=config.client_suffix,
         kafka_servers=config.kafka_servers,

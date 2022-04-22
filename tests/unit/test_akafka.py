@@ -61,15 +61,15 @@ def test_kafka_event_publisher(type_, key, topic, expected_headers, exception):
     producer_class = Mock()
 
     # publish event using the provider:
-    event_publisher = KafkaEventPublisher(
+    as_resource = KafkaEventPublisher.as_resource(
         service_name="test_publisher",
         client_suffix="1",
         kafka_servers=["my-fake-kafka-server"],
         kafka_producer_cls=producer_class,
     )
 
-    with event_publisher:
-
+    event_publisher = next(as_resource)
+    try:
         # check if producer class was called correctly:
         producer_class.assert_called_once()
         pc_kwargs = producer_class.call_args.kwargs
@@ -77,7 +77,7 @@ def test_kafka_event_publisher(type_, key, topic, expected_headers, exception):
         assert pc_kwargs["bootstrap_servers"] == ["my-fake-kafka-server"]
         assert callable(pc_kwargs["key_serializer"])
         assert callable(pc_kwargs["value_serializer"])
-
+        # publish one event:
         with (pytest.raises(exception) if exception else nullcontext()):
             event_publisher.publish(
                 payload=payload,
@@ -85,6 +85,9 @@ def test_kafka_event_publisher(type_, key, topic, expected_headers, exception):
                 key=key,
                 topic=topic,
             )
+    finally:
+        with pytest.raises(StopIteration):
+            next(as_resource)
 
     producer = producer_class.return_value
     if not exception:
@@ -97,6 +100,7 @@ def test_kafka_event_publisher(type_, key, topic, expected_headers, exception):
             headers=expected_headers,
         )
         producer.flush.assert_called_once()
+    # check if producer was closed correctly:
     producer.close.assert_called_once()
 
 
@@ -166,7 +170,7 @@ def test_kafka_event_subscriber(
     translator.types_of_interest = types_of_interest
 
     # setup the provider:
-    event_subscriber = KafkaEventSubscriber(
+    as_resource = KafkaEventSubscriber.as_resource(
         service_name="event_subscriber",
         client_suffix="1",
         kafka_servers=["my-fake-kafka-server"],
@@ -174,12 +178,16 @@ def test_kafka_event_subscriber(
         kafka_consumer_cls=consumer_cls,
     )
 
-    with event_subscriber:
-
+    event_subscriber = next(as_resource)
+    try:
         # consume one event:
         with (pytest.raises(exception) if exception else nullcontext()):
             event_subscriber.run(forever=False)
+    finally:
+        with pytest.raises(StopIteration):
+            next(as_resource)
 
+    # check if consumer was closed correctly:
     consumer.close.assert_called_once()
 
     # check if the translator was called correctly:

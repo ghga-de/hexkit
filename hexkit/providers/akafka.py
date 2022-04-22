@@ -71,24 +71,38 @@ class KafkaEventPublisher(EventPublisherProtocol):
         """
         super().__init__()
 
-        self._client_id = generate_client_id(service_name, client_suffix)
-        self._kafka_servers = kafka_servers
-        self._kafka_producer_cls = kafka_producer_cls
-        self._producer: KafkaProducer = None
+        client_id = generate_client_id(service_name, client_suffix)
 
-    def __enter__(self) -> None:
-        self._producer = self._kafka_producer_cls(
-            bootstrap_servers=self._kafka_servers,
-            client_id=self._client_id,
+        self._producer = kafka_producer_cls(
+            bootstrap_servers=kafka_servers,
+            client_id=client_id,
             key_serializer=lambda key: key.encode("ascii"),
             value_serializer=lambda event_value: json.dumps(event_value).encode(
                 "ascii"
             ),
         )
 
-    def __exit__(self, *_args) -> None:
+    @classmethod
+    def as_resource(
+        cls,
+        service_name: str,
+        client_suffix: str,
+        kafka_servers: list[str],
+        kafka_producer_cls=KafkaProducer,
+    ):
+        """Generate instance as resource provider."""
+        self = cls(
+            service_name=service_name,
+            client_suffix=client_suffix,
+            kafka_servers=kafka_servers,
+            kafka_producer_cls=kafka_producer_cls,
+        )
+        yield self
+        self.close()
+
+    def close(self) -> None:
+        """Close the underlying producer."""
         self._producer.close()
-        self._producer = None
 
     def publish(self, *, payload: JsonObject, type_: str, key: str, topic: str) -> None:
         """Publish an event to an Apache Kafka event broker.
@@ -109,7 +123,7 @@ class KafkaEventPublisher(EventPublisherProtocol):
 class KafkaEventSubscriber(InboundProviderBase):
     """Apache Kafka-specific event subscription provider."""
 
-    # pylint: disable=too-many-arguments,too-many-instance-attributes
+    # pylint: disable=too-many-arguments
     # (some arguments are only used for testing)
     def __init__(
         self,
@@ -139,31 +153,22 @@ class KafkaEventSubscriber(InboundProviderBase):
         """
         super().__init__()
 
-        self._service_name = service_name
-        self._client_id = generate_client_id(service_name, client_suffix)
+        client_id = generate_client_id(service_name, client_suffix)
         self._translator = translator
-        self._topics = self._translator.topics_of_interest
+        topics = self._translator.topics_of_interest
         self._types_whitelist = translator.types_of_interest
-        self._kakfa_servers = kafka_servers
-        self._kafka_consumer_cls = kafka_consumer_cls
-        self._consumer: KafkaConsumer = None
 
-    def __enter__(self):
-        self._consumer = self._kafka_consumer_cls(
-            *self._topics,
-            bootstrap_servers=self._kakfa_servers,
-            client_id=self._client_id,
-            group_id=self._service_name,
+        self._consumer = kafka_consumer_cls(
+            *topics,
+            bootstrap_servers=kafka_servers,
+            client_id=client_id,
+            group_id=service_name,
             auto_offset_reset="earliest",
             key_deserializer=lambda event_key: event_key.decode("ascii"),
             value_deserializer=lambda event_value: json.loads(
                 event_value.decode("ascii")
             ),
         )
-
-    def __exit__(self, *_args):
-        self._consumer.close()
-        self._consumer = None
 
     @staticmethod
     def _get_type(event: ConsumerRecord) -> str:
@@ -208,6 +213,30 @@ class KafkaEventSubscriber(InboundProviderBase):
 
             else:
                 logging.info("Ignored event of type %s: %s", type_, event_label)
+
+    @classmethod
+    def as_resource(
+        cls,
+        service_name: str,
+        client_suffix: str,
+        kafka_servers: list[str],
+        translator: EventSubscriberProtocol,
+        kafka_consumer_cls=KafkaConsumer,
+    ):
+        """Generate instance as resource provider."""
+        self = cls(
+            service_name=service_name,
+            client_suffix=client_suffix,
+            kafka_servers=kafka_servers,
+            translator=translator,
+            kafka_consumer_cls=kafka_consumer_cls,
+        )
+        yield self
+        self.close()
+
+    def close(self) -> None:
+        """Close the underlying consumer."""
+        self._consumer.close()
 
     def run(self, forever: bool = True) -> None:
         """
