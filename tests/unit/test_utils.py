@@ -27,6 +27,8 @@ from hexkit.utils import NonAsciiStrError, check_ascii
 @pytest.mark.parametrize(
     "str_values, exception",
     [
+        (["valid"], None),
+        (["invälid"], NonAsciiStrError),
         (["valid", "also_valid_123-?$3&"], None),
         (["valid", "invälid"], NonAsciiStrError),
     ],
