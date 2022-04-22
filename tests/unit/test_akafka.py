@@ -60,7 +60,7 @@ def test_kafka_event_publisher(type_, key, topic, expected_headers, exception):
     # create kafka producer mock
     producer_class = Mock()
 
-    # publish event using the provider:
+    # create event publisher:
     event_publisher = KafkaEventPublisher(
         service_name="test_publisher",
         client_suffix="1",
@@ -76,6 +76,7 @@ def test_kafka_event_publisher(type_, key, topic, expected_headers, exception):
     assert callable(pc_kwargs["key_serializer"])
     assert callable(pc_kwargs["value_serializer"])
 
+    # publish event using the provider:
     with (pytest.raises(exception) if exception else nullcontext()):
         event_publisher.publish(
             payload=payload,
