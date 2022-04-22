@@ -71,16 +71,24 @@ class KafkaEventPublisher(EventPublisherProtocol):
         """
         super().__init__()
 
-        client_id = generate_client_id(service_name, client_suffix)
+        self._client_id = generate_client_id(service_name, client_suffix)
+        self._kafka_servers = kafka_servers
+        self._kafka_producer_cls = kafka_producer_cls
+        self._producer: KafkaProducer = None
 
-        self._producer = kafka_producer_cls(
-            bootstrap_servers=kafka_servers,
-            client_id=client_id,
+    def __enter__(self) -> None:
+        self._producer = self._kafka_producer_cls(
+            bootstrap_servers=self._kafka_servers,
+            client_id=self._client_id,
             key_serializer=lambda key: key.encode("ascii"),
             value_serializer=lambda event_value: json.dumps(event_value).encode(
                 "ascii"
             ),
         )
+
+    def __exit__(self, *_args) -> None:
+        self._producer.close()
+        self._producer = None
 
     def publish(self, *, payload: JsonObject, type_: str, key: str, topic: str) -> None:
         """Publish an event to an Apache Kafka event broker.
@@ -101,7 +109,7 @@ class KafkaEventPublisher(EventPublisherProtocol):
 class KafkaEventSubscriber(InboundProviderBase):
     """Apache Kafka-specific event subscription provider."""
 
-    # pylint: disable=too-many-arguments
+    # pylint: disable=too-many-arguments,too-many-instance-attributes
     # (some arguments are only used for testing)
     def __init__(
         self,
@@ -131,22 +139,31 @@ class KafkaEventSubscriber(InboundProviderBase):
         """
         super().__init__()
 
-        client_id = generate_client_id(service_name, client_suffix)
+        self._service_name = service_name
+        self._client_id = generate_client_id(service_name, client_suffix)
         self._translator = translator
-        topics = self._translator.topics_of_interest
+        self._topics = self._translator.topics_of_interest
         self._types_whitelist = translator.types_of_interest
+        self._kakfa_servers = kafka_servers
+        self._kafka_consumer_cls = kafka_consumer_cls
+        self._consumer: KafkaConsumer = None
 
-        self._consumer = kafka_consumer_cls(
-            *topics,
-            bootstrap_servers=kafka_servers,
-            client_id=client_id,
-            group_id=service_name,
+    def __enter__(self):
+        self._consumer = self._kafka_consumer_cls(
+            *self._topics,
+            bootstrap_servers=self._kakfa_servers,
+            client_id=self._client_id,
+            group_id=self._service_name,
             auto_offset_reset="earliest",
             key_deserializer=lambda event_key: event_key.decode("ascii"),
             value_deserializer=lambda event_value: json.loads(
                 event_value.decode("ascii")
             ),
         )
+
+    def __exit__(self, *_args):
+        self._consumer.close()
+        self._consumer = None
 
     @staticmethod
     def _get_type(event: ConsumerRecord) -> str:

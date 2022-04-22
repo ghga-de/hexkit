@@ -42,12 +42,13 @@ def test_kafka_event_publisher():
             kafka_servers=[kafka.get_bootstrap_server()],
         )
 
-        event_publisher.publish(
-            payload=payload,
-            type_=type_,
-            key=key,
-            topic=topic,
-        )
+        with event_publisher:
+            event_publisher.publish(
+                payload=payload,
+                type_=type_,
+                key=key,
+                topic=topic,
+            )
 
         # consume event using the python-kafka library directly:
         consumer = KafkaConsumer(
@@ -59,8 +60,10 @@ def test_kafka_event_publisher():
             key_deserializer=lambda key: key.decode("ascii"),
             value_deserializer=lambda val: json.loads(val.decode("ascii")),
         )
-
-        received_event = exec_with_timeout(lambda: next(consumer), timeout_after=2)
+        try:
+            received_event = exec_with_timeout(lambda: next(consumer), timeout_after=2)
+        finally:
+            consumer.close()
 
         # check if received event matches the expectations:
         assert payload == received_event.value
@@ -95,8 +98,10 @@ def test_kafka_event_subscriber():
                 "ascii"
             ),
         )
-
-        producer.send(topic=topic, value=payload, key=key, headers=headers)
+        try:
+            producer.send(topic=topic, value=payload, key=key, headers=headers)
+        finally:
+            producer.close()
 
         # setup the provider:
         event_subscriber = KafkaEventSubscriber(
@@ -106,8 +111,11 @@ def test_kafka_event_subscriber():
             translator=translator,
         )
 
-        # consume one event:
-        exec_with_timeout(lambda: event_subscriber.run(forever=False), timeout_after=2)
+        with event_subscriber:
+            # consume one event:
+            exec_with_timeout(
+                lambda: event_subscriber.run(forever=False), timeout_after=2
+            )
 
         # check if the translator was called correctly:
         translator.consume.assert_called_once_with(
