@@ -54,5 +54,5 @@ class EventSubscriberProtocol(ABC):
             type_ (str): The type of the event.
             topic (str): Name of the topic to publish the event to.
         """
-        check_ascii([type_, topic])
+        check_ascii(type_, topic)
         ...
