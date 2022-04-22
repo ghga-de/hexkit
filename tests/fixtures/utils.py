@@ -15,12 +15,55 @@
 
 """Uitls for Fixture handling"""
 
+import os
+import signal
 from pathlib import Path
+from typing import Callable, Optional
 
 import yaml
+
+TEST_FILE_DIR = Path(__file__).parent.resolve() / "test_files"
+
+TEST_FILE_PATHS = [
+    TEST_FILE_DIR / filename
+    for filename in os.listdir(TEST_FILE_DIR)
+    if filename.startswith("test_") and filename.endswith(".yaml")
+]
 
 
 def read_yaml(path: Path) -> dict:
     """Read yaml file and return content as dict."""
-    with open(path, "r") as file_:
-        return yaml.safe_load(file_)
+    with open(path, "r", encoding="UTF-8") as file:
+        return yaml.safe_load(file)
+
+
+def raise_timeout_error(_, __):
+    """Raise a TimeoutError"""
+    raise TimeoutError()
+
+
+def exec_with_timeout(
+    func: Callable,
+    timeout_after: int,
+    func_args: Optional[list] = None,
+    func_kwargs: Optional[dict] = None,
+):
+    """
+    Exec a function (`func`) with a specified timeout (`timeout_after` in seconds).
+    If the function doesn't finish before the timeout, a TimeoutError is thrown.
+    """
+
+    func_args_ = [] if func_args is None else func_args
+    func_kwargs_ = {} if func_kwargs is None else func_kwargs
+
+    # set a timer that raises an exception if timed out
+    signal.signal(signal.SIGALRM, raise_timeout_error)
+    signal.alarm(timeout_after)
+
+    # execute the function
+    result = func(*func_args_, **func_kwargs_)
+
+    # disable the timer
+    signal.alarm(0)
+
+    return result

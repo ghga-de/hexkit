@@ -33,10 +33,6 @@ from hexkit.protocols.eventpub import EventPublisherProtocol
 from hexkit.protocols.eventsub import EventSubscriberProtocol
 
 
-class NonAsciiStrError(RuntimeError):
-    """Thrown when non-ASCII string was unexpectedly provided"""
-
-
 class EventTypeNotFoundError(RuntimeError):
     """Thrown when no `type` was set in the headers of an event."""
 
@@ -73,6 +69,7 @@ class KafkaEventPublisher(EventPublisherProtocol):
             kafka_producer_cls:
                 Overwrite the used Kafka Producer class. Only intented for unit testing.
         """
+        super().__init__()
 
         client_id = generate_client_id(service_name, client_suffix)
 
@@ -94,8 +91,7 @@ class KafkaEventPublisher(EventPublisherProtocol):
             key (str): The event type. ASCII characters only.
             topic (str): The event type. ASCII characters only.
         """
-        if not (type_.isascii() and key.isascii() and topic.isascii()):
-            raise NonAsciiStrError("type_, key, and topic should be ascii only.")
+        super().publish(payload=payload, type_=type_, key=key, topic=topic)
 
         event_headers = [("type", type_.encode("ascii"))]
         self._producer.send(topic, key=key, value=payload, headers=event_headers)
@@ -106,7 +102,7 @@ class KafkaEventSubscriber(InboundProviderBase):
     """Apache Kafka-specific event subscription provider."""
 
     # pylint: disable=too-many-arguments
-    # (because some arguments are for testing only)
+    # (some arguments are only used for testing)
     def __init__(
         self,
         service_name: str,
@@ -133,6 +129,7 @@ class KafkaEventSubscriber(InboundProviderBase):
             kafka_consumer_cls:
                 Overwrite the used Kafka Producer class. Only intented for unit testing.
         """
+        super().__init__()
 
         client_id = generate_client_id(service_name, client_suffix)
         self._translator = translator
@@ -202,6 +199,7 @@ class KafkaEventSubscriber(InboundProviderBase):
         However, you can set `forever` to `False` to make it return after handling one
         event.
         """
+        super().run(forever=forever)
 
         if forever:
             for event in self._consumer:

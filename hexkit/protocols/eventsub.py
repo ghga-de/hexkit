@@ -16,12 +16,13 @@
 
 """Protocol related to event subscription."""
 
-from typing import Protocol
+from abc import ABC, abstractmethod
 
-from hexkit.custom_types import JsonObject
+from hexkit.custom_types import Ascii, JsonObject
+from hexkit.utils import check_ascii
 
 
-class EventSubscriberProtocol(Protocol):
+class EventSubscriberProtocol(ABC):
     """
     A protocol for consuming events to an event broker.
 
@@ -41,10 +42,11 @@ class EventSubscriberProtocol(Protocol):
         the type.
         """
 
-    topics_of_interest: list[str]
-    types_of_interest: list[str]
+    topics_of_interest: list[Ascii]
+    types_of_interest: list[Ascii]
 
-    def consume(self, *, payload: JsonObject, type_: str, topic: str) -> None:
+    @abstractmethod
+    def consume(self, *, payload: JsonObject, type_: Ascii, topic: Ascii) -> None:
         """Receive an event of interest and process it according to its type.
 
         Args:
@@ -52,4 +54,5 @@ class EventSubscriberProtocol(Protocol):
             type_ (str): The type of the event.
             topic (str): Name of the topic to publish the event to.
         """
+        check_ascii(type_, topic)
         ...

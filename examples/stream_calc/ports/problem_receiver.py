@@ -16,19 +16,21 @@
 
 """Inbound port for communicating results."""
 
-from typing import Protocol
+from abc import ABC, abstractmethod
 
 
-class ArithProblemReceiverPort(Protocol):
+class ArithProblemReceiverPort(ABC):
     """
     Port that excepts calculation tasks.
     More operations like addition or subtraction could be added in a similar way.
     """
 
+    @abstractmethod
     def multiply(self, problem_id: str, multiplier: float, multiplicand: float):
         """Multiply the multiplicand with the multiplier."""
         ...
 
+    @abstractmethod
     def divide(self, problem_id: str, dividend: float, divisor: float):
         """Divide the dividend by the divisor."""
         ...

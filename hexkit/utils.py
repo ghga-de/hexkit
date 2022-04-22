@@ -15,47 +15,18 @@
 
 """General utilities that don't require heavy dependencies."""
 
-import os
-import signal
-from pathlib import Path
-from typing import Callable, Optional
 
-TEST_FILE_DIR = Path(__file__).parent.resolve() / "test_files"
+class NonAsciiStrError(RuntimeError):
+    """Thrown when non-ASCII string was unexpectedly provided"""
 
-TEST_FILE_PATHS = [
-    TEST_FILE_DIR / filename
-    for filename in os.listdir(TEST_FILE_DIR)
-    if filename.startswith("test_") and filename.endswith(".yaml")
-]
+    def __init__(self, str_value: str):
+        """Prepare custom message."""
+        super().__init__(f"Non-ASCII string provided: {str_value!r}")
 
 
-def raise_timeout_error(_, __):
-    """Raise a TimeoutError"""
-    raise TimeoutError()
-
-
-def exec_with_timeout(
-    func: Callable,
-    timeout_after: int,
-    func_args: Optional[list] = None,
-    func_kwargs: Optional[dict] = None,
-):
-    """
-    Exec a function (`func`) with a specified timeout (`timeout_after` in seconds).
-    If the function doesn't finish before the timeout, a TimeoutError is thrown.
-    """
-
-    func_args_ = [] if func_args is None else func_args
-    func_kwargs_ = {} if func_kwargs is None else func_kwargs
-
-    # set a timer that raises an exception if timed out
-    signal.signal(signal.SIGALRM, raise_timeout_error)
-    signal.alarm(timeout_after)
-
-    # execute the function
-    result = func(*func_args_, **func_kwargs_)
-
-    # disable the timer
-    signal.alarm(0)
-
-    return result
+def check_ascii(*str_values: str):
+    """Checks that the provided `str_values` are ASCII compatible,
+    raises an exception otherwise."""
+    for str_value in str_values:
+        if not str_value.isascii():
+            raise NonAsciiStrError(str_value=str_value)

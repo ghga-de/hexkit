@@ -14,15 +14,26 @@
 # limitations under the License.
 #
 
-"""Module collecting custom types."""
+"""Test functionality in the utils package."""
 
-from typing import Any, Union
+from typing import Optional
 
-# This is intended to type objects that could be a potential output of `json.loads`.
-# (Scalar types as well as arrays are excluded from the above assumption.)
-JsonObject = dict[str, Union[int, float, str, bool, list[Any], dict[str, Any]]]
+import pytest
+from black import nullcontext
+
+from hexkit.utils import NonAsciiStrError, check_ascii
 
 
-# A type indicating that a string should be ascii-compatible.
-# Technically it is an alias for `str` so it only serves documention purposes.
-Ascii = str
+@pytest.mark.parametrize(
+    "str_values, exception",
+    [
+        (["valid"], None),
+        (["invälid"], NonAsciiStrError),
+        (["valid", "also_valid_123-?$3&"], None),
+        (["valid", "invälid"], NonAsciiStrError),
+    ],
+)
+def test_check_ascii(str_values: list[str], exception: Optional[Exception]):
+    """Test the check_ascii function"""
+    with pytest.raises(exception) if exception else nullcontext():
+        check_ascii(*str_values)
