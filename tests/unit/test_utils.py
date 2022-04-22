@@ -36,4 +36,4 @@ from hexkit.utils import NonAsciiStrError, check_ascii
 def test_check_ascii(str_values: list[str], exception: Optional[Exception]):
     """Test the check_ascii function"""
     with pytest.raises(exception) if exception else nullcontext():
-        check_ascii(str_values)
+        check_ascii(*str_values)
