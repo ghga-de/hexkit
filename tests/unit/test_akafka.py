@@ -16,11 +16,11 @@
 
 """Testing Apache Kafka based providers."""
 
+from contextlib import nullcontext
 from typing import Optional
 from unittest.mock import Mock
 
 import pytest
-from black import nullcontext
 
 from hexkit.custom_types import JsonObject
 from hexkit.providers.akafka import KafkaEventPublisher, KafkaEventSubscriber
@@ -83,7 +83,7 @@ def test_kafka_event_publisher(
     assert callable(pc_kwargs["key_serializer"])
     assert callable(pc_kwargs["value_serializer"])
 
-    with pytest.raises(exception) if exception else nullcontext():
+    with pytest.raises(exception) if exception else nullcontext():  # type: ignore
         event_publisher.publish(
             payload=payload,
             type_=type_,
@@ -176,7 +176,7 @@ def test_kafka_event_subscriber(
     )
 
     # consume one event:
-    with pytest.raises(exception) if exception else nullcontext():
+    with pytest.raises(exception) if exception else nullcontext():  # type: ignore
         event_subscriber.run(forever=False)
 
     # check if the translator was called correctly:

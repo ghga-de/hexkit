@@ -49,6 +49,7 @@ repos:
     rev: v0.942
     hooks:
       - id: mypy
+        additional_dependencies: [pytest==7.1.1,pydantic==1.8.2]
   - repo: https://github.com/PyCQA/pylint
     rev: v2.13.3
     hooks:

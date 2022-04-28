@@ -16,10 +16,10 @@
 
 """Test functionality in the utils package."""
 
+from contextlib import nullcontext
 from typing import Optional
 
 import pytest
-from black import nullcontext
 
 from hexkit.utils import NonAsciiStrError, check_ascii
 
@@ -35,5 +35,5 @@ from hexkit.utils import NonAsciiStrError, check_ascii
 )
 def test_check_ascii(str_values: list[str], exception: Optional[type[Exception]]):
     """Test the check_ascii function"""
-    with pytest.raises(exception) if exception else nullcontext():
+    with pytest.raises(exception) if exception else nullcontext():  # type: ignore
         check_ascii(*str_values)
