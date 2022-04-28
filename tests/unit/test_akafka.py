@@ -22,6 +22,7 @@ from unittest.mock import Mock
 import pytest
 from black import nullcontext
 
+from hexkit.custom_types import JsonObject
 from hexkit.providers.akafka import KafkaEventPublisher, KafkaEventSubscriber
 from hexkit.utils import NonAsciiStrError
 
@@ -55,7 +56,7 @@ from hexkit.utils import NonAsciiStrError
 )
 def test_kafka_event_publisher(type_, key, topic, expected_headers, exception):
     """Test the KafkaEventPublisher with mocked KafkaEventPublisher."""
-    payload = {"test_content": "Hello World"}
+    payload: JsonObject = {"test_content": "Hello World"}
 
     # create kafka producer mock
     producer_class = Mock()
@@ -139,7 +140,7 @@ def test_kafka_event_subscriber(
     """Test the KafkaEventSubscriber with mocked KafkaEventSubscriber."""
     topic = "test_topic"
     types_of_interest = ["test_type"]
-    payload = {"test": "Hello World!"}
+    payload: JsonObject = {"test": "Hello World!"}
 
     # mock event:
     event = Mock()

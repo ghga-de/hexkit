@@ -49,7 +49,6 @@ repos:
     rev: v0.942
     hooks:
       - id: mypy
-        args: [--show-error-codes, --disable-error-code, import]
   - repo: https://github.com/PyCQA/pylint
     rev: v2.13.3
     hooks:
