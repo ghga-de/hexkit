@@ -16,7 +16,7 @@
 
 """Testing Apache Kafka based providers."""
 
-from typing import Type
+from typing import Optional
 from unittest.mock import Mock
 
 import pytest
@@ -54,7 +54,13 @@ from hexkit.utils import NonAsciiStrError
         ),
     ],
 )
-def test_kafka_event_publisher(type_, key, topic, expected_headers, exception):
+def test_kafka_event_publisher(
+    type_: str,
+    key: str,
+    topic: str,
+    expected_headers: list[tuple[str, bytes]],
+    exception: Optional[type[Exception]],
+):
     """Test the KafkaEventPublisher with mocked KafkaEventPublisher."""
     payload: JsonObject = {"test_content": "Hello World"}
 
@@ -77,7 +83,7 @@ def test_kafka_event_publisher(type_, key, topic, expected_headers, exception):
     assert callable(pc_kwargs["key_serializer"])
     assert callable(pc_kwargs["value_serializer"])
 
-    with (pytest.raises(exception) if exception else nullcontext()):
+    with pytest.raises(exception) if exception else nullcontext():
         event_publisher.publish(
             payload=payload,
             type_=type_,
@@ -135,7 +141,7 @@ def test_kafka_event_subscriber(
     headers: list[tuple[str, bytes]],
     is_translator_called: bool,
     processing_failure: bool,
-    exception: Type[Exception],
+    exception: Optional[type[Exception]],
 ):
     """Test the KafkaEventSubscriber with mocked KafkaEventSubscriber."""
     topic = "test_topic"
@@ -155,7 +161,7 @@ def test_kafka_event_subscriber(
 
     # create protocol-compatiple translator mock:
     translator = Mock()
-    if processing_failure:
+    if processing_failure and exception:
         translator.consume.side_effect = exception()
     translator.topics_of_interest = [topic]
     translator.types_of_interest = types_of_interest
@@ -170,7 +176,7 @@ def test_kafka_event_subscriber(
     )
 
     # consume one event:
-    with (pytest.raises(exception) if exception else nullcontext()):
+    with pytest.raises(exception) if exception else nullcontext():
         event_subscriber.run(forever=False)
 
     # check if the translator was called correctly:
