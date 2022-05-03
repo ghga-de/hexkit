@@ -22,13 +22,14 @@ from unittest.mock import Mock
 from kafka import KafkaConsumer, KafkaProducer
 from testcontainers.kafka import KafkaContainer
 
+from hexkit.custom_types import JsonObject
 from hexkit.providers.akafka import KafkaEventPublisher, KafkaEventSubscriber
 from tests.fixtures.utils import exec_with_timeout
 
 
 def test_kafka_event_publisher():
     """Test the KafkaEventPublisher."""
-    payload = {"test_content": "Hello World"}
+    payload: JsonObject = {"test_content": "Hello World"}
     type_ = "test_type"
     key = "test_key"
     topic = "test_topic"
