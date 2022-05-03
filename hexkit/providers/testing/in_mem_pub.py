@@ -21,8 +21,7 @@ ATTENTION: For testing purposes only.
 """
 
 from collections import defaultdict, deque
-from dataclasses import dataclass
-from typing import Optional
+from typing import NamedTuple, Optional
 
 from hexkit.custom_types import JsonObject
 from hexkit.protocols.eventpub import EventPublisherProtocol
@@ -32,8 +31,7 @@ class TopicExhaustedError(RuntimeError):
     """Thrown when now more event are queued in a topic."""
 
 
-@dataclass
-class Event:
+class Event(NamedTuple):
     """Container for specifying event information."""
 
     type_: str
