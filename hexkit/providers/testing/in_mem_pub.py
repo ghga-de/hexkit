@@ -51,7 +51,7 @@ class InMemEventStore:
 
     def __init__(self):
         """Create an in memory topic registry based on collections' deque."""
-        self.topics: dict[str, deque] = {}
+        self.topics: dict[str, deque[Event]] = defaultdict(deque)
 
     def post(self, topic: str, event: Event) -> None:
         """Queue a new event to a topic."""
