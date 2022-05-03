@@ -20,7 +20,7 @@ An in-memory provider for event publishing.
 ATTENTION: For testing purposes only.
 """
 
-from collections import deque
+from collections import defaultdict, deque
 from dataclasses import dataclass
 from typing import Optional
 
@@ -55,9 +55,6 @@ class InMemEventStore:
 
     def post(self, topic: str, event: Event) -> None:
         """Queue a new event to a topic."""
-
-        if topic not in self.topics:
-            self.topics[topic] = deque()
 
         self.topics[topic].append(event)
 
