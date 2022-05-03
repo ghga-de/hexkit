@@ -65,11 +65,9 @@ class InMemEventStore:
         """Get the next element in the queue corresponding to the specified topic."""
 
         try:
-            event: Event = self.topics[topic].popleft()
+            return self.topics[topic].popleft()
         except IndexError as error:
             raise TopicExhaustedError() from error
-
-        return event
 
 
 class InMemEventPublisher(EventPublisherProtocol):
