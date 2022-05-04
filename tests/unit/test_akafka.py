@@ -67,7 +67,7 @@ def test_kafka_event_publisher(
     # create kafka producer mock
     producer_class = Mock()
 
-    # publish event using the provider:
+    # create event publisher:
     event_publisher = KafkaEventPublisher(
         service_name="test_publisher",
         client_suffix="1",
