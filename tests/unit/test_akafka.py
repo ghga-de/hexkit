@@ -86,7 +86,7 @@ def test_kafka_event_publisher(
         assert callable(pc_kwargs["value_serializer"])
 
         # publish one event:
-        with (pytest.raises(exception) if exception else nullcontext()):
+        with (pytest.raises(exception) if exception else nullcontext()):  # type: ignore
             event_publisher.publish(
                 payload=payload,
                 type_=type_,
@@ -190,7 +190,7 @@ def test_kafka_event_subscriber(
     event_subscriber = next(as_resource)
     try:
         # consume one event:
-        with (pytest.raises(exception) if exception else nullcontext()):
+        with (pytest.raises(exception) if exception else nullcontext()):  # type: ignore
             event_subscriber.run(forever=False)
     finally:
         with pytest.raises(StopIteration):
