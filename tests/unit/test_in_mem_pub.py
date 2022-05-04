@@ -58,7 +58,7 @@ def test_in_mem_publisher(type_, key, topic, exception):
     event_publisher = InMemEventPublisher(event_store=event_store)
 
     # publish event using the provider:
-    with (pytest.raises(exception) if exception else nullcontext()):
+    with (pytest.raises(exception) if exception else nullcontext()):  # type: ignore
         event_publisher.publish(
             payload=payload,
             type_=type_,

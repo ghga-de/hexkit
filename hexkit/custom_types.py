@@ -16,11 +16,11 @@
 
 """Module collecting custom types."""
 
-from typing import Any, Union
+from typing import Any, Mapping, Union
 
 # This is intended to type objects that could be a potential output of `json.loads`.
 # (Scalar types as well as arrays are excluded from the above assumption.)
-JsonObject = dict[str, Union[int, float, str, bool, list[Any], dict[str, Any]]]
+JsonObject = Mapping[str, Union[int, float, str, bool, list[Any], Mapping[str, Any]]]
 
 
 # A type indicating that a string should be ascii-compatible.
