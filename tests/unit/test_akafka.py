@@ -17,8 +17,8 @@
 """Testing Apache Kafka based providers."""
 
 from contextlib import nullcontext
+from typing import Optional
 from unittest.mock import MagicMock, Mock
-from typing import Type, Optional
 
 import pytest
 
@@ -84,7 +84,7 @@ def test_kafka_event_publisher(
         assert pc_kwargs["bootstrap_servers"] == ["my-fake-kafka-server"]
         assert callable(pc_kwargs["key_serializer"])
         assert callable(pc_kwargs["value_serializer"])
-        
+
         # publish one event:
         with (pytest.raises(exception) if exception else nullcontext()):
             event_publisher.publish(
@@ -198,7 +198,6 @@ def test_kafka_event_subscriber(
 
     # check if consumer was closed correctly:
     consumer.close.assert_called_once()
-
 
     # check if the translator was called correctly:
     if is_translator_called:
