@@ -16,12 +16,13 @@
 
 """Testing Apache Kafka based providers."""
 
-from typing import Type
+from contextlib import nullcontext
 from unittest.mock import MagicMock, Mock
+from typing import Type, Optional
 
 import pytest
-from black import nullcontext
 
+from hexkit.custom_types import JsonObject
 from hexkit.providers.akafka import KafkaEventPublisher, KafkaEventSubscriber
 from hexkit.utils import NonAsciiStrError
 
@@ -53,9 +54,15 @@ from hexkit.utils import NonAsciiStrError
         ),
     ],
 )
-def test_kafka_event_publisher(type_, key, topic, expected_headers, exception):
+def test_kafka_event_publisher(
+    type_: str,
+    key: str,
+    topic: str,
+    expected_headers: list[tuple[str, bytes]],
+    exception: Optional[type[Exception]],
+):
     """Test the KafkaEventPublisher with mocked KafkaEventPublisher."""
-    payload = {"test_content": "Hello World"}
+    payload: JsonObject = {"test_content": "Hello World"}
 
     # create kafka producer mock
     producer_class = Mock()
@@ -77,6 +84,7 @@ def test_kafka_event_publisher(type_, key, topic, expected_headers, exception):
         assert pc_kwargs["bootstrap_servers"] == ["my-fake-kafka-server"]
         assert callable(pc_kwargs["key_serializer"])
         assert callable(pc_kwargs["value_serializer"])
+        
         # publish one event:
         with (pytest.raises(exception) if exception else nullcontext()):
             event_publisher.publish(
@@ -90,6 +98,7 @@ def test_kafka_event_publisher(type_, key, topic, expected_headers, exception):
             next(as_resource)
 
     producer = producer_class.return_value
+
     if not exception:
         # check if producer was correctly used:
         producer = producer_class.return_value
@@ -142,12 +151,12 @@ def test_kafka_event_subscriber(
     headers: list[tuple[str, bytes]],
     is_translator_called: bool,
     processing_failure: bool,
-    exception: Type[Exception],
+    exception: Optional[type[Exception]],
 ):
     """Test the KafkaEventSubscriber with mocked KafkaEventSubscriber."""
     topic = "test_topic"
     types_of_interest = ["test_type"]
-    payload = {"test": "Hello World!"}
+    payload: JsonObject = {"test": "Hello World!"}
 
     # mock event:
     event = Mock()
@@ -164,7 +173,7 @@ def test_kafka_event_subscriber(
 
     # create protocol-compatiple translator mock:
     translator = Mock()
-    if processing_failure:
+    if processing_failure and exception:
         translator.consume.side_effect = exception()
     translator.topics_of_interest = [topic]
     translator.types_of_interest = types_of_interest
@@ -189,6 +198,7 @@ def test_kafka_event_subscriber(
 
     # check if consumer was closed correctly:
     consumer.close.assert_called_once()
+
 
     # check if the translator was called correctly:
     if is_translator_called:

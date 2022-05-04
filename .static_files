@@ -8,6 +8,9 @@
 # your repo by running the script at:
 # ./scripts/update_static_files.py
 
+.devcontainer/library-scripts/docker-in-docker-debian.sh
+.devcontainer/license_header.txt
+
 scripts/update_static_files.py
 scripts/license_checker.py
 scripts/get_package_name.py
@@ -21,9 +24,10 @@ scripts/README.md
 .flake8
 .gitattributes
 .gitignore
+.mypy.ini
 .pre-commit-config.yaml
 .pylintrc
-codecov.yml
+.mypy.ini
 
 LICENSE
 requirements.txt
