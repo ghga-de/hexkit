@@ -127,7 +127,7 @@ def test_in_mem_publisher_with_multiple_topics():
 
 
 def test_event_store_get_from_empty_topic():
-    """Test that consuming from non-used/empty topic results in the correct exception."""
+    """Test that consuming from non-used/empty topic raises the correct exception."""
     topic = "topic_that_has_no_events_yet", "test_type", "test_key"
     event_store = InMemEventStore()
 
