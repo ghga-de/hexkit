@@ -124,6 +124,8 @@ def test_in_mem_publisher_with_multiple_topics():
     # thereafter, check order in the event store:
     for topic, payload in payload_per_topic.items():
         assert event_store.get(topic).payload is payload
+        with pytest.raises(TopicExhaustedError):
+            _ = event_store.get(topic).payload
 
 
 def test_event_store_get_from_empty_topic():
