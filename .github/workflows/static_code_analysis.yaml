@@ -28,10 +28,7 @@ jobs:
           isort --check --profile black .
       - name: mypy
         run: |
-          mypy \
-            --show-error-codes \
-            --disable-error-code import \
-            "${{ steps.main_src_dir.outputs.MAIN_SRC_DIR }}"
+          mypy .
       - name: pylint
         run: |
           pylint "${{ steps.main_src_dir.outputs.MAIN_SRC_DIR }}"
