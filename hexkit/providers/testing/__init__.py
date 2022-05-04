@@ -14,15 +14,10 @@
 # limitations under the License.
 #
 
-"""Module collecting custom types."""
+"""
+This sub-package contains providers for testing purposes.
+These providers should be very lightweight and preferably only need dependencies from
+the standard library.
 
-from typing import Any, Mapping, Union
-
-# This is intended to type objects that could be a potential output of `json.loads`.
-# (Scalar types as well as arrays are excluded from the above assumption.)
-JsonObject = Mapping[str, Union[int, float, str, bool, list[Any], Mapping[str, Any]]]
-
-
-# A type indicating that a string should be ascii-compatible.
-# Technically it is an alias for `str` so it only serves documention purposes.
-Ascii = str
+ATTENTION: Do not use these providers in production.
+"""
