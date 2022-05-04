@@ -82,6 +82,28 @@ class KafkaEventPublisher(EventPublisherProtocol):
             ),
         )
 
+    @classmethod
+    def as_resource(
+        cls,
+        service_name: str,
+        client_suffix: str,
+        kafka_servers: list[str],
+        kafka_producer_cls=KafkaProducer,
+    ):
+        """Generate instance as resource provider."""
+        self = cls(
+            service_name=service_name,
+            client_suffix=client_suffix,
+            kafka_servers=kafka_servers,
+            kafka_producer_cls=kafka_producer_cls,
+        )
+        yield self
+        self.close()
+
+    def close(self) -> None:
+        """Close the underlying producer."""
+        self._producer.close()
+
     def publish(self, *, payload: JsonObject, type_: str, key: str, topic: str) -> None:
         """Publish an event to an Apache Kafka event broker.
 
@@ -191,6 +213,30 @@ class KafkaEventSubscriber(InboundProviderBase):
 
             else:
                 logging.info("Ignored event of type %s: %s", type_, event_label)
+
+    @classmethod
+    def as_resource(
+        cls,
+        service_name: str,
+        client_suffix: str,
+        kafka_servers: list[str],
+        translator: EventSubscriberProtocol,
+        kafka_consumer_cls=KafkaConsumer,
+    ):
+        """Generate instance as resource provider."""
+        self = cls(
+            service_name=service_name,
+            client_suffix=client_suffix,
+            kafka_servers=kafka_servers,
+            translator=translator,
+            kafka_consumer_cls=kafka_consumer_cls,
+        )
+        yield self
+        self.close()
+
+    def close(self) -> None:
+        """Close the underlying consumer."""
+        self._consumer.close()
 
     def run(self, forever: bool = True) -> None:
         """

@@ -18,7 +18,7 @@
 
 from contextlib import nullcontext
 from typing import Optional
-from unittest.mock import Mock
+from unittest.mock import MagicMock, Mock
 
 import pytest
 
@@ -68,28 +68,36 @@ def test_kafka_event_publisher(
     producer_class = Mock()
 
     # publish event using the provider:
-    event_publisher = KafkaEventPublisher(
+    as_resource = KafkaEventPublisher.as_resource(
         service_name="test_publisher",
         client_suffix="1",
         kafka_servers=["my-fake-kafka-server"],
         kafka_producer_cls=producer_class,
     )
 
-    # check if producer class was called correctly:
-    producer_class.assert_called_once()
-    pc_kwargs = producer_class.call_args.kwargs
-    assert pc_kwargs["client_id"] == "test_publisher.1"
-    assert pc_kwargs["bootstrap_servers"] == ["my-fake-kafka-server"]
-    assert callable(pc_kwargs["key_serializer"])
-    assert callable(pc_kwargs["value_serializer"])
+    event_publisher = next(as_resource)
+    try:
+        # check if producer class was called correctly:
+        producer_class.assert_called_once()
+        pc_kwargs = producer_class.call_args.kwargs
+        assert pc_kwargs["client_id"] == "test_publisher.1"
+        assert pc_kwargs["bootstrap_servers"] == ["my-fake-kafka-server"]
+        assert callable(pc_kwargs["key_serializer"])
+        assert callable(pc_kwargs["value_serializer"])
 
-    with pytest.raises(exception) if exception else nullcontext():  # type: ignore
-        event_publisher.publish(
-            payload=payload,
-            type_=type_,
-            key=key,
-            topic=topic,
-        )
+        # publish one event:
+        with (pytest.raises(exception) if exception else nullcontext()):  # type: ignore
+            event_publisher.publish(
+                payload=payload,
+                type_=type_,
+                key=key,
+                topic=topic,
+            )
+    finally:
+        with pytest.raises(StopIteration):
+            next(as_resource)
+
+    producer = producer_class.return_value
 
     if not exception:
         # check if producer was correctly used:
@@ -101,6 +109,8 @@ def test_kafka_event_publisher(
             headers=expected_headers,
         )
         producer.flush.assert_called_once()
+    # check if producer was closed correctly:
+    producer.close.assert_called_once()
 
 
 @pytest.mark.parametrize(
@@ -156,8 +166,10 @@ def test_kafka_event_subscriber(
     event.topic = topic
 
     # create kafka consumer mock:
+    consumer = MagicMock()
+    consumer.__next__.return_value = event
     consumer_cls = Mock()
-    consumer_cls.return_value = iter([event])
+    consumer_cls.return_value = consumer
 
     # create protocol-compatiple translator mock:
     translator = Mock()
@@ -167,7 +179,7 @@ def test_kafka_event_subscriber(
     translator.types_of_interest = types_of_interest
 
     # setup the provider:
-    event_subscriber = KafkaEventSubscriber(
+    as_resource = KafkaEventSubscriber.as_resource(
         service_name="event_subscriber",
         client_suffix="1",
         kafka_servers=["my-fake-kafka-server"],
@@ -175,9 +187,17 @@ def test_kafka_event_subscriber(
         kafka_consumer_cls=consumer_cls,
     )
 
-    # consume one event:
-    with pytest.raises(exception) if exception else nullcontext():  # type: ignore
-        event_subscriber.run(forever=False)
+    event_subscriber = next(as_resource)
+    try:
+        # consume one event:
+        with (pytest.raises(exception) if exception else nullcontext()):  # type: ignore
+            event_subscriber.run(forever=False)
+    finally:
+        with pytest.raises(StopIteration):
+            next(as_resource)
+
+    # check if consumer was closed correctly:
+    consumer.close.assert_called_once()
 
     # check if the translator was called correctly:
     if is_translator_called:
