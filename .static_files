@@ -23,7 +23,7 @@ scripts/README.md
 .gitignore
 .pre-commit-config.yaml
 .pylintrc
-codecov.yml
+.mypy.ini
 
 LICENSE
 requirements.txt
