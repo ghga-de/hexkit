@@ -19,7 +19,11 @@
 import pytest
 from black import nullcontext
 
-from hexkit.providers.testing.in_mem_pub import InMemEventPublisher, InMemEventStore
+from hexkit.providers.testing.in_mem_pub import (
+    InMemEventPublisher,
+    InMemEventStore,
+    TopicExhaustedError,
+)
 from hexkit.utils import NonAsciiStrError
 
 
@@ -72,3 +76,60 @@ def test_in_mem_publisher(type_, key, topic, exception):
         assert stored_event.key == key
         assert stored_event.payload == payload
         assert stored_event.type_ == type_
+
+
+def test_in_mem_publisher_with_multiple_events():
+    """
+    Test that events are passed in the right order. And make sure that
+    TopicExhaustionError is thrown when requesting more events from the event store
+    then submitted.
+    Moreover, it's tested that not passing an existing event store to the
+    InMemEventPublisher (as opposed to the test `test_in_mem_publisher`) is working, too.
+    """
+    payloads = [
+        {"test_content": "Hello"},
+        {"test_content": "World"},
+    ]
+    type_, key, topic = "test_type", "test_key", "test_topic"
+    event_publisher = InMemEventPublisher()
+    event_store = event_publisher.event_store
+
+    # publish all events first:
+    for payload in payloads:
+        event_publisher.publish(payload=payload, type_=type_, key=key, topic=topic)
+
+    # thereafter, check order in the event store:
+    for payload in payloads:
+        assert event_store.get(topic).payload is payload
+
+    # request one more event:
+    with pytest.raises(TopicExhaustedError):
+        _ = event_store.get(topic)
+
+
+def test_in_mem_publisher_with_multiple_topics():
+    """Test that events are passed in the right order."""
+    payload_per_topic = {
+        "topic_1": {"test_content": "Hello"},
+        "topic_2": {"test_content": "World"},
+    }
+    type_, key = "test_type", "test_key"
+    event_publisher = InMemEventPublisher()
+    event_store = event_publisher.event_store
+
+    # publish all events first:
+    for topic, payload in payload_per_topic.items():
+        event_publisher.publish(payload=payload, type_=type_, key=key, topic=topic)
+
+    # thereafter, check order in the event store:
+    for topic, payload in payload_per_topic.items():
+        assert event_store.get(topic).payload is payload
+
+
+def test_event_store_get_from_empty_topic():
+    """Test that consuming from non-used/empty topic results in the correct exception."""
+    topic = "topic_that_has_no_events_yet", "test_type", "test_key"
+    event_store = InMemEventStore()
+
+    with pytest.raises(TopicExhaustedError):
+        _ = event_store.get(topic).payload
