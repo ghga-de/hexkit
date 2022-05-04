@@ -68,7 +68,7 @@ class EventProblemReceiver(EventSubscriberProtocol):
             self._check_payload(
                 payload, expected_fields=["problem_id", "dividend", "divisor"]
             )
-            self._problem_receiver.devide(
+            self._problem_receiver.divide(
                 problem_id=payload["problem_id"],
                 dividend=payload["dividend"],
                 divisor=payload["divisor"],

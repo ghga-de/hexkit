@@ -32,4 +32,8 @@ def run() -> None:
     logging.basicConfig(level=config.log_level)
 
     event_subscriber = container.event_subscriber()
-    event_subscriber.run()
+
+    try:
+        event_subscriber.run()
+    finally:
+        container.shutdown_resources()
