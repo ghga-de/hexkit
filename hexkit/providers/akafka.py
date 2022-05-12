@@ -24,10 +24,11 @@ Require dependencies of the `akafka` extra. See the `setup.cfg`.
 import json
 import logging
 
-from kafka import KafkaConsumer, KafkaProducer
+from aiokafka import AIOKafkaProducer
+from kafka import KafkaConsumer
 from kafka.consumer.fetcher import ConsumerRecord
 
-from hexkit.base import InboundProviderBase
+from hexkit.base import InboundProviderBase, OutboundProviderBase
 from hexkit.custom_types import JsonObject
 from hexkit.protocols.eventpub import EventPublisherProtocol
 from hexkit.protocols.eventsub import EventSubscriberProtocol
@@ -45,7 +46,7 @@ def generate_client_id(service_name: str, client_suffix: str) -> str:
     return f"{service_name}.{client_suffix}"
 
 
-class KafkaEventPublisher(EventPublisherProtocol):
+class KafkaEventPublisher(OutboundProviderBase, EventPublisherProtocol):
     """Apache Kafka specific event publishing provider."""
 
     def __init__(
@@ -54,7 +55,7 @@ class KafkaEventPublisher(EventPublisherProtocol):
         service_name: str,
         client_suffix: str,
         kafka_servers: list[str],
-        kafka_producer_cls=KafkaProducer,
+        kafka_producer_cls=AIOKafkaProducer,
     ):
         """Initialize the provider with some config params.
 
@@ -82,29 +83,9 @@ class KafkaEventPublisher(EventPublisherProtocol):
             ),
         )
 
-    @classmethod
-    def as_resource(
-        cls,
-        service_name: str,
-        client_suffix: str,
-        kafka_servers: list[str],
-        kafka_producer_cls=KafkaProducer,
-    ):
-        """Generate instance as resource provider."""
-        self = cls(
-            service_name=service_name,
-            client_suffix=client_suffix,
-            kafka_servers=kafka_servers,
-            kafka_producer_cls=kafka_producer_cls,
-        )
-        yield self
-        self.close()
-
-    def close(self) -> None:
-        """Close the underlying producer."""
-        self._producer.close()
-
-    def publish(self, *, payload: JsonObject, type_: str, key: str, topic: str) -> None:
+    async def publish(
+        self, *, payload: JsonObject, type_: str, key: str, topic: str
+    ) -> None:
         """Publish an event to an Apache Kafka event broker.
 
         Args:
@@ -113,11 +94,17 @@ class KafkaEventPublisher(EventPublisherProtocol):
             key (str): The event type. ASCII characters only.
             topic (str): The event type. ASCII characters only.
         """
-        super().publish(payload=payload, type_=type_, key=key, topic=topic)
+        await super().publish(payload=payload, type_=type_, key=key, topic=topic)
 
         event_headers = [("type", type_.encode("ascii"))]
-        self._producer.send(topic, key=key, value=payload, headers=event_headers)
-        self._producer.flush()
+
+        await self._producer.start()
+        try:
+            await self._producer.send_and_wait(
+                topic, key=key, value=payload, headers=event_headers
+            )
+        finally:
+            await self._producer.stop()
 
 
 class KafkaEventSubscriber(InboundProviderBase):
@@ -214,28 +201,9 @@ class KafkaEventSubscriber(InboundProviderBase):
             else:
                 logging.info("Ignored event of type %s: %s", type_, event_label)
 
-    @classmethod
-    def as_resource(
-        cls,
-        service_name: str,
-        client_suffix: str,
-        kafka_servers: list[str],
-        translator: EventSubscriberProtocol,
-        kafka_consumer_cls=KafkaConsumer,
-    ):
-        """Generate instance as resource provider."""
-        self = cls(
-            service_name=service_name,
-            client_suffix=client_suffix,
-            kafka_servers=kafka_servers,
-            translator=translator,
-            kafka_consumer_cls=kafka_consumer_cls,
-        )
-        yield self
-        self.close()
-
     def close(self) -> None:
         """Close the underlying consumer."""
+        super().close()
         self._consumer.close()
 
     def run(self, forever: bool = True) -> None:

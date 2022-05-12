@@ -28,7 +28,8 @@ from hexkit.providers.akafka import KafkaEventPublisher, KafkaEventSubscriber
 from tests.fixtures.utils import exec_with_timeout
 
 
-def test_kafka_event_publisher():
+@pytest.mark.asyncio
+async def test_kafka_event_publisher():
     """Test the KafkaEventPublisher."""
     payload: JsonObject = {"test_content": "Hello World"}
     type_ = "test_type"
@@ -37,24 +38,17 @@ def test_kafka_event_publisher():
 
     with KafkaContainer() as kafka:
 
-        as_resource = KafkaEventPublisher.as_resource(
+        with KafkaEventPublisher.as_context_manager(
             service_name="test_publisher",
             client_suffix="1",
             kafka_servers=[kafka.get_bootstrap_server()],
-        )
-
-        # publish event using the provider:
-        event_publisher = next(as_resource)
-        try:
-            event_publisher.publish(
+        ) as event_publisher:
+            await event_publisher.publish(
                 payload=payload,
                 type_=type_,
                 key=key,
                 topic=topic,
             )
-        finally:
-            with pytest.raises(StopIteration):
-                next(as_resource)
 
         # consume event using the python-kafka library directly:
         consumer = KafkaConsumer(
