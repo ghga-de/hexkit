@@ -15,10 +15,16 @@
 #
 
 """Test base classes."""
+import pytest
+from black import nullcontext
 from dependency_injector.containers import DeclarativeContainer
 from dependency_injector.providers import Resource
 
 from hexkit.base import ResourceProvider
+
+
+class TestException(RuntimeError):
+    """Used to similulate an exception at runtime of the TestProvider."""
 
 
 class TestProvider(ResourceProvider):
@@ -64,15 +70,20 @@ def test_resource_provider_for_di():
     assert test_provider.close_method_called
 
 
-def test_resource_provider_as_cm():
+@pytest.mark.parametrize("does_raise", [(True), (False)])
+def test_resource_provider_as_cm(does_raise: bool):
     """Test resource provider as context manager."""
 
-    with TestProvider.as_context_manager(
-        some_kwarg=SOME_KWARG, another_kwarg=ANOTHER_KWARG
-    ) as test_provider:
-        # make sure that the test provider was correctly initialized:
-        assert test_provider.some_kwarg == SOME_KWARG
-        assert test_provider.another_kwarg == ANOTHER_KWARG
-        assert not test_provider.close_method_called
+    with pytest.raises(TestException) if does_raise else nullcontext():
+        with TestProvider.as_context_manager(
+            some_kwarg=SOME_KWARG, another_kwarg=ANOTHER_KWARG
+        ) as test_provider:
+            # make sure that the test provider was correctly initialized:
+            assert test_provider.some_kwarg == SOME_KWARG
+            assert test_provider.another_kwarg == ANOTHER_KWARG
+            assert not test_provider.close_method_called
+
+            if does_raise:
+                raise TestException()
 
     assert test_provider.close_method_called

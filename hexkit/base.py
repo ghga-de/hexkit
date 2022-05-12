@@ -33,9 +33,11 @@ class ResourceProvider(ABC):
         Please provide all keyword arguments (non-keyword arguments are not allowed)
         needed for the __init__ method.
         """
-        resource = cls.as_resource(**kwargs)
-        for provider in resource:
+        provider = cls(**kwargs)
+        try:
             yield provider
+        finally:
+            provider.close()
 
     @classmethod
     def as_resource(cls, **kwargs):
@@ -43,9 +45,8 @@ class ResourceProvider(ABC):
         Please provide all keyword arguments (non-keyword arguments are not allowed)
         needed for the __init__ method.
         """
-        self = cls(**kwargs)
-        yield self
-        self.close()
+        with cls.as_context_manager(**kwargs) as provider:
+            yield provider
 
     def close(self) -> None:
         """Close/teardown the instance."""
@@ -56,7 +57,7 @@ class InboundProviderBase(ResourceProvider, ABC):
     """Base class that should be used by inbound providers."""
 
     @abstractmethod
-    def run(self, forever: bool = True) -> None:
+    async def run(self, forever: bool = True) -> None:
         """
         Runs the inbound provider. Typically, it blocks forever.
         However, you can set `forever` to `False` to make it return after handling one
