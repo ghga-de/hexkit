@@ -32,19 +32,19 @@ class StreamCalculator(ArithProblemReceiverPort):
 
         self._result_emitter = result_emitter
 
-    def multiply(self, problem_id: str, multiplier: float, multiplicand: float):
+    async def multiply(self, problem_id: str, multiplier: float, multiplicand: float):
         """Multiply the multiplicand with the multiplier."""
 
         result = multiplier * multiplicand
-        self._result_emitter.emit_result(problem_id=problem_id, result=result)
+        await self._result_emitter.emit_result(problem_id=problem_id, result=result)
 
-    def divide(self, problem_id: str, dividend: float, divisor: float):
+    async def divide(self, problem_id: str, dividend: float, divisor: float):
         """Divide the dividend by the divisor."""
 
         try:
             result = dividend / divisor
-            self._result_emitter.emit_result(problem_id=problem_id, result=result)
+            await self._result_emitter.emit_result(problem_id=problem_id, result=result)
         except ZeroDivisionError:
-            self._result_emitter.emit_failure(
+            await self._result_emitter.emit_failure(
                 problem_id=problem_id, reason="The divisor may not be zero."
             )

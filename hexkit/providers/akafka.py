@@ -24,11 +24,10 @@ Require dependencies of the `akafka` extra. See the `setup.cfg`.
 import json
 import logging
 
-from aiokafka import AIOKafkaProducer
-from kafka import KafkaConsumer
+from aiokafka import AIOKafkaConsumer, AIOKafkaProducer
 from kafka.consumer.fetcher import ConsumerRecord
 
-from hexkit.base import InboundProviderBase, OutboundProviderBase
+from hexkit.base import InboundProviderBase
 from hexkit.custom_types import JsonObject
 from hexkit.protocols.eventpub import EventPublisherProtocol
 from hexkit.protocols.eventsub import EventSubscriberProtocol
@@ -46,7 +45,7 @@ def generate_client_id(service_name: str, client_suffix: str) -> str:
     return f"{service_name}.{client_suffix}"
 
 
-class KafkaEventPublisher(OutboundProviderBase, EventPublisherProtocol):
+class KafkaEventPublisher(EventPublisherProtocol):
     """Apache Kafka specific event publishing provider."""
 
     def __init__(
@@ -118,7 +117,7 @@ class KafkaEventSubscriber(InboundProviderBase):
         client_suffix: str,
         kafka_servers: list[str],
         translator: EventSubscriberProtocol,
-        kafka_consumer_cls=KafkaConsumer,
+        kafka_consumer_cls=AIOKafkaConsumer,
     ):
         """Initialize the provider with some config params.
 
@@ -173,7 +172,7 @@ class KafkaEventSubscriber(InboundProviderBase):
             + " (topic-partition-offset)"
         )
 
-    def _consume_event(self, event: ConsumerRecord) -> None:
+    async def _consume_event(self, event: ConsumerRecord) -> None:
         """Consume an event by passing it down to the translator via the protocol."""
         event_label = self._get_event_label(event)
 
@@ -188,7 +187,7 @@ class KafkaEventSubscriber(InboundProviderBase):
 
                 try:
                     # blocks until event processing is completed:
-                    self._translator.consume(
+                    await self._translator.consume(
                         payload=event.value, type_=type_, topic=event.topic
                     )
                 except Exception:
@@ -201,23 +200,22 @@ class KafkaEventSubscriber(InboundProviderBase):
             else:
                 logging.info("Ignored event of type %s: %s", type_, event_label)
 
-    def close(self) -> None:
-        """Close the underlying consumer."""
-        super().close()
-        self._consumer.close()
-
-    def run(self, forever: bool = True) -> None:
+    async def run(self, forever: bool = True) -> None:
         """
         Start consuming events and passing them down to the translator.
         By default, it blocks forever.
         However, you can set `forever` to `False` to make it return after handling one
         event.
         """
-        super().run(forever=forever)
+        await super().run(forever=forever)
 
-        if forever:
-            for event in self._consumer:
-                self._consume_event(event)
-        else:
-            event = next(self._consumer)
-            self._consume_event(event)
+        await self._consumer.start()
+        try:
+            if forever:
+                async for event in self._consumer:
+                    await self._consume_event(event)
+            else:
+                event = await self._consumer.__anext__()
+                await self._consume_event(event)
+        finally:
+            await self._consumer.stop()

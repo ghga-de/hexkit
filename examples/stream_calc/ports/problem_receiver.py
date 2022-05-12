@@ -26,11 +26,11 @@ class ArithProblemReceiverPort(ABC):
     """
 
     @abstractmethod
-    def multiply(self, problem_id: str, multiplier: float, multiplicand: float):
+    async def multiply(self, problem_id: str, multiplier: float, multiplicand: float):
         """Multiply the multiplicand with the multiplier."""
         ...
 
     @abstractmethod
-    def divide(self, problem_id: str, dividend: float, divisor: float):
+    async def divide(self, problem_id: str, dividend: float, divisor: float):
         """Divide the dividend by the divisor."""
         ...

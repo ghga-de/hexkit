@@ -18,7 +18,7 @@
 
 from contextlib import nullcontext
 from typing import Optional
-from unittest.mock import AsyncMock, MagicMock, Mock
+from unittest.mock import AsyncMock, Mock
 
 import pytest
 
@@ -70,28 +70,29 @@ async def test_kafka_event_publisher(
     producer_class = Mock(return_value=producer)
 
     # publish event using the provider:
-    with KafkaEventPublisher.as_context_manager(
+    event_publisher = KafkaEventPublisher(
         service_name="test_publisher",
         client_suffix="1",
         kafka_servers=["my-fake-kafka-server"],
         kafka_producer_cls=producer_class,
-    ) as event_publisher:
-        # check if producer class was called correctly:
-        producer_class.assert_called_once()
-        pc_kwargs = producer_class.call_args.kwargs
-        assert pc_kwargs["client_id"] == "test_publisher.1"
-        assert pc_kwargs["bootstrap_servers"] == ["my-fake-kafka-server"]
-        assert callable(pc_kwargs["key_serializer"])
-        assert callable(pc_kwargs["value_serializer"])
+    )
 
-        # publish one event:
-        with (pytest.raises(exception) if exception else nullcontext()):  # type: ignore
-            await event_publisher.publish(
-                payload=payload,
-                type_=type_,
-                key=key,
-                topic=topic,
-            )
+    # check if producer class was called correctly:
+    producer_class.assert_called_once()
+    pc_kwargs = producer_class.call_args.kwargs
+    assert pc_kwargs["client_id"] == "test_publisher.1"
+    assert pc_kwargs["bootstrap_servers"] == ["my-fake-kafka-server"]
+    assert callable(pc_kwargs["key_serializer"])
+    assert callable(pc_kwargs["value_serializer"])
+
+    # publish one event:
+    with (pytest.raises(exception) if exception else nullcontext()):  # type: ignore
+        await event_publisher.publish(
+            payload=payload,
+            type_=type_,
+            key=key,
+            topic=topic,
+        )
 
     if not exception:
         # check if producer was correctly used:
@@ -105,6 +106,7 @@ async def test_kafka_event_publisher(
         producer.stop.assert_awaited_once()
 
 
+@pytest.mark.asyncio
 @pytest.mark.parametrize(
     "type_, headers, is_translator_called, processing_failure, exception",
     [
@@ -138,7 +140,7 @@ async def test_kafka_event_publisher(
         ),
     ],
 )
-def test_kafka_event_subscriber(
+async def test_kafka_event_subscriber(
     type_: str,
     headers: list[tuple[str, bytes]],
     is_translator_called: bool,
@@ -158,20 +160,20 @@ def test_kafka_event_subscriber(
     event.topic = topic
 
     # create kafka consumer mock:
-    consumer = MagicMock()
-    consumer.__next__.return_value = event
-    consumer_cls = Mock()
-    consumer_cls.return_value = consumer
+    consumer = AsyncMock()
+    consumer.__anext__.return_value = event
+
+    consumer_cls = Mock(return_value=consumer)
 
     # create protocol-compatiple translator mock:
-    translator = Mock()
+    translator = AsyncMock()
     if processing_failure and exception:
         translator.consume.side_effect = exception()
     translator.topics_of_interest = [topic]
     translator.types_of_interest = types_of_interest
 
     # setup the provider:
-    as_resource = KafkaEventSubscriber.as_resource(
+    event_subscriber = KafkaEventSubscriber(
         service_name="event_subscriber",
         client_suffix="1",
         kafka_servers=["my-fake-kafka-server"],
@@ -179,22 +181,18 @@ def test_kafka_event_subscriber(
         kafka_consumer_cls=consumer_cls,
     )
 
-    event_subscriber = next(as_resource)
-    try:
-        # consume one event:
-        with (pytest.raises(exception) if exception else nullcontext()):  # type: ignore
-            event_subscriber.run(forever=False)
-    finally:
-        with pytest.raises(StopIteration):
-            next(as_resource)
-
-    # check if consumer was closed correctly:
-    consumer.close.assert_called_once()
+    # consume one event:
+    with (pytest.raises(exception) if exception else nullcontext()):  # type: ignore
+        await event_subscriber.run(forever=False)
 
     # check if the translator was called correctly:
     if is_translator_called:
-        translator.consume.assert_called_once_with(
+        translator.consume.assert_awaited_once_with(
             payload=payload, type_=type_, topic=topic
         )
     else:
         assert translator.consume.call_count == 0
+
+    # check if consumer was correctly started and stopped:
+    consumer.start.assert_awaited_once()
+    consumer.stop.assert_awaited_once()

@@ -17,7 +17,7 @@
 """Testing Apache Kafka based providers."""
 
 import json
-from unittest.mock import Mock
+from unittest.mock import AsyncMock
 
 import pytest
 from kafka import KafkaConsumer, KafkaProducer
@@ -38,17 +38,18 @@ async def test_kafka_event_publisher():
 
     with KafkaContainer() as kafka:
 
-        with KafkaEventPublisher.as_context_manager(
+        event_publisher = KafkaEventPublisher(
             service_name="test_publisher",
             client_suffix="1",
             kafka_servers=[kafka.get_bootstrap_server()],
-        ) as event_publisher:
-            await event_publisher.publish(
-                payload=payload,
-                type_=type_,
-                key=key,
-                topic=topic,
-            )
+        )
+
+        await event_publisher.publish(
+            payload=payload,
+            type_=type_,
+            key=key,
+            topic=topic,
+        )
 
         # consume event using the python-kafka library directly:
         consumer = KafkaConsumer(
@@ -60,10 +61,7 @@ async def test_kafka_event_publisher():
             key_deserializer=lambda key: key.decode("ascii"),
             value_deserializer=lambda val: json.loads(val.decode("ascii")),
         )
-        try:
-            received_event = exec_with_timeout(lambda: next(consumer), timeout_after=2)
-        finally:
-            consumer.close()
+        received_event = exec_with_timeout(lambda: next(consumer), timeout_after=2)
 
         # check if received event matches the expectations:
         assert payload == received_event.value
@@ -75,7 +73,8 @@ async def test_kafka_event_publisher():
         assert key == received_event.key
 
 
-def test_kafka_event_subscriber():
+@pytest.mark.asyncio
+async def test_kafka_event_subscriber():
     """Test the KafkaEventSubscriber with mocked KafkaEventSubscriber."""
     payload = {"test_content": "Hello World"}
     type_ = "test_type"
@@ -84,7 +83,7 @@ def test_kafka_event_subscriber():
     headers = [("type", b"test_type")]
 
     # create protocol-compatiple translator mock:
-    translator = Mock()
+    translator = AsyncMock()
     translator.topics_of_interest = [topic]
     translator.types_of_interest = [type_]
 
@@ -104,24 +103,17 @@ def test_kafka_event_subscriber():
             producer.close()
 
         # setup the provider:
-        as_resource = KafkaEventSubscriber.as_resource(
+        event_subscriber = KafkaEventSubscriber(
             service_name="event_subscriber",
             client_suffix="1",
             kafka_servers=[kafka.get_bootstrap_server()],
             translator=translator,
         )
 
-        event_subscriber = next(as_resource)
-        try:
-            # consume one event:
-            exec_with_timeout(
-                lambda: event_subscriber.run(forever=False), timeout_after=2
-            )
-        finally:
-            with pytest.raises(StopIteration):
-                next(as_resource)
+        # consume one event:
+        await event_subscriber.run(forever=False)
 
         # check if the translator was called correctly:
-        translator.consume.assert_called_once_with(
+        translator.consume.assert_awaited_once_with(
             payload=payload, type_=type_, topic=topic
         )

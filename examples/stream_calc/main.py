@@ -16,6 +16,7 @@
 
 """Implement global logic for running the application."""
 
+import asyncio
 import logging
 
 from stream_calc.config import Config
@@ -31,9 +32,12 @@ def run() -> None:
 
     logging.basicConfig(level=config.log_level)
 
-    event_subscriber = container.event_subscriber()
+    async def subscribe():
+        """Create the event handler within an async function."""
+        event_subscriber = container.event_subscriber()
+        await event_subscriber.run()
 
     try:
-        event_subscriber.run()
+        asyncio.run(subscribe())
     finally:
         container.shutdown_resources()
