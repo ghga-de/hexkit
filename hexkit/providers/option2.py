@@ -208,10 +208,6 @@ class KafkaEventPublisher(AsyncCM, EventPublisherProtocol):
 
         event_headers = [("type", type_.encode("ascii"))]
 
-        await self._producer.start()
-        try:
-            await self._producer.send_and_wait(
-                topic, key=key, value=payload, headers=event_headers
-            )
-        finally:
-            await self._producer.stop()
+        await self._producer.send_and_wait(
+            topic, key=key, value=payload, headers=event_headers
+        )
