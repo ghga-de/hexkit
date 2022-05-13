@@ -26,18 +26,16 @@ from stream_calc.container import Container  # type: ignore
 def run() -> None:
     """Run the stream calculator"""
     config = Config()
-    container = Container()
-    container.config.from_pydantic(config)
-    container.init_resources()
 
-    logging.basicConfig(level=config.log_level)
+    with Container() as container:
+        container.config.from_pydantic(config)
+        container.init_resources()
 
-    async def subscribe():
-        """Create the event handler within an async function."""
-        event_subscriber = container.event_subscriber()
-        await event_subscriber.run()
+        logging.basicConfig(level=config.log_level)
 
-    try:
+        async def subscribe():
+            """Create the event handler within an async function."""
+            event_subscriber = container.event_subscriber()
+            await event_subscriber.run()
+
         asyncio.run(subscribe())
-    finally:
-        container.shutdown_resources()

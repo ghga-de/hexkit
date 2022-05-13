@@ -16,7 +16,7 @@
 
 """Module collecting custom types."""
 
-from typing import Any, Mapping, Union
+from typing import Any, Mapping, Protocol, Union
 
 # This is intended to type objects that could be a potential output of `json.loads`.
 # (Scalar types as well as arrays are excluded from the above assumption.)
@@ -26,3 +26,15 @@ JsonObject = Mapping[str, Union[int, float, str, bool, list[Any], Mapping[str, A
 # A type indicating that a string should be ascii-compatible.
 # Technically it is an alias for `str` so it only serves documention purposes.
 Ascii = str
+
+
+class AsyncClosable(Protocol):
+    """A class that has a close method."""
+
+    async def __init__(self, *args, **kwargs):
+        """Initialize/setup the instance."""
+        ...
+
+    async def close(self) -> None:
+        """Closes/tearsdown the instance."""
+        ...

@@ -21,7 +21,7 @@
 
 """Module hosting the dependency injection container."""
 
-from dependency_injector import containers, providers
+from dependency_injector import providers
 
 # pylint: disable=wrong-import-order
 from stream_calc.core.calc import StreamCalculator
@@ -29,18 +29,19 @@ from stream_calc.core.calc import StreamCalculator
 from examples.stream_calc.ports.problem_receiver import ArithProblemReceiverPort
 from examples.stream_calc.translators.eventpub import EventResultEmitter
 from examples.stream_calc.translators.eventsub import EventProblemReceiver
+from hexkit.dep_inject import ContainerBase, Resource
 from hexkit.protocols.eventpub import EventPublisherProtocol
 from hexkit.protocols.eventsub import EventSubscriberProtocol
 from hexkit.providers.akafka import KafkaEventPublisher, KafkaEventSubscriber
 
 
-class Container(containers.DeclarativeContainer):
+class Container(ContainerBase):
     """DI Container"""
 
     config = providers.Configuration()
 
     # outbound providers:
-    event_publisher = providers.Factory[EventPublisherProtocol](
+    event_publisher = Resource[EventPublisherProtocol](
         KafkaEventPublisher,
         service_name=config.service_name,
         client_suffix=config.client_suffix,
@@ -63,7 +64,7 @@ class Container(containers.DeclarativeContainer):
     )
 
     # inbound providers:
-    event_subscriber = providers.Factory[KafkaEventSubscriber](
+    event_subscriber = Resource[KafkaEventSubscriber](
         KafkaEventSubscriber,
         service_name=config.service_name,
         client_suffix=config.client_suffix,

@@ -15,6 +15,10 @@
 
 """General utilities that don't require heavy dependencies."""
 
+from contextlib import asynccontextmanager
+
+from hexkit.custom_types import AsyncClosable
+
 
 class NonAsciiStrError(RuntimeError):
     """Thrown when non-ASCII string was unexpectedly provided"""
@@ -30,3 +34,12 @@ def check_ascii(*str_values: str):
     for str_value in str_values:
         if not str_value.isascii():
             raise NonAsciiStrError(str_value=str_value)
+
+
+@asynccontextmanager
+async def managed_close(closable: AsyncClosable):
+    """A context manager savely calling `close` on `Closable`s."""
+    try:
+        yield closable
+    finally:
+        await closable.close()
