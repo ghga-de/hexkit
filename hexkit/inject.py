@@ -25,21 +25,21 @@ framework are called `Providers`.
 """
 
 import inspect
-from typing import (
-    Any,
-    AsyncContextManager,
-    AsyncIterator,
-    Awaitable,
-    Callable,
-    Optional,
-    TypeVar,
-    cast,
-)
+from typing import Any, AsyncContextManager, AsyncIterator, Callable, Optional, TypeVar
 
 import dependency_injector.containers
 import dependency_injector.providers
 
 from hexkit.custom_types import ContextConstructable
+
+
+class NotConstructableError(TypeError):
+    """Thrown when a ContextConstructable expected but not obtained."""
+
+
+class AsyncInitShutdownError(TypeError):
+    """Thrown when a container has sync `init_resource` or `shutdown_resource` methods
+    but coroutines are needed."""
 
 
 def assert_context_constructable(constructable: type[ContextConstructable]):
@@ -58,7 +58,7 @@ def assert_context_constructable(constructable: type[ContextConstructable]):
         # Thus ignoring mypy error:
         and isinstance(constructable.construct, Callable)  # type: ignore
     ):
-        raise TypeError(
+        raise NotConstructableError(
             "ContextConstructable class must have a callable `construct` attribute."
         )
 
@@ -82,7 +82,7 @@ class ContextConstructor(dependency_injector.providers.Resource):
             constructor = constructable.construct(*args, **kwargs)
 
             if not isinstance(constructor, AsyncContextManager):
-                raise TypeError(
+                raise NotConstructableError(
                     "Callable attribute `construct` of ContextConstructable class must"
                     + " return an async context manager."
                 )
@@ -135,29 +135,27 @@ class CMDynamicContainer(dependency_injector.containers.DynamicContainer):
     async def __aenter__(self):
         """Init/setup resources."""
 
-        if not hasattr(self, "init_resources") and inspect.iscoroutine(
-            self.init_resources
-        ):
-            raise TypeError(
+        init_future = self.init_resources()
+
+        if not inspect.isawaitable(init_future):
+            raise AsyncInitShutdownError(
                 "Container does not support async initialization of resources."
             )
 
-        init_resources = cast(Callable[[], Awaitable], self.init_resources)
-
-        await init_resources()
+        await init_future
         return self
 
     async def __aexit__(self, exc_type, exc_value, exc_trace):
         """Shutdown/teardown resources"""
 
-        if not hasattr(self, "shutdown_resources") and inspect.iscoroutine(
-            self.shutdown_resources
-        ):
-            raise TypeError("Container does not support async shutdown of resources.")
+        shutdown_future = self.shutdown_resources()
 
-        shutdown_resources = cast(Callable[[], Awaitable], self.shutdown_resources)
+        if not inspect.isawaitable(shutdown_future):
+            raise AsyncInitShutdownError(
+                "Container does not support async shutdown of resources."
+            )
 
-        await shutdown_resources()
+        await shutdown_future
 
 
 SELF = TypeVar("SELF")

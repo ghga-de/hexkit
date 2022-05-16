@@ -44,6 +44,27 @@ class ValidResource(dependency_injector.resources.AsyncResource):
         resource.in_context = False
 
 
+class ValidSyncResource(dependency_injector.resources.Resource):
+    """
+    An example of an ordinary Resource as defined by the `dependency_injector` framework.
+    """
+
+    class Resource:
+        """Returned upon executing the `init` method."""
+
+        def __init__(self, foo: str = "foo"):
+            """Init TestConstructable."""
+            self.foo: Optional[str] = foo
+            self.in_context = True
+
+    def init(self, foo: str = "foo") -> Resource:  # type: ignore
+        """Initializes a new resource."""
+        return self.Resource(foo=foo)
+
+    def shutdown(self, resource: Resource) -> None:  # type: ignore
+        resource.in_context = False
+
+
 class ValidConstructable:
     """
     A test class with a `construct` method that is an async context manager.

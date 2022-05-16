@@ -20,8 +20,8 @@ import dependency_injector.containers
 import dependency_injector.providers
 import pytest
 
-from hexkit.inject import ContainerBase, ContextConstructor
-from tests.fixtures.inject import ValidConstructable, ValidResource
+from hexkit.inject import AsyncInitShutdownError, ContainerBase, ContextConstructor
+from tests.fixtures.inject import ValidConstructable, ValidResource, ValidSyncResource
 
 
 @pytest.mark.asyncio
@@ -74,3 +74,25 @@ async def test_container_base(provides, constructor):
         assert test_instance.in_context
 
     assert not test_instance.in_context
+
+
+@pytest.mark.asyncio
+async def test_container_base_sync_resouce():
+    """Make sure that using a non async Resource with the ContainerBase results in an
+    exception."""
+
+    class Container(ContainerBase):
+        test = dependency_injector.providers.Resource(ValidSyncResource, "bar")
+
+    container = Container()
+
+    with pytest.raises(AsyncInitShutdownError):
+        async with container:
+            pass
+
+    # also check the the __aenter__ and __aexit__ method separately:
+    with pytest.raises(AsyncInitShutdownError):
+        await container.__aenter__()
+
+    with pytest.raises(AsyncInitShutdownError):
+        await container.__aexit__(..., ..., ...)

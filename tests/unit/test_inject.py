@@ -26,6 +26,7 @@ import pytest
 from hexkit.custom_types import ContextConstructable
 from hexkit.inject import (
     ContextConstructor,
+    NotConstructableError,
     assert_context_constructable,
     get_constructor,
 )
@@ -57,7 +58,7 @@ async def test_assert_constructable(
     Test that assert_constructable can distinguish between
     """
 
-    with pytest.raises(TypeError) if does_raises else nullcontext():  # type: ignore
+    with pytest.raises(NotConstructableError) if does_raises else nullcontext():  # type: ignore
         assert_context_constructable(constructable)
 
 
@@ -67,8 +68,8 @@ async def test_assert_constructable(
     [
         (ValidConstructable, None),
         (NoCMConstructable, None),  # passes resources are not initialized in this test
-        (object(), TypeError),
-        (NoMethodConstructable, TypeError),
+        (object(), NotConstructableError),
+        (NoMethodConstructable, NotConstructableError),
     ],
 )
 async def test_context_constructor_init(
@@ -91,7 +92,7 @@ async def test_context_constructor_init(
     "constructable, exception",
     [
         (ValidConstructable, None),
-        (NoCMConstructable, TypeError),
+        (NoCMConstructable, NotConstructableError),
     ],
 )
 async def test_context_constructor_setup_teardown(
