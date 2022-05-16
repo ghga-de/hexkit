@@ -20,8 +20,8 @@ import dependency_injector.containers
 import dependency_injector.providers
 import pytest
 
-from hexkit.inject import ContextConstructor
-from tests.fixtures.inject import ValidConstructable
+from hexkit.inject import ContainerBase, ContextConstructor
+from tests.fixtures.inject import ValidConstructable, ValidResource
 
 
 @pytest.mark.asyncio
@@ -45,4 +45,32 @@ async def test_context_constructor_with_decl_container():
     assert test_instance.in_context
 
     await container.shutdown_resources()
+    assert not test_instance.in_context
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize(
+    "provides, constructor",
+    [
+        (ValidResource, dependency_injector.providers.Resource),
+        (ValidConstructable, ContextConstructor),
+    ],
+)
+async def test_container_base(provides, constructor):
+    """
+    Test the ContainerBase and its contextual setup and teardown functionality.
+    """
+
+    foo = "bar"
+
+    class Container(ContainerBase):
+        test = constructor(provides, foo)
+
+    async with Container() as container:
+
+        test_instance = await container.test()
+
+        assert test_instance.foo == foo
+        assert test_instance.in_context
+
     assert not test_instance.in_context

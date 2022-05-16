@@ -20,9 +20,35 @@
 from contextlib import asynccontextmanager
 from typing import Optional
 
+import dependency_injector.resources
+
+
+class ValidResource(dependency_injector.resources.AsyncResource):
+    """
+    An example of an ordinary Resource as defined by the `dependency_injector` framework.
+    """
+
+    class Resource:
+        """Returned upon executing the `init` method."""
+
+        def __init__(self, foo: str = "foo"):
+            """Init TestConstructable."""
+            self.foo: Optional[str] = foo
+            self.in_context = True
+
+    async def init(self, foo: str = "foo") -> Resource:
+        """Initializes a new resource."""
+        return self.Resource(foo=foo)
+
+    async def shutdown(self, resource: Resource) -> None:
+        resource.in_context = False
+
 
 class ValidConstructable:
-    """A test class with a `construct` method that is an async context manager."""
+    """
+    A test class with a `construct` method that is an async context manager.
+    Functionally, this is equivalent to the above `ValidResource` class.
+    """
 
     @classmethod
     @asynccontextmanager

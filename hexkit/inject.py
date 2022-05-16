@@ -14,12 +14,20 @@
 # limitations under the License.
 #
 
-"""Utilities for dependency injection based on the dependency_injector framework."""
+"""
+Utilities for dependency injection based on the dependency_injector framework.
+
+Please Note:
+To avoid overloading the "Provider" terminology of the Triple Hexagonal Architecture
+pattern, we use the term `Constructor` to refer to objects that in dependency_injector
+framework are called `Providers`.
+(Also see: https://python-dependency-injector.ets-labs.org/providers/index.html)
+"""
 
 from typing import Any, AsyncContextManager, AsyncIterator, Callable, Optional
 
+import dependency_injector.containers
 import dependency_injector.providers
-import dependency_injector.resources
 
 from hexkit.custom_types import ContextConstructable
 
@@ -78,3 +86,26 @@ class ContextConstructor(dependency_injector.providers.Resource):
         else:
             resource = self.constructable_to_resource(provides)
             super().__init__(resource, *args, **kwargs)
+
+
+class CMDynamicContainer(dependency_injector.containers.DynamicContainer):
+    """Adds a async context manager interface to the DynamicContainer base class from
+    the `dependency_injector` framework."""
+
+    async def __aenter__(self):
+        """Init/setup resources."""
+        await self.init_resources()
+        return self
+
+    async def __aexit__(self, exc_type, exc_value, exc_trace):
+        """Shutdown/teardown resources"""
+        await self.shutdown_resources()
+
+
+class ContainerBase(dependency_injector.containers.DeclarativeContainer):
+    """
+    A base container for dependency injection that handles init/setup and
+    shutdown/teardown of resources via the async context manager protocol.
+    """
+
+    instance_type = CMDynamicContainer
