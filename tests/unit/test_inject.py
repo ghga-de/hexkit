@@ -39,7 +39,7 @@ from tests.fixtures.inject import (
 
 @pytest.mark.asyncio
 @pytest.mark.parametrize(
-    "constructable, raises",
+    "constructable, does_raises",
     [
         (ValidConstructable, False),
         (NoCMConstructable, False),
@@ -50,12 +50,14 @@ from tests.fixtures.inject import (
         (NoMethodConstructable, True),
     ],
 )
-async def test_assert_constructable(constructable: ContextConstructable, raises: bool):
+async def test_assert_constructable(
+    constructable: ContextConstructable, does_raises: bool
+):
     """
     Test that assert_constructable can distinguish between
     """
 
-    with pytest.raises(TypeError) if raises else nullcontext():
+    with pytest.raises(TypeError) if does_raises else nullcontext():  # type: ignore
         assert_context_constructable(constructable)
 
 
@@ -77,7 +79,7 @@ async def test_context_constructor_init(
     constructables.
     """
 
-    with pytest.raises(exception) if exception else nullcontext():
+    with pytest.raises(exception) if exception else nullcontext():  # type: ignore
         test = ContextConstructor(constructable)
 
     if not exception:
@@ -101,14 +103,14 @@ async def test_context_constructor_setup_teardown(
 
     test = ContextConstructor(constructable, foo)
 
-    with pytest.raises(exception) if exception else nullcontext():
+    with pytest.raises(exception) if exception else nullcontext():  # type: ignore
         await test()
-        test_instance = await test.init()
+        test_instance = await test.init()  # type: ignore
 
         assert test_instance.foo == foo
         assert test_instance.in_context
 
-        await test.shutdown()
+        await test.shutdown()  # type: ignore
         assert not test_instance.in_context
 
 

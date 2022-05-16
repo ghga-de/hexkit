@@ -24,7 +24,17 @@ framework are called `Providers`.
 (Also see: https://python-dependency-injector.ets-labs.org/providers/index.html)
 """
 
-from typing import Any, AsyncContextManager, AsyncIterator, Callable, Optional
+import inspect
+from typing import (
+    Any,
+    AsyncContextManager,
+    AsyncIterator,
+    Awaitable,
+    Callable,
+    Optional,
+    TypeVar,
+    cast,
+)
 
 import dependency_injector.containers
 import dependency_injector.providers
@@ -104,6 +114,8 @@ def get_constructor(provides: type, *args, **kwargs):
     """Automatically selects and applys the right constructor for the class given to
     `provides`."""
 
+    constructor_cls: type
+
     try:
         assert_context_constructable(provides)
     except TypeError:
@@ -122,12 +134,33 @@ class CMDynamicContainer(dependency_injector.containers.DynamicContainer):
 
     async def __aenter__(self):
         """Init/setup resources."""
-        await self.init_resources()
+
+        if not hasattr(self, "init_resources") and inspect.iscoroutine(
+            self.init_resources
+        ):
+            raise TypeError(
+                "Container does not support async initialization of resources."
+            )
+
+        init_resources = cast(Callable[[], Awaitable], self.init_resources)
+
+        await init_resources()
         return self
 
     async def __aexit__(self, exc_type, exc_value, exc_trace):
         """Shutdown/teardown resources"""
-        await self.shutdown_resources()
+
+        if not hasattr(self, "shutdown_resources") and inspect.iscoroutine(
+            self.shutdown_resources
+        ):
+            raise TypeError("Container does not support async shutdown of resources.")
+
+        shutdown_resources = cast(Callable[[], Awaitable], self.shutdown_resources)
+
+        await shutdown_resources()
+
+
+SELF = TypeVar("SELF")
 
 
 class ContainerBase(dependency_injector.containers.DeclarativeContainer):
@@ -137,3 +170,16 @@ class ContainerBase(dependency_injector.containers.DeclarativeContainer):
     """
 
     instance_type = CMDynamicContainer
+
+    # Stubs to convince type checkers that this object is an async context manager,
+    # event though the corresponding logic is only implemented in self.instance_type:
+    # (See the implementation of the dependency_injector.containers.DeclarativeContainer
+    # for more details.)
+
+    async def __aenter__(self: SELF) -> SELF:
+        """Init/setup resources."""
+        ...
+
+    async def __aexit__(self, exc_type, exc_value, exc_trace):
+        """Shutdown/teardown resources"""
+        ...

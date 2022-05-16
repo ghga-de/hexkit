@@ -37,14 +37,14 @@ async def test_context_constructor_with_decl_container():
         test = ContextConstructor(ValidConstructable, foo)
 
     container = Container()
-    await container.init_resources()
+    await container.init_resources()  # type: ignore
 
     test_instance = await container.test()
 
     assert test_instance.foo == foo
     assert test_instance.in_context
 
-    await container.shutdown_resources()
+    await container.shutdown_resources()  # type: ignore
     assert not test_instance.in_context
 
 
