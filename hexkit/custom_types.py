@@ -26,3 +26,26 @@ JsonObject = Mapping[str, Union[int, float, str, bool, list[Any], Mapping[str, A
 # A type indicating that a string should be ascii-compatible.
 # Technically it is an alias for `str` so it only serves documention purposes.
 Ascii = str
+
+
+# A ContextConstructable is a class with a classmethod that is an async context manager
+# for safely setting up and tearing down an instance of that class.
+# With the current typing features of python, it seems not possible to correctly type
+# a class with that signature.
+# E.g. one could define a typing.Protocol subclass with following method:
+# ```
+# class ContextConstructable(Protocol):
+#     @classmethod
+#     @asynccontextmanager
+#     def construct(cls, *args: Any, **kwargs: Any): ...
+# ```
+# However, this is incompartible with implementations that don't explicitly use `*args`
+# and `*kwargs`, e.g. the following method does not comply with the above function stub:
+# ```
+# class SomeImplementation:
+#     @classmethod
+#     @asynccontextmanager
+#     def construct(cls, foo: str): ...
+# ```
+# Thus using a type alias for now:
+ContextConstructable = Any
