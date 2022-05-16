@@ -32,6 +32,27 @@ import dependency_injector.providers
 from hexkit.custom_types import ContextConstructable
 
 
+def assert_context_constructable(constructable: type[ContextConstructable]):
+    """
+    Makes sure that the provided object has a callable attribute `construct` attribute.
+    If this check passes, it can be seen as a strong indication that the provided object
+    is compliant with our definition of a ContextConstructable.
+    However, it does not checked whether the callable `construct` method returns an
+    async context manager.
+    """
+
+    if not (
+        hasattr(constructable, "construct")
+        # Using isinstance together with Callable should be supported,
+        # see: https://peps.python.org/pep-0484/#callable
+        # Thus ignoring mypy error:
+        and isinstance(constructable.construct, Callable)  # type: ignore
+    ):
+        raise TypeError(
+            "ContextConstructable class must have a callable `construct` attribute."
+        )
+
+
 class ContextConstructor(dependency_injector.providers.Resource):
     """Maps an asynchronous context manager onto the Resource class from the
     `dependency_injector` framework."""
@@ -45,16 +66,7 @@ class ContextConstructor(dependency_injector.providers.Resource):
         with Resource definition of the `dependency_injector` framework.
         """
 
-        if not (
-            hasattr(constructable, "construct")
-            # Using isinstance together with Callable should be supported,
-            # see: https://peps.python.org/pep-0484/#callable
-            # Thus ignoring mypy error:
-            and isinstance(constructable.construct, Callable)  # type: ignore
-        ):
-            raise TypeError(
-                "ContextConstructable class must have a callable `construct` attribute."
-            )
+        assert_context_constructable(constructable)
 
         async def resource(*args: Any, **kwargs: Any) -> AsyncIterator[Any]:
             constructor = constructable.construct(*args, **kwargs)
@@ -86,6 +98,22 @@ class ContextConstructor(dependency_injector.providers.Resource):
         else:
             resource = self.constructable_to_resource(provides)
             super().__init__(resource, *args, **kwargs)
+
+
+def get_constructor(provides: type, *args, **kwargs):
+    """Automatically selects and applys the right constructor for the class given to
+    `provides`."""
+
+    try:
+        assert_context_constructable(provides)
+    except TypeError:
+        # `provides` is not a ContextConstructable
+        constructor_cls = dependency_injector.providers.Factory
+    else:
+        # `provides` is a ContextConstructable
+        constructor_cls = ContextConstructor
+
+    return constructor_cls(provides, *args, **kwargs)
 
 
 class CMDynamicContainer(dependency_injector.containers.DynamicContainer):

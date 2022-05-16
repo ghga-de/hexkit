@@ -24,12 +24,39 @@ import dependency_injector.providers
 import pytest
 
 from hexkit.custom_types import ContextConstructable
-from hexkit.inject import ContextConstructor
+from hexkit.inject import (
+    ContextConstructor,
+    assert_context_constructable,
+    get_constructor,
+)
 from tests.fixtures.inject import (
     NoCMConstructable,
     NoMethodConstructable,
+    NonResource,
     ValidConstructable,
 )
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize(
+    "constructable, raises",
+    [
+        (ValidConstructable, False),
+        (NoCMConstructable, False),
+        # The above does not raise an exception even though the `construct` method does
+        # not return an async context manager. This is a limitation of the current
+        # implementation.
+        (object(), True),
+        (NoMethodConstructable, True),
+    ],
+)
+async def test_assert_constructable(constructable: ContextConstructable, raises: bool):
+    """
+    Test that assert_constructable can distinguish between
+    """
+
+    with pytest.raises(TypeError) if raises else nullcontext():
+        assert_context_constructable(constructable)
 
 
 @pytest.mark.asyncio
@@ -83,3 +110,19 @@ async def test_context_constructor_setup_teardown(
 
         await test.shutdown()
         assert not test_instance.in_context
+
+
+@pytest.mark.parametrize(
+    "provides, args, kwargs, constructor_cls",
+    [
+        (ValidConstructable, [], {}, ContextConstructor),
+        (NonResource, ["foo"], {"bar": "bar"}, dependency_injector.providers.Factory),
+    ],
+)
+def test_get_constructor(provides: type, args, kwargs, constructor_cls: type):
+    """Tests whether the `get_constructor` function chooses the correct constructor
+    classes for the given `provides` classes."""
+
+    constructor = get_constructor(provides, *args, **kwargs)
+
+    assert isinstance(constructor, constructor_cls)

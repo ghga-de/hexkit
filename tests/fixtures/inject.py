@@ -94,3 +94,15 @@ class NoCMConstructable:
         """Init TestConstructable."""
         self.foo: Optional[str] = foo
         self.in_context = True
+
+
+class NonResource:
+    """
+    A class that does not require setup and teardown.
+    Moreover, this class can be used to test the usage of mandatory args and kwargs to
+    the initializer when using dependency injecton constructors.
+    """
+
+    def __init__(self, foo: str, bar: str):
+        self.foo = foo
+        self.bar = bar
