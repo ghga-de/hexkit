@@ -28,9 +28,9 @@ JsonObject = Mapping[str, Union[int, float, str, bool, list[Any], Mapping[str, A
 Ascii = str
 
 
-# A ContextConstructable is a class with a classmethod that is an async context manager
-# for safely setting up and tearing down an instance of that class.
-# With the current typing features of python, it seems not possible to correctly type
+# A ContextConstructable is a class with a classmethod `construct` that creates an async
+# context manager for safely setting up and tearing down an instance of that class.
+# With the current typing features of Python, it seems not possible to correctly type
 # a class with that signature.
 # E.g. one could define a typing.Protocol subclass with following method:
 # ```
@@ -39,7 +39,7 @@ Ascii = str
 #     @asynccontextmanager
 #     def construct(cls, *args: Any, **kwargs: Any): ...
 # ```
-# However, this is incompartible with implementations that don't explicitly use `*args`
+# However, this is incompatible with implementations that don't explicitly use `*args`
 # and `*kwargs`, e.g. the following method does not comply with the above function stub:
 # ```
 # class SomeImplementation:
