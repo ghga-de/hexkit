@@ -50,13 +50,7 @@ def assert_context_constructable(constructable: type[ContextConstructable]):
     check whether `construct` really returns an async context manager.
     """
 
-    if not (
-        hasattr(constructable, "construct")
-        # Using isinstance together with Callable should be supported,
-        # see: https://peps.python.org/pep-0484/#callable
-        # Thus ignoring mypy error:
-        and isinstance(constructable.construct, Callable)  # type: ignore
-    ):
+    if not callable(getattr(constructable, "construct", None)):
         raise NotConstructableError(
             "ContextConstructable class must have a callable `construct` attribute."
         )
