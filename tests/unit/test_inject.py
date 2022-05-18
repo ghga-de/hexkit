@@ -105,7 +105,8 @@ async def test_context_constructor_setup_teardown(
     test = ContextConstructor(constructable, foo)
 
     with pytest.raises(exception) if exception else nullcontext():  # type: ignore
-        await test()
+        resource = await test.async_()
+        assert isinstance(resource, constructable)
         test_instance = await test.init()  # type: ignore
 
         assert test_instance.foo == foo
