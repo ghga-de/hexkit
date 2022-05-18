@@ -67,7 +67,7 @@ async def test_assert_constructable(
     "constructable, exception",
     [
         (ValidConstructable, None),
-        (NoCMConstructable, None),  # passes resources are not initialized in this test
+        (NoCMConstructable, None),  # passed resources are not initialized in this test
         (object(), NotConstructableError),
         (NoMethodConstructable, NotConstructableError),
     ],
