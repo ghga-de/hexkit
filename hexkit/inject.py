@@ -114,7 +114,7 @@ class ContextConstructor(dependency_injector.providers.Resource):
 
 
 def get_constructor(provides: type, *args, **kwargs):
-    """Automatically selects and applys the right constructor for the class given to
+    """Automatically selects and applies the right constructor for the class given to
     `provides`."""
 
     constructor_cls: type
