@@ -71,8 +71,8 @@ class ContextConstructor(dependency_injector.providers.Resource):
         constructable: type[ContextConstructable],
     ) -> Callable[..., AsyncIterator[Any]]:
         """
-        Converts an async context manager to an async Generator that is compatible
-        with Resource definition of the `dependency_injector` framework.
+        Converts an async context manager to an async generator that is compatible
+        with the Resource definition of the `dependency_injector` framework.
         """
 
         assert_context_constructable(constructable)
