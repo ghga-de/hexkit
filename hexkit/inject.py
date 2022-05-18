@@ -44,11 +44,10 @@ class AsyncInitShutdownError(TypeError):
 
 def assert_context_constructable(constructable: type[ContextConstructable]):
     """
-    Makes sure that the provided object has a callable attribute `construct` attribute.
+    Make sure that the provided object has a callable attribute `construct`.
     If this check passes, it can be seen as a strong indication that the provided object
-    is compliant with our definition of a ContextConstructable.
-    However, it does not checked whether the callable `construct` method returns an
-    async context manager.
+    is compliant with our definition of a ContextConstructable. However, it does not
+    check whether `construct` really returns an async context manager.
     """
 
     if not (
