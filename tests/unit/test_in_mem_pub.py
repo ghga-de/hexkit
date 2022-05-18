@@ -16,8 +16,9 @@
 
 """Testing the in-memory publisher."""
 
+from contextlib import nullcontext
+
 import pytest
-from black import nullcontext
 
 from hexkit.providers.testing.in_mem_pub import (
     InMemEventPublisher,
