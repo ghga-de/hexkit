@@ -15,7 +15,9 @@
 #
 
 """
-Utilities for dependency injection based on the dependency_injector framework.
+This module contains a helper function that automatically selects the suitable
+"Provider" class for the dependency_injector framework and makes the "Container" class
+usable as async context manager.
 
 Please Note:
 To avoid overloading the "Provider" terminology of the Triple Hexagonal Architecture
