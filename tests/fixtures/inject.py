@@ -25,7 +25,7 @@ import dependency_injector.resources
 
 class ValidResource(dependency_injector.resources.AsyncResource):
     """
-    An example of an ordinary Resource as defined by the `dependency_injector` framework.
+    An example of an AsyncResource as defined by the `dependency_injector` framework.
     """
 
     class Resource:
