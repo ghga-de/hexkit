@@ -169,7 +169,7 @@ class ContainerBase(dependency_injector.containers.DeclarativeContainer):
     instance_type = CMDynamicContainer
 
     # Stubs to convince type checkers that this object is an async context manager,
-    # event though the corresponding logic is only implemented in self.instance_type:
+    # even though the corresponding logic is only implemented in self.instance_type:
     # (See the implementation of the dependency_injector.containers.DeclarativeContainer
     # for more details.)
 
