@@ -23,8 +23,8 @@ Require dependencies of the `akafka` extra. See the `setup.cfg`.
 
 import json
 import logging
-from typing import Protocol, Callable, Any
 from contextlib import asynccontextmanager
+from typing import Any, Callable, Protocol
 
 from aiokafka import AIOKafkaProducer
 from kafka import KafkaConsumer

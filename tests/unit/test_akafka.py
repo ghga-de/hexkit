@@ -24,46 +24,16 @@ import pytest
 
 from hexkit.custom_types import JsonObject
 from hexkit.providers.akafka import KafkaEventPublisher, KafkaEventSubscriber
-from hexkit.utils import NonAsciiStrError
 
 
 @pytest.mark.asyncio
-@pytest.mark.parametrize(
-    "type_, key, topic, expected_headers, exception",
-    [
-        ("test_type", "test_key", "test_topic", [("type", b"test_type")], None),
-        (
-            "test_ßtype",  # non ascii
-            "test_key",
-            "test_topic",
-            [("type", b"test_type")],
-            NonAsciiStrError,
-        ),
-        (
-            "test_type",
-            "test_ßkey",  # non ascii
-            "test_topic",
-            [("type", b"test_type")],
-            NonAsciiStrError,
-        ),
-        (
-            "test_type",
-            "test_key",
-            "test_ßtopic",  # non ascii
-            [("type", b"test_type")],
-            NonAsciiStrError,
-        ),
-    ],
-)
-async def test_kafka_event_publisher(
-    type_: str,
-    key: str,
-    topic: str,
-    expected_headers: list[tuple[str, bytes]],
-    exception: Optional[type[Exception]],
-):
+async def test_kafka_event_publisher():
     """Test the KafkaEventPublisher with mocked KafkaEventPublisher."""
-    payload: JsonObject = {"test_content": "Hello World"}
+    type_ = "test_type"
+    key = "test_key"
+    topic = "test_topic"
+    payload = {"test_content": "Hello World"}
+    expected_headers = [("type", b"test_type")]
 
     # create kafka producer mock
     producer = AsyncMock()
@@ -86,24 +56,22 @@ async def test_kafka_event_publisher(
         assert callable(pc_kwargs["value_serializer"])
 
         # publish one event:
-        with (pytest.raises(exception) if exception else nullcontext()):  # type: ignore
-            await event_publisher.publish(
-                payload=payload,
-                type_=type_,
-                key=key,
-                topic=topic,
-            )
-
-    if not exception:
-        # check if producer was correctly used:
-        producer.start.assert_awaited_once()
-        producer.send_and_wait.assert_awaited_once_with(
-            topic,
-            value=payload,
+        await event_publisher.publish(
+            payload=payload,
+            type_=type_,
             key=key,
-            headers=expected_headers,
+            topic=topic,
         )
-        producer.stop.assert_awaited_once()
+
+    # check if producer was correctly used:
+    producer.start.assert_awaited_once()
+    producer.send_and_wait.assert_awaited_once_with(
+        topic,
+        value=payload,
+        key=key,
+        headers=expected_headers,
+    )
+    producer.stop.assert_awaited_once()
 
 
 @pytest.mark.parametrize(
