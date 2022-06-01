@@ -26,7 +26,7 @@ class EventPublisherProtocol(ABC):
     """A protocol for publishing events to an event broker."""
 
     @abstractmethod
-    def publish(
+    async def publish(
         self, *, payload: JsonObject, type_: Ascii, key: Ascii, topic: Ascii
     ) -> None:
         """Publish an event.

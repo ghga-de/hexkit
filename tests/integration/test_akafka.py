@@ -28,7 +28,8 @@ from hexkit.providers.akafka import KafkaEventPublisher, KafkaEventSubscriber
 from tests.fixtures.utils import exec_with_timeout
 
 
-def test_kafka_event_publisher():
+@pytest.mark.asyncio
+async def test_kafka_event_publisher():
     """Test the KafkaEventPublisher."""
     payload: JsonObject = {"test_content": "Hello World"}
     type_ = "test_type"
@@ -36,38 +37,33 @@ def test_kafka_event_publisher():
     topic = "test_topic"
 
     with KafkaContainer() as kafka:
+        bootstrap_servers = [kafka.get_bootstrap_server()]
 
-        as_resource = KafkaEventPublisher.as_resource(
+        async with KafkaEventPublisher.construct(
             service_name="test_publisher",
             client_suffix="1",
-            kafka_servers=[kafka.get_bootstrap_server()],
-        )
+            kafka_servers=bootstrap_servers,
+        ) as event_publisher:
 
-        # publish event using the provider:
-        event_publisher = next(as_resource)
-        try:
-            event_publisher.publish(
+            await event_publisher.publish(
                 payload=payload,
                 type_=type_,
                 key=key,
                 topic=topic,
             )
-        finally:
-            with pytest.raises(StopIteration):
-                next(as_resource)
 
         # consume event using the python-kafka library directly:
         consumer = KafkaConsumer(
             topic,
             client_id="test_consumer",
             group_id="test_consumer_group",
-            bootstrap_servers=[kafka.get_bootstrap_server()],
+            bootstrap_servers=bootstrap_servers,
             auto_offset_reset="earliest",
             key_deserializer=lambda key: key.decode("ascii"),
             value_deserializer=lambda val: json.loads(val.decode("ascii")),
         )
         try:
-            received_event = exec_with_timeout(lambda: next(consumer), timeout_after=2)
+            received_event = exec_with_timeout(lambda: next(consumer), timeout_after=4)
         finally:
             consumer.close()
 

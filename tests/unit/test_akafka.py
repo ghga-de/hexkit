@@ -18,7 +18,7 @@
 
 from contextlib import nullcontext
 from typing import Optional
-from unittest.mock import MagicMock, Mock
+from unittest.mock import AsyncMock, MagicMock, Mock
 
 import pytest
 
@@ -27,6 +27,7 @@ from hexkit.providers.akafka import KafkaEventPublisher, KafkaEventSubscriber
 from hexkit.utils import NonAsciiStrError
 
 
+@pytest.mark.asyncio
 @pytest.mark.parametrize(
     "type_, key, topic, expected_headers, exception",
     [
@@ -54,7 +55,7 @@ from hexkit.utils import NonAsciiStrError
         ),
     ],
 )
-def test_kafka_event_publisher(
+async def test_kafka_event_publisher(
     type_: str,
     key: str,
     topic: str,
@@ -65,18 +66,17 @@ def test_kafka_event_publisher(
     payload: JsonObject = {"test_content": "Hello World"}
 
     # create kafka producer mock
-    producer_class = Mock()
+    producer = AsyncMock()
+    producer_class = Mock(return_value=producer)
 
     # publish event using the provider:
-    as_resource = KafkaEventPublisher.as_resource(
+    async with KafkaEventPublisher.construct(
         service_name="test_publisher",
         client_suffix="1",
         kafka_servers=["my-fake-kafka-server"],
         kafka_producer_cls=producer_class,
-    )
+    ) as event_publisher:
 
-    event_publisher = next(as_resource)
-    try:
         # check if producer class was called correctly:
         producer_class.assert_called_once()
         pc_kwargs = producer_class.call_args.kwargs
@@ -87,30 +87,23 @@ def test_kafka_event_publisher(
 
         # publish one event:
         with (pytest.raises(exception) if exception else nullcontext()):  # type: ignore
-            event_publisher.publish(
+            await event_publisher.publish(
                 payload=payload,
                 type_=type_,
                 key=key,
                 topic=topic,
             )
-    finally:
-        with pytest.raises(StopIteration):
-            next(as_resource)
-
-    producer = producer_class.return_value
 
     if not exception:
         # check if producer was correctly used:
-        producer = producer_class.return_value
-        producer.send.assert_called_once_with(
+        producer.start.assert_awaited_once()
+        producer.send_and_wait.assert_awaited_once_with(
             topic,
             value=payload,
             key=key,
             headers=expected_headers,
         )
-        producer.flush.assert_called_once()
-    # check if producer was closed correctly:
-    producer.close.assert_called_once()
+        producer.stop.assert_awaited_once()
 
 
 @pytest.mark.parametrize(

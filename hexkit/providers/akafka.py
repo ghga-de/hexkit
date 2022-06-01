@@ -23,8 +23,11 @@ Require dependencies of the `akafka` extra. See the `setup.cfg`.
 
 import json
 import logging
+from typing import Protocol, Callable, Any
+from contextlib import asynccontextmanager
 
-from kafka import KafkaConsumer, KafkaProducer
+from aiokafka import AIOKafkaProducer
+from kafka import KafkaConsumer
 from kafka.consumer.fetcher import ConsumerRecord
 
 from hexkit.base import InboundProviderBase
@@ -45,19 +48,58 @@ def generate_client_id(service_name: str, client_suffix: str) -> str:
     return f"{service_name}.{client_suffix}"
 
 
-class KafkaEventPublisher(EventPublisherProtocol):
-    """Apache Kafka specific event publishing provider."""
+class KafkaProducerCompatible(Protocol):
+    """A python duck type protocol describing a AIOKafkaProducer or equivalent."""
 
     def __init__(
         self,
+        bootstrap_servers: list[str],
+        client_id: str,
+        key_serializer: Callable[[Any], bytes],
+        value_serializer: Callable[[Any], bytes],
+    ):
+        """
+        Initialize the producer with some config params.
+        Args:
+            bootstrap_servers (list[str]):
+                List of connection strings pointing to the kafka brokers.
+            client_id (str):
+                A globally unique ID identifying this the Kafka client.
+            key_serializer:
+                Function to serialize the keys into bytes.
+            value_serializer:
+                Function to serialize the values into bytes.
+        """
+
+        ...
+
+    async def start(self):
+        """Setup the producer."""
+        ...
+
+    async def stop(self):
+        """Teardown the producer."""
+        ...
+
+    async def send_and_wait(self, topic, *, key, value, headers) -> None:
+        """Send event."""
+        ...
+
+
+class KafkaEventPublisher(EventPublisherProtocol):
+    """Apache Kafka specific event publishing provider."""
+
+    @classmethod
+    @asynccontextmanager
+    async def construct(
+        cls,
         *,
         service_name: str,
         client_suffix: str,
         kafka_servers: list[str],
-        kafka_producer_cls=KafkaProducer,
+        kafka_producer_cls: type[KafkaProducerCompatible] = AIOKafkaProducer,
     ):
-        """Initialize the provider with some config params.
-
+        """Setup and teardown KafkaEventPublisher instance with some config params.
         Args:
             service_name (str):
                 The name of the (micro-)service from which messages are published.
@@ -69,11 +111,9 @@ class KafkaEventPublisher(EventPublisherProtocol):
             kafka_producer_cls:
                 Overwrite the used Kafka Producer class. Only intented for unit testing.
         """
-        super().__init__()
-
         client_id = generate_client_id(service_name, client_suffix)
 
-        self._producer = kafka_producer_cls(
+        producer = kafka_producer_cls(
             bootstrap_servers=kafka_servers,
             client_id=client_id,
             key_serializer=lambda key: key.encode("ascii"),
@@ -81,43 +121,42 @@ class KafkaEventPublisher(EventPublisherProtocol):
                 "ascii"
             ),
         )
+        try:
+            await producer.start()
+            yield cls(producer=producer)
+        finally:
+            await producer.stop()
 
-    @classmethod
-    def as_resource(
-        cls,
-        service_name: str,
-        client_suffix: str,
-        kafka_servers: list[str],
-        kafka_producer_cls=KafkaProducer,
+    def __init__(
+        self,
+        *,
+        producer: AIOKafkaProducer,
     ):
-        """Generate instance as resource provider."""
-        self = cls(
-            service_name=service_name,
-            client_suffix=client_suffix,
-            kafka_servers=kafka_servers,
-            kafka_producer_cls=kafka_producer_cls,
-        )
-        yield self
-        self.close()
+        """Please do not call directly! Should be called by the `construct` method.
+        Args:
+            producer:
+                hands over a AIOKafkaProducer.
+        """
+        super().__init__()
+        self._producer = producer
 
-    def close(self) -> None:
-        """Close the underlying producer."""
-        self._producer.close()
-
-    def publish(self, *, payload: JsonObject, type_: str, key: str, topic: str) -> None:
+    async def publish(
+        self, *, payload: JsonObject, type_: str, key: str, topic: str
+    ) -> None:
         """Publish an event to an Apache Kafka event broker.
-
         Args:
             payload (JSON): The payload to ship with the event.
             type_ (str): The event type. ASCII characters only.
             key (str): The event type. ASCII characters only.
             topic (str): The event type. ASCII characters only.
         """
-        super().publish(payload=payload, type_=type_, key=key, topic=topic)
+        await super().publish(payload=payload, type_=type_, key=key, topic=topic)
 
         event_headers = [("type", type_.encode("ascii"))]
-        self._producer.send(topic, key=key, value=payload, headers=event_headers)
-        self._producer.flush()
+
+        await self._producer.send_and_wait(
+            topic, key=key, value=payload, headers=event_headers
+        )
 
 
 class KafkaEventSubscriber(InboundProviderBase):
