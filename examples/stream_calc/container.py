@@ -26,11 +26,9 @@ from dependency_injector import providers
 # pylint: disable=wrong-import-order
 from stream_calc.core.calc import StreamCalculator
 
-from examples.stream_calc.ports.problem_receiver import ArithProblemReceiverPort
 from examples.stream_calc.translators.eventpub import EventResultEmitter
 from examples.stream_calc.translators.eventsub import EventProblemReceiver
 from hexkit.inject import ContainerBase, get_constructor
-from hexkit.protocols.eventsub import EventSubscriberProtocol
 from hexkit.providers.akafka import KafkaEventPublisher, KafkaEventSubscriber
 
 
@@ -48,23 +46,23 @@ class Container(ContainerBase):
     )
 
     # outbound translators:
-    event_result_emitter = providers.Factory[EventResultEmitter](
+    event_result_emitter = get_constructor(
         EventResultEmitter, event_publisher=event_publisher
     )
 
     # inbound ports:
-    problem_receiver = providers.Factory[ArithProblemReceiverPort](
+    problem_receiver = get_constructor(
         StreamCalculator, result_emitter=event_result_emitter
     )
 
     # inbound translators:
-    event_problem_receiver = providers.Factory[EventSubscriberProtocol](
+    event_problem_receiver = get_constructor(
         EventProblemReceiver, problem_receiver=problem_receiver
     )
 
     # inbound providers:
-    event_subscriber = providers.Resource[KafkaEventSubscriber](
-        KafkaEventSubscriber.as_resource,
+    event_subscriber = get_constructor(
+        KafkaEventSubscriber,
         service_name=config.service_name,
         client_suffix=config.client_suffix,
         kafka_servers=config.kafka_servers,

@@ -52,13 +52,13 @@ class EventProblemReceiver(EventSubscriberProtocol):
                 Not used by this implementation.
         """
 
-        super().consume(payload=payload, type_=type_, topic=topic)
+        await super().consume(payload=payload, type_=type_, topic=topic)
 
         if type_ == "multiplication_problem":
             self._check_payload(
                 payload, expected_fields=["problem_id", "multiplier", "multiplicand"]
             )
-            self._problem_receiver.multiply(
+            await self._problem_receiver.multiply(
                 problem_id=payload["problem_id"],
                 multiplier=payload["multiplier"],
                 multiplicand=payload["multiplicand"],
@@ -68,7 +68,7 @@ class EventProblemReceiver(EventSubscriberProtocol):
             self._check_payload(
                 payload, expected_fields=["problem_id", "dividend", "divisor"]
             )
-            self._problem_receiver.divide(
+            await self._problem_receiver.divide(
                 problem_id=payload["problem_id"],
                 dividend=payload["dividend"],
                 divisor=payload["divisor"],

@@ -27,7 +27,6 @@ from contextlib import asynccontextmanager
 from typing import Any, Callable, Literal, Protocol
 
 from aiokafka import AIOKafkaConsumer, AIOKafkaProducer
-from kafka.consumer.fetcher import ConsumerRecord
 
 from hexkit.base import InboundProviderBase
 from hexkit.custom_types import JsonObject
@@ -48,7 +47,7 @@ def generate_client_id(service_name: str, client_suffix: str) -> str:
 
 
 class KafkaProducerCompatible(Protocol):
-    """A python duck type protocol describing a AIOKafkaProducer or equivalent."""
+    """A python duck type protocol describing an AIOKafkaProducer or equivalent."""
 
     def __init__(
         self,
@@ -165,14 +164,14 @@ class ConsumerEvent(Protocol):
 
     topic: str
     key: str
-    value: str
+    value: JsonObject
     headers: list[tuple[str, bytes]]
     partition: int
     offset: int
 
 
 class KafkaConsumerCompatible(Protocol):
-    """A python duck type protocol describing a AIOKafkaConsumer or equivalent."""
+    """A python duck type protocol describing an AIOKafkaConsumer or equivalent."""
 
     def __init__(
         self,
@@ -297,22 +296,22 @@ class KafkaEventSubscriber(InboundProviderBase):
         self._types_whitelist = translator.types_of_interest
 
     @staticmethod
-    def _get_type(event: ConsumerRecord) -> str:
-        """Extract the event type out of an ConsumerRecord."""
+    def _get_type(event: ConsumerEvent) -> str:
+        """Extract the event type out of an ConsumerEvent."""
         for header in event.headers:
             if header[0] == "type":
                 return header[1].decode("ascii")
         raise EventTypeNotFoundError()
 
     @staticmethod
-    def _get_event_label(event: ConsumerRecord) -> str:
+    def _get_event_label(event: ConsumerEvent) -> str:
         """Get a label that identifies an event."""
         return (
             f"{event.topic} - {event.partition} - {event.offset} "
             + " (topic-partition-offset)"
         )
 
-    async def _consume_event(self, event: ConsumerRecord) -> None:
+    async def _consume_event(self, event: ConsumerEvent) -> None:
         """Consume an event by passing it down to the translator via the protocol."""
         event_label = self._get_event_label(event)
 
