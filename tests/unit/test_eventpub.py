@@ -31,7 +31,7 @@ class FakePublisher(EventPublisherProtocol):
     """
 
     async def publish(self, *, payload, type_, key, topic) -> None:
-        return await super().publish(payload=payload, type_=type_, key=key, topic=topic)
+        await super().publish(payload=payload, type_=type_, key=key, topic=topic)
 
 
 @pytest.mark.asyncio

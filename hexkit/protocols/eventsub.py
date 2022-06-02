@@ -46,7 +46,7 @@ class EventSubscriberProtocol(ABC):
     types_of_interest: list[Ascii]
 
     @abstractmethod
-    def consume(self, *, payload: JsonObject, type_: Ascii, topic: Ascii) -> None:
+    async def consume(self, *, payload: JsonObject, type_: Ascii, topic: Ascii) -> None:
         """Receive an event of interest and process it according to its type.
 
         Args:

@@ -41,7 +41,7 @@ class EventProblemReceiver(EventSubscriberProtocol):
                     f"Payload did not contain the expected field '{field}'"
                 )
 
-    def consume(self, *, payload: JsonObject, type_: str, topic: str) -> None:
+    async def consume(self, *, payload: JsonObject, type_: str, topic: str) -> None:
         """Receive an event of interest and process it according to its type.
 
         Args:

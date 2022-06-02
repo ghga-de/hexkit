@@ -30,10 +30,11 @@ class FakeSubscriber(EventSubscriberProtocol):
     any logic.
     """
 
-    def consume(self, *, payload, type_, topic) -> None:
-        return super().consume(payload=payload, type_=type_, topic=topic)
+    async def consume(self, *, payload, type_, topic) -> None:
+        await super().consume(payload=payload, type_=type_, topic=topic)
 
 
+@pytest.mark.asyncio
 @pytest.mark.parametrize(
     "type_, topic, exception",
     [
@@ -50,7 +51,7 @@ class FakeSubscriber(EventSubscriberProtocol):
         ),
     ],
 )
-def test_ascii_val(type_, topic, exception):
+async def test_ascii_val(type_, topic, exception):
     """Tests the ASCII validation logic included in the EventSubscriberProtocol."""
     payload = {"test_content": "Hello World"}
 
@@ -59,7 +60,7 @@ def test_ascii_val(type_, topic, exception):
 
     # publish event using the provider:
     with (pytest.raises(exception) if exception else nullcontext()):  # type: ignore
-        event_submitter.consume(
+        await event_submitter.consume(
             payload=payload,
             type_=type_,
             topic=topic,
