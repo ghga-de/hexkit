@@ -19,7 +19,7 @@
 from abc import ABC, abstractmethod
 
 
-class ArithProblemReceiverPort(ABC):
+class ArithProblemHandlerPort(ABC):
     """
     Port that excepts calculation tasks.
     More operations like addition or subtraction could be added in a similar way.

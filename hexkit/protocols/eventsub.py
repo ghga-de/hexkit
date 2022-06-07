@@ -51,7 +51,7 @@ class EventSubscriberProtocol(ABC):
         Args:
             payload (JsonObject): The data/payload to send with the event.
             type_ (str): The type of the event.
-            topic (str): Name of the topic to publish the event to.
+            topic (str): Name of the topic the event was published to.
         """
         check_ascii(type_, topic)
         await self._consume_validated(payload=payload, type_=type_, topic=topic)
@@ -66,6 +66,6 @@ class EventSubscriberProtocol(ABC):
         Args:
             payload (JsonObject): The data/payload to send with the event.
             type_ (str): The type of the event.
-            topic (str): Name of the topic to publish the event to.
+            topic (str): Name of the topic the event was published to.
         """
         ...

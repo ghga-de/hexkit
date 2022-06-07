@@ -55,13 +55,15 @@ class Container(ContainerBase):
     )
 
     # inbound ports:
-    problem_receiver = get_constructor(
+    problem_handler = get_constructor(
         StreamCalculator, result_emitter=event_result_emitter
     )
 
     # inbound translators:
     event_problem_receiver = get_constructor(
-        EventProblemReceiver, problem_receiver=problem_receiver
+        EventProblemReceiver,
+        topics_of_interest=config.problem_receive_topics,
+        problem_handler=problem_handler,
     )
 
     # inbound providers:

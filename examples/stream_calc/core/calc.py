@@ -16,11 +16,11 @@
 
 """The application logic of the calculator."""
 
-from examples.stream_calc.ports.problem_receiver import ArithProblemReceiverPort
+from examples.stream_calc.ports.problem_receiver import ArithProblemHandlerPort
 from examples.stream_calc.ports.result_emitter import CalcResultEmitterPort
 
 
-class StreamCalculator(ArithProblemReceiverPort):
+class StreamCalculator(ArithProblemHandlerPort):
     """
     Perform calculations and stream results.
 

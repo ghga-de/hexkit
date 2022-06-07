@@ -16,7 +16,7 @@
 
 """Translators that target the event publishing protocol."""
 
-from examples.stream_calc.ports.problem_receiver import ArithProblemReceiverPort
+from examples.stream_calc.ports.problem_receiver import ArithProblemHandlerPort
 from hexkit.custom_types import Ascii, JsonObject
 from hexkit.protocols.eventsub import EventSubscriberProtocol
 
@@ -25,12 +25,17 @@ class EventProblemReceiver(EventSubscriberProtocol):
     """Inbound abstract translator translating between the EventSubscriberProtocol and the
     ArithProblemReceiverPort."""
 
-    topics_of_interest = ["arithmetic_problems"]
     types_of_interest = ["multiplication_problem", "division_problem"]
 
-    def __init__(self, problem_receiver: ArithProblemReceiverPort):
+    def __init__(
+        self,
+        *,
+        topics_of_interest: list[str],
+        problem_handler: ArithProblemHandlerPort,
+    ):
         """Configure the translator with a corresponding port implementation."""
-        self._problem_receiver = problem_receiver
+        self._problem_handler = problem_handler
+        self.topics_of_interest = topics_of_interest
 
     def _check_payload(self, payload: JsonObject, expected_fields: list[str]):
         """Check whether all the expected fields are present in the payload."""
@@ -41,7 +46,13 @@ class EventProblemReceiver(EventSubscriberProtocol):
                 )
 
     async def _consume_validated(
-        self, *, payload: JsonObject, type_: Ascii, topic: Ascii
+        self,
+        *,
+        payload: JsonObject,
+        type_: Ascii,
+        # This implementation does NOT use the `topic` information that is provided as
+        # part of the EventSubscriberProtocol:
+        topic: Ascii,  # pylint: disable=unused-argument
     ) -> None:
         """
         Receive and process an event with already validated topic and type.
@@ -49,14 +60,14 @@ class EventProblemReceiver(EventSubscriberProtocol):
         Args:
             payload (JsonObject): The data/payload to send with the event.
             type_ (str): The type of the event.
-            topic (str): Name of the topic to publish the event to.
+            topic (str): Name of the topic the event was published to.
         """
 
         if type_ == "multiplication_problem":
             self._check_payload(
                 payload, expected_fields=["problem_id", "multiplier", "multiplicand"]
             )
-            await self._problem_receiver.multiply(
+            await self._problem_handler.multiply(
                 problem_id=payload["problem_id"],
                 multiplier=payload["multiplier"],
                 multiplicand=payload["multiplicand"],
@@ -66,7 +77,7 @@ class EventProblemReceiver(EventSubscriberProtocol):
             self._check_payload(
                 payload, expected_fields=["problem_id", "dividend", "divisor"]
             )
-            await self._problem_receiver.divide(
+            await self._problem_handler.divide(
                 problem_id=payload["problem_id"],
                 dividend=payload["dividend"],
                 divisor=payload["divisor"],
