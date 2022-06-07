@@ -17,7 +17,7 @@
 """Translators that target the event publishing protocol."""
 
 from examples.stream_calc.ports.problem_receiver import ArithProblemReceiverPort
-from hexkit.custom_types import JsonObject
+from hexkit.custom_types import Ascii, JsonObject
 from hexkit.protocols.eventsub import EventSubscriberProtocol
 
 
@@ -30,7 +30,6 @@ class EventProblemReceiver(EventSubscriberProtocol):
 
     def __init__(self, problem_receiver: ArithProblemReceiverPort):
         """Configure the translator with a corresponding port implementation."""
-        super().__init__()
         self._problem_receiver = problem_receiver
 
     def _check_payload(self, payload: JsonObject, expected_fields: list[str]):
@@ -41,18 +40,17 @@ class EventProblemReceiver(EventSubscriberProtocol):
                     f"Payload did not contain the expected field '{field}'"
                 )
 
-    async def consume(self, *, payload: JsonObject, type_: str, topic: str) -> None:
-        """Receive an event of interest and process it according to its type.
+    async def _consume_validated(
+        self, *, payload: JsonObject, type_: Ascii, topic: Ascii
+    ) -> None:
+        """
+        Receive a pre-validated event of interest and process it according to its type.
 
         Args:
             payload (JsonObject): The data/payload to send with the event.
             type_ (str): The type of the event.
-            topic (str):
-                Name of the topic to publish the event to.
-                Not used by this implementation.
+            topic (str): Name of the topic to publish the event to.
         """
-
-        await super().consume(payload=payload, type_=type_, topic=topic)
 
         if type_ == "multiplication_problem":
             self._check_payload(

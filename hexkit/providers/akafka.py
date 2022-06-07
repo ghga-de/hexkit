@@ -137,20 +137,19 @@ class KafkaEventPublisher(EventPublisherProtocol):
             producer:
                 hands over a started AIOKafkaProducer.
         """
-        super().__init__()
         self._producer = producer
 
-    async def publish(
+    async def _publish_validated(
         self, *, payload: JsonObject, type_: str, key: str, topic: str
     ) -> None:
-        """Publish an event to an Apache Kafka event broker.
+        """Publish an event that has already been validated.
+
         Args:
             payload (JSON): The payload to ship with the event.
             type_ (str): The event type. ASCII characters only.
             key (str): The event type. ASCII characters only.
             topic (str): The event type. ASCII characters only.
         """
-        await super().publish(payload=payload, type_=type_, key=key, topic=topic)
 
         event_headers = [("type", type_.encode("ascii"))]
 
@@ -289,7 +288,6 @@ class KafkaEventSubscriber(InboundProviderBase):
                 type annotation) and an application-specific port
                 (according to the triple hexagonal architecture).
         """
-        super().__init__()
 
         self._consumer = consumer
         self._translator = translator
@@ -346,7 +344,6 @@ class KafkaEventSubscriber(InboundProviderBase):
         However, you can set `forever` to `False` to make it return after handling one
         event.
         """
-        await super().run(forever=forever)
 
         if forever:
             async for event in self._consumer:

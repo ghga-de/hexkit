@@ -78,18 +78,16 @@ class InMemEventPublisher(EventPublisherProtocol):
         """
         self.event_store = event_store if event_store else InMemEventStore()
 
-    async def publish(
+    async def _publish_validated(
         self, *, payload: JsonObject, type_: str, key: str, topic: str
     ) -> None:
-        """Publish an event.
+        """Publish an event that has already been validated.
 
         Args:
-            payload (JsonObject): The payload to ship with the event.
+            payload (JSON): The payload to ship with the event.
             type_ (str): The event type. ASCII characters only.
             key (str): The event type. ASCII characters only.
             topic (str): The event type. ASCII characters only.
         """
-        await super().publish(payload=payload, type_=type_, key=key, topic=topic)
-
         event = Event(type_=type_, key=key, payload=payload)
         self.event_store.post(topic=topic, event=event)

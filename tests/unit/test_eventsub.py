@@ -30,8 +30,8 @@ class FakeSubscriber(EventSubscriberProtocol):
     any logic.
     """
 
-    async def consume(self, *, payload, type_, topic) -> None:
-        await super().consume(payload=payload, type_=type_, topic=topic)
+    async def _consume_validated(self, *, payload, type_, topic) -> None:
+        pass
 
 
 @pytest.mark.asyncio

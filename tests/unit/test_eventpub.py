@@ -30,8 +30,8 @@ class FakePublisher(EventPublisherProtocol):
     any logic.
     """
 
-    async def publish(self, *, payload, type_, key, topic) -> None:
-        await super().publish(payload=payload, type_=type_, key=key, topic=topic)
+    async def _publish_validated(self, *, payload, type_, key, topic) -> None:
+        pass
 
 
 @pytest.mark.asyncio
