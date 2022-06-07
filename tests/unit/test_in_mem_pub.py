@@ -18,7 +18,7 @@
 
 import pytest
 
-from hexkit.providers.testing.in_mem_pub import (
+from hexkit.providers.testing.eventpub import (
     InMemEventPublisher,
     InMemEventStore,
     TopicExhaustedError,

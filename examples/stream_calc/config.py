@@ -30,3 +30,6 @@ class Config(BaseSettings):
     client_suffix: str = "1"
     kafka_servers: list[str] = ["kafka:9092"]
     log_level: LOGLEVEL = "INFO"
+    result_emit_output_topic: str = "calc_output"
+    result_emit_success_type: str = "calc_success"
+    result_emit__failure_typte: str = "calc_failure"

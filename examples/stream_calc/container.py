@@ -47,7 +47,11 @@ class Container(ContainerBase):
 
     # outbound translators:
     event_result_emitter = get_constructor(
-        EventResultEmitter, event_publisher=event_publisher
+        EventResultEmitter,
+        output_topic=config.result_emit_output_topic,
+        success_type=config.result_emit_success_type,
+        failure_type=config.result_emit_failure_type,
+        event_publisher=event_publisher,
     )
 
     # inbound ports:
