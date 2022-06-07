@@ -45,7 +45,7 @@ class EventPublisherProtocol(ABC):
     async def _publish_validated(
         self, *, payload: JsonObject, type_: Ascii, key: Ascii, topic: Ascii
     ) -> None:
-        """Publish an event that has already been validated.
+        """Publish an event with already validated topic and type.
 
         Args:
             payload (JSON): The payload to ship with the event.

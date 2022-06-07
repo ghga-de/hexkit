@@ -81,7 +81,7 @@ class InMemEventPublisher(EventPublisherProtocol):
     async def _publish_validated(
         self, *, payload: JsonObject, type_: str, key: str, topic: str
     ) -> None:
-        """Publish an event that has already been validated.
+        """Publish an event with already validated topic and type.
 
         Args:
             payload (JSON): The payload to ship with the event.

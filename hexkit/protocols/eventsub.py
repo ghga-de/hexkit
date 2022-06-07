@@ -61,7 +61,7 @@ class EventSubscriberProtocol(ABC):
         self, *, payload: JsonObject, type_: Ascii, topic: Ascii
     ) -> None:
         """
-        Receive a pre-validated event of interest and process it according to its type.
+        Receive and process an event with already validated topic and type.
 
         Args:
             payload (JsonObject): The data/payload to send with the event.
