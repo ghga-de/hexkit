@@ -27,7 +27,7 @@ class StreamCalculator(ArithProblemReceiverPort):
     More operations like addition or subtraction could be added in a similar way.
     """
 
-    def __init__(self, result_emitter: CalcResultEmitterPort):
+    def __init__(self, *, result_emitter: CalcResultEmitterPort):
         """Configure relevant ports."""
 
         self._result_emitter = result_emitter

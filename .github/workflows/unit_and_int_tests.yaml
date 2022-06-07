@@ -9,22 +9,31 @@ jobs:
 
     steps:
       - uses: actions/checkout@v2.4.2
+
       - name: Retrieve main src dir
         id: main_src_dir
         run: |
           echo "::set-output name=MAIN_SRC_DIR::${PWD}/$(./scripts/get_package_name.py)"
+
       - name: Set up Python 3.9
         uses: actions/setup-python@v3.1.2
         with:
           python-version: 3.9
+
       - name: Install Dependencies
         run: |
           pip install ".[all]"
-      - name: Run pytest
+
+      - name: Run pytest on the library
         run: |
           pytest \
             --cov="${{ steps.main_src_dir.outputs.MAIN_SRC_DIR }}" \
             --cov-report=xml
+
+      - name: Run pytest on the examples
+        run: |
+          pytest "${PWD}/examples"
+
       - name: Upload coverage to coveralls
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
