@@ -55,6 +55,7 @@ async def test_kafka_event_publisher():
         assert pc_kwargs["bootstrap_servers"] == ["my-fake-kafka-server"]
         assert callable(pc_kwargs["key_serializer"])
         assert callable(pc_kwargs["value_serializer"])
+        producer.start.assert_awaited_once()
 
         # publish one event:
         await event_publisher.publish(
@@ -65,7 +66,6 @@ async def test_kafka_event_publisher():
         )
 
     # check if producer was correctly used:
-    producer.start.assert_awaited_once()
     producer.send_and_wait.assert_awaited_once_with(
         topic,
         value=payload,
