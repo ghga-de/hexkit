@@ -16,67 +16,38 @@
 
 """Testing Apache Kafka based providers."""
 
+from collections import namedtuple
 from contextlib import nullcontext
 from typing import Optional
-from unittest.mock import MagicMock, Mock
+from unittest.mock import AsyncMock, Mock
 
 import pytest
 
 from hexkit.custom_types import JsonObject
 from hexkit.providers.akafka import KafkaEventPublisher, KafkaEventSubscriber
-from hexkit.utils import NonAsciiStrError
 
 
-@pytest.mark.parametrize(
-    "type_, key, topic, expected_headers, exception",
-    [
-        ("test_type", "test_key", "test_topic", [("type", b"test_type")], None),
-        (
-            "test_ßtype",  # non ascii
-            "test_key",
-            "test_topic",
-            [("type", b"test_type")],
-            NonAsciiStrError,
-        ),
-        (
-            "test_type",
-            "test_ßkey",  # non ascii
-            "test_topic",
-            [("type", b"test_type")],
-            NonAsciiStrError,
-        ),
-        (
-            "test_type",
-            "test_key",
-            "test_ßtopic",  # non ascii
-            [("type", b"test_type")],
-            NonAsciiStrError,
-        ),
-    ],
-)
-def test_kafka_event_publisher(
-    type_: str,
-    key: str,
-    topic: str,
-    expected_headers: list[tuple[str, bytes]],
-    exception: Optional[type[Exception]],
-):
+@pytest.mark.asyncio
+async def test_kafka_event_publisher():
     """Test the KafkaEventPublisher with mocked KafkaEventPublisher."""
-    payload: JsonObject = {"test_content": "Hello World"}
+    type_ = "test_type"
+    key = "test_key"
+    topic = "test_topic"
+    payload = {"test_content": "Hello World"}
+    expected_headers = [("type", b"test_type")]
 
     # create kafka producer mock
-    producer_class = Mock()
+    producer = AsyncMock()
+    producer_class = Mock(return_value=producer)
 
     # publish event using the provider:
-    as_resource = KafkaEventPublisher.as_resource(
+    async with KafkaEventPublisher.construct(
         service_name="test_publisher",
         client_suffix="1",
         kafka_servers=["my-fake-kafka-server"],
         kafka_producer_cls=producer_class,
-    )
+    ) as event_publisher:
 
-    event_publisher = next(as_resource)
-    try:
         # check if producer class was called correctly:
         producer_class.assert_called_once()
         pc_kwargs = producer_class.call_args.kwargs
@@ -84,35 +55,27 @@ def test_kafka_event_publisher(
         assert pc_kwargs["bootstrap_servers"] == ["my-fake-kafka-server"]
         assert callable(pc_kwargs["key_serializer"])
         assert callable(pc_kwargs["value_serializer"])
+        producer.start.assert_awaited_once()
 
         # publish one event:
-        with (pytest.raises(exception) if exception else nullcontext()):  # type: ignore
-            event_publisher.publish(
-                payload=payload,
-                type_=type_,
-                key=key,
-                topic=topic,
-            )
-    finally:
-        with pytest.raises(StopIteration):
-            next(as_resource)
-
-    producer = producer_class.return_value
-
-    if not exception:
-        # check if producer was correctly used:
-        producer = producer_class.return_value
-        producer.send.assert_called_once_with(
-            topic,
-            value=payload,
+        await event_publisher.publish(
+            payload=payload,
+            type_=type_,
             key=key,
-            headers=expected_headers,
+            topic=topic,
         )
-        producer.flush.assert_called_once()
-    # check if producer was closed correctly:
-    producer.close.assert_called_once()
+
+    # check if producer was correctly used:
+    producer.send_and_wait.assert_awaited_once_with(
+        topic,
+        value=payload,
+        key=key,
+        headers=expected_headers,
+    )
+    producer.stop.assert_awaited_once()
 
 
+@pytest.mark.asyncio
 @pytest.mark.parametrize(
     "type_, headers, is_translator_called, processing_failure, exception",
     [
@@ -146,7 +109,7 @@ def test_kafka_event_publisher(
         ),
     ],
 )
-def test_kafka_event_subscriber(
+async def test_kafka_event_subscriber(
     type_: str,
     headers: list[tuple[str, bytes]],
     is_translator_called: bool,
@@ -154,55 +117,69 @@ def test_kafka_event_subscriber(
     exception: Optional[type[Exception]],
 ):
     """Test the KafkaEventSubscriber with mocked KafkaEventSubscriber."""
+    service_name = "event_subscriber"
     topic = "test_topic"
     types_of_interest = ["test_type"]
     payload: JsonObject = {"test": "Hello World!"}
 
     # mock event:
-    event = Mock()
-    event.key = "test_key"
-    event.headers = headers
-    event.value = payload
-    event.topic = topic
+    Event = namedtuple(
+        "Event",
+        ["topic", "key", "value", "headers", "partition", "offset"],
+    )
+    event = Event(
+        key="test_key",
+        headers=headers,
+        value=payload,
+        topic=topic,
+        partition=1,
+        offset=0,
+    )
 
     # create kafka consumer mock:
-    consumer = MagicMock()
-    consumer.__next__.return_value = event
+    consumer = AsyncMock()
+    consumer.__anext__.return_value = event
     consumer_cls = Mock()
     consumer_cls.return_value = consumer
 
     # create protocol-compatiple translator mock:
-    translator = Mock()
+    translator = AsyncMock()
     if processing_failure and exception:
         translator.consume.side_effect = exception()
     translator.topics_of_interest = [topic]
     translator.types_of_interest = types_of_interest
 
     # setup the provider:
-    as_resource = KafkaEventSubscriber.as_resource(
-        service_name="event_subscriber",
+    async with KafkaEventSubscriber.construct(
+        service_name=service_name,
         client_suffix="1",
         kafka_servers=["my-fake-kafka-server"],
         translator=translator,
         kafka_consumer_cls=consumer_cls,
-    )
+    ) as event_subscriber:
 
-    event_subscriber = next(as_resource)
-    try:
+        # check if consumer class was called correctly:
+        consumer_cls.assert_called_once()
+        cc_kwargs = consumer_cls.call_args.kwargs
+        assert cc_kwargs["client_id"] == "event_subscriber.1"
+        assert cc_kwargs["bootstrap_servers"] == ["my-fake-kafka-server"]
+        assert cc_kwargs["group_id"] == service_name
+        assert cc_kwargs["auto_offset_reset"] == "earliest"
+        assert callable(cc_kwargs["key_deserializer"])
+        assert callable(cc_kwargs["value_deserializer"])
+
         # consume one event:
         with (pytest.raises(exception) if exception else nullcontext()):  # type: ignore
-            event_subscriber.run(forever=False)
-    finally:
-        with pytest.raises(StopIteration):
-            next(as_resource)
+            await event_subscriber.run(forever=False)
 
-    # check if consumer was closed correctly:
-    consumer.close.assert_called_once()
+    # check if producer was correctly started and stopped:
+    consumer.start.assert_awaited_once()
+    consumer.stop.assert_awaited_once()
 
     # check if the translator was called correctly:
     if is_translator_called:
-        translator.consume.assert_called_once_with(
+        translator.consume.assert_awaited_once_with(
             payload=payload, type_=type_, topic=topic
         )
     else:
-        assert translator.consume.call_count == 0
+        assert translator.consume.await_count == 0

@@ -23,11 +23,11 @@ class CalcResultEmitterPort(ABC):
     """Emits results of a calculation."""
 
     @abstractmethod
-    def emit_result(self, *, problem_id: str, result: float) -> None:
+    async def emit_result(self, *, problem_id: str, result: float) -> None:
         """Emits the result of the calc task with the given ID."""
         ...
 
     @abstractmethod
-    def emit_failure(self, *, problem_id: str, reason: str) -> None:
+    async def emit_failure(self, *, problem_id: str, reason: str) -> None:
         """Emits message that the calc task with the given ID could not be solved."""
         ...

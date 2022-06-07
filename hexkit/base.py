@@ -23,7 +23,7 @@ class InboundProviderBase(ABC):
     """Base class that should be used by inbound providers."""
 
     @abstractmethod
-    def run(self, forever: bool = True) -> None:
+    async def run(self, forever: bool = True) -> None:
         """
         Runs the inbound provider. Typically, it blocks forever.
         However, you can set `forever` to `False` to make it return after handling one

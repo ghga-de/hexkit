@@ -21,50 +21,48 @@
 
 """Module hosting the dependency injection container."""
 
-from dependency_injector import containers, providers
+from dependency_injector import providers
 
 # pylint: disable=wrong-import-order
 from stream_calc.core.calc import StreamCalculator
 
-from examples.stream_calc.ports.problem_receiver import ArithProblemReceiverPort
 from examples.stream_calc.translators.eventpub import EventResultEmitter
 from examples.stream_calc.translators.eventsub import EventProblemReceiver
-from hexkit.protocols.eventpub import EventPublisherProtocol
-from hexkit.protocols.eventsub import EventSubscriberProtocol
+from hexkit.inject import ContainerBase, get_constructor
 from hexkit.providers.akafka import KafkaEventPublisher, KafkaEventSubscriber
 
 
-class Container(containers.DeclarativeContainer):
+class Container(ContainerBase):
     """DI Container"""
 
     config = providers.Configuration()
 
     # outbound providers:
-    event_publisher = providers.Resource[EventPublisherProtocol](
-        KafkaEventPublisher.as_resource,
+    event_publisher = get_constructor(
+        KafkaEventPublisher,
         service_name=config.service_name,
         client_suffix=config.client_suffix,
         kafka_servers=config.kafka_servers,
     )
 
     # outbound translators:
-    event_result_emitter = providers.Factory[EventResultEmitter](
+    event_result_emitter = get_constructor(
         EventResultEmitter, event_publisher=event_publisher
     )
 
     # inbound ports:
-    problem_receiver = providers.Factory[ArithProblemReceiverPort](
+    problem_receiver = get_constructor(
         StreamCalculator, result_emitter=event_result_emitter
     )
 
     # inbound translators:
-    event_problem_receiver = providers.Factory[EventSubscriberProtocol](
+    event_problem_receiver = get_constructor(
         EventProblemReceiver, problem_receiver=problem_receiver
     )
 
     # inbound providers:
-    event_subscriber = providers.Resource[KafkaEventSubscriber](
-        KafkaEventSubscriber.as_resource,
+    event_subscriber = get_constructor(
+        KafkaEventSubscriber,
         service_name=config.service_name,
         client_suffix=config.client_suffix,
         kafka_servers=config.kafka_servers,

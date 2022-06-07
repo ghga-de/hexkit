@@ -23,9 +23,10 @@ Require dependencies of the `akafka` extra. See the `setup.cfg`.
 
 import json
 import logging
+from contextlib import asynccontextmanager
+from typing import Any, Callable, Literal, Protocol
 
-from kafka import KafkaConsumer, KafkaProducer
-from kafka.consumer.fetcher import ConsumerRecord
+from aiokafka import AIOKafkaConsumer, AIOKafkaProducer
 
 from hexkit.base import InboundProviderBase
 from hexkit.custom_types import JsonObject
@@ -45,18 +46,59 @@ def generate_client_id(service_name: str, client_suffix: str) -> str:
     return f"{service_name}.{client_suffix}"
 
 
-class KafkaEventPublisher(EventPublisherProtocol):
-    """Apache Kafka specific event publishing provider."""
+class KafkaProducerCompatible(Protocol):
+    """A python duck type protocol describing an AIOKafkaProducer or equivalent."""
 
     def __init__(
         self,
+        bootstrap_servers: list[str],
+        client_id: str,
+        key_serializer: Callable[[Any], bytes],
+        value_serializer: Callable[[Any], bytes],
+    ):
+        """
+        Initialize the producer with some config params.
+        Args:
+            bootstrap_servers (list[str]):
+                List of connection strings pointing to the kafka brokers.
+            client_id (str):
+                A globally unique ID identifying this the Kafka client.
+            key_serializer:
+                Function to serialize the keys into bytes.
+            value_serializer:
+                Function to serialize the values into bytes.
+        """
+
+        ...
+
+    async def start(self):
+        """Setup the producer."""
+        ...
+
+    async def stop(self):
+        """Teardown the producer."""
+        ...
+
+    async def send_and_wait(self, topic, *, key, value, headers) -> None:
+        """Send event."""
+        ...
+
+
+class KafkaEventPublisher(EventPublisherProtocol):
+    """Apache Kafka specific event publishing provider."""
+
+    @classmethod
+    @asynccontextmanager
+    async def construct(
+        cls,
         *,
         service_name: str,
         client_suffix: str,
         kafka_servers: list[str],
-        kafka_producer_cls=KafkaProducer,
+        kafka_producer_cls: type[KafkaProducerCompatible] = AIOKafkaProducer,
     ):
-        """Initialize the provider with some config params.
+        """
+        Setup and teardown KafkaEventPublisher instance with some config params.
 
         Args:
             service_name (str):
@@ -69,11 +111,9 @@ class KafkaEventPublisher(EventPublisherProtocol):
             kafka_producer_cls:
                 Overwrite the used Kafka Producer class. Only intented for unit testing.
         """
-        super().__init__()
-
         client_id = generate_client_id(service_name, client_suffix)
 
-        self._producer = kafka_producer_cls(
+        producer = kafka_producer_cls(
             bootstrap_servers=kafka_servers,
             client_id=client_id,
             key_serializer=lambda key: key.encode("ascii"),
@@ -81,31 +121,28 @@ class KafkaEventPublisher(EventPublisherProtocol):
                 "ascii"
             ),
         )
+        try:
+            await producer.start()
+            yield cls(producer=producer)
+        finally:
+            await producer.stop()
 
-    @classmethod
-    def as_resource(
-        cls,
-        service_name: str,
-        client_suffix: str,
-        kafka_servers: list[str],
-        kafka_producer_cls=KafkaProducer,
+    def __init__(
+        self,
+        *,
+        producer: AIOKafkaProducer,
     ):
-        """Generate instance as resource provider."""
-        self = cls(
-            service_name=service_name,
-            client_suffix=client_suffix,
-            kafka_servers=kafka_servers,
-            kafka_producer_cls=kafka_producer_cls,
-        )
-        yield self
-        self.close()
+        """Please do not call directly! Should be called by the `construct` method.
+        Args:
+            producer:
+                hands over a started AIOKafkaProducer.
+        """
+        self._producer = producer
 
-    def close(self) -> None:
-        """Close the underlying producer."""
-        self._producer.close()
-
-    def publish(self, *, payload: JsonObject, type_: str, key: str, topic: str) -> None:
-        """Publish an event to an Apache Kafka event broker.
+    async def _publish_validated(
+        self, *, payload: JsonObject, type_: str, key: str, topic: str
+    ) -> None:
+        """Publish an event with already validated topic and type.
 
         Args:
             payload (JSON): The payload to ship with the event.
@@ -113,27 +150,91 @@ class KafkaEventPublisher(EventPublisherProtocol):
             key (str): The event type. ASCII characters only.
             topic (str): The event type. ASCII characters only.
         """
-        super().publish(payload=payload, type_=type_, key=key, topic=topic)
 
         event_headers = [("type", type_.encode("ascii"))]
-        self._producer.send(topic, key=key, value=payload, headers=event_headers)
-        self._producer.flush()
+
+        await self._producer.send_and_wait(
+            topic, key=key, value=payload, headers=event_headers
+        )
+
+
+class ConsumerEvent(Protocol):
+    """Duck type of an event as received from a KafkaConsumerCompatible."""
+
+    topic: str
+    key: str
+    value: JsonObject
+    headers: list[tuple[str, bytes]]
+    partition: int
+    offset: int
+
+
+class KafkaConsumerCompatible(Protocol):
+    """A python duck type protocol describing an AIOKafkaConsumer or equivalent."""
+
+    def __init__(
+        self,
+        *topics,
+        bootstrap_servers: list[str],
+        client_id: str,
+        group_id: str,
+        auto_offset_reset: Literal["earliest"],
+        key_deserializer: Callable[[bytes], str],
+        value_deserializer: Callable[[bytes], str],
+    ):
+        """
+        Initialize the consumer with some config params.
+
+        Args:
+            bootstrap_servers (list[str]):
+                List of connection strings pointing to the kafka brokers.
+            client_id (str):
+                A globally unique ID identifying this the Kafka client.
+            group_id:
+                An identifier for the consumer group.
+            auto_offset_reset:
+                Can be set to "earliest".
+            key_serializer:
+                Function to deserialize the keys into strings.
+            value_serializer:
+                Function to deserialize the values into strings.
+        """
+
+        ...
+
+    async def start(self):
+        """Setup the consumer."""
+        ...
+
+    async def stop(self):
+        """Teardown the consumer."""
+        ...
+
+    async def __aiter__(self):
+        """Returns an asnyc iterator for iterating through events."""  #
+        ...
+
+    async def __anext__(self) -> ConsumerEvent:
+        """Used to get the next event."""
+        ...
 
 
 class KafkaEventSubscriber(InboundProviderBase):
     """Apache Kafka-specific event subscription provider."""
 
-    # pylint: disable=too-many-arguments
-    # (some arguments are only used for testing)
-    def __init__(
-        self,
+    @classmethod
+    @asynccontextmanager
+    async def construct(
+        cls,
+        *,
         service_name: str,
         client_suffix: str,
         kafka_servers: list[str],
         translator: EventSubscriberProtocol,
-        kafka_consumer_cls=KafkaConsumer,
+        kafka_consumer_cls: type[KafkaConsumerCompatible] = AIOKafkaConsumer,
     ):
-        """Initialize the provider with some config params.
+        """
+        Setup and teardown KafkaEventPublisher instance with some config params.
 
         Args:
             service_name (str):
@@ -144,21 +245,19 @@ class KafkaEventSubscriber(InboundProviderBase):
                 the service_name and the client_suffix.
             kafka_servers (list[str]):
                 List of connection strings pointing to the kafka brokers.
-            translator (EventSubscriberProto):
+            translator (EventSubscriberProtocol):
                 The translator that translates between the protocol (mentioned in the
                 type annotation) and an application-specific port
                 (according to the triple hexagonal architecture).
             kafka_consumer_cls:
-                Overwrite the used Kafka Producer class. Only intented for unit testing.
+                Overwrite the used Kafka consumer class. Only intented for unit testing.
         """
-        super().__init__()
 
         client_id = generate_client_id(service_name, client_suffix)
-        self._translator = translator
-        topics = self._translator.topics_of_interest
-        self._types_whitelist = translator.types_of_interest
 
-        self._consumer = kafka_consumer_cls(
+        topics = translator.topics_of_interest
+
+        consumer = kafka_consumer_cls(
             *topics,
             bootstrap_servers=kafka_servers,
             client_id=client_id,
@@ -169,24 +268,48 @@ class KafkaEventSubscriber(InboundProviderBase):
                 event_value.decode("ascii")
             ),
         )
+        try:
+            await consumer.start()
+            yield cls(consumer=consumer, translator=translator)
+        finally:
+            await consumer.stop()
+
+    # pylint: disable=too-many-arguments
+    # (some arguments are only used for testing)
+    def __init__(
+        self, *, consumer: KafkaConsumerCompatible, translator: EventSubscriberProtocol
+    ):
+        """Please do not call directly! Should be called by the `construct` method.
+        Args:
+            consumer:
+                hands over a started AIOKafkaProducer.
+            translator (EventSubscriberProtocol):
+                The translator that translates between the protocol (mentioned in the
+                type annotation) and an application-specific port
+                (according to the triple hexagonal architecture).
+        """
+
+        self._consumer = consumer
+        self._translator = translator
+        self._types_whitelist = translator.types_of_interest
 
     @staticmethod
-    def _get_type(event: ConsumerRecord) -> str:
-        """Extract the event type out of an ConsumerRecord."""
+    def _get_type(event: ConsumerEvent) -> str:
+        """Extract the event type out of an ConsumerEvent."""
         for header in event.headers:
             if header[0] == "type":
                 return header[1].decode("ascii")
         raise EventTypeNotFoundError()
 
     @staticmethod
-    def _get_event_label(event: ConsumerRecord) -> str:
+    def _get_event_label(event: ConsumerEvent) -> str:
         """Get a label that identifies an event."""
         return (
             f"{event.topic} - {event.partition} - {event.offset} "
             + " (topic-partition-offset)"
         )
 
-    def _consume_event(self, event: ConsumerRecord) -> None:
+    async def _consume_event(self, event: ConsumerEvent) -> None:
         """Consume an event by passing it down to the translator via the protocol."""
         event_label = self._get_event_label(event)
 
@@ -201,7 +324,7 @@ class KafkaEventSubscriber(InboundProviderBase):
 
                 try:
                     # blocks until event processing is completed:
-                    self._translator.consume(
+                    await self._translator.consume(
                         payload=event.value, type_=type_, topic=event.topic
                     )
                 except Exception:
@@ -214,42 +337,17 @@ class KafkaEventSubscriber(InboundProviderBase):
             else:
                 logging.info("Ignored event of type %s: %s", type_, event_label)
 
-    @classmethod
-    def as_resource(
-        cls,
-        service_name: str,
-        client_suffix: str,
-        kafka_servers: list[str],
-        translator: EventSubscriberProtocol,
-        kafka_consumer_cls=KafkaConsumer,
-    ):
-        """Generate instance as resource provider."""
-        self = cls(
-            service_name=service_name,
-            client_suffix=client_suffix,
-            kafka_servers=kafka_servers,
-            translator=translator,
-            kafka_consumer_cls=kafka_consumer_cls,
-        )
-        yield self
-        self.close()
-
-    def close(self) -> None:
-        """Close the underlying consumer."""
-        self._consumer.close()
-
-    def run(self, forever: bool = True) -> None:
+    async def run(self, forever: bool = True) -> None:
         """
         Start consuming events and passing them down to the translator.
         By default, it blocks forever.
         However, you can set `forever` to `False` to make it return after handling one
         event.
         """
-        super().run(forever=forever)
 
         if forever:
-            for event in self._consumer:
-                self._consume_event(event)
+            async for event in self._consumer:
+                await self._consume_event(event)
         else:
-            event = next(self._consumer)
-            self._consume_event(event)
+            event = await self._consumer.__anext__()
+            await self._consume_event(event)

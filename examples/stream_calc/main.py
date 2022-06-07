@@ -16,24 +16,27 @@
 
 """Implement global logic for running the application."""
 
+import asyncio
 import logging
 
 from stream_calc.config import Config
 from stream_calc.container import Container  # type: ignore
 
 
-def run() -> None:
-    """Run the stream calculator"""
+async def main() -> None:
+    """Coroutine to run the stream calculator"""
     config = Config()
-    container = Container()
-    container.config.from_pydantic(config)
-    container.init_resources()
 
     logging.basicConfig(level=config.log_level)
 
-    event_subscriber = container.event_subscriber()
+    container = Container()
+    container.config.from_pydantic(config)
 
-    try:
-        event_subscriber.run()
-    finally:
-        container.shutdown_resources()
+    async with container as cont_context:
+        event_subscriber = await cont_context.event_subscriber()
+        await event_subscriber.run()
+
+
+def run() -> None:
+    """Run the main function."""
+    asyncio.run(main())

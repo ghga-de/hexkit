@@ -45,8 +45,7 @@ class EventSubscriberProtocol(ABC):
     topics_of_interest: list[Ascii]
     types_of_interest: list[Ascii]
 
-    @abstractmethod
-    def consume(self, *, payload: JsonObject, type_: Ascii, topic: Ascii) -> None:
+    async def consume(self, *, payload: JsonObject, type_: Ascii, topic: Ascii) -> None:
         """Receive an event of interest and process it according to its type.
 
         Args:
@@ -55,4 +54,18 @@ class EventSubscriberProtocol(ABC):
             topic (str): Name of the topic to publish the event to.
         """
         check_ascii(type_, topic)
+        await self._consume_validated(payload=payload, type_=type_, topic=topic)
+
+    @abstractmethod
+    async def _consume_validated(
+        self, *, payload: JsonObject, type_: Ascii, topic: Ascii
+    ) -> None:
+        """
+        Receive and process an event with already validated topic and type.
+
+        Args:
+            payload (JsonObject): The data/payload to send with the event.
+            type_ (str): The type of the event.
+            topic (str): Name of the topic to publish the event to.
+        """
         ...
