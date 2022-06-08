@@ -32,5 +32,5 @@ class Config(BaseSettings):
     log_level: LOGLEVEL = "INFO"
     result_emit_output_topic: str = "calc_output"
     result_emit_success_type: str = "calc_success"
-    result_emit_failure_typte: str = "calc_failure"
+    result_emit_failure_type: str = "calc_failure"
     problem_receive_topics: list[str] = ["arithmetic_problems"]

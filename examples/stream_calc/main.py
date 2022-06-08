@@ -23,18 +23,34 @@ from stream_calc.config import Config
 from stream_calc.container import Container  # type: ignore
 
 
-async def main() -> None:
-    """Coroutine to run the stream calculator"""
-    config = Config()
+def get_container(config: Config) -> Container:
+    """
+    Get a pre-configures container for the stream calc app.
 
+    Args:
+        config: App config object.
+    """
     logging.basicConfig(level=config.log_level)
 
     container = Container()
     container.config.from_pydantic(config)
 
-    async with container as cont_context:
-        event_subscriber = await cont_context.event_subscriber()
-        await event_subscriber.run()
+    return container
+
+
+async def main(*, config: Config = Config(), run_forever: bool = True) -> None:
+    """
+    Coroutine to run the stream calculator.
+
+    Args:
+        config:
+            App config object. Defaults to using the standard config constructor.
+        run_forever:
+            If set too `False`, will exit after handling one arithmetic problem.
+    """
+    async with get_container(config) as container:
+        event_subscriber = await container.event_subscriber()
+        await event_subscriber.run(forever=run_forever)
 
 
 def run() -> None:
