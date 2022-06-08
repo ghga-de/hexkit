@@ -16,7 +16,8 @@
 
 """Translators that target the event publishing protocol."""
 
-from examples.stream_calc.ports.problem_receiver import ArithProblemHandlerPort
+from stream_calc.ports.problem_receiver import ArithProblemHandlerPort
+
 from hexkit.custom_types import Ascii, JsonObject
 from hexkit.protocols.eventsub import EventSubscriberProtocol
 
@@ -37,13 +38,21 @@ class EventProblemReceiver(EventSubscriberProtocol):
         self._problem_handler = problem_handler
         self.topics_of_interest = topics_of_interest
 
-    def _check_payload(self, payload: JsonObject, expected_fields: list[str]):
-        """Check whether all the expected fields are present in the payload."""
+    @classmethod
+    def _extract_payload(cls, payload: JsonObject, expected_fields: list[str]) -> tuple:
+        """
+        Checks whether all the expected fields are present in the payload and
+        returns their values as a tuple.
+        """
+        values = []
         for field in expected_fields:
             if field not in payload:
-                raise self.MalformedPayloadError(
+                raise cls.MalformedPayloadError(
                     f"Payload did not contain the expected field '{field}'"
                 )
+            values.append(payload[field])
+
+        return tuple(values)
 
     async def _consume_validated(
         self,
@@ -58,27 +67,27 @@ class EventProblemReceiver(EventSubscriberProtocol):
         Receive and process an event with already validated topic and type.
 
         Args:
-            payload (JsonObject): The data/payload to send with the event.
-            type_ (str): The type of the event.
-            topic (str): Name of the topic the event was published to.
+            payload: The data/payload to send with the event.
+            type_: The type of the event.
+            topic: Name of the topic the event was published to.
         """
 
         if type_ == "multiplication_problem":
-            self._check_payload(
+            problem_id, multiplier, multiplicand = self._extract_payload(
                 payload, expected_fields=["problem_id", "multiplier", "multiplicand"]
             )
             await self._problem_handler.multiply(
-                problem_id=payload["problem_id"],
-                multiplier=payload["multiplier"],
-                multiplicand=payload["multiplicand"],
+                problem_id=problem_id,
+                multiplier=multiplier,
+                multiplicand=multiplicand,
             )
 
         elif type_ == "division_problem":
-            self._check_payload(
+            problem_id, dividend, divisor = self._extract_payload(
                 payload, expected_fields=["problem_id", "dividend", "divisor"]
             )
             await self._problem_handler.divide(
-                problem_id=payload["problem_id"],
-                dividend=payload["dividend"],
-                divisor=payload["divisor"],
+                problem_id=problem_id,
+                dividend=dividend,
+                divisor=divisor,
             )

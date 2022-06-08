@@ -25,9 +25,9 @@ from dependency_injector import providers
 
 # pylint: disable=wrong-import-order
 from stream_calc.core.calc import StreamCalculator
+from stream_calc.translators.eventpub import EventResultEmitter
+from stream_calc.translators.eventsub import EventProblemReceiver
 
-from examples.stream_calc.translators.eventpub import EventResultEmitter
-from examples.stream_calc.translators.eventsub import EventProblemReceiver
 from hexkit.inject import ContainerBase, get_constructor
 from hexkit.providers.akafka import KafkaEventPublisher, KafkaEventSubscriber
 

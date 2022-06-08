@@ -16,7 +16,8 @@
 
 """Translators that target the event publishing protocol."""
 
-from examples.stream_calc.ports.result_emitter import CalcResultEmitterPort
+from stream_calc.ports.result_emitter import CalcResultEmitterPort
+
 from hexkit.custom_types import JsonObject
 from hexkit.protocols.eventpub import EventPublisherProtocol
 
