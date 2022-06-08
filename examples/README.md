@@ -22,6 +22,7 @@ Here we provide an example service called [stream_calc](./stream_calc/).
 It accepts simple arithmetic problems as incomming event stream and will send out the
 result in another event stream.
 
+## Demo:
 We also provide a [small script](./submit_example_problems.py) that submits a couple of
 example problems and prints out the results obtained by the stream_calc service.
 
@@ -35,3 +36,7 @@ Now open another terminal (ideally side by side to the old one) and run the clie
 ```bash
 ./submit_example_problems.py
 ```
+
+## Testing:
+The [stream_calc_tests](./stream_calc_tests/) suite demonstrates how to use the
+hexkit utilities to test a relying service.
