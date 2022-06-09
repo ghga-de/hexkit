@@ -23,7 +23,7 @@ Please note, these tests are written in a way so that they can be reused by the
 
 import json
 from copy import deepcopy
-from dataclasses import dataclass
+from typing import NamedTuple
 
 import pytest
 from kafka import KafkaConsumer, KafkaProducer
@@ -36,8 +36,7 @@ from hexkit.custom_types import JsonObject
 DEFAULT_CONFIG = Config()
 
 
-@dataclass
-class Event:
+class Event(NamedTuple):
     """
     Describes the content of an event.
     (The topic and key are considered delivery details and are thus not included.)
@@ -51,8 +50,7 @@ class Event:
     payload: JsonObject
 
 
-@dataclass
-class TestCase:
+class Case(NamedTuple):
     """
     Describes a test case.
 
@@ -67,8 +65,8 @@ class TestCase:
     outcome: Event
 
 
-TEST_CASES = [
-    TestCase(
+CASES = [
+    Case(
         description="24 * 38",
         problem=Event(
             type_="multiplication_problem",
@@ -79,7 +77,7 @@ TEST_CASES = [
             payload={"problem_id": "m001", "result": 912},
         ),
     ),
-    TestCase(
+    Case(
         description="24 / 38",
         problem=Event(
             type_="division_problem",
@@ -90,7 +88,7 @@ TEST_CASES = [
             payload={"problem_id": "d001", "result": 0.631578947368421},
         ),
     ),
-    TestCase(
+    Case(
         description="1 / 0",
         problem=Event(
             type_="division_problem",
@@ -105,7 +103,7 @@ TEST_CASES = [
 
 
 def submit_test_problems(
-    test_cases: list[TestCase],
+    cases: list[Case],
     *,
     kafka_server: str,
     topic: str = DEFAULT_CONFIG.problem_receive_topics[0],
@@ -115,8 +113,8 @@ def submit_test_problems(
     (To be also used by the demo script. --> Reason for the print statements.)
 
     Args:
-        test_cases:
-            List of TestCases containing the problems to submit.
+        cases:
+            List of Cases containing the problems to submit.
         kafka_server:
             The path to the kafka server to publish to.
         topic:
@@ -131,13 +129,13 @@ def submit_test_problems(
     )
 
     print("Submitted a few problems:")
-    for test_case in test_cases:
-        print(test_case.description)
+    for case in cases:
+        print(case.description)
         producer.send(
             topic=topic,
-            value=test_case.problem.payload,
+            value=case.problem.payload,
             key="test_examples",
-            headers=[("type", test_case.problem.type_.encode("ascii"))],
+            headers=[("type", case.problem.type_.encode("ascii"))],
         )
 
     producer.flush()
@@ -145,7 +143,7 @@ def submit_test_problems(
 
 
 def await_problem_outcomes(
-    test_cases: list[TestCase],
+    cases: list[Case],
     *,
     kafka_server: str,
     topic: str = DEFAULT_CONFIG.result_emit_output_topic,
@@ -154,8 +152,8 @@ def await_problem_outcomes(
     (To be also used by the demo script. --> Reason for the print statements.)
 
     Args:
-        test_cases:
-            List of TestCases containing the problems that where submitted and their
+        cases:
+            List of Cases containing the problems that where submitted and their
             expected outcome.
         kafka_server:
             The path to the kafka server to publish to.
@@ -175,12 +173,12 @@ def await_problem_outcomes(
 
     print("\nAwaiting response from the stream_calc application.\nThe results are:")
 
-    for test_case, received_record in zip(test_cases, consumer):
+    for case, received_record in zip(cases, consumer):
         # check if received event contains the expected content:
         assert received_record.headers[0][0] == "type"
         type_ = received_record.headers[0][1].decode("ascii")
         received_event = Event(type_=type_, payload=received_record.value)
-        assert received_event == test_case.outcome
+        assert received_event == case.outcome
 
         # print out the outcome:
         if type_ == "calc_success":
@@ -196,7 +194,7 @@ def await_problem_outcomes(
 
 
 @pytest.mark.asyncio
-async def test_receive_calc_publish(test_cases: list[TestCase] = deepcopy(TEST_CASES)):
+async def test_receive_calc_publish(cases: list[Case] = deepcopy(CASES)):
     """
     Test the receipt of new arithmetic problems, the calculation, and the publication of
     the results.
@@ -205,12 +203,12 @@ async def test_receive_calc_publish(test_cases: list[TestCase] = deepcopy(TEST_C
     with KafkaContainer() as kafka:
         kafka_server = kafka.get_bootstrap_server()
 
-        submit_test_problems(test_cases, kafka_server=kafka_server)
+        submit_test_problems(cases, kafka_server=kafka_server)
 
         # run the stream_calc app:
         # (for each problem separately to avoid running forever)
         config = Config(kafka_servers=[kafka_server])
-        for _ in test_cases:
+        for _ in cases:
             await main(config=config, run_forever=False)
 
-        await_problem_outcomes(test_cases, kafka_server=kafka_server)
+        await_problem_outcomes(cases, kafka_server=kafka_server)
