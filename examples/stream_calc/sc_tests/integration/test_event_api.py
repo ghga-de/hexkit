@@ -173,7 +173,7 @@ def check_problem_outcomes(
 
     print("\nAwaiting response from the stream_calc application.\nThe results are:")
 
-    for case, received_record in zip(cases, consumer, strict=True):  # type: ignore
+    for case, received_record in zip(cases, consumer):
         # check if received event contains the expected content:
         assert received_record.headers[0][0] == "type"
         type_ = received_record.headers[0][1].decode("ascii")
