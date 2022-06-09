@@ -56,3 +56,21 @@ async def test_event_problem_receiver(
     # check the published event:
     mock_method = getattr(problem_handler, handler_method)
     mock_method.assert_awaited_once()
+
+
+@pytest.mark.asyncio
+async def test_event_problem_receiver_with_missing_field():
+    """Test the EventProblemReceiver to report missing fields."""
+    topic = "test_topic"
+    type_ = "multiplication_problem"
+    payload: JsonObject = {"problem_id": "bad_problem", "multiplier": 0}
+    problem_handler = AsyncMock()
+    problem_receiver = EventProblemReceiver(
+        topics_of_interest=[topic], problem_handler=problem_handler
+    )
+    with pytest.raises(
+        EventProblemReceiver.MalformedPayloadError,
+        match="did not contain the expected field 'multiplicand'",
+    ):
+        await problem_receiver.consume(payload=payload, type_=type_, topic=topic)
+    problem_handler.multiply.assert_not_awaited()
