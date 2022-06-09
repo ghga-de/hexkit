@@ -16,7 +16,7 @@
 
 """Testing the `core.calc` module."""
 
-from typing import Optional, Union
+from typing import Union
 from unittest.mock import AsyncMock
 
 import pytest
@@ -30,7 +30,7 @@ from stream_calc.core.calc import StreamCalculator
 async def test_stream_calculator_multiply(
     multiplier: float,
     multiplicand: float,
-    expected_outcome: Optional[float],
+    expected_outcome: float,
 ):
     """Test the `multiply` method of the StreamCalculator"""
     problem_id = "some_problem"
