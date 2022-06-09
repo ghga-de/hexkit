@@ -18,7 +18,7 @@
 
 """A script for submitting example problems to the stream calculator app."""
 
-from stream_calc_tests.integration.test_event_api import (
+from sc_tests.integration.test_event_api import (
     DEFAULT_CONFIG,
     TEST_CASES,
     await_problem_outcomes,

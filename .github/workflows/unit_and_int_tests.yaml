@@ -10,31 +10,18 @@ jobs:
     steps:
       - uses: actions/checkout@v2.4.2
 
-      - name: Retrieve main src dir
-        id: main_src_dir
-        run: |
-          echo "::set-output name=MAIN_SRC_DIR::${PWD}/$(./scripts/get_package_name.py)"
+      - id: common
+        uses: ghga-de/gh-action-common@v1.0.2
 
-      - name: Set up Python 3.9
-        uses: actions/setup-python@v3.1.2
-        with:
-          python-version: 3.9
-
-      - name: Install Dependencies
+      - name: Run pytest
         run: |
-          pip install ".[all]"
-
-      - name: Run pytest on the library
-        run: |
+          export ${{ steps.common.outputs.CONFIG_YAML_ENV_VAR_NAME }}="${{ steps.common.outputs.CONFIG_YAML }}"
           pytest \
-            --cov="${{ steps.main_src_dir.outputs.MAIN_SRC_DIR }}" \
+            --cov="${{ steps.common.outputs.MAIN_SRC_DIR }}" \
             --cov-report=xml
 
-      - name: Run pytest on the examples
-        run: |
-          pytest "${PWD}/examples"
-
-      - name: Upload coverage to coveralls
+      - id: coveralls
+        name: Upload coverage to coveralls
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
