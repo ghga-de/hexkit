@@ -16,7 +16,7 @@
 
 """Testing the `core.calc` module."""
 
-from typing import Optional
+from typing import Optional, Union
 from unittest.mock import AsyncMock
 
 import pytest
@@ -25,12 +25,12 @@ from stream_calc.core.calc import StreamCalculator
 
 @pytest.mark.asyncio
 @pytest.mark.parametrize(
-    "multiplier, multiplicand, expected_result", [(2.5, 10.0, 25), (-1, 1, -1)]
+    "multiplier, multiplicand, expected_outcome", [(2.5, 10.0, 25), (-1, 1, -1)]
 )
 async def test_stream_calculator_multiply(
     multiplier: float,
     multiplicand: float,
-    expected_result: Optional[float],
+    expected_outcome: Optional[float],
 ):
     """Test the `multiply` method of the StreamCalculator"""
     problem_id = "some_problem"
@@ -43,37 +43,35 @@ async def test_stream_calculator_multiply(
 
     # check if the result emitter was used correctly and with the expected result:
     result_emitter.emit_result.assert_awaited_once_with(
-        problem_id=problem_id, result=expected_result
+        problem_id=problem_id, result=expected_outcome
     )
 
 
 @pytest.mark.asyncio
 @pytest.mark.parametrize(
-    "dividend, divisor, expected_result",
-    [(25.0, 10.0, 2.5), (1, 0, None)],
+    "dividend, divisor, expected_outcome",
+    [(25.0, 10.0, 2.5), (1, 0, "The divisor may not be zero.")],
 )
 async def test_stream_calculator_devide(
     dividend: float,
     divisor: float,
-    expected_result: Optional[float],
+    expected_outcome: Union[float, str],
 ):
     """Test the `divide` method of the StreamCalculator.
-    `expected_result` is `None` when a failure is expected.
-
+    `expected_outcome` is a string with a reason when a failure is expected.
     """
     problem_id = "some_problem"
     result_emitter = AsyncMock()
-
     stream_calc = StreamCalculator(result_emitter=result_emitter)
     await stream_calc.divide(problem_id=problem_id, dividend=dividend, divisor=divisor)
-
     # check if the result emitter was used correctly:
-    if expected_result:
+    if isinstance(expected_outcome, float):
         # the calculation was successful, check the expected result:
         result_emitter.emit_result.assert_awaited_once_with(
-            problem_id=problem_id, result=expected_result
+            problem_id=problem_id, result=expected_outcome
         )
     else:
-        # the calculation failed:
-        result_emitter.emit_failure.assert_awaited_once()
-        assert result_emitter.emit_failure.await_args.kwargs["problem_id"] == problem_id
+        # the calculation failed, check the failure reason:
+        result_emitter.emit_failure.assert_awaited_once_with(
+            problem_id=problem_id, reason=expected_outcome
+        )
