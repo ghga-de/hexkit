@@ -24,7 +24,7 @@ from hexkit.utils import check_ascii
 
 class EventSubscriberProtocol(ABC):
     """
-    A protocol for consuming events to an event broker.
+    A protocol for consuming events from an event broker.
 
     In addition to the methods described below, implementations shall expose the
     the following attributes:
