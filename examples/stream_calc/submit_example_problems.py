@@ -21,11 +21,11 @@
 from sc_tests.integration.test_event_api import (
     CASES,
     DEFAULT_CONFIG,
-    await_problem_outcomes,
+    check_problem_outcomes,
     submit_test_problems,
 )
 
 KAFKA_SERVER = DEFAULT_CONFIG.kafka_servers[0]
 
 submit_test_problems(CASES, kafka_server=KAFKA_SERVER)
-await_problem_outcomes(CASES, kafka_server=KAFKA_SERVER)
+check_problem_outcomes(CASES, kafka_server=KAFKA_SERVER)

@@ -142,7 +142,7 @@ def submit_test_problems(
     producer.close()
 
 
-def await_problem_outcomes(
+def check_problem_outcomes(
     cases: list[Case],
     *,
     kafka_server: str,
@@ -211,4 +211,4 @@ async def test_receive_calc_publish(cases: list[Case] = deepcopy(CASES)):
         for _ in cases:
             await main(config=config, run_forever=False)
 
-        await_problem_outcomes(cases, kafka_server=kafka_server)
+        check_problem_outcomes(cases, kafka_server=kafka_server)
