@@ -14,37 +14,23 @@
 # limitations under the License.
 #
 
-"""The application logic of the calculator."""
+"""Inbound port for communicating results."""
 
-from examples.stream_calc.ports.problem_receiver import ArithProblemReceiverPort
-from examples.stream_calc.ports.result_emitter import CalcResultEmitterPort
+from abc import ABC, abstractmethod
 
 
-class StreamCalculator(ArithProblemReceiverPort):
+class ArithProblemHandlerPort(ABC):
     """
-    Perform calculations and stream results.
-
+    Port that excepts calculation tasks.
     More operations like addition or subtraction could be added in a similar way.
     """
 
-    def __init__(self, result_emitter: CalcResultEmitterPort):
-        """Configure relevant ports."""
-
-        self._result_emitter = result_emitter
-
+    @abstractmethod
     async def multiply(self, problem_id: str, multiplier: float, multiplicand: float):
         """Multiply the multiplicand with the multiplier."""
+        ...
 
-        result = multiplier * multiplicand
-        await self._result_emitter.emit_result(problem_id=problem_id, result=result)
-
+    @abstractmethod
     async def divide(self, problem_id: str, dividend: float, divisor: float):
         """Divide the dividend by the divisor."""
-
-        try:
-            result = dividend / divisor
-            await self._result_emitter.emit_result(problem_id=problem_id, result=result)
-        except ZeroDivisionError:
-            await self._result_emitter.emit_failure(
-                problem_id=problem_id, reason="The divisor may not be zero."
-            )
+        ...

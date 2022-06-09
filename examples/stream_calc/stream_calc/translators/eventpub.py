@@ -16,7 +16,8 @@
 
 """Translators that target the event publishing protocol."""
 
-from examples.stream_calc.ports.result_emitter import CalcResultEmitterPort
+from stream_calc.ports.result_emitter import CalcResultEmitterPort
+
 from hexkit.custom_types import JsonObject
 from hexkit.protocols.eventpub import EventPublisherProtocol
 
@@ -25,10 +26,20 @@ class EventResultEmitter(CalcResultEmitterPort):
     """Outbound abstract translator translating between the ResultEmitterPort and the
     EventPubProtocol."""
 
-    def __init__(self, event_publisher: EventPublisherProtocol) -> None:
+    def __init__(
+        self,
+        *,
+        output_topic: str,
+        success_type: str,
+        failure_type: str,
+        event_publisher: EventPublisherProtocol
+    ) -> None:
         """Configure with provider for the the EventPublisherProto"""
 
         self._event_publisher = event_publisher
+        self._output_topic = output_topic
+        self._success_type = success_type
+        self._failure_type = failure_type
 
     async def emit_result(self, *, problem_id: str, result: float) -> None:
         """Emits the result of the calc task with the given ID."""
@@ -37,9 +48,9 @@ class EventResultEmitter(CalcResultEmitterPort):
 
         await self._event_publisher.publish(
             payload=payload,
-            type_="calc_success",
+            type_=self._success_type,
             key=problem_id,
-            topic="calc_output",
+            topic=self._output_topic,
         )
 
     async def emit_failure(self, *, problem_id: str, reason: str) -> None:
@@ -49,7 +60,7 @@ class EventResultEmitter(CalcResultEmitterPort):
 
         await self._event_publisher.publish(
             payload=payload,
-            type_="calc_failure",
+            type_=self._failure_type,
             key=problem_id,
-            topic="calc_output",
+            topic=self._output_topic,
         )

@@ -14,4 +14,23 @@
 # limitations under the License.
 #
 
-"""Sub-package containing integration tests."""
+"""Config parameters."""
+
+from typing import Literal
+
+from pydantic import BaseSettings
+
+LOGLEVEL = Literal["DEBUG", "INFO", "WARNING", "ERROR", "CRITICAL"]
+
+
+class Config(BaseSettings):
+    """Config parameters and their defaults."""
+
+    service_name: str = "stream_calc"
+    client_suffix: str = "1"
+    kafka_servers: list[str] = ["kafka:9092"]
+    log_level: LOGLEVEL = "INFO"
+    result_emit_output_topic: str = "calc_output"
+    result_emit_success_type: str = "calc_success"
+    result_emit_failure_type: str = "calc_failure"
+    problem_receive_topics: list[str] = ["arithmetic_problems"]

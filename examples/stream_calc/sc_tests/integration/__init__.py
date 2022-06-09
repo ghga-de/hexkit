@@ -14,29 +14,4 @@
 # limitations under the License.
 #
 
-"""Implement global logic for running the application."""
-
-import asyncio
-import logging
-
-from stream_calc.config import Config
-from stream_calc.container import Container  # type: ignore
-
-
-async def main() -> None:
-    """Coroutine to run the stream calculator"""
-    config = Config()
-
-    logging.basicConfig(level=config.log_level)
-
-    container = Container()
-    container.config.from_pydantic(config)
-
-    async with container as cont_context:
-        event_subscriber = await cont_context.event_subscriber()
-        await event_subscriber.run()
-
-
-def run() -> None:
-    """Run the main function."""
-    asyncio.run(main())
+"""Sub-package containing integration tests."""

@@ -14,4 +14,4 @@
 # limitations under the License.
 #
 
-"""Sub-package containing integration tests."""
+"""Sub-package containing unit tests."""

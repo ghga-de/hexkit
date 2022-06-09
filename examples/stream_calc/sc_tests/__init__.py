@@ -12,21 +12,3 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-#
-
-"""Config parameters."""
-
-from typing import Literal
-
-from pydantic import BaseSettings
-
-LOGLEVEL = Literal["DEBUG", "INFO", "WARNING", "ERROR", "CRITICAL"]
-
-
-class Config(BaseSettings):
-    """Config parameters and their defaults."""
-
-    service_name: str = "stream_calc"
-    client_suffix: str = "1"
-    kafka_servers: list[str] = ["kafka:9092"]
-    log_level: LOGLEVEL = "INFO"

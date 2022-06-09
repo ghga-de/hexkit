@@ -1,3 +1,5 @@
+#!/usr/bin/env python3
+
 # Copyright 2021 - 2022 Universität Tübingen, DKFZ and EMBL
 # for the German Human Genome-Phenome Archive (GHGA)
 #
@@ -14,23 +16,16 @@
 # limitations under the License.
 #
 
-"""Inbound port for communicating results."""
+"""A script for submitting example problems to the stream calculator app."""
 
-from abc import ABC, abstractmethod
+from sc_tests.integration.test_event_api import (
+    CASES,
+    DEFAULT_CONFIG,
+    check_problem_outcomes,
+    submit_test_problems,
+)
 
+KAFKA_SERVER = DEFAULT_CONFIG.kafka_servers[0]
 
-class ArithProblemReceiverPort(ABC):
-    """
-    Port that excepts calculation tasks.
-    More operations like addition or subtraction could be added in a similar way.
-    """
-
-    @abstractmethod
-    async def multiply(self, problem_id: str, multiplier: float, multiplicand: float):
-        """Multiply the multiplicand with the multiplier."""
-        ...
-
-    @abstractmethod
-    async def divide(self, problem_id: str, dividend: float, divisor: float):
-        """Divide the dividend by the divisor."""
-        ...
+submit_test_problems(CASES, kafka_server=KAFKA_SERVER)
+check_problem_outcomes(CASES, kafka_server=KAFKA_SERVER)
