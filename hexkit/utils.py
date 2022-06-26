@@ -15,6 +15,10 @@
 
 """General utilities that don't require heavy dependencies."""
 
+import asyncio
+import functools
+from typing import Callable
+
 
 class NonAsciiStrError(RuntimeError):
     """Thrown when non-ASCII string was unexpectedly provided"""
@@ -30,3 +34,23 @@ def check_ascii(*str_values: str):
     for str_value in str_values:
         if not str_value.isascii():
             raise NonAsciiStrError(str_value=str_value)
+
+
+def async_wrap(func: Callable):
+    """Wraps synchronous/blocking python functions (or other callables) and turns them
+    into awaitables using asyncio's `run_in_executer`.
+
+    Inspired by aiofiles' implementation:
+    https://github.com/Tinche/aiofiles/blob/672ee04671608ede7c6a0328fd96f9a37a0fba1a/src/aiofiles/os.py#L7-L15
+    """
+
+    @functools.wraps(func)
+    async def run(*args, loop=None, executor=None, **kwargs):
+        """Runs the blocking function in an asyncio executer."""
+
+        if loop is None:
+            loop = asyncio.get_event_loop()
+        pfunc = functools.partial(func, *args, **kwargs)
+        return await loop.run_in_executor(executor, pfunc)
+
+    return run
