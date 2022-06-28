@@ -439,7 +439,7 @@ class ObjectStorageProtocol(ABC):
     # provider-specific code)
 
     @classmethod
-    async def _validate_bucket_id(cls, bucket_id: str):
+    def _validate_bucket_id(cls, bucket_id: str):
         """Check whether a bucket id follows the recommended naming pattern.
         This is roughly based on:
         https://docs.aws.amazon.com/AmazonS3/latest/userguide/bucketnamingrules.html
@@ -462,7 +462,7 @@ class ObjectStorageProtocol(ABC):
             )
 
     @classmethod
-    async def _validate_object_id(cls, object_id: str):
+    def _validate_object_id(cls, object_id: str):
         """Check whether a object id follows the recommended naming pattern.
         This is roughly based on (plus some additional restrictions):
         https://docs.aws.amazon.com/AmazonS3/latest/userguide/object-keys.html
@@ -503,7 +503,7 @@ class ObjectStorageProtocol(ABC):
             )
             super().__init__(message)
 
-    class BucketAlreadyExists(BucketError):
+    class BucketAlreadyExistsError(BucketError):
         """Thrown when trying to create a bucket with an ID that already exists."""
 
         def __init__(self, bucket_id: Optional[str]):

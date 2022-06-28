@@ -177,12 +177,13 @@ class S3ObjectStorage(
         """
 
         error_code = source_exception.response["Error"]["Code"]
+        exception: Exception
 
         # try to exactly match the error code:
         if error_code == "NoSuchBucket":
             exception = cls.BucketNotFoundError(bucket_id=bucket_id)
         elif error_code == "BucketAlreadyExists":
-            exception = cls.BucketAlreadyExists(bucket_id=bucket_id)
+            exception = cls.BucketAlreadyExistsError(bucket_id=bucket_id)
         elif error_code == "NoSuchKey":
             exception = cls.ObjectNotFoundError(
                 bucket_id=bucket_id, object_id=object_id
@@ -238,15 +239,15 @@ class S3ObjectStorage(
         BucketNotFoundError otherwise.
         """
 
-        if not self.does_bucket_exist(bucket_id):
+        if not await self.does_bucket_exist(bucket_id):
             raise self.BucketNotFoundError(bucket_id=bucket_id)
 
     async def _assert_bucket_not_exists(self, bucket_id: str) -> None:
         """Checks if the bucket with specified ID (`bucket_id`) exists. If so, it throws
         an BucketAlreadyExists.
         """
-        if self.does_bucket_exist(bucket_id):
-            raise self.BucketAlreadyExists(bucket_id=bucket_id)
+        if await self.does_bucket_exist(bucket_id):
+            raise self.BucketAlreadyExistsError(bucket_id=bucket_id)
 
     async def _create_bucket(self, bucket_id: str) -> None:
         """
@@ -315,7 +316,7 @@ class S3ObjectStorage(
         # first check if bucket exists:
         await self._assert_bucket_exists(bucket_id)
 
-        if not self.does_object_exist(bucket_id=bucket_id, object_id=object_id):
+        if not await self.does_object_exist(bucket_id=bucket_id, object_id=object_id):
             raise self.ObjectNotFoundError(bucket_id=bucket_id, object_id=object_id)
 
     async def _assert_object_not_exists(
@@ -328,7 +329,7 @@ class S3ObjectStorage(
         # first check if bucket exists:
         await self._assert_bucket_exists(bucket_id)
 
-        if self.does_object_exist(bucket_id=bucket_id, object_id=object_id):
+        if await self.does_object_exist(bucket_id=bucket_id, object_id=object_id):
             raise self.ObjectAlreadyExistsError(
                 bucket_id=bucket_id, object_id=object_id
             )
@@ -405,7 +406,7 @@ class S3ObjectStorage(
     async def _assert_no_multipart_upload(self, *, bucket_id: str, object_id: str):
         """Ensure that there are no active multi-part uploads for the given object."""
 
-        upload_ids = self._list_mulitpart_upload_for_object(
+        upload_ids = await self._list_mulitpart_upload_for_object(
             bucket_id=bucket_id, object_id=object_id
         )
         if len(upload_ids) > 0:
@@ -428,7 +429,7 @@ class S3ObjectStorage(
         that file. Otherwise, raises
         """
 
-        upload_ids = self._list_mulitpart_upload_for_object(
+        upload_ids = await self._list_mulitpart_upload_for_object(
             bucket_id=bucket_id, object_id=object_id
         )
         n_uploads = len(upload_ids)
@@ -471,10 +472,10 @@ class S3ObjectStorage(
         should be uploaded in sequence.
         """
 
-        if not 0 < part_number <= 10000:
+        if not 0 < part_number <= self.MAX_FILE_PART_NUMBER:
             raise ValueError(
                 "The part number must be a non-zero positive integer"
-                + " smaller or equal to 10000"
+                + f" smaller or equal to {self.MAX_FILE_PART_NUMBER}"
             )
 
         await self._assert_multipart_upload_exist(

@@ -27,7 +27,7 @@ from pathlib import Path
 from tempfile import NamedTemporaryFile
 from typing import List, Optional
 
-import pytest
+import pytest_asyncio
 import requests
 from pydantic import BaseModel, validator
 from testcontainers.localstack import LocalStackContainer
@@ -304,7 +304,7 @@ def s3_fixture_factory(
         else non_existing_objects
     )
 
-    @pytest.fixture
+    @pytest_asyncio.fixture
     async def s3_fixture():
         """Pytest fixture for tests depending on the S3ObjectStorage DAO."""
         with LocalStackContainer(image="localstack/localstack:0.14.2").with_services(
@@ -443,7 +443,7 @@ async def prepare_non_completed_upload(s3_fixture: S3Fixture):
 
     object_fixture = s3_fixture.non_existing_objects[0]
 
-    upload_part(
+    await upload_part(
         storage_dao=s3_fixture.storage,
         upload_id=upload_id,
         bucket_id=bucket_id,
