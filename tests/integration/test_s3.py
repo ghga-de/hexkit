@@ -110,7 +110,7 @@ async def test_object_and_bucket_collisions(
     Tests whether overwriting (re-creation, re-upload, or copy to exisitng object) fails with the expected error.
     """
 
-    s3_fixture.populate_file_objects([file_fixture])
+    await s3_fixture.populate_file_objects([file_fixture])
 
     with pytest.raises(ObjectStorageProtocol.BucketAlreadyExistsError):
         await s3_fixture.storage.create_bucket(file_fixture.bucket_id)
