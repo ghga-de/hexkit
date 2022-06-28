@@ -226,7 +226,7 @@ async def test_using_non_existing_upload(
     object_id = real_object_id if object_id_correct else "wrong-object"
 
     def get_exception_context() -> ContextManager:
-        return pytest.raises(exception) if exception else nullcontext()
+        return pytest.raises(exception) if exception else nullcontext()  # type: ignore
 
     # call relevant methods from the provider:
     with pytest.raises(exception):
@@ -415,7 +415,7 @@ async def test_handling_multiple_coexisting_uploads(
     upload1_id, bucket_id, object_id = await get_initialized_upload(s3_fixture)
 
     # initialize another upload bypassing any checks:
-    upload2_id = s3_fixture.storage._client.create_multipart_upload(  # type: ignore
+    upload2_id = s3_fixture.storage._client.create_multipart_upload(
         Bucket=bucket_id, Key=object_id
     )["UploadId"]
 
