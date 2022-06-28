@@ -16,6 +16,7 @@
 
 """S3-based provider implementing the ObjectStorageProtocol."""
 
+import asyncio
 from functools import lru_cache
 from pathlib import Path
 from typing import Optional
@@ -222,7 +223,7 @@ class S3ObjectStorage(
         """
 
         try:
-            bucket_list = self._client.list_buckets()
+            bucket_list = await asyncio.to_thread(self._client.list_buckets)
         except botocore.exceptions.ClientError as error:
             raise self._translate_s3_client_errors(
                 error, bucket_id=bucket_id
@@ -258,7 +259,7 @@ class S3ObjectStorage(
         await self._assert_bucket_not_exists(bucket_id)
 
         try:
-            self._client.create_bucket(Bucket=bucket_id)
+            await asyncio.to_thread(self._client.create_bucket, Bucket=bucket_id)
         except botocore.exceptions.ClientError as error:
             raise self._translate_s3_client_errors(
                 error, bucket_id=bucket_id
@@ -279,8 +280,8 @@ class S3ObjectStorage(
         try:
             bucket = self._resource.Bucket(bucket_id)
             if delete_content:
-                bucket.objects.all().delete()
-            bucket.delete()
+                await asyncio.to_thread(lambda: bucket.objects.all().delete())
+            await asyncio.to_thread(bucket.delete)
         except botocore.exceptions.ClientError as error:
             raise self._translate_s3_client_errors(
                 error, bucket_id=bucket_id
@@ -299,7 +300,8 @@ class S3ObjectStorage(
             raise NotImplementedError("Md5 checking is not yet implemented.")
 
         try:
-            _ = self._client.head_object(
+            _ = await asyncio.to_thread(
+                self._client.head_object,
                 Bucket=bucket_id,
                 Key=object_id,
             )
@@ -360,7 +362,8 @@ class S3ObjectStorage(
         )
 
         try:
-            presigned_url = self._client.generate_presigned_post(
+            presigned_url = await asyncio.to_thread(
+                self._client.generate_presigned_post,
                 Bucket=bucket_id,
                 Key=object_id,
                 Conditions=conditions,
@@ -385,7 +388,8 @@ class S3ObjectStorage(
         """
 
         try:
-            uploads_info = self._client.list_multipart_uploads(
+            uploads_info = await asyncio.to_thread(
+                self._client.list_multipart_uploads,
                 Bucket=bucket_id,
             )
         except botocore.exceptions.ClientError as error:
@@ -452,8 +456,8 @@ class S3ObjectStorage(
         await self._assert_no_multipart_upload(bucket_id=bucket_id, object_id=object_id)
 
         try:
-            response = self._client.create_multipart_upload(
-                Bucket=bucket_id, Key=object_id
+            response = await asyncio.to_thread(
+                self._client.create_multipart_upload, Bucket=bucket_id, Key=object_id
             )
         except botocore.exceptions.ClientError as error:
             raise self._translate_s3_client_errors(
@@ -483,7 +487,8 @@ class S3ObjectStorage(
         )
 
         try:
-            return self._client.generate_presigned_url(
+            return await asyncio.to_thread(
+                self._client.generate_presigned_url,
                 ClientMethod="upload_part",
                 Params={
                     "Bucket": bucket_id,
@@ -514,7 +519,8 @@ class S3ObjectStorage(
         )
 
         try:
-            return self._client.list_parts(
+            return await asyncio.to_thread(
+                self._client.list_parts,
                 Bucket=bucket_id,
                 Key=object_id,
                 UploadId=upload_id,
@@ -629,7 +635,8 @@ class S3ObjectStorage(
         # used to resolve the invalid state of multiple uploads for the same object.
 
         try:
-            self._client.abort_multipart_upload(
+            await asyncio.to_thread(
+                self._client.abort_multipart_upload,
                 Bucket=bucket_id,
                 Key=object_id,
                 UploadId=upload_id,
@@ -703,7 +710,8 @@ class S3ObjectStorage(
 
         # confirm the upload:
         try:
-            self._client.complete_multipart_upload(
+            await asyncio.to_thread(
+                self._client.complete_multipart_upload,
                 Bucket=bucket_id,
                 Key=object_id,
                 MultipartUpload={"Parts": part_etags},
@@ -728,7 +736,8 @@ class S3ObjectStorage(
         await self._assert_object_exists(bucket_id=bucket_id, object_id=object_id)
 
         try:
-            presigned_url = self._client.generate_presigned_url(
+            presigned_url = await asyncio.to_thread(
+                self._client.generate_presigned_url,
                 "get_object",
                 Params={"Bucket": bucket_id, "Key": object_id},
                 ExpiresIn=expires_after,
@@ -764,7 +773,8 @@ class S3ObjectStorage(
                 "Bucket": source_bucket_id,
                 "Key": source_object_id,
             }
-            self._client.copy(
+            await asyncio.to_thread(
+                self._client.copy,
                 CopySource=copy_source,
                 Bucket=dest_bucket_id,
                 Key=dest_object_id,
@@ -783,7 +793,8 @@ class S3ObjectStorage(
         await self._assert_object_exists(bucket_id=bucket_id, object_id=object_id)
 
         try:
-            self._client.delete_object(
+            await asyncio.to_thread(
+                self._client.delete_object,
                 Bucket=bucket_id,
                 Key=object_id,
             )
