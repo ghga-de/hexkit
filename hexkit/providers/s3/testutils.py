@@ -22,11 +22,11 @@ Please note, only use for testing purposes.
 import hashlib
 import os
 from contextlib import contextmanager
-from dataclasses import dataclass
 from pathlib import Path
 from tempfile import NamedTemporaryFile
-from typing import List, Optional
+from typing import Generator, List
 
+import pytest
 import pytest_asyncio
 import requests
 from pydantic import BaseModel, validator
@@ -50,11 +50,12 @@ def calc_md5(content: bytes) -> str:
     """
     Calc the md5 checksum for the specified bytes.
     """
+
     return hashlib.md5(content).hexdigest()  # nosec
 
 
-class ObjectFixture(BaseModel):
-    """A Model for describing fixtures for the object storage."""
+class FileObject(BaseModel):
+    """A Model for describing objects in an object storage."""
 
     file_path: Path
     bucket_id: str
@@ -66,6 +67,7 @@ class ObjectFixture(BaseModel):
     @validator("content", always=True)
     def read_content(cls, _, values):
         """Read in the file content."""
+
         with open(values["file_path"], "rb") as file:
             return file.read()
 
@@ -73,11 +75,84 @@ class ObjectFixture(BaseModel):
     @validator("md5", always=True)
     def calc_md5_from_content(cls, _, values):
         """Calculate md5 based on the content."""
+
         return calc_md5(values["content"])
+
+
+class S3Fixture:
+    """Yielded by the `s3_fixture` function"""
+
+    def __init__(self, config: S3ConfigBase, storage: S3ObjectStorage):
+        """Initialize with config."""
+        self.config = config
+        self.storage = storage
+
+    async def populate_buckets(self, buckets: list[str]):
+        """Populate the storage with buckets."""
+
+        await populate_storage(
+            self.storage, bucket_fixtures=buckets, object_fixtures=[]
+        )
+
+    async def populate_file_objects(self, file_objects: list[FileObject]):
+        """Populate the storage with file objects."""
+
+        await populate_storage(
+            self.storage, bucket_fixtures=[], object_fixtures=file_objects
+        )
+
+
+@pytest_asyncio.fixture
+def s3_fixture() -> Generator[S3Fixture, None, None]:
+    """Pytest fixture for tests depending on the S3ObjectStorage DAO."""
+
+    with LocalStackContainer(image="localstack/localstack:0.14.2").with_services(
+        "s3"
+    ) as localstack:
+        config = config_from_localstack_container(localstack)
+
+        storage = S3ObjectStorage(config=config)
+        yield S3Fixture(config=config, storage=storage)
+
+
+@contextmanager
+def temp_file_object(
+    bucket_id: str = "mydefaulttestbucket001",
+    object_id: str = "mydefaulttestobject001",
+    size: int = 5 * MEBIBYTE,
+) -> Generator[FileObject, None, None]:
+    """Generates a file object with the specified size in bytes."""
+
+    current_size = 0
+    current_number = 0
+    next_number = 1
+
+    with NamedTemporaryFile("w+b") as temp_file:
+        while current_size <= size:
+            byte_addition = f"{current_number}\n".encode("ASCII")
+            current_size += len(byte_addition)
+            temp_file.write(byte_addition)
+            previous_number = current_number
+            current_number = next_number
+            next_number = previous_number + current_number
+        temp_file.flush()
+
+        yield FileObject(
+            file_path=temp_file.name, bucket_id=bucket_id, object_id=object_id
+        )
+
+
+@pytest.fixture
+def file_fixture():
+    """A fixture that provides a temporary file."""
+
+    with temp_file_object() as temp_file:
+        yield temp_file
 
 
 def upload_file(presigned_url: PresignedPostURL, file_path: Path, file_md5: str):
     """Uploads the test file to the specified URL"""
+
     with open(file_path, "rb") as test_file:
         files = {"file": (str(file_path), test_file)}
         headers = {"ContentMD5": file_md5}
@@ -90,6 +165,7 @@ def upload_file(presigned_url: PresignedPostURL, file_path: Path, file_md5: str)
 def check_part_size(file_path: Path, anticipated_size: int) -> None:
     """Check if the anticipated part size can be used to upload the specified file
     using the maximum number of file parts. Raises and exception otherwise."""
+
     file_size = os.path.getsize(file_path)
     if (file_size / anticipated_size) > ObjectStorageProtocol.MAX_FILE_PART_NUMBER:
         raise RuntimeError(
@@ -134,6 +210,7 @@ async def upload_part_of_size(
     Generate a bytes object of the specified size and uploads the part to an initialized
     multipart upload.
     """
+
     content = b"\0" * size
     await upload_part(
         storage_dao=storage_dao,
@@ -143,6 +220,14 @@ async def upload_part_of_size(
         content=content,
         part_number=part_number,
     )
+
+
+def upload_part_via_url(*, url: str, size: int):
+    """Upload a file part of given size using the given URL."""
+
+    content = b"\0" * size
+    response = requests.put(url, data=content)
+    response.raise_for_status()
 
 
 async def multipart_upload_file(
@@ -201,38 +286,10 @@ def download_and_check_test_file(presigned_url: str, expected_md5: str):
     ), "downloaded file has unexpected md5 checksum"
 
 
-DEFAULT_EXISTING_BUCKETS = [
-    "myexistingtestbucket100",
-    "myexistingtestbucket200",
-]
-DEFAULT_NON_EXISTING_BUCKETS = [
-    "mynonexistingtestobject100",
-    "mynonexistingtestobject200",
-]
-
-DEFAULT_EXISTING_OBJECTS = [
-    ObjectFixture(
-        file_path=file_path,
-        bucket_id=f"myexistingtestbucket{idx}",
-        object_id=f"myexistingtestobject{idx}",
-    )
-    for idx, file_path in enumerate(TEST_FILE_PATHS[0:2])
-]
-
-DEFAULT_NON_EXISTING_OBJECTS = [
-    ObjectFixture(
-        file_path=file_path,
-        bucket_id=f"mynonexistingtestbucket{idx}",
-        object_id=f"mynonexistingtestobject{idx}",
-    )
-    for idx, file_path in enumerate(TEST_FILE_PATHS[2:4])
-]
-
-
 async def populate_storage(
     storage: ObjectStorageProtocol,
     bucket_fixtures: List[str],
-    object_fixtures: List[ObjectFixture],
+    object_fixtures: List[FileObject],
 ):
     """Populate Storage with object and bucket fixtures"""
 
@@ -256,6 +313,7 @@ async def populate_storage(
 
 def config_from_localstack_container(container: LocalStackContainer) -> S3ConfigBase:
     """Prepares a S3ConfigBase from an instance of a localstack test container."""
+
     s3_endpoint_url = container.get_url()
     return S3ConfigBase(  # nosec
         s3_endpoint_url=s3_endpoint_url,
@@ -264,93 +322,56 @@ def config_from_localstack_container(container: LocalStackContainer) -> S3Config
     )
 
 
-@dataclass
-class S3Fixture:
-    """Info yielded by the `s3_fixture` function"""
+async def get_initialized_upload(s3_fixture_: S3Fixture):
+    """Initialize a new empty multipart upload."""
 
-    config: S3ConfigBase
-    storage: S3ObjectStorage
-    existing_buckets: List[str]
-    non_existing_buckets: List[str]
-    existing_objects: List[ObjectFixture]
-    non_existing_objects: List[ObjectFixture]
+    bucket_id = "mybucketwithupload001"
+    object_id = "myobjecttobeuploaded001"
 
+    await s3_fixture_.populate_buckets([bucket_id])
 
-def s3_fixture_factory(
-    existing_buckets: Optional[List[str]] = None,
-    non_existing_buckets: Optional[List[str]] = None,
-    existing_objects: Optional[List[ObjectFixture]] = None,
-    non_existing_objects: Optional[List[ObjectFixture]] = None,
-):
-    """A factory for generating a pre-configured Pytest fixture working with S3."""
-
-    # list defaults:
-    # (listting instances of primitive types such as lists as defaults in the function
-    # header is dangerous)
-    existing_buckets_ = (
-        DEFAULT_EXISTING_BUCKETS if existing_buckets is None else existing_buckets
-    )
-    non_existing_buckets_ = (
-        DEFAULT_NON_EXISTING_BUCKETS
-        if non_existing_buckets is None
-        else non_existing_buckets
-    )
-    existing_objects_ = (
-        DEFAULT_EXISTING_OBJECTS if existing_objects is None else existing_objects
-    )
-    non_existing_objects_ = (
-        DEFAULT_NON_EXISTING_OBJECTS
-        if non_existing_objects is None
-        else non_existing_objects
+    upload_id = await s3_fixture_.storage.init_multipart_upload(
+        bucket_id=bucket_id, object_id=object_id
     )
 
-    @pytest_asyncio.fixture
-    async def s3_fixture():
-        """Pytest fixture for tests depending on the S3ObjectStorage DAO."""
-        with LocalStackContainer(image="localstack/localstack:0.14.2").with_services(
-            "s3"
-        ) as localstack:
-            config = config_from_localstack_container(localstack)
+    return upload_id, bucket_id, object_id
 
-            storage = S3ObjectStorage(config=config)
-            await populate_storage(
-                storage=storage,
-                bucket_fixtures=existing_buckets_,
-                object_fixtures=existing_objects_,
-            )
 
-            assert not set(existing_buckets_) & set(  # nosec
-                non_existing_buckets_
-            ), "The existing and non existing bucket lists may not overlap"
+async def prepare_non_completed_upload(s3_fixture_: S3Fixture):
+    """Prepare an upload that has not been marked as completed, yet."""
 
-            yield S3Fixture(
-                config=config,
-                storage=storage,
-                existing_buckets=existing_buckets_,
-                non_existing_buckets=non_existing_buckets_,
-                existing_objects=existing_objects_,
-                non_existing_objects=non_existing_objects_,
-            )
+    upload_id, bucket_id, object_id = await get_initialized_upload(s3_fixture_)
 
-    return s3_fixture
+    with temp_file_object() as file:
+        await upload_part(
+            storage_dao=s3_fixture_.storage,
+            upload_id=upload_id,
+            bucket_id=bucket_id,
+            object_id=object_id,
+            content=file.content,
+        )
+
+    return upload_id, bucket_id, object_id
 
 
 # This workflow is defined as a seperate function so that it can also be used
-# outside of the `tests` package:
+# outside of the `tests` package e.g. to test the compliance of an S3-compatible
+# object storage implemenation:
 # pylint: disable=too-many-arguments
 async def typical_workflow(
     storage_client: ObjectStorageProtocol,
-    bucket1_id: str = "mytestbucket1",
-    bucket2_id: str = "mytestbucket2",
-    object_id: str = DEFAULT_NON_EXISTING_OBJECTS[0].object_id,
-    test_file_path: Path = DEFAULT_NON_EXISTING_OBJECTS[0].file_path,
-    test_file_md5: str = DEFAULT_NON_EXISTING_OBJECTS[0].md5,
+    test_file_path: Path,
+    test_file_md5: str,
+    bucket1_id: str = "mytestbucket001",
+    bucket2_id: str = "mytestbucket002",
+    object_id: str = "mytestobject001",
     use_multipart_upload: bool = True,
     part_size: int = ObjectStorageProtocol.DEFAULT_PART_SIZE,
 ):
     """
     Run a typical workflow of basic object operations using a S3 service.
     """
+
     print("Run a workflow for testing basic object operations using a S3 service:")
 
     print(f" - create new bucket {bucket1_id}")
@@ -422,51 +443,3 @@ async def typical_workflow(
     )
 
     print("Done.")
-
-
-async def get_initialized_upload(s3_fixture: S3Fixture):
-    """Initialize a new empty multipart upload."""
-
-    bucket_id = s3_fixture.existing_buckets[0]
-    object_id = s3_fixture.non_existing_objects[0].object_id
-    upload_id = await s3_fixture.storage.init_multipart_upload(
-        bucket_id=bucket_id, object_id=object_id
-    )
-
-    return upload_id, bucket_id, object_id
-
-
-async def prepare_non_completed_upload(s3_fixture: S3Fixture):
-    """Prepare an upload that has not been marked as completed, yet."""
-
-    upload_id, bucket_id, object_id = await get_initialized_upload(s3_fixture)
-
-    object_fixture = s3_fixture.non_existing_objects[0]
-
-    await upload_part(
-        storage_dao=s3_fixture.storage,
-        upload_id=upload_id,
-        bucket_id=bucket_id,
-        object_id=object_id,
-        content=object_fixture.content,
-    )
-
-    return upload_id, bucket_id, object_id
-
-
-@contextmanager
-def big_temp_file(size: int):
-    """Generates a big file with approximately the specified size in bytes."""
-    current_size = 0
-    current_number = 0
-    next_number = 1
-    with NamedTemporaryFile("w+b") as temp_file:
-        while current_size <= size:
-            byte_addition = f"{current_number}\n".encode("ASCII")
-            current_size += len(byte_addition)
-            temp_file.write(byte_addition)
-            previous_number = current_number
-            current_number = next_number
-            next_number = previous_number + current_number
-        temp_file.flush()
-        yield temp_file

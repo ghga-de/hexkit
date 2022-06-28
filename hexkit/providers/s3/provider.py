@@ -126,6 +126,7 @@ class S3ObjectStorage(
         Args:
             config (S3ConfigBase): Config parameters specified using the S3ConfigBase model.
         """
+
         self._config = config
 
         self.endpoint_url = config.s3_endpoint_url
@@ -247,6 +248,7 @@ class S3ObjectStorage(
         """Checks if the bucket with specified ID (`bucket_id`) exists. If so, it throws
         an BucketAlreadyExists.
         """
+
         if await self.does_bucket_exist(bucket_id):
             raise self.BucketAlreadyExistsError(bucket_id=bucket_id)
 
@@ -315,6 +317,7 @@ class S3ObjectStorage(
         the specified ID (`bucket_id`) and throws an ObjectNotFoundError otherwise.
         If the bucket does not exist it throws a BucketNotFoundError.
         """
+
         # first check if bucket exists:
         await self._assert_bucket_exists(bucket_id)
 
@@ -328,6 +331,7 @@ class S3ObjectStorage(
         the specified ID (`bucket_id`). If so, it throws an ObjectAlreadyExistsError otherwise.
         If the bucket does not exist it throws a BucketNotFoundError.
         """
+
         # first check if bucket exists:
         await self._assert_bucket_exists(bucket_id)
 
