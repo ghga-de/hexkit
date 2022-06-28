@@ -93,10 +93,10 @@ def check_part_size(file_path: Path, anticipated_size: int) -> None:
     file_size = os.path.getsize(file_path)
     if (file_size / anticipated_size) > ObjectStorageProtocol.MAX_FILE_PART_NUMBER:
         raise RuntimeError(
-            f"The specified file ('{file_path}') cannot to be uploaded"
-            + f" using the specified part size ({anticipated_size}') since the maximum number"
-            + f" of parts ({ObjectStorageProtocol.MAX_FILE_PART_NUMBER}) would be exceeded. Please choose a larger"
-            + " part size."
+            f"The specified file ('{file_path}') cannot to be uploaded using the"
+            + f" specified part size ({anticipated_size}') since the maximum number"
+            + f" of parts ({ObjectStorageProtocol.MAX_FILE_PART_NUMBER}) would be"
+            + "exceeded. Please choose a larger part size."
         )
 
 
@@ -181,7 +181,7 @@ async def multipart_upload_file(
             )
 
     print(" - complete multipart upload")
-    storage_dao.complete_multipart_upload(
+    await storage_dao.complete_multipart_upload(
         upload_id=upload_id,
         bucket_id=bucket_id,
         object_id=object_id,

@@ -40,6 +40,40 @@ s3_fixture = s3_fixture_factory()
 
 
 @pytest.mark.asyncio
+@pytest.mark.parametrize("expect_existence", (True, False))
+async def test_object_existence_checks(expect_existence: bool, s3_fixture: S3Fixture):
+    """Test if the checks for existence of objects work correctly."""
+
+    obj = (
+        s3_fixture.existing_objects[0]
+        if expect_existence
+        else s3_fixture.non_existing_objects[0]
+    )
+
+    observed_existence = await s3_fixture.storage.does_object_exist(
+        bucket_id=obj.bucket_id, object_id=obj.object_id
+    )
+
+    assert observed_existence == expect_existence
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("expect_existence", (True, False))
+async def test_bucket_existence_checks(expect_existence: bool, s3_fixture: S3Fixture):
+    """Test if the checks for existence of buckets work correctly."""
+
+    bucket_id = (
+        s3_fixture.existing_buckets[0]
+        if expect_existence
+        else s3_fixture.non_existing_buckets[0]
+    )
+
+    observed_existence = await s3_fixture.storage.does_bucket_exist(bucket_id=bucket_id)
+
+    assert observed_existence == expect_existence
+
+
+@pytest.mark.asyncio
 @pytest.mark.parametrize("use_multipart_upload", [True, False])
 async def test_typical_workflow(
     use_multipart_upload: bool, s3_fixture: S3Fixture  # noqa: F811

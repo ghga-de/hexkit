@@ -177,7 +177,6 @@ class S3ObjectStorage(
         """
 
         error_code = source_exception.response["Error"]["Code"]
-        exception: cls.ObjectStorageProtocolError
 
         # try to exactly match the error code:
         if error_code == "NoSuchBucket":
@@ -255,7 +254,7 @@ class S3ObjectStorage(
         specified unique ID.
         """
 
-        self._assert_bucket_not_exists(bucket_id)
+        await self._assert_bucket_not_exists(bucket_id)
 
         try:
             self._client.create_bucket(Bucket=bucket_id)
@@ -274,7 +273,7 @@ class S3ObjectStorage(
         not empty.
         """
 
-        self._assert_bucket_exists(bucket_id)
+        await self._assert_bucket_exists(bucket_id)
 
         try:
             bucket = self._resource.Bucket(bucket_id)
@@ -314,7 +313,7 @@ class S3ObjectStorage(
         If the bucket does not exist it throws a BucketNotFoundError.
         """
         # first check if bucket exists:
-        self._assert_bucket_exists(bucket_id)
+        await self._assert_bucket_exists(bucket_id)
 
         if not self.does_object_exist(bucket_id=bucket_id, object_id=object_id):
             raise self.ObjectNotFoundError(bucket_id=bucket_id, object_id=object_id)
@@ -327,7 +326,7 @@ class S3ObjectStorage(
         If the bucket does not exist it throws a BucketNotFoundError.
         """
         # first check if bucket exists:
-        self._assert_bucket_exists(bucket_id)
+        await self._assert_bucket_exists(bucket_id)
 
         if self.does_object_exist(bucket_id=bucket_id, object_id=object_id):
             raise self.ObjectAlreadyExistsError(
@@ -348,7 +347,7 @@ class S3ObjectStorage(
         a maximum size (bytes) for uploads (`max_upload_size`).
         """
 
-        self._assert_object_not_exists(bucket_id=bucket_id, object_id=object_id)
+        await self._assert_object_not_exists(bucket_id=bucket_id, object_id=object_id)
 
         conditions = (
             []
@@ -449,7 +448,7 @@ class S3ObjectStorage(
     async def _init_multipart_upload(self, *, bucket_id: str, object_id: str) -> str:
         """Initiates a mulipart upload procedure. Returns the upload ID."""
 
-        self._assert_no_multipart_upload(bucket_id=bucket_id, object_id=object_id)
+        await self._assert_no_multipart_upload(bucket_id=bucket_id, object_id=object_id)
 
         try:
             response = self._client.create_multipart_upload(
@@ -478,7 +477,7 @@ class S3ObjectStorage(
                 + " smaller or equal to 10000"
             )
 
-        self._assert_multipart_upload_exist(
+        await self._assert_multipart_upload_exist(
             upload_id=upload_id, bucket_id=bucket_id, object_id=object_id
         )
 
@@ -509,7 +508,7 @@ class S3ObjectStorage(
     ) -> dict:
         """Get information on parts uploaded as part of the specified multi-part upload."""
 
-        self._assert_multipart_upload_exist(
+        await self._assert_multipart_upload_exist(
             upload_id=upload_id, bucket_id=bucket_id, object_id=object_id
         )
 
@@ -619,7 +618,7 @@ class S3ObjectStorage(
         deleted.
         """
 
-        self._assert_multipart_upload_exist(
+        await self._assert_multipart_upload_exist(
             upload_id=upload_id,
             bucket_id=bucket_id,
             object_id=object_id,
@@ -648,7 +647,7 @@ class S3ObjectStorage(
         # https://boto3.amazonaws.com/v1/documentation/api/latest/reference/services/s3.html?highlight=abort_multipart_upload#S3.Client.abort_multipart_upload
         # )
         try:
-            parts_info = self._get_parts_info(
+            parts_info = await self._get_parts_info(
                 upload_id=upload_id,
                 bucket_id=bucket_id,
                 object_id=object_id,
@@ -680,13 +679,13 @@ class S3ObjectStorage(
         (except the last one) have the specified size.
         """
 
-        parts_info = self._get_parts_info(
+        parts_info = await self._get_parts_info(
             upload_id=upload_id,
             bucket_id=bucket_id,
             object_id=object_id,
         )
 
-        self._check_uploaded_parts(
+        await self._check_uploaded_parts(
             upload_id=upload_id,
             bucket_id=bucket_id,
             object_id=object_id,
@@ -725,7 +724,7 @@ class S3ObjectStorage(
         You may also specify a custom expiry duration in seconds (`expires_after`).
         """
 
-        self._assert_object_exists(bucket_id=bucket_id, object_id=object_id)
+        await self._assert_object_exists(bucket_id=bucket_id, object_id=object_id)
 
         try:
             presigned_url = self._client.generate_presigned_url(
@@ -752,10 +751,10 @@ class S3ObjectStorage(
         another bucket (`dest_bucket_id` and `dest_object_id`).
         """
 
-        self._assert_object_exists(
+        await self._assert_object_exists(
             bucket_id=source_bucket_id, object_id=source_object_id
         )
-        self._assert_object_not_exists(
+        await self._assert_object_not_exists(
             bucket_id=dest_bucket_id, object_id=dest_object_id
         )
 
@@ -780,7 +779,7 @@ class S3ObjectStorage(
         You may also specify a custom expiry duration in seconds (`expires_after`).
         """
 
-        self._assert_object_exists(bucket_id=bucket_id, object_id=object_id)
+        await self._assert_object_exists(bucket_id=bucket_id, object_id=object_id)
 
         try:
             self._client.delete_object(
