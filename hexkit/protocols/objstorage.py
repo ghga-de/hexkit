@@ -480,7 +480,7 @@ class ObjectStorageProtocol(ABC):
                 object_id=object_id,
                 reason="only letters, digits, hyphens (-) and dots (.) are allowed",
             )
-        if re.match(r"^[\-\.].*", object_id) or re.match(r".*[\-\.]$", object_id):
+        if object_id.startswith(('-', '.')) or object_id.endswith(('-', '.')):
             raise cls.ObjectIdValidationError(
                 object_id=object_id,
                 reason="may not start or end with a hyphen (-) or a dot (.).",
