@@ -123,18 +123,16 @@ def temp_file_object(
 ) -> Generator[FileObject, None, None]:
     """Generates a file object with the specified size in bytes."""
 
+    chunk_size = 1024
+    chunk = b"\0" * chunk_size
     current_size = 0
-    current_number = 0
-    next_number = 1
-
     with NamedTemporaryFile("w+b") as temp_file:
-        while current_size <= size:
-            byte_addition = f"{current_number}\n".encode("ASCII")
-            current_size += len(byte_addition)
-            temp_file.write(byte_addition)
-            previous_number = current_number
-            current_number = next_number
-            next_number = previous_number + current_number
+        while True:
+            if current_size + chunk_size >= size:
+                temp_file.write(chunk[:size - current_size])
+                break
+            temp_file.write(chunk)
+            current_size += chunk_size
         temp_file.flush()
 
         yield FileObject(
