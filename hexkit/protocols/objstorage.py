@@ -324,7 +324,7 @@ class ObjectStorageProtocol(ABC):
         method.*
 
         Given a id of an instantiated multipart upload along with the corresponding
-        bucket and object ID, it returns a presign URL for uploading a file part with the
+        bucket and object ID, it returns a presigned URL for uploading a file part with the
         specified number.
         Please note: the part number must be a non-zero, positive integer and parts
         should be uploaded in sequence.
