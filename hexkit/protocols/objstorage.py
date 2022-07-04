@@ -447,7 +447,7 @@ class ObjectStorageProtocol(ABC):
         https://docs.aws.amazon.com/AmazonS3/latest/userguide/bucketnamingrules.html
         Raises BucketIdValidationError if not valid.
         """
-        if len(bucket_id) not in range(3, 64):
+        if not 3 <= len(bucket_id) < 64:
             raise cls.BucketIdValidationError(
                 bucket_id=bucket_id,
                 reason="must be between 3 and 63 character long",
