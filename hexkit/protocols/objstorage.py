@@ -413,7 +413,7 @@ class ObjectStorageProtocol(ABC):
         *To be implemented by the provider. Input validation is done outside of this
         method.*
 
-        Copy an object from one bucket(`source_bucket_id` and `source_object_id`) to
+        Copy an object from one bucket (`source_bucket_id` and `source_object_id`) to
         another bucket (`dest_bucket_id` and `dest_object_id`).
         """
         self._validate_bucket_id(source_bucket_id)
