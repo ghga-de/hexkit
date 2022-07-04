@@ -107,7 +107,8 @@ async def test_object_and_bucket_collisions(
     s3_fixture: S3Fixture, file_fixture: FileObject  # noqa: F811
 ):
     """
-    Tests whether overwriting (re-creation, re-upload, or copy to exisitng object) fails with the expected error.
+    Tests whether overwriting (re-creation, re-upload, or copy to existing object)
+    fails with the expected error.
     """
 
     await s3_fixture.populate_file_objects([file_fixture])
