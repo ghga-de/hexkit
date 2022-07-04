@@ -492,7 +492,7 @@ class ObjectStorageProtocol(ABC):
         """Generic base exception for all custom errors used by this protocol."""
 
     class BucketError(ObjectStorageProtocolError):
-        """Generic base exceptions for error that occur while handling buckets."""
+        """Generic base exception for error that occur while handling buckets."""
 
     class BucketNotFoundError(BucketError):
         """Thrown when trying to access a bucket with an ID that doesn't exist."""
