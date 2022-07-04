@@ -707,9 +707,10 @@ class S3ObjectStorage(
         )
 
         # construct eTags list:
+        parts = parts_info.get("Parts", [])
         part_etags = [
             {"ETag": part["ETag"], "PartNumber": part["PartNumber"]}
-            for part in parts_info["Parts"]
+            for part in parts
         ]
 
         # confirm the upload:
