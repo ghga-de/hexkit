@@ -40,7 +40,7 @@ class ObjectStorageProtocol(ABC):
     DEFAULT_PART_SIZE = 16 * 1024 * 1024
     MAX_FILE_PART_NUMBER = 10000
 
-    # Pulbic methods:
+    # Public methods:
     # (Shall not be changed by provider implementations.)
     async def does_bucket_exist(self, bucket_id: str) -> bool:
         """Check whether a bucket with the specified ID (`bucket_id`) exists.
