@@ -470,7 +470,7 @@ class ObjectStorageProtocol(ABC):
         https://docs.aws.amazon.com/AmazonS3/latest/userguide/object-keys.html
         Raises ObjectIdValidationError if not valid.
         """
-        if len(object_id) not in range(3, 64):
+        if not 3 <= len(object_id) < 64:
             raise cls.ObjectIdValidationError(
                 object_id=object_id,
                 reason="must be between 3 and 63 character long",
