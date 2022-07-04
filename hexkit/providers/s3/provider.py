@@ -431,7 +431,7 @@ class S3ObjectStorage(
         assert_exclusiveness: bool = True,
     ) -> None:
         """Checks if a multipart upload with the given ID exists and whether it maps
-        to the specified object and bucket. Otherwise, raises UploadNotExistError.
+        to the specified object and bucket. Otherwise, raises MultiPartUploadNotFoundError.
 
         By default, also verifies that this upload is the only upload active for
         that file. Otherwise, raises MultipleActiveUploadsError.
