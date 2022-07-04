@@ -379,7 +379,7 @@ class ObjectStorageProtocol(ABC):
         *To be implemented by the provider. Input validation is done outside of this
         method.*
 
-        Generates and returns a presigns HTTP-URL to download a file object with
+        Generates and returns a presigned HTTP-URL to download a file object with
         the specified ID (`object_id`) from bucket with the specified id (`bucket_id`).
         You may also specify a custom expiry duration in seconds (`expires_after`).
         """
