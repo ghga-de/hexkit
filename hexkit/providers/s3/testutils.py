@@ -164,7 +164,7 @@ def upload_file(presigned_url: PresignedPostURL, file_path: Path, file_md5: str)
 
 def check_part_size(file_path: Path, anticipated_size: int) -> None:
     """Check if the anticipated part size can be used to upload the specified file
-    using the maximum number of file parts. Raises and exception otherwise."""
+    using the maximum number of file parts. Raises an exception otherwise."""
 
     file_size = os.path.getsize(file_path)
     if (file_size / anticipated_size) > ObjectStorageProtocol.MAX_FILE_PART_NUMBER:
