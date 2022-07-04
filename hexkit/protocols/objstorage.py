@@ -103,7 +103,7 @@ class ObjectStorageProtocol(ABC):
         bucket_id: str,
         object_id: str,
     ) -> str:
-        """Initiates a mulipart upload procedure. Returns the upload ID."""
+        """Initiates a multipart upload procedure. Returns the upload ID."""
 
         self._validate_bucket_id(bucket_id)
         self._validate_object_id(object_id)
