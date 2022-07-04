@@ -433,8 +433,8 @@ class S3ObjectStorage(
         """Checks if a multipart upload with the given ID exists and whether it maps
         to the specified object and bucket. Otherwise, raises UploadNotExistError.
 
-        By async default, it is also verified that this upload is the only upload active for
-        that file. Otherwise, raises
+        By default, also verifies that this upload is the only upload active for
+        that file. Otherwise, raises MultipleActiveUploadsError.
         """
 
         upload_ids = await self._list_mulitpart_upload_for_object(
