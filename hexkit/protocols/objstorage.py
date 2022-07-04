@@ -21,6 +21,8 @@ import re
 from abc import ABC, abstractmethod
 from typing import NamedTuple, Optional
 
+__all__ = ['PresignedPostURL', 'ObjectStorageProtocol']
+
 
 class PresignedPostURL(NamedTuple):
     """Container for presigned POST URLs along with additional metadata fields that
