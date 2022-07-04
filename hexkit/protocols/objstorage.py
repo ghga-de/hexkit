@@ -67,7 +67,7 @@ class ObjectStorageProtocol(ABC):
         """
         Delete a bucket (= a structure that can hold multiple file objects) with the
         specified unique ID. If `delete_content` is set to True, any contained objects
-        will be deleted, if False (the async default) an Error will be raised if the bucket is
+        will be deleted, if False (the default) a BucketNotEmptyError will be raised if the bucket is
         not empty.
         """
 
