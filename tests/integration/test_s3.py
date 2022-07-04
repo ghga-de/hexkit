@@ -115,6 +115,9 @@ async def test_object_and_bucket_collisions(
     with pytest.raises(ObjectStorageProtocol.BucketAlreadyExistsError):
         await s3_fixture.storage.create_bucket(file_fixture.bucket_id)
 
+    with pytest.raises(ObjectStorageProtocol.BucketNotEmptyError):
+        await s3_fixture.storage.delete_bucket(file_fixture.bucket_id)
+
     with pytest.raises(ObjectStorageProtocol.ObjectAlreadyExistsError):
         await s3_fixture.storage.get_object_upload_url(
             bucket_id=file_fixture.bucket_id, object_id=file_fixture.object_id
