@@ -478,7 +478,7 @@ class ObjectStorageProtocol(ABC):
         if not re.match(r"^[a-zA-Z0-9\-\.]*$", object_id):
             raise cls.ObjectIdValidationError(
                 object_id=object_id,
-                reason="only letters, numbers, and hyphens (-), and dots (.) are allowd",
+                reason="only letters, digits, hyphens (-) and dots (.) are allowed",
             )
         if re.match(r"^[\-\.].*", object_id) or re.match(r".*[\-\.]$", object_id):
             raise cls.ObjectIdValidationError(
