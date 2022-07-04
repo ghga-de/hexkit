@@ -489,7 +489,7 @@ class ObjectStorageProtocol(ABC):
     # Exceptions that may be used by implementation:
 
     class ObjectStorageProtocolError(RuntimeError):
-        """Generic base exceptions for all custom errors used by this protocol."""
+        """Generic base exception for all custom errors used by this protocol."""
 
     class BucketError(ObjectStorageProtocolError):
         """Generic base exceptions for error that occur while handling buckets."""
