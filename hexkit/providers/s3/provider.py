@@ -762,7 +762,7 @@ class S3ObjectStorage(
         dest_bucket_id: str,
         dest_object_id: str,
     ) -> None:
-        """Copy an object from one bucket(`source_bucket_id` and `source_object_id`) to
+        """Copy an object from one bucket (`source_bucket_id` and `source_object_id`) to
         another bucket (`dest_bucket_id` and `dest_object_id`).
         """
 
