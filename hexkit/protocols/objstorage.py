@@ -450,7 +450,7 @@ class ObjectStorageProtocol(ABC):
         if not 3 <= len(bucket_id) < 64:
             raise cls.BucketIdValidationError(
                 bucket_id=bucket_id,
-                reason="must be between 3 and 63 character long",
+                reason="must be between 3 and 63 characters long",
             )
         if not re.match(r"^[a-z0-9\-]*$", bucket_id):
             raise cls.BucketIdValidationError(
