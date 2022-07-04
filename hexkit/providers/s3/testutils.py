@@ -354,7 +354,7 @@ async def prepare_non_completed_upload(s3_fixture_: S3Fixture):
 
 # This workflow is defined as a seperate function so that it can also be used
 # outside of the `tests` package e.g. to test the compliance of an S3-compatible
-# object storage implemenation:
+# object storage implementation:
 # pylint: disable=too-many-arguments
 async def typical_workflow(
     storage_client: ObjectStorageProtocol,
