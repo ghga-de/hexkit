@@ -455,7 +455,7 @@ class ObjectStorageProtocol(ABC):
         if not re.match(r"^[a-z0-9\-]*$", bucket_id):
             raise cls.BucketIdValidationError(
                 bucket_id=bucket_id,
-                reason="only lowercase letters, numbers, and hyphens (-) are allowd",
+                reason="only lowercase letters, digits and hyphens (-) are allowed",
             )
         if bucket_id.startswith("-") or bucket_id.endswith("-"):
             raise cls.BucketIdValidationError(
