@@ -20,3 +20,5 @@ and associated utilities.
 
 # shortcuts:
 from hexkit.providers.s3.provider import S3ConfigBase, S3ObjectStorage  # noqa: F401
+
+__all__ = ['S3ConfigBase', 'S3ObjectStorage']
