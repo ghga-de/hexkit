@@ -27,7 +27,7 @@ class PresignedPostURL(NamedTuple):
     should be attached as body data when sending the POST request."""
 
     url: str
-    fields: dict
+    fields: dict[str, str]
 
 
 class ObjectStorageProtocol(ABC):
