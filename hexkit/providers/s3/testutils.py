@@ -167,7 +167,7 @@ def check_part_size(file_path: Path, anticipated_size: int) -> None:
     using the maximum number of file parts. Raises an exception otherwise."""
 
     file_size = os.path.getsize(file_path)
-    if (file_size / anticipated_size) > ObjectStorageProtocol.MAX_FILE_PART_NUMBER:
+    if file_size / anticipated_size > ObjectStorageProtocol.MAX_FILE_PART_NUMBER:
         raise RuntimeError(
             f"The specified file ('{file_path}') cannot to be uploaded using the"
             + f" specified part size ({anticipated_size}') since the maximum number"
