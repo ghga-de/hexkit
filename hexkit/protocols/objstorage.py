@@ -473,7 +473,7 @@ class ObjectStorageProtocol(ABC):
         if not 3 <= len(object_id) < 64:
             raise cls.ObjectIdValidationError(
                 object_id=object_id,
-                reason="must be between 3 and 63 character long",
+                reason="must be between 3 and 63 characters long",
             )
         if not re.match(r"^[a-zA-Z0-9\-\.]*$", object_id):
             raise cls.ObjectIdValidationError(
