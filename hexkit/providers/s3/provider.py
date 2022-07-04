@@ -733,7 +733,7 @@ class S3ObjectStorage(
     async def _get_object_download_url(
         self, *, bucket_id: str, object_id: str, expires_after: int = 86400
     ) -> str:
-        """Generates and returns a presigns HTTP-URL to download a file object with
+        """Generates and returns a presigned HTTP-URL to download a file object with
         the specified ID (`object_id`) from bucket with the specified id (`bucket_id`).
         You may also specify a custom expiry duration in seconds (`expires_after`).
         """
