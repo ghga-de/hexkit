@@ -274,7 +274,7 @@ async def multipart_upload_file(
 
 
 def download_and_check_test_file(presigned_url: str, expected_md5: str):
-    """Downloads the test file from thespecified URL and checks its integrity (md5)."""
+    """Download the test file from the specified URL and check its integrity (md5)."""
 
     response = requests.get(presigned_url)
     response.raise_for_status()
