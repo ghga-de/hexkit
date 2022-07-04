@@ -312,7 +312,7 @@ class ObjectStorageProtocol(ABC):
         *To be implemented by the provider. Input validation is done outside of this
         method.*
 
-        Initiates a mulipart upload procedure. Returns the upload ID."""
+        Initiates a multipart upload procedure. Returns the upload ID."""
         ...
 
     @abstractmethod
