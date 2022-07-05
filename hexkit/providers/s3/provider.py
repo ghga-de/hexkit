@@ -162,7 +162,7 @@ class S3ObjectStorage(
 
     @staticmethod
     def _format_s3_error_code(error_code: str):
-        """Formats a message to describe and s3 error code."""
+        """Format a message to describe an S3 error code."""
 
         return f"S3 error with code: '{error_code}'"
 
