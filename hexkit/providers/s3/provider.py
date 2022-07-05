@@ -551,7 +551,7 @@ class S3ObjectStorage(
 
         # check the part quantity:
         parts = parts_info.get("Parts")
-        if parts is None or len(parts) > 0:
+        if parts is None or len(parts) == 0:
             raise self.MultiPartUploadConfirmError(
                 upload_id=upload_id,
                 bucket_id=bucket_id,
