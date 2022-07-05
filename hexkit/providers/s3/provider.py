@@ -49,7 +49,7 @@ class S3ConfigBase(BaseSettings):
         s3_session_token (Optional[str]):
             Optional part of credentials for login into the S3 service. See:
             https://boto3.amazonaws.com/v1/documentation/api/latest/guide/credentials.html
-        aws_config_ini (Optional[Path], optional):
+        aws_config_ini (Optional[Path]):
             Path to a config file for specifying more advanced S3 parameters.
             This should follow the format described here:
             https://boto3.amazonaws.com/v1/documentation/api/latest/guide/configuration.html#using-a-configuration-file
