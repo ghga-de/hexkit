@@ -328,7 +328,7 @@ class S3ObjectStorage(
         self, *, bucket_id: str, object_id: str
     ) -> None:
         """Checks if the file with specified ID (`object_id`) exists in the bucket with
-        the specified ID (`bucket_id`). If so, it throws an ObjectAlreadyExistsError otherwise.
+        the specified ID (`bucket_id`). If so, it throws an ObjectAlreadyExistsError.
         If the bucket does not exist it throws a BucketNotFoundError.
         """
 
