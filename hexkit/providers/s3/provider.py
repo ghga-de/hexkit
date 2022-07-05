@@ -407,9 +407,7 @@ class S3ObjectStorage(
 
         upload_list = uploads_info.get("Uploads", [])
         return [
-            upload["UploadId"]
-            for upload in upload_list
-            if upload["Key"] == object_id
+            upload["UploadId"] for upload in upload_list if upload["Key"] == object_id
         ]
 
     async def _assert_no_multipart_upload(self, *, bucket_id: str, object_id: str):
