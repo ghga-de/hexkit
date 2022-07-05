@@ -123,18 +123,16 @@ def temp_file_object(
 ) -> Generator[FileObject, None, None]:
     """Generates a file object with the specified size in bytes."""
 
+    chunk_size = 1024
+    chunk = b"\0" * chunk_size
     current_size = 0
-    current_number = 0
-    next_number = 1
-
     with NamedTemporaryFile("w+b") as temp_file:
-        while current_size <= size:
-            byte_addition = f"{current_number}\n".encode("ASCII")
-            current_size += len(byte_addition)
-            temp_file.write(byte_addition)
-            previous_number = current_number
-            current_number = next_number
-            next_number = previous_number + current_number
+        while True:
+            if current_size + chunk_size >= size:
+                temp_file.write(chunk[: size - current_size])
+                break
+            temp_file.write(chunk)
+            current_size += chunk_size
         temp_file.flush()
 
         yield FileObject(
@@ -164,10 +162,10 @@ def upload_file(presigned_url: PresignedPostURL, file_path: Path, file_md5: str)
 
 def check_part_size(file_path: Path, anticipated_size: int) -> None:
     """Check if the anticipated part size can be used to upload the specified file
-    using the maximum number of file parts. Raises and exception otherwise."""
+    using the maximum number of file parts. Raises an exception otherwise."""
 
     file_size = os.path.getsize(file_path)
-    if (file_size / anticipated_size) > ObjectStorageProtocol.MAX_FILE_PART_NUMBER:
+    if file_size / anticipated_size > ObjectStorageProtocol.MAX_FILE_PART_NUMBER:
         raise RuntimeError(
             f"The specified file ('{file_path}') cannot to be uploaded using the"
             + f" specified part size ({anticipated_size}') since the maximum number"
@@ -274,7 +272,7 @@ async def multipart_upload_file(
 
 
 def download_and_check_test_file(presigned_url: str, expected_md5: str):
-    """Downloads the test file from thespecified URL and checks its integrity (md5)."""
+    """Download the test file from the specified URL and check its integrity (md5)."""
 
     response = requests.get(presigned_url)
     response.raise_for_status()
@@ -356,7 +354,7 @@ async def prepare_non_completed_upload(s3_fixture_: S3Fixture):
 
 # This workflow is defined as a seperate function so that it can also be used
 # outside of the `tests` package e.g. to test the compliance of an S3-compatible
-# object storage implemenation:
+# object storage implementation:
 # pylint: disable=too-many-arguments
 async def typical_workflow(
     storage_client: ObjectStorageProtocol,

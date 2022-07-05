@@ -33,6 +33,8 @@ from pydantic import BaseSettings, Field
 
 from hexkit.protocols.objstorage import ObjectStorageProtocol, PresignedPostURL
 
+__all__ = ["ObjectStorageProtocol", "PresignedPostURL"]
+
 
 class S3ConfigBase(BaseSettings):
     """A base class with S3-specific config params.
@@ -50,7 +52,7 @@ class S3ConfigBase(BaseSettings):
         s3_session_token (Optional[str]):
             Optional part of credentials for login into the S3 service. See:
             https://boto3.amazonaws.com/v1/documentation/api/latest/guide/credentials.html
-        aws_config_ini (Optional[Path], optional):
+        aws_config_ini (Optional[Path]):
             Path to a config file for specifying more advanced S3 parameters.
             This should follow the format described here:
             https://boto3.amazonaws.com/v1/documentation/api/latest/guide/configuration.html#using-a-configuration-file
@@ -99,7 +101,7 @@ class S3ConfigBase(BaseSettings):
 @lru_cache
 def read_aws_config_ini(aws_config_ini: Path) -> botocore.config.Config:
     """
-    Reads an aws config ini (see:
+    Reads an INI-formatted AWS config file (see:
     https://boto3.amazonaws.com/v1/documentation/api/latest/guide/configuration.html#using-a-configuration-file)
     and returns an botocore.config.Config object.
     """
@@ -163,12 +165,12 @@ class S3ObjectStorage(
 
     @staticmethod
     def _format_s3_error_code(error_code: str):
-        """Formats a message to describe and s3 error code."""
+        """Format a message to describe an S3 error code."""
 
         return f"S3 error with code: '{error_code}'"
 
     @classmethod
-    def _translate_s3_client_errors(
+    def _translate_s3_client_errors(  # noqa: C901
         cls,
         source_exception: botocore.exceptions.ClientError,
         *,
@@ -193,6 +195,8 @@ class S3ObjectStorage(
             exception = cls.ObjectNotFoundError(
                 bucket_id=bucket_id, object_id=object_id
             )
+        elif error_code == "BucketNotEmpty":
+            exception = cls.BucketNotEmptyError(bucket_id=bucket_id)
         elif error_code == "ObjectAlreadyInActiveTierError":
             exception = cls.ObjectAlreadyExistsError(
                 bucket_id=bucket_id, object_id=object_id
@@ -233,11 +237,7 @@ class S3ObjectStorage(
                 error, bucket_id=bucket_id
             ) from error
 
-        for bucket in bucket_list["Buckets"]:
-            if bucket["Name"] == bucket_id:
-                return True
-
-        return False
+        return any(bucket["Name"] == bucket_id for bucket in bucket_list["Buckets"])
 
     async def _assert_bucket_exists(self, bucket_id: str) -> None:
         """Checks if the bucket with specified ID (`bucket_id`) exists and throws an
@@ -249,7 +249,7 @@ class S3ObjectStorage(
 
     async def _assert_bucket_not_exists(self, bucket_id: str) -> None:
         """Checks if the bucket with specified ID (`bucket_id`) exists. If so, it throws
-        an BucketAlreadyExists.
+        an BucketAlreadyExistsError.
         """
 
         if await self.does_bucket_exist(bucket_id):
@@ -332,7 +332,7 @@ class S3ObjectStorage(
         self, *, bucket_id: str, object_id: str
     ) -> None:
         """Checks if the file with specified ID (`object_id`) exists in the bucket with
-        the specified ID (`bucket_id`). If so, it throws an ObjectAlreadyExistsError otherwise.
+        the specified ID (`bucket_id`). If so, it throws an ObjectAlreadyExistsError.
         If the bucket does not exist it throws a BucketNotFoundError.
         """
 
@@ -435,10 +435,10 @@ class S3ObjectStorage(
         assert_exclusiveness: bool = True,
     ) -> None:
         """Checks if a multipart upload with the given ID exists and whether it maps
-        to the specified object and bucket. Otherwise, raises UploadNotExistError.
+        to the specified object and bucket. Otherwise, raises MultiPartUploadNotFoundError.
 
-        By async default, it is also verified that this upload is the only upload active for
-        that file. Otherwise, raises
+        By default, also verifies that this upload is the only upload active for
+        that file. Otherwise, raises MultipleActiveUploadsError.
         """
 
         upload_ids = await self._list_multipart_upload_for_object(
@@ -478,7 +478,7 @@ class S3ObjectStorage(
         self, *, upload_id: str, bucket_id: str, object_id: str, part_number: int
     ) -> str:
         """Given a id of an instantiated multipart upload along with the corresponding
-        bucket and object ID, it returns a presign URL for uploading a file part with the
+        bucket and object ID, it returns a presigned URL for uploading a file part with the
         specified number.
         Please note: the part number must be a non-zero, positive integer and parts
         should be uploaded in sequence.
@@ -713,9 +713,9 @@ class S3ObjectStorage(
         )
 
         # construct eTags list:
+        parts = parts_info.get("Parts", [])
         part_etags = [
-            {"ETag": part["ETag"], "PartNumber": part["PartNumber"]}
-            for part in parts_info["Parts"]
+            {"ETag": part["ETag"], "PartNumber": part["PartNumber"]} for part in parts
         ]
 
         # confirm the upload:
@@ -738,7 +738,7 @@ class S3ObjectStorage(
     async def _get_object_download_url(
         self, *, bucket_id: str, object_id: str, expires_after: int = 86400
     ) -> str:
-        """Generates and returns a presigns HTTP-URL to download a file object with
+        """Generates and returns a presigned HTTP-URL to download a file object with
         the specified ID (`object_id`) from bucket with the specified id (`bucket_id`).
         You may also specify a custom expiry duration in seconds (`expires_after`).
         """
@@ -767,7 +767,7 @@ class S3ObjectStorage(
         dest_bucket_id: str,
         dest_object_id: str,
     ) -> None:
-        """Copy an object from one bucket(`source_bucket_id` and `source_object_id`) to
+        """Copy an object from one bucket (`source_bucket_id` and `source_object_id`) to
         another bucket (`dest_bucket_id` and `dest_object_id`).
         """
 

@@ -21,6 +21,8 @@ import re
 from abc import ABC, abstractmethod
 from typing import NamedTuple, Optional
 
+__all__ = ["PresignedPostURL", "ObjectStorageProtocol"]
+
 DEFAULT_URL_EXPIRATION_PERIOD = 24 * 60 * 60  # default expiration time 24 hours
 
 
@@ -29,7 +31,7 @@ class PresignedPostURL(NamedTuple):
     should be attached as body data when sending the POST request."""
 
     url: str
-    fields: dict
+    fields: dict[str, str]
 
 
 class ObjectStorageProtocol(ABC):
@@ -43,7 +45,7 @@ class ObjectStorageProtocol(ABC):
     DEFAULT_PART_SIZE = 16 * 1024 * 1024
     MAX_FILE_PART_NUMBER = 10000
 
-    # Pulbic methods:
+    # Public methods:
     # (Shall not be changed by provider implementations.)
     async def does_bucket_exist(self, bucket_id: str) -> bool:
         """Check whether a bucket with the specified ID (`bucket_id`) exists.
@@ -68,8 +70,8 @@ class ObjectStorageProtocol(ABC):
         """
         Delete a bucket (= a structure that can hold multiple file objects) with the
         specified unique ID. If `delete_content` is set to True, any contained objects
-        will be deleted, if False (the async default) an Error will be raised if the bucket is
-        not empty.
+        will be deleted, if False (the default) a BucketNotEmptyError will be raised if
+        the bucket is not empty.
         """
 
         self._validate_bucket_id(bucket_id)
@@ -104,7 +106,7 @@ class ObjectStorageProtocol(ABC):
         bucket_id: str,
         object_id: str,
     ) -> str:
-        """Initiates a mulipart upload procedure. Returns the upload ID."""
+        """Initiates a multipart upload procedure. Returns the upload ID."""
 
         self._validate_bucket_id(bucket_id)
         self._validate_object_id(object_id)
@@ -116,7 +118,7 @@ class ObjectStorageProtocol(ABC):
         self, *, upload_id: str, bucket_id: str, object_id: str, part_number: int
     ) -> str:
         """Given a id of an instantiated multipart upload along with the corresponding
-        bucket and object ID, it returns a presign URL for uploading a file part with the
+        bucket and object ID, it returns a presigned URL for uploading a file part with the
         specified number.
         Please note: the part number must be a non-zero, positive integer and parts
         should be uploaded in sequence.
@@ -178,7 +180,7 @@ class ObjectStorageProtocol(ABC):
     async def get_object_download_url(
         self, *, bucket_id: str, object_id: str, expires_after: int = 86400
     ) -> str:
-        """Generates and returns a presigns HTTP-URL to download a file object with
+        """Generates and returns a presigned HTTP-URL to download a file object with
         the specified ID (`object_id`) from bucket with the specified id (`bucket_id`).
         You may also specify a custom expiry duration in seconds (`expires_after`).
         """
@@ -212,7 +214,7 @@ class ObjectStorageProtocol(ABC):
         dest_bucket_id: str,
         dest_object_id: str,
     ) -> None:
-        """Copy an object from one bucket(`source_bucket_id` and `source_object_id`) to
+        """Copy an object from one bucket (`source_bucket_id` and `source_object_id`) to
         another bucket (`dest_bucket_id` and `dest_object_id`).
         """
 
@@ -267,8 +269,8 @@ class ObjectStorageProtocol(ABC):
         """
         Delete a bucket (= a structure that can hold multiple file objects) with the
         specified unique ID. If `delete_content` is set to True, any contained objects
-        will be deleted, if False (the async default) an Error will be raised if the bucket is
-        not empty.
+        will be deleted, if False (the default) a BucketNotEmptyError will be raised if
+        the bucket is not empty.
 
         *To be implemented by the provider. Input validation is done outside of this
         method.*
@@ -303,7 +305,7 @@ class ObjectStorageProtocol(ABC):
         object_id: str,
     ) -> str:
         """
-        Initiates a mulipart upload procedure. Returns the upload ID.
+        Initiates a multipart upload procedure. Returns the upload ID.
 
         *To be implemented by the provider. Input validation is done outside of this
         method.*
@@ -316,7 +318,7 @@ class ObjectStorageProtocol(ABC):
     ) -> str:
         """
         Given a id of an instantiated multipart upload along with the corresponding
-        bucket and object ID, it returns a presign URL for uploading a file part with the
+        bucket and object ID, it returns a presigned URL for uploading a file part with the
         specified number.
         Please note: the part number must be a non-zero, positive integer and parts
         should be uploaded in sequence.
@@ -371,7 +373,7 @@ class ObjectStorageProtocol(ABC):
         self, *, bucket_id: str, object_id: str, expires_after: int = 86400
     ) -> str:
         """
-        Generates and returns a presigns HTTP-URL to download a file object with
+        Generates and returns a presigned HTTP-URL to download a file object with
         the specified ID (`object_id`) from bucket with the specified id (`bucket_id`).
         You may also specify a custom expiry duration in seconds (`expires_after`).
 
@@ -405,7 +407,7 @@ class ObjectStorageProtocol(ABC):
         dest_object_id: str,
     ) -> None:
         """
-        Copy an object from one bucket(`source_bucket_id` and `source_object_id`) to
+        Copy an object from one bucket (`source_bucket_id` and `source_object_id`) to
         another bucket (`dest_bucket_id` and `dest_object_id`).
 
         *To be implemented by the provider. Input validation is done outside of this
@@ -437,15 +439,15 @@ class ObjectStorageProtocol(ABC):
         https://docs.aws.amazon.com/AmazonS3/latest/userguide/bucketnamingrules.html
         Raises BucketIdValidationError if not valid.
         """
-        if len(bucket_id) not in range(3, 64):
+        if not 3 <= len(bucket_id) < 64:
             raise cls.BucketIdValidationError(
                 bucket_id=bucket_id,
-                reason="must be between 3 and 63 character long",
+                reason="must be between 3 and 63 characters long",
             )
         if not re.match(r"^[a-z0-9\-]*$", bucket_id):
             raise cls.BucketIdValidationError(
                 bucket_id=bucket_id,
-                reason="only lowercase letters, numbers, and hyphens (-) are allowd",
+                reason="only lowercase letters, digits and hyphens (-) are allowed",
             )
         if bucket_id.startswith("-") or bucket_id.endswith("-"):
             raise cls.BucketIdValidationError(
@@ -460,17 +462,17 @@ class ObjectStorageProtocol(ABC):
         https://docs.aws.amazon.com/AmazonS3/latest/userguide/object-keys.html
         Raises ObjectIdValidationError if not valid.
         """
-        if len(object_id) not in range(3, 64):
+        if not 3 <= len(object_id) < 64:
             raise cls.ObjectIdValidationError(
                 object_id=object_id,
-                reason="must be between 3 and 63 character long",
+                reason="must be between 3 and 63 characters long",
             )
         if not re.match(r"^[a-zA-Z0-9\-\.]*$", object_id):
             raise cls.ObjectIdValidationError(
                 object_id=object_id,
-                reason="only letters, numbers, and hyphens (-), and dots (.) are allowd",
+                reason="only letters, digits, hyphens (-) and dots (.) are allowed",
             )
-        if re.match(r"^[\-\.].*", object_id) or re.match(r".*[\-\.]$", object_id):
+        if object_id.startswith(("-", ".")) or object_id.endswith(("-", ".")):
             raise cls.ObjectIdValidationError(
                 object_id=object_id,
                 reason="may not start or end with a hyphen (-) or a dot (.).",
@@ -479,10 +481,10 @@ class ObjectStorageProtocol(ABC):
     # Exceptions that may be used by implementation:
 
     class ObjectStorageProtocolError(RuntimeError):
-        """Generic base exceptions for all custom errors used by this protocol."""
+        """Generic base exception for all custom errors used by this protocol."""
 
     class BucketError(ObjectStorageProtocolError):
-        """Generic base exceptions for error that occur while handling buckets."""
+        """Generic base exception for error that occur while handling buckets."""
 
     class BucketNotFoundError(BucketError):
         """Thrown when trying to access a bucket with an ID that doesn't exist."""
@@ -508,7 +510,7 @@ class ObjectStorageProtocol(ABC):
             super().__init__(f"The bucket{with_id} is not empty.")
 
     class ObjectError(ObjectStorageProtocolError):
-        """Generic base exceptions for error that occur while handling file objects."""
+        """Generic base exception for error that occur while handling file objects."""
 
     class ObjectNotFoundError(ObjectError):
         """Thrown when trying to access a bucket with an ID that doesn't exist."""
@@ -552,7 +554,7 @@ class ObjectStorageProtocol(ABC):
         """Thrown when a confirmation of an upload is rejected."""
 
     class MultiPartUploadAlreadyExistsError(MultiPartUploadError):
-        """Thrown when trying to create a multi-part upload for an object for which another
+        """Thrown when trying to create a multipart upload for an object for which another
         upload is already active."""
 
         def __init__(self, bucket_id: str, object_id: str):
