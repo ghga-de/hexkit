@@ -382,7 +382,7 @@ class S3ObjectStorage(
             url=presigned_url["url"], fields=presigned_url["fields"]
         )
 
-    async def _list_mulitpart_upload_for_object(
+    async def _list_multipart_upload_for_object(
         self, *, bucket_id: str, object_id: str
     ) -> list[str]:
         """Lists all active multi-part upload for the given object. Returns a list of
