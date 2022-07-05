@@ -405,15 +405,12 @@ class S3ObjectStorage(
                 error, bucket_id=bucket_id, object_id=object_id
             ) from error
 
-        if "Uploads" in uploads_info:
-            upload_list = uploads_info["Uploads"]
-            return [
-                upload["UploadId"]
-                for upload in upload_list
-                if upload["Key"] == object_id
-            ]
-
-        return []
+        upload_list = uploads_info.get("Uploads", [])
+        return [
+            upload["UploadId"]
+            for upload in upload_list
+            if upload["Key"] == object_id
+        ]
 
     async def _assert_no_multipart_upload(self, *, bucket_id: str, object_id: str):
         """Ensure that there are no active multi-part uploads for the given object."""
