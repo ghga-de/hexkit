@@ -192,6 +192,8 @@ class S3ObjectStorage(
             exception = cls.ObjectNotFoundError(
                 bucket_id=bucket_id, object_id=object_id
             )
+        elif error_code == "BucketNotEmpty":
+            exception = cls.BucketNotEmptyError(bucket_id=bucket_id)
         elif error_code == "ObjectAlreadyInActiveTierError":
             exception = cls.ObjectAlreadyExistsError(
                 bucket_id=bucket_id, object_id=object_id
