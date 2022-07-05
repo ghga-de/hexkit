@@ -517,7 +517,7 @@ class ObjectStorageProtocol(ABC):
             super().__init__(message)
 
     class ObjectError(ObjectStorageProtocolError):
-        """Generic base exceptions for error that occur while handling file objects."""
+        """Generic base exception for error that occur while handling file objects."""
 
     class ObjectNotFoundError(ObjectError):
         """Thrown when trying to access a bucket with an ID that doesn't exist."""
