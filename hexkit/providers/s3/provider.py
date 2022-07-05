@@ -389,7 +389,7 @@ class S3ObjectStorage(
     async def _list_multipart_upload_for_object(
         self, *, bucket_id: str, object_id: str
     ) -> list[str]:
-        """Lists all active multi-part upload for the given object. Returns a list of
+        """Lists all active multipart uploads for the given object. Returns a list of
         their IDs.
 
         (S3 allows multiple ongoing multi-part uploads.)
