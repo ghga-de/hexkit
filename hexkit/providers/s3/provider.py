@@ -98,7 +98,7 @@ class S3ConfigBase(BaseSettings):
 @lru_cache
 def read_aws_config_ini(aws_config_ini: Path) -> botocore.config.Config:
     """
-    Reads an aws config ini (see:
+    Reads an INI-formatted AWS config file (see:
     https://boto3.amazonaws.com/v1/documentation/api/latest/guide/configuration.html#using-a-configuration-file)
     and returns an botocore.config.Config object.
     """
