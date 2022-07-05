@@ -210,7 +210,7 @@ async def test_delete_non_empty_bucket(
 
     await s3_fixture.populate_file_objects([file_fixture])
 
-    with nullcontext() if delete_content else pytest.raises(
+    with nullcontext() if delete_content else pytest.raises(  # type: ignore
         ObjectStorageProtocol.BucketNotEmptyError
     ):
         await s3_fixture.storage.delete_bucket(
