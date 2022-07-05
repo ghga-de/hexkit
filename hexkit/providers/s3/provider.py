@@ -234,11 +234,7 @@ class S3ObjectStorage(
                 error, bucket_id=bucket_id
             ) from error
 
-        for bucket in bucket_list["Buckets"]:
-            if bucket["Name"] == bucket_id:
-                return True
-
-        return False
+        return any(bucket["Name"] == bucket_id for bucket in bucket_list["Buckets"])
 
     async def _assert_bucket_exists(self, bucket_id: str) -> None:
         """Checks if the bucket with specified ID (`bucket_id`) exists and throws an
