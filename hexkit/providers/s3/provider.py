@@ -30,6 +30,8 @@ from pydantic import BaseSettings, Field
 
 from hexkit.protocols.objstorage import ObjectStorageProtocol, PresignedPostURL
 
+__all__ = ['ObjectStorageProtocol', 'PresignedPostURL']
+
 
 class S3ConfigBase(BaseSettings):
     """A base class with S3-specific config params.
