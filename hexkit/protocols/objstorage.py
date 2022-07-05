@@ -569,7 +569,7 @@ class ObjectStorageProtocol(ABC):
         """Thrown when a confirmation of an upload is rejected."""
 
     class MultiPartUploadAlreadyExistsError(MultiPartUploadError):
-        """Thrown when trying to create a multi-part upload for an object for which another
+        """Thrown when trying to create a multipart upload for an object for which another
         upload is already active."""
 
         def __init__(self, bucket_id: str, object_id: str):
