@@ -14,7 +14,10 @@
 # limitations under the License.
 #
 
-"""S3-based provider implementing the ObjectStorageProtocol."""
+"""S3-based provider implementing the ObjectStorageProtocol.
+
+Utilities for testing are located in `./testutils.py`.
+"""
 
 import asyncio
 from functools import lru_cache
@@ -281,8 +284,9 @@ class S3ObjectStorage(
 
         try:
             bucket = self._resource.Bucket(bucket_id)
+            content = await asyncio.to_thread(bucket.objects.all)
             if delete_content:
-                await asyncio.to_thread(lambda: bucket.objects.all().delete())
+                await asyncio.to_thread(content.delete)
             await asyncio.to_thread(bucket.delete)
         except botocore.exceptions.ClientError as error:
             raise self._translate_s3_client_errors(
@@ -382,7 +386,7 @@ class S3ObjectStorage(
             url=presigned_url["url"], fields=presigned_url["fields"]
         )
 
-    async def _list_mulitpart_upload_for_object(
+    async def _list_multipart_upload_for_object(
         self, *, bucket_id: str, object_id: str
     ) -> list[str]:
         """Lists all active multi-part upload for the given object. Returns a list of
@@ -414,7 +418,7 @@ class S3ObjectStorage(
     async def _assert_no_multipart_upload(self, *, bucket_id: str, object_id: str):
         """Ensure that there are no active multi-part uploads for the given object."""
 
-        upload_ids = await self._list_mulitpart_upload_for_object(
+        upload_ids = await self._list_multipart_upload_for_object(
             bucket_id=bucket_id, object_id=object_id
         )
         if len(upload_ids) > 0:
@@ -422,7 +426,7 @@ class S3ObjectStorage(
                 bucket_id=bucket_id, object_id=object_id
             )
 
-    async def _assert_multipart_upload_exist(
+    async def _assert_multipart_upload_exists(
         self,
         *,
         upload_id: str,
@@ -437,7 +441,7 @@ class S3ObjectStorage(
         that file. Otherwise, raises
         """
 
-        upload_ids = await self._list_mulitpart_upload_for_object(
+        upload_ids = await self._list_multipart_upload_for_object(
             bucket_id=bucket_id, object_id=object_id
         )
         n_uploads = len(upload_ids)
@@ -486,7 +490,7 @@ class S3ObjectStorage(
                 + f" smaller or equal to {self.MAX_FILE_PART_NUMBER}"
             )
 
-        await self._assert_multipart_upload_exist(
+        await self._assert_multipart_upload_exists(
             upload_id=upload_id, bucket_id=bucket_id, object_id=object_id
         )
 
@@ -518,7 +522,7 @@ class S3ObjectStorage(
     ) -> dict:
         """Get information on parts uploaded as part of the specified multi-part upload."""
 
-        await self._assert_multipart_upload_exist(
+        await self._assert_multipart_upload_exists(
             upload_id=upload_id, bucket_id=bucket_id, object_id=object_id
         )
 
@@ -551,7 +555,8 @@ class S3ObjectStorage(
         """Check size and quantity of parts"""
 
         # check the part quantity:
-        if "Parts" not in parts_info or len(parts_info["Parts"]) == 0:
+        parts = parts_info.get("Parts")
+        if parts is None or len(parts) > 0:
             raise self.MultiPartUploadConfirmError(
                 upload_id=upload_id,
                 bucket_id=bucket_id,
@@ -559,7 +564,7 @@ class S3ObjectStorage(
                 reason="Zero parts received.",
             )
 
-        part_quantity = len(parts_info["Parts"])
+        part_quantity = len(parts)
         if (
             anticipated_part_quantity is not None
             and part_quantity != anticipated_part_quantity
@@ -568,13 +573,13 @@ class S3ObjectStorage(
                 upload_id=upload_id,
                 bucket_id=bucket_id,
                 object_id=object_id,
-                reason=f"Found {part_quantity} parts but expect"
+                reason=f"Found {part_quantity} parts but expected"
                 + f" {anticipated_part_quantity}.",
             )
 
         # check anticipated part size:
-        first_part_size = parts_info["Parts"][0]["Size"]
-        last_part_size = parts_info["Parts"][-1]["Size"]
+        first_part_size = parts[0]["Size"]
+        last_part_size = parts[-1]["Size"]
         if anticipated_part_size is not None:
             if first_part_size != anticipated_part_size:
                 raise self.MultiPartUploadConfirmError(
@@ -582,7 +587,7 @@ class S3ObjectStorage(
                     bucket_id=bucket_id,
                     object_id=object_id,
                     reason=f"The first part has a size of {first_part_size} bytes but"
-                    + f" expected {anticipated_part_quantity}.",
+                    + f" expected {anticipated_part_quantity} bytes.",
                 )
             if last_part_size > anticipated_part_size:
                 raise self.MultiPartUploadConfirmError(
@@ -591,7 +596,7 @@ class S3ObjectStorage(
                     object_id=object_id,
                     reason=f"The last part has a size of {last_part_size} bytes which"
                     + " is larger than the anticipated size of"
-                    + f" {anticipated_part_quantity}.",
+                    + f" {anticipated_part_quantity} bytes.",
                 )
 
         # check if the last part is not larger than the first one:
@@ -601,12 +606,12 @@ class S3ObjectStorage(
                 bucket_id=bucket_id,
                 object_id=object_id,
                 reason=f"The last part has a size of {last_part_size} bytes which"
-                + " is larger than the size of the first part that was"
-                + f" {first_part_size}.",
+                + " is larger than the size of the first part which was"
+                + f" {first_part_size} bytes.",
             )
 
         # check if all parts (except the last one) conform to the size of the first one:
-        for part in parts_info["Parts"][1 : part_quantity - 1]:
+        for part in parts[1 : part_quantity - 1]:
             if part["Size"] != first_part_size:
                 raise self.MultiPartUploadConfirmError(
                     upload_id=upload_id,
@@ -614,7 +619,7 @@ class S3ObjectStorage(
                     object_id=object_id,
                     reason=f"Part number {part['PartNumber']} has a size of"
                     + f" {part['Size']} bytes which is different than the size of the"
-                    + f" first part {first_part_size}.",
+                    + f" first part which had only {first_part_size}.",
                 )
 
     # pylint: disable=too-many-arguments
@@ -629,7 +634,7 @@ class S3ObjectStorage(
         deleted.
         """
 
-        await self._assert_multipart_upload_exist(
+        await self._assert_multipart_upload_exists(
             upload_id=upload_id,
             bucket_id=bucket_id,
             object_id=object_id,
@@ -669,7 +674,8 @@ class S3ObjectStorage(
             return
 
         # verify that no parts are remaining:
-        if "Parts" in parts_info and len(parts_info["Parts"]) > 0:
+        parts = parts_info.get("Parts")
+        if parts is not None and len(parts) > 0:
             raise self.MultiPartUploadAbortError(
                 upload_id=upload_id, bucket_id=bucket_id, object_id=object_id
             )
@@ -786,12 +792,9 @@ class S3ObjectStorage(
         except botocore.exceptions.ClientError as error:
             raise self._translate_s3_client_errors(error) from error
 
-    async def _delete_object(
-        self, *, bucket_id: str, object_id: str, expires_after: int = 86400
-    ) -> None:
-        """Generates and returns an HTTP URL to upload a new file object with the given
-        id (`object_id`) to the bucket with the specified id (`bucket_id`).
-        You may also specify a custom expiry duration in seconds (`expires_after`).
+    async def _delete_object(self, *, bucket_id: str, object_id: str) -> None:
+        """Delete an object with the specified id (`object_id`) in the bucket with the
+        specified id (`bucket_id`).
         """
 
         await self._assert_object_exists(bucket_id=bucket_id, object_id=object_id)

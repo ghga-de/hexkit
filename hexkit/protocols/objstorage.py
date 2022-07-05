@@ -21,6 +21,8 @@ import re
 from abc import ABC, abstractmethod
 from typing import NamedTuple, Optional
 
+DEFAULT_URL_EXPIRATION_PERIOD = 24 * 60 * 60  # default expiration time 24 hours
+
 
 class PresignedPostURL(NamedTuple):
     """Container for presigned POST URLs along with additional metadata fields that
@@ -37,6 +39,7 @@ class ObjectStorageProtocol(ABC):
 
     # constants for multipart uploads:
     # (shall not be changed by provider implementations)
+    DEFAULT_URL_EXPIRATION_PERIOD = DEFAULT_URL_EXPIRATION_PERIOD
     DEFAULT_PART_SIZE = 16 * 1024 * 1024
     MAX_FILE_PART_NUMBER = 10000
 
@@ -77,7 +80,7 @@ class ObjectStorageProtocol(ABC):
         *,
         bucket_id: str,
         object_id: str,
-        expires_after: int = 86400,
+        expires_after: int = DEFAULT_URL_EXPIRATION_PERIOD,
         max_upload_size: Optional[int] = None,
     ) -> PresignedPostURL:
         """Generates and returns an HTTP URL to upload a new file object with the given
@@ -224,42 +227,36 @@ class ObjectStorageProtocol(ABC):
             dest_object_id=dest_object_id,
         )
 
-    async def delete_object(
-        self, *, bucket_id: str, object_id: str, expires_after: int = 86400
-    ) -> None:
-        """Generates and returns an HTTP URL to upload a new file object with the given
-        id (`object_id`) to the bucket with the specified id (`bucket_id`).
-        You may also specify a custom expiry duration in seconds (`expires_after`).
+    async def delete_object(self, *, bucket_id: str, object_id: str) -> None:
+        """Delete an object with the specified id (`object_id`) in the bucket with the
+        specified id (`bucket_id`).
         """
 
         self._validate_bucket_id(bucket_id)
         self._validate_object_id(object_id)
-        await self._delete_object(
-            bucket_id=bucket_id, object_id=object_id, expires_after=expires_after
-        )
+        await self._delete_object(bucket_id=bucket_id, object_id=object_id)
 
     # To be implemented by the provider:
 
     @abstractmethod
     async def _does_bucket_exist(self, bucket_id: str) -> bool:
         """
-        *To be implemented by the provider. Input validation is done outside of this
-        method.*
-
         Check whether a bucket with the specified ID (`bucket_id`) exists.
         Returns `True` if it exists and `False` otherwise.
+
+        *To be implemented by the provider. Input validation is done outside of this
+        method.*
         """
         ...
 
     @abstractmethod
     async def _create_bucket(self, bucket_id: str) -> None:
         """
-        *To be implemented by the provider. Input validation is done outside of this
-        method.*
-
-
         Create a bucket (= a structure that can hold multiple file objects) with the
         specified unique ID.
+
+        *To be implemented by the provider. Input validation is done outside of this
+        method.*
         """
         ...
 
@@ -268,14 +265,13 @@ class ObjectStorageProtocol(ABC):
         self, bucket_id: str, *, delete_content: bool = False
     ) -> None:
         """
-        *To be implemented by the provider. Input validation is done outside of this
-        method.*
-
-
         Delete a bucket (= a structure that can hold multiple file objects) with the
         specified unique ID. If `delete_content` is set to True, any contained objects
         will be deleted, if False (the async default) an Error will be raised if the bucket is
         not empty.
+
+        *To be implemented by the provider. Input validation is done outside of this
+        method.*
         """
         ...
 
@@ -289,13 +285,13 @@ class ObjectStorageProtocol(ABC):
         max_upload_size: Optional[int] = None,
     ) -> PresignedPostURL:
         """
-        *To be implemented by the provider. Input validation is done outside of this
-        method.*
-
         Generates and returns an HTTP URL to upload a new file object with the given
         id (`object_id`) to the bucket with the specified id (`bucket_id`).
         You may also specify a custom expiry duration in seconds (`expires_after`) and
         a maximum size (bytes) for uploads (`max_upload_size`).
+
+        *To be implemented by the provider. Input validation is done outside of this
+        method.*
         """
         ...
 
@@ -307,10 +303,11 @@ class ObjectStorageProtocol(ABC):
         object_id: str,
     ) -> str:
         """
+        Initiates a mulipart upload procedure. Returns the upload ID.
+
         *To be implemented by the provider. Input validation is done outside of this
         method.*
-
-        Initiates a mulipart upload procedure. Returns the upload ID."""
+        """
         ...
 
     @abstractmethod
@@ -318,14 +315,14 @@ class ObjectStorageProtocol(ABC):
         self, *, upload_id: str, bucket_id: str, object_id: str, part_number: int
     ) -> str:
         """
-        *To be implemented by the provider. Input validation is done outside of this
-        method.*
-
         Given a id of an instantiated multipart upload along with the corresponding
         bucket and object ID, it returns a presign URL for uploading a file part with the
         specified number.
         Please note: the part number must be a non-zero, positive integer and parts
         should be uploaded in sequence.
+
+        *To be implemented by the provider. Input validation is done outside of this
+        method.*
         """
         ...
 
@@ -338,11 +335,11 @@ class ObjectStorageProtocol(ABC):
         object_id: str,
     ) -> None:
         """
-        *To be implemented by the provider. Input validation is done outside of this
-        method.*
-
         Cancel a multipart upload with the specified ID. All uploaded content is
         deleted.
+
+        *To be implemented by the provider. Input validation is done outside of this
+        method.*
         """
         ...
 
@@ -358,14 +355,14 @@ class ObjectStorageProtocol(ABC):
         anticipated_part_size: Optional[int] = None,
     ) -> None:
         """
-        *To be implemented by the provider. Input validation is done outside of this
-        method.*
-
         Completes a multipart upload with the specified ID. In addition to the
         corresponding bucket and object id, you also specify an anticipated part size
         and an anticipated part quantity.
         This ensures that exactly the specified number of parts exist and that all parts
         (except the last one) have the specified size.
+
+        *To be implemented by the provider. Input validation is done outside of this
+        method.*
         """
         ...
 
@@ -374,12 +371,12 @@ class ObjectStorageProtocol(ABC):
         self, *, bucket_id: str, object_id: str, expires_after: int = 86400
     ) -> str:
         """
-        *To be implemented by the provider. Input validation is done outside of this
-        method.*
-
         Generates and returns a presigns HTTP-URL to download a file object with
         the specified ID (`object_id`) from bucket with the specified id (`bucket_id`).
         You may also specify a custom expiry duration in seconds (`expires_after`).
+
+        *To be implemented by the provider. Input validation is done outside of this
+        method.*
         """
         ...
 
@@ -388,13 +385,13 @@ class ObjectStorageProtocol(ABC):
         self, *, bucket_id: str, object_id: str, object_md5sum: Optional[str] = None
     ) -> bool:
         """
-        *To be implemented by the provider. Input validation is done outside of this
-        method.*
-
         Check whether an object with specified ID (`object_id`) exists in the bucket
         with the specified id (`bucket_id`). Optionally, a md5 checksum (`object_md5sum`)
         may be provided to check the objects content.
         Returns `True` if checks succeed and `False` otherwise.
+
+        *To be implemented by the provider. Input validation is done outside of this
+        method.*
         """
         ...
 
@@ -408,11 +405,11 @@ class ObjectStorageProtocol(ABC):
         dest_object_id: str,
     ) -> None:
         """
-        *To be implemented by the provider. Input validation is done outside of this
-        method.*
-
         Copy an object from one bucket(`source_bucket_id` and `source_object_id`) to
         another bucket (`dest_bucket_id` and `dest_object_id`).
+
+        *To be implemented by the provider. Input validation is done outside of this
+        method.*
         """
         self._validate_bucket_id(source_bucket_id)
         self._validate_object_id(source_object_id)
@@ -421,16 +418,11 @@ class ObjectStorageProtocol(ABC):
         ...
 
     @abstractmethod
-    async def _delete_object(
-        self, *, bucket_id: str, object_id: str, expires_after: int = 86400
-    ) -> None:
-        """
+    async def _delete_object(self, *, bucket_id: str, object_id: str) -> None:
+        """de
+
         *To be implemented by the provider. Input validation is done outside of this
         method.*
-
-        Generates and returns an HTTP URL to upload a new file object with the given
-        id (`object_id`) to the bucket with the specified id (`bucket_id`).
-        You may also specify a custom expiry duration in seconds (`expires_after`).
         """
         ...
 
@@ -496,23 +488,24 @@ class ObjectStorageProtocol(ABC):
         """Thrown when trying to access a bucket with an ID that doesn't exist."""
 
         def __init__(self, bucket_id: Optional[str]):
-            message = (
-                "The bucket "
-                + (f"with ID '{bucket_id}' " if bucket_id else "")
-                + "does not exist."
-            )
+            in_bucket = f" in bucket with ID '{bucket_id}'" if bucket_id else ""
+            message = f"The bucket{in_bucket} does not exist."
             super().__init__(message)
 
     class BucketAlreadyExistsError(BucketError):
         """Thrown when trying to create a bucket with an ID that already exists."""
 
         def __init__(self, bucket_id: Optional[str]):
-            message = (
-                "The bucket "
-                + (f"with ID '{bucket_id}' " if bucket_id else "")
-                + "already exist."
-            )
+            in_bucket = f" in bucket with ID '{bucket_id}'" if bucket_id else ""
+            message = f"The bucket{in_bucket} already exists."
             super().__init__(message)
+
+    class BucketNotEmptyError(BucketError):
+        """Thrown when trying to delete a bucket that is not empty."""
+
+        def __init__(self, bucket_id: Optional[str]):
+            with_id = f" with ID '{bucket_id}'" if bucket_id else ""
+            super().__init__(f"The bucket{with_id} is not empty.")
 
     class ObjectError(ObjectStorageProtocolError):
         """Generic base exceptions for error that occur while handling file objects."""
@@ -523,12 +516,9 @@ class ObjectStorageProtocol(ABC):
         def __init__(
             self, bucket_id: Optional[str] = None, object_id: Optional[str] = None
         ):
-            message = (
-                "The object "
-                + (f"with ID '{object_id}' " if object_id else "")
-                + (f"in bucket with ID '{bucket_id}' " if bucket_id else "")
-                + "does not exist."
-            )
+            with_id = f" with ID '{object_id}'" if object_id else ""
+            in_bucket = f" in bucket with ID '{bucket_id}'" if bucket_id else ""
+            message = f"The object{with_id}{in_bucket} does not exist."
             super().__init__(message)
 
     class ObjectAlreadyExistsError(ObjectError):
@@ -537,30 +527,25 @@ class ObjectStorageProtocol(ABC):
         def __init__(
             self, bucket_id: Optional[str] = None, object_id: Optional[str] = None
         ):
-            message = (
-                "The object "
-                + (f"with ID '{object_id}' " if object_id else "")
-                + (f"in bucket with ID '{bucket_id}' " if bucket_id else "")
-                + "already exist."
-            )
+            with_id = f" with ID '{object_id}'" if object_id else ""
+            in_bucket = f" in bucket with ID '{bucket_id}'" if bucket_id else ""
+            message = f"The object{with_id}{in_bucket} already exists."
             super().__init__(message)
 
     class BucketIdValidationError(BucketError):
         """Thrown when a bucket ID is not valid."""
 
         def __init__(self, bucket_id: str, reason: Optional[str]):
-            message = f"The specified bucket ID '{bucket_id}' is not valid" + (
-                f": {reason}." if reason else "."
-            )
+            with_reason = f": {reason}." if reason else "."
+            message = f"The specified bucket ID '{bucket_id}' is not valid{with_reason}"
             super().__init__(message)
 
     class ObjectIdValidationError(ObjectError):
         """Thrown when an object ID is not valid."""
 
         def __init__(self, object_id: str, reason: Optional[str]):
-            message = f"The specified object ID '{object_id}' is not valid" + (
-                f": {reason}." if reason else "."
-            )
+            with_reason = f": {reason}." if reason else "."
+            message = f"The specified object ID '{object_id}' is not valid{with_reason}"
             super().__init__(message)
 
     class MultiPartUploadError(ObjectError):
@@ -598,10 +583,10 @@ class ObjectStorageProtocol(ABC):
             object_id: str,
             details: Optional[str] = None,
         ):
+            with_details = f": {details}." if details else "."
             message = (
                 f"The multi-part upload with ID '{upload_id}' for object '{object_id}'"
-                + f" in bucket '{bucket_id} could not be found"
-                + (f": {details}." if details else ".")
+                + f" in bucket '{bucket_id}' could not be found{with_details}"
             )
             super().__init__(message)
 
@@ -615,10 +600,10 @@ class ObjectStorageProtocol(ABC):
             object_id: str,
             reason: Optional[str] = None,
         ):
+            with_reason = f": {reason}." if reason else "."
             message = (
                 f"The confirmation of multi-part upload '{upload_id}' for object"
-                + f" '{object_id}' in bucket '{bucket_id} was rejected"
-                + (f": {reason}." if reason else ".")
+                + f" '{object_id}' in bucket '{bucket_id} was rejected{with_reason}"
             )
             super().__init__(message)
 

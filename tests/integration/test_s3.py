@@ -196,6 +196,25 @@ async def test_handling_non_existing_file_and_bucket(
 
 
 @pytest.mark.asyncio
+@pytest.mark.parametrize("delete_content", (True, False))
+async def test_delete_non_empty_bucket(
+    delete_content: bool,
+    s3_fixture: S3Fixture,  # noqa: F811
+    file_fixture: FileObject,  # noqa: F811
+):
+    """Test deleting an non-empty bucket."""
+
+    await s3_fixture.populate_file_objects([file_fixture])
+
+    with nullcontext() if delete_content else pytest.raises(
+        ObjectStorageProtocol.BucketNotEmptyError
+    ):
+        await s3_fixture.storage.delete_bucket(
+            bucket_id=file_fixture.bucket_id, delete_content=delete_content
+        )
+
+
+@pytest.mark.asyncio
 @pytest.mark.parametrize(
     "upload_id_correct, bucket_id_correct, object_id_correct, exception",
     [
@@ -230,7 +249,7 @@ async def test_using_non_existing_upload(
 
     # call relevant methods from the provider:
     with pytest.raises(exception):
-        await s3_fixture.storage._assert_multipart_upload_exist(
+        await s3_fixture.storage._assert_multipart_upload_exists(
             upload_id=upload_id, bucket_id=bucket_id, object_id=object_id
         )
 
