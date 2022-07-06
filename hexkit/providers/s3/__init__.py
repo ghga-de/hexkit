@@ -12,7 +12,13 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
+#
 
-"""A Toolkit for Building Microservices using the Hexagonal Architecture"""
+"""Subpackage containing an S3-based provider implementing the ObjectStorageProtocol
+and associated utilities.
+"""
 
-__version__ = "0.2.0"
+# shortcuts:
+from hexkit.providers.s3.provider import S3ConfigBase, S3ObjectStorage  # noqa: F401
+
+__all__ = ["S3ConfigBase", "S3ObjectStorage"]
