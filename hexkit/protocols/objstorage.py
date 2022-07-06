@@ -421,7 +421,8 @@ class ObjectStorageProtocol(ABC):
 
     @abstractmethod
     async def _delete_object(self, *, bucket_id: str, object_id: str) -> None:
-        """de
+        """Delete an object with the specified id (`object_id`) in the bucket with the
+        specified id (`bucket_id`).
 
         *To be implemented by the provider. Input validation is done outside of this
         method.*
