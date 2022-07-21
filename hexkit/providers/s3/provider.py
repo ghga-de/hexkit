@@ -22,7 +22,7 @@ Utilities for testing are located in `./testutils.py`.
 import asyncio
 from functools import lru_cache
 from pathlib import Path
-from typing import Optional
+from typing import Any, Optional
 
 import boto3
 import botocore.client
@@ -522,12 +522,19 @@ class S3ObjectStorage(
         )
 
         try:
-            return await asyncio.to_thread(
-                self._client.list_parts,
+            response_iter = await asyncio.to_thread(
+                self._client.get_paginator("list_parts").paginate,
                 Bucket=bucket_id,
                 Key=object_id,
                 UploadId=upload_id,
             )
+            complete_response: dict[str, Any] = {}
+            for response in response_iter:
+                if not complete_response:
+                    complete_response = response
+                    continue
+                complete_response["Parts"].extend(response["Parts"])
+            return complete_response
         except botocore.exceptions.ClientError as error:
             raise self._translate_s3_client_errors(
                 error,
