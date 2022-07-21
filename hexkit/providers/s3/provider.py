@@ -529,11 +529,11 @@ class S3ObjectStorage(
                 UploadId=upload_id,
             )
             complete_response: dict[str, Any] = {}
-            for response in response_iter:
+            for response_page in response_iter:
                 if not complete_response:
-                    complete_response = response
+                    complete_response = response_page
                     continue
-                complete_response["Parts"].extend(response["Parts"])
+                complete_response["Parts"].extend(response_page["Parts"])
             return complete_response
         except botocore.exceptions.ClientError as error:
             raise self._translate_s3_client_errors(
