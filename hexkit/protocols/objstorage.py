@@ -115,7 +115,13 @@ class ObjectStorageProtocol(ABC):
         )
 
     async def get_part_upload_url(
-        self, *, upload_id: str, bucket_id: str, object_id: str, part_number: int
+        self,
+        *,
+        upload_id: str,
+        bucket_id: str,
+        object_id: str,
+        part_number: int,
+        expires_after: int = 86400,
     ) -> str:
         """Given a id of an instantiated multipart upload along with the corresponding
         bucket and object ID, it returns a presigned URL for uploading a file part with the
@@ -131,6 +137,7 @@ class ObjectStorageProtocol(ABC):
             bucket_id=bucket_id,
             object_id=object_id,
             part_number=part_number,
+            expires_after=expires_after,
         )
 
     async def abort_multipart_upload(
@@ -314,7 +321,13 @@ class ObjectStorageProtocol(ABC):
 
     @abstractmethod
     async def _get_part_upload_url(
-        self, *, upload_id: str, bucket_id: str, object_id: str, part_number: int
+        self,
+        *,
+        upload_id: str,
+        bucket_id: str,
+        object_id: str,
+        part_number: int,
+        expires_after: int = 3600,
     ) -> str:
         """
         Given a id of an instantiated multipart upload along with the corresponding

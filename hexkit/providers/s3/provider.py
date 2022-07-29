@@ -470,11 +470,18 @@ class S3ObjectStorage(
         return response["UploadId"]
 
     async def _get_part_upload_url(
-        self, *, upload_id: str, bucket_id: str, object_id: str, part_number: int
+        self,
+        *,
+        upload_id: str,
+        bucket_id: str,
+        object_id: str,
+        part_number: int,
+        expires_after: int = 3600,
     ) -> str:
         """Given a id of an instantiated multipart upload along with the corresponding
         bucket and object ID, it returns a presigned URL for uploading a file part with the
         specified number.
+        You may also specify a custom expiry duration in seconds (`expires_after`).
         Please note: the part number must be a non-zero, positive integer and parts
         should be uploaded in sequence.
         """
@@ -499,6 +506,7 @@ class S3ObjectStorage(
                     "UploadId": upload_id,
                     "PartNumber": part_number,
                 },
+                ExpiresIn=expires_after,
             )
         except botocore.exceptions.ClientError as error:
             raise self._translate_s3_client_errors(
@@ -583,7 +591,8 @@ class S3ObjectStorage(
         first_part_size = parts[0]["Size"]
         last_part_size = parts[-1]["Size"]
         if anticipated_part_size is not None:
-            if first_part_size != anticipated_part_size:
+            # if we have only one part, this is not required
+            if len(parts) > 1 and first_part_size != anticipated_part_size:
                 raise self.MultiPartUploadConfirmError(
                     upload_id=upload_id,
                     bucket_id=bucket_id,
