@@ -17,13 +17,12 @@
 """Protocol for creating Data Access Objects to perform CRUD (plus find) interactions
 with the database."""
 
-from abc import ABC, abstractmethod
 import typing
-from typing import Literal, Optional, Generic, Sequence, TypeVar, Union, overload
+from abc import ABC, abstractmethod
 from enum import Enum
+from typing import Generic, Literal, Optional, Sequence, TypeVar, Union, overload
 
 from pydantic import BaseModel
-
 
 Dto = TypeVar("Dto", bound=BaseModel, covariant=True, contravariant=False)
 DtoCreation = TypeVar(
