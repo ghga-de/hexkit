@@ -62,7 +62,6 @@ EXCLUDE = [
     ".vscode",
     ".mypy_cache",
     ".mypy.ini",
-    "db_migration",
     ".pytest_cache",
     ".editorconfig",
     ".static_files",
