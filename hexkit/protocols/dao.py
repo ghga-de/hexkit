@@ -219,12 +219,63 @@ class DaoFactoryProtcol(ABC):
     providing a Data Transfer Objetct (DTO) class.
     """
 
-    class DtoIdFieldNotFoundError(ValueError):
+    class IdFieldNotFoundError(ValueError):
         """Raised when the dto_model did not contain the expected id_field."""
 
-    class DtoCreationModelInvalidInvalid(ValueError):
+    class CreationModelInvalidError(ValueError):
         """Raised when the DtoCreationModel was invalid in relation to the main
         DTO model."""
+
+    class IndexFieldsInvalidError(ValueError):
+        """Raised when providing an invalid list of fields to index."""
+
+    @classmethod
+    def _validate_dto_model_id(cls, *, dto_model: type[Dto], id_field: str) -> None:
+        """Checks whether the dto_model contains the expected id_field.
+        Raises otherwises."""
+
+        id_field_type = dto_model.__annotations__.get(id_field)
+        if not isinstance(id_field_type, type) or not issubclass(id_field_type, str):
+            raise cls.IdFieldNotFoundError()
+
+    @classmethod
+    def _validate_dto_creation_model(
+        cls,
+        *,
+        dto_model: type[Dto],
+        dto_creation_model: Optional[type[DtoCreation]],
+        id_field: str,
+    ) -> None:
+        """Checks that the dto_creation_model has identical fields than the dto_model
+        except missing the ID. Raises otherwises."""
+
+        if dto_creation_model is None:
+            return
+
+        # using the schema methods instead of the __annotations__ attribute to also test
+        # for default values, etc.:
+        expected_properties = dto_model.schema()["properties"]
+        del expected_properties[id_field]
+        observed_properties = dto_creation_model.schema()["properties"]
+
+        if observed_properties != expected_properties:
+            raise cls.CreationModelInvalidError()
+
+    @classmethod
+    def _validate_fields_to_index(
+        cls,
+        *,
+        dto_model: type[Dto],
+        fields_to_index: Optional[Sequence[str]],
+    ) -> None:
+        """Checks that all index fields are present in the dto_model. Raises otherwises."""
+
+        if fields_to_index is None:
+            return
+
+        for field in fields_to_index:
+            if field not in dto_model.__annotations__:
+                raise cls.IndexFieldsInvalidError(f"Field '{field}' not in DTO model.")
 
     @overload
     def get_dao(
@@ -233,7 +284,7 @@ class DaoFactoryProtcol(ABC):
         name: str,
         dto_model: type[Dto],
         id_field: str,
-        fields_to_index: Optional[list[str]],
+        fields_to_index: Optional[Sequence[str]],
     ) -> DaoNaturalId[Dto]:
         ...
 
@@ -244,7 +295,7 @@ class DaoFactoryProtcol(ABC):
         name: str,
         dto_model: type[Dto],
         id_field: str,
-        fields_to_index: Optional[list[str]],
+        fields_to_index: Optional[Sequence[str]],
         dto_creation_model: type[DtoCreation],
     ) -> DaoSurrogateId[Dto, DtoCreation]:
         ...
@@ -256,7 +307,7 @@ class DaoFactoryProtcol(ABC):
         name: str,
         dto_model: type[Dto],
         id_field: str,
-        fields_to_index: Optional[list[str]] = None,
+        fields_to_index: Optional[Sequence[str]] = None,
         dto_creation_model: Optional[type[DtoCreation]] = None,
     ) -> Union[DaoSurrogateId[Dto, DtoCreation], DaoNaturalId[Dto]]:
         """Constructs a DAO for interacting with resources in a database.
@@ -292,4 +343,17 @@ class DaoFactoryProtcol(ABC):
             self.DtoIdFieldNotFoundError:
                 Raised when the dto_model did not contain the expected id_field.
         """
+
+        self._validate_dto_model_id(dto_model=dto_model, id_field=id_field)
+
+        self._validate_dto_creation_model(
+            dto_model=dto_model,
+            dto_creation_model=dto_creation_model,
+            id_field=id_field,
+        )
+
+        self._validate_fields_to_index(
+            dto_model=dto_model, fields_to_index=fields_to_index
+        )
+
         ...
