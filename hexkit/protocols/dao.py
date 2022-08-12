@@ -19,9 +19,21 @@ with the database."""
 
 import typing
 from abc import ABC, abstractmethod
+from copy import deepcopy
 from typing import Literal, Mapping, Optional, Sequence, TypeVar, Union, overload
 
 from pydantic import BaseModel
+
+__all__ = [
+    "ResourceNotFoundError",
+    "ResourceAlreadyExistsError",
+    "FindError",
+    "NoHitsFoundError",
+    "MultpleHitsFoundError",
+    "DaoNaturalId",
+    "DaoSurrogateId",
+    "DaoFactoryProtcol",
+]
 
 # Type variables for handling Data Transfer Objects:
 Dto = TypeVar("Dto", bound=BaseModel)
@@ -234,8 +246,7 @@ class DaoFactoryProtcol(ABC):
         """Checks whether the dto_model contains the expected id_field.
         Raises otherwises."""
 
-        id_field_type = dto_model.__annotations__.get(id_field)
-        if not isinstance(id_field_type, type) or not issubclass(id_field_type, str):
+        if id_field not in dto_model.schema()["properties"].keys():
             raise cls.IdFieldNotFoundError()
 
     @classmethod
@@ -252,9 +263,9 @@ class DaoFactoryProtcol(ABC):
         if dto_creation_model is None:
             return
 
-        # using the schema methods instead of the __annotations__ attribute to also test
-        # for default values, etc.:
-        expected_properties = dto_model.schema()["properties"]
+        expected_properties = deepcopy(dto_model.schema()["properties"])
+        # (the schema method returns an attribute of the class, making a copy to not
+        # alter the class)
         del expected_properties[id_field]
         observed_properties = dto_creation_model.schema()["properties"]
 
@@ -273,8 +284,10 @@ class DaoFactoryProtcol(ABC):
         if fields_to_index is None:
             return
 
+        existing_fields = dto_model.schema()["properties"].keys()
+
         for field in fields_to_index:
-            if field not in dto_model.__annotations__:
+            if field not in existing_fields:
                 raise cls.IndexFieldsInvalidError(f"Field '{field}' not in DTO model.")
 
     @overload
@@ -284,7 +297,7 @@ class DaoFactoryProtcol(ABC):
         name: str,
         dto_model: type[Dto],
         id_field: str,
-        fields_to_index: Optional[Sequence[str]],
+        fields_to_index: Optional[Sequence[str]] = None,
     ) -> DaoNaturalId[Dto]:
         ...
 
@@ -295,20 +308,19 @@ class DaoFactoryProtcol(ABC):
         name: str,
         dto_model: type[Dto],
         id_field: str,
-        fields_to_index: Optional[Sequence[str]],
         dto_creation_model: type[DtoCreation],
+        fields_to_index: Optional[Sequence[str]] = None,
     ) -> DaoSurrogateId[Dto, DtoCreation]:
         ...
 
-    @abstractmethod
     def get_dao(
         self,
         *,
         name: str,
         dto_model: type[Dto],
         id_field: str,
-        fields_to_index: Optional[Sequence[str]] = None,
         dto_creation_model: Optional[type[DtoCreation]] = None,
+        fields_to_index: Optional[Sequence[str]] = None,
     ) -> Union[DaoSurrogateId[Dto, DtoCreation], DaoNaturalId[Dto]]:
         """Constructs a DAO for interacting with resources in a database.
 
@@ -356,4 +368,48 @@ class DaoFactoryProtcol(ABC):
             dto_model=dto_model, fields_to_index=fields_to_index
         )
 
+        return self._get_dao(
+            name=name,
+            dto_model=dto_model,
+            id_field=id_field,
+            fields_to_index=fields_to_index,
+            dto_creation_model=dto_creation_model,  # type: ignore
+            # (above behavior by mypy seems incorrect)
+        )
+
+    @overload
+    def _get_dao(
+        self,
+        *,
+        name: str,
+        dto_model: type[Dto],
+        id_field: str,
+        fields_to_index: Optional[Sequence[str]] = None,
+    ) -> DaoNaturalId[Dto]:
+        ...
+
+    @overload
+    def _get_dao(
+        self,
+        *,
+        name: str,
+        dto_model: type[Dto],
+        id_field: str,
+        dto_creation_model: type[DtoCreation],
+        fields_to_index: Optional[Sequence[str]] = None,
+    ) -> DaoSurrogateId[Dto, DtoCreation]:
+        ...
+
+    @abstractmethod
+    def _get_dao(
+        self,
+        *,
+        name: str,
+        dto_model: type[Dto],
+        id_field: str,
+        dto_creation_model: Optional[type[DtoCreation]] = None,
+        fields_to_index: Optional[Sequence[str]] = None,
+    ) -> Union[DaoSurrogateId[Dto, DtoCreation], DaoNaturalId[Dto]]:
+        """*To be implemented by the provider. Input validation is done outside of this
+        method.*"""
         ...
