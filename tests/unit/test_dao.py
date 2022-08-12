@@ -16,7 +16,6 @@
 
 """Testing the dao factory protocol."""
 
-from contextlib import nullcontext
 from typing import Optional, Sequence, Union, overload
 
 import pytest
@@ -29,7 +28,6 @@ from hexkit.protocols.dao import (
     Dto,
     DtoCreation,
 )
-from hexkit.utils import NonAsciiStrError
 
 
 class FakeDaoFactory(DaoFactoryProtcol):
@@ -100,7 +98,7 @@ async def test_get_dto_valid():
     dao_factory = FakeDaoFactory()
 
     with pytest.raises(NotImplementedError):
-        dao = dao_factory.get_dao(
+        _ = dao_factory.get_dao(
             name="test_dao",
             dto_model=ExampleDto,
             id_field="id",
