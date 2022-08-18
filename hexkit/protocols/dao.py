@@ -277,7 +277,7 @@ class DaoFactoryProtcol(ABC):
         cls,
         *,
         dto_model: type[Dto],
-        fields_to_index: Optional[Sequence[str]],
+        fields_to_index: Optional[set[str]],
     ) -> None:
         """Checks that all index fields are present in the dto_model.
         Raises IndexFieldsInvalidError otherwise."""
@@ -285,11 +285,14 @@ class DaoFactoryProtcol(ABC):
         if fields_to_index is None:
             return
 
-        existing_fields = dto_model.schema()["properties"]
+        existing_fields = set(dto_model.schema()["properties"])
 
-        for field in fields_to_index:
-            if field not in existing_fields:
-                raise cls.IndexFieldsInvalidError(f"Field '{field}' not in DTO model.")
+        if not fields_to_index.issubset(existing_fields):
+            additional_fields = fields_to_index.difference(existing_fields)
+            raise cls.IndexFieldsInvalidError(
+                "The following fields are not part of the DTO model: "
+                + str(additional_fields)
+            )
 
     @overload
     def get_dao(
@@ -298,7 +301,7 @@ class DaoFactoryProtcol(ABC):
         name: str,
         dto_model: type[Dto],
         id_field: str,
-        fields_to_index: Optional[Sequence[str]] = None,
+        fields_to_index: Optional[set[str]] = None,
     ) -> DaoNaturalId[Dto]:
         ...
 
@@ -310,7 +313,7 @@ class DaoFactoryProtcol(ABC):
         dto_model: type[Dto],
         id_field: str,
         dto_creation_model: type[DtoCreation],
-        fields_to_index: Optional[Sequence[str]] = None,
+        fields_to_index: Optional[set[str]] = None,
     ) -> DaoSurrogateId[Dto, DtoCreation]:
         ...
 
@@ -321,7 +324,7 @@ class DaoFactoryProtcol(ABC):
         dto_model: type[Dto],
         id_field: str,
         dto_creation_model: Optional[type[DtoCreation]] = None,
-        fields_to_index: Optional[Sequence[str]] = None,
+        fields_to_index: Optional[set[str]] = None,
     ) -> Union[DaoSurrogateId[Dto, DtoCreation], DaoNaturalId[Dto]]:
         """Constructs a DAO for interacting with resources in a database.
 
@@ -385,7 +388,7 @@ class DaoFactoryProtcol(ABC):
         name: str,
         dto_model: type[Dto],
         id_field: str,
-        fields_to_index: Optional[Sequence[str]] = None,
+        fields_to_index: Optional[set[str]] = None,
     ) -> DaoNaturalId[Dto]:
         ...
 
@@ -397,7 +400,7 @@ class DaoFactoryProtcol(ABC):
         dto_model: type[Dto],
         id_field: str,
         dto_creation_model: type[DtoCreation],
-        fields_to_index: Optional[Sequence[str]] = None,
+        fields_to_index: Optional[set[str]] = None,
     ) -> DaoSurrogateId[Dto, DtoCreation]:
         ...
 
@@ -409,7 +412,7 @@ class DaoFactoryProtcol(ABC):
         dto_model: type[Dto],
         id_field: str,
         dto_creation_model: Optional[type[DtoCreation]] = None,
-        fields_to_index: Optional[Sequence[str]] = None,
+        fields_to_index: Optional[set[str]] = None,
     ) -> Union[DaoSurrogateId[Dto, DtoCreation], DaoNaturalId[Dto]]:
         """*To be implemented by the provider. Input validation is done outside of this
         method.*"""

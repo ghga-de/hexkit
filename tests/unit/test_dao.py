@@ -16,7 +16,7 @@
 
 """Testing the dao factory protocol."""
 
-from typing import Optional, Sequence, Union, overload
+from typing import Optional, Union, overload
 
 import pytest
 from pydantic import BaseModel
@@ -40,7 +40,7 @@ class FakeDaoFactory(DaoFactoryProtcol):
         name: str,
         dto_model: type[Dto],
         id_field: str,
-        fields_to_index: Optional[Sequence[str]] = None,
+        fields_to_index: Optional[set[str]] = None,
     ) -> DaoNaturalId[Dto]:
         ...
 
@@ -52,7 +52,7 @@ class FakeDaoFactory(DaoFactoryProtcol):
         dto_model: type[Dto],
         id_field: str,
         dto_creation_model: type[DtoCreation],
-        fields_to_index: Optional[Sequence[str]] = None,
+        fields_to_index: Optional[set[str]] = None,
     ) -> DaoSurrogateId[Dto, DtoCreation]:
         ...
 
@@ -63,7 +63,7 @@ class FakeDaoFactory(DaoFactoryProtcol):
         dto_model: type[Dto],
         id_field: str,
         dto_creation_model: Optional[type[DtoCreation]] = None,
-        fields_to_index: Optional[Sequence[str]] = None,
+        fields_to_index: Optional[set[str]] = None,
     ) -> Union[DaoSurrogateId[Dto, DtoCreation], DaoNaturalId[Dto]]:
         """*To be implemented by the provider. Input validation is done outside of this
         method.*"""
@@ -102,7 +102,7 @@ async def test_get_dto_valid():
             name="test_dao",
             dto_model=ExampleDto,
             id_field="id",
-            fields_to_index=["some_param"],
+            fields_to_index={"some_param"},
             dto_creation_model=ExampleCreationDto,
         )
 
