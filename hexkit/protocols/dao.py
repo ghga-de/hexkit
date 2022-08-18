@@ -193,7 +193,7 @@ class DaoSurrogateId(DaoCommons[Dto], typing.Protocol[Dto, DtoCreation_contra]):
                 resource ID (which will be set automatically).
 
         Returns:
-            Returns a copy of the newly inserted resource including it assigned ID.
+            Returns a copy of the newly inserted resource including its assigned ID.
         """
         ...
 
