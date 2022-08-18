@@ -258,7 +258,7 @@ class DaoFactoryProtcol(ABC):
         id_field: str,
     ) -> None:
         """Checks that the dto_creation_model has the same fields as the dto_model
-        except missing the ID. Raises otherwises."""
+        except missing the ID. Raises CreationModelInvalidError otherwise."""
 
         if dto_creation_model is None:
             return
