@@ -285,7 +285,7 @@ class DaoFactoryProtcol(ABC):
         if fields_to_index is None:
             return
 
-        existing_fields = dto_model.schema()["properties"].keys()
+        existing_fields = dto_model.schema()["properties"]
 
         for field in fields_to_index:
             if field not in existing_fields:
