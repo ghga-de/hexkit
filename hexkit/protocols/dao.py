@@ -19,7 +19,7 @@ with the database."""
 
 import typing
 from abc import ABC, abstractmethod
-from copy import deepcopy
+from copy import copy
 from typing import Literal, Mapping, Optional, Sequence, TypeVar, Union, overload
 
 from pydantic import BaseModel
@@ -263,7 +263,7 @@ class DaoFactoryProtcol(ABC):
         if dto_creation_model is None:
             return
 
-        expected_properties = deepcopy(dto_model.schema()["properties"])
+        expected_properties = copy(dto_model.schema()["properties"])
         # (the schema method returns an attribute of the class, making a copy to not
         # alter the class)
         del expected_properties[id_field]
