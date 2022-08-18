@@ -109,7 +109,7 @@ async def test_get_dto_valid():
 
 @pytest.mark.asyncio
 async def test_get_dto_invalid_id():
-    """Use the get_dao method of the DaoFactory with and invalid ID that is not found in
+    """Use the get_dao method of the DaoFactory with an invalid ID that is not found in
     the provided DTO model."""
 
     dao_factory = FakeDaoFactory()
