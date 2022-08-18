@@ -151,7 +151,7 @@ class DaoCommons(typing.Protocol[Dto]):
         Args:
             kv:
                 A mapping where the keys correspond to the names of resource fields
-                and the values corresponds to the actual values of the resource fields.
+                and the values correspond to the actual values of the resource fields.
             returns:
                 Controls the return behavior. Can be one of: "all" - returns all hits;
                 "newest" - returns only the resource of the hit list that was inserted
