@@ -137,3 +137,19 @@ async def test_get_dto_invalid_creation_model(dto_creation_model: type[BaseModel
             id_field="id",
             dto_creation_model=dto_creation_model,
         )
+
+
+@pytest.mark.asyncio
+async def test_get_dto_invalid_fields_to_index():
+    """Use the get_dao method of the DaoFactory with an invalid list of fields to index."""
+
+    dao_factory = FakeDaoFactory()
+
+    with pytest.raises(DaoFactoryProtcol.IndexFieldsInvalidError):
+        _ = dao_factory.get_dao(
+            name="test_dao",
+            dto_model=ExampleDto,
+            id_field="id",
+            fields_to_index={"some_param", "non_existing_param"},
+            dto_creation_model=ExampleCreationDto,
+        )
