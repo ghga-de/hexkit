@@ -178,10 +178,10 @@ class DaoCommons(typing.Protocol[Dto]):
 class DaoSurrogateId(DaoCommons[Dto], typing.Protocol[Dto, DtoCreation_contra]):
     """A duck type of a DAO that generates an internal/surrogate key for
     indentifying resources in the database. ID/keys cannot be defined by the client of
-    the DAO. Thus, both a standard DTO model (first type variable), which includes the
-    key field, as well as special DTO model (second type variable), which is identical
-    to the does not include the ID field and is dedicated for creation of new resources,
-    is needed.
+    the DAO. Thus, both a standard DTO model (first type parameter), which includes
+    the key field, as well as special DTO model (second type parameter), which is
+    identical to the first one, but does not include the ID field and is dedicated for
+     creation of new resources, is needed.
     """
 
     def insert(self, dto: DtoCreation_contra) -> Dto:
