@@ -211,7 +211,7 @@ class DaoNaturalId(DaoCommons[Dto], typing.Protocol[Dto]):
 
         Raises:
             ResourceAlreadyExistsError:
-                when a resource with the id specified in the dto does already exist.
+                when a resource with the ID specified in the dto does already exist.
         """
         ...
 
