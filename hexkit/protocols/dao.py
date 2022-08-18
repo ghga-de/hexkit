@@ -227,8 +227,8 @@ class DaoNaturalId(DaoCommons[Dto], typing.Protocol[Dto]):
 
 
 class DaoFactoryProtcol(ABC):
-    """A Protocol describing a factory to produce Data Access Objects (DAO) objects when
-    providing a Data Transfer Objetct (DTO) class.
+    """A protocol describing a factory to produce Data Access Objects (DAO) objects when
+    providing a Data Transfer Object (DTO) class.
     """
 
     class IdFieldNotFoundError(ValueError):
