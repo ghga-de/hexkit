@@ -257,7 +257,7 @@ class DaoFactoryProtcol(ABC):
         dto_creation_model: Optional[type[DtoCreation]],
         id_field: str,
     ) -> None:
-        """Checks that the dto_creation_model has identical fields than the dto_model
+        """Checks that the dto_creation_model has the same fields as the dto_model
         except missing the ID. Raises otherwises."""
 
         if dto_creation_model is None:
