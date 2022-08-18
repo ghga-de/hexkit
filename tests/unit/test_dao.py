@@ -126,7 +126,7 @@ async def test_get_dto_invalid_id():
     [ExampleDto, ExampleInvalidCreationDto],
 )
 async def test_get_dto_invalid_creation_model(dto_creation_model: type[BaseModel]):
-    """Use the get_dao method of the DaoFactory with and invalid creation model."""
+    """Use the get_dao method of the DaoFactory with an invalid creation model."""
 
     dao_factory = FakeDaoFactory()
 
