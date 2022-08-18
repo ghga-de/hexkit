@@ -350,7 +350,7 @@ class DaoFactoryProtcol(ABC):
             specification upon resource creation.
 
         Raises:
-            self.DtoCreationModelInvalidInvalid:
+            self.CreationModelInvalidError:
                 Raised when the DtoCreationModel was invalid in relation to the main
                 DTO model.
             self.IdFieldNotFoundError:
