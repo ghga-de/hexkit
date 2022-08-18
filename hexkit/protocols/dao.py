@@ -352,7 +352,7 @@ class DaoFactoryProtcol(ABC):
             self.DtoCreationModelInvalidInvalid:
                 Raised when the DtoCreationModel was invalid in relation to the main
                 DTO model.
-            self.DtoIdFieldNotFoundError:
+            self.IdFieldNotFoundError:
                 Raised when the dto_model did not contain the expected id_field.
         """
 
