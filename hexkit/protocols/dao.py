@@ -88,7 +88,7 @@ class DaoCommons(typing.Protocol[Dto]):
     """
 
     def get(self, *, id_: str) -> Dto:
-        """Get a resource by providing it's ID.
+        """Get a resource by providing its ID.
 
         Args:
             id_: The ID of the resource.
