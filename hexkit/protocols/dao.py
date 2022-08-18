@@ -246,7 +246,7 @@ class DaoFactoryProtcol(ABC):
         """Checks whether the dto_model contains the expected id_field.
         Raises otherwises."""
 
-        if id_field not in dto_model.schema()["properties"].keys():
+        if id_field not in dto_model.schema()["properties"]:
             raise cls.IdFieldNotFoundError()
 
     @classmethod
