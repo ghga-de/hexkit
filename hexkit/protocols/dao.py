@@ -279,7 +279,8 @@ class DaoFactoryProtcol(ABC):
         dto_model: type[Dto],
         fields_to_index: Optional[Sequence[str]],
     ) -> None:
-        """Checks that all index fields are present in the dto_model. Raises otherwises."""
+        """Checks that all index fields are present in the dto_model.
+        Raises IndexFieldsInvalidError otherwise."""
 
         if fields_to_index is None:
             return
