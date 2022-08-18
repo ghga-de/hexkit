@@ -79,7 +79,7 @@ class ExampleCreationDto(BaseModel):
 
 
 class ExampleInvalidCreationDto(ExampleCreationDto):
-    """Example for an DTO creation model that is invalid because it contains an
+    """Example for a DTO creation model that is invalid because it contains a
     parameter that the main DTO model is missing."""
 
     unexpected_param: str
