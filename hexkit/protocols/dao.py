@@ -71,7 +71,7 @@ class NoHitsFoundError(FindError):
 
 
 class MultpleHitsFoundError(FindError):
-    """Raised when a DAO find operation did result in multiple hits but while only a
+    """Raised when a DAO find operation did result in multiple hits while only a
     single hit was expected."""
 
     def __init__(self, *, kv: Mapping[str, str]):
