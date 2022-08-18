@@ -19,9 +19,21 @@ with the database."""
 
 import typing
 from abc import ABC, abstractmethod
+from copy import copy
 from typing import Literal, Mapping, Optional, Sequence, TypeVar, Union, overload
 
 from pydantic import BaseModel
+
+__all__ = [
+    "ResourceNotFoundError",
+    "ResourceAlreadyExistsError",
+    "FindError",
+    "NoHitsFoundError",
+    "MultpleHitsFoundError",
+    "DaoNaturalId",
+    "DaoSurrogateId",
+    "DaoFactoryProtcol",
+]
 
 # Type variables for handling Data Transfer Objects:
 Dto = TypeVar("Dto", bound=BaseModel)
@@ -59,7 +71,7 @@ class NoHitsFoundError(FindError):
 
 
 class MultpleHitsFoundError(FindError):
-    """Raised when a DAO find operation did result in multiple hits but while only a
+    """Raised when a DAO find operation did result in multiple hits while only a
     single hit was expected."""
 
     def __init__(self, *, kv: Mapping[str, str]):
@@ -76,7 +88,7 @@ class DaoCommons(typing.Protocol[Dto]):
     """
 
     def get(self, *, id_: str) -> Dto:
-        """Get a resource by providing it's ID.
+        """Get a resource by providing its ID.
 
         Args:
             id_: The ID of the resource.
@@ -104,7 +116,7 @@ class DaoCommons(typing.Protocol[Dto]):
         ...
 
     def delete(self, *, id_: str) -> None:
-        """Delete a resource by providing it's ID.
+        """Delete a resource by providing its ID.
 
         Args:
             id_: The ID of the resource.
@@ -139,7 +151,7 @@ class DaoCommons(typing.Protocol[Dto]):
         Args:
             kv:
                 A mapping where the keys correspond to the names of resource fields
-                and the values corresponds to the actual values of the resource fields.
+                and the values correspond to the actual values of the resource fields.
             returns:
                 Controls the return behavior. Can be one of: "all" - returns all hits;
                 "newest" - returns only the resource of the hit list that was inserted
@@ -164,12 +176,12 @@ class DaoCommons(typing.Protocol[Dto]):
 
 
 class DaoSurrogateId(DaoCommons[Dto], typing.Protocol[Dto, DtoCreation_contra]):
-    """A duck type of a DAO that uses that generates an internal/surrogate key for
+    """A duck type of a DAO that generates an internal/surrogate key for
     indentifying resources in the database. ID/keys cannot be defined by the client of
-    the DAO. Thus, both a standard DTO model (first type variable), which includes the
-    key field, as well as special DTO model (second type variable), which is identical
-    to the does not include the ID field and is dedicated for creation of new resources,
-    is needed.
+    the DAO. Thus, both a standard DTO model (first type parameter), which includes
+    the key field, as well as special DTO model (second type parameter), which is
+    identical to the first one, but does not include the ID field and is dedicated for
+     creation of new resources, is needed.
     """
 
     def insert(self, dto: DtoCreation_contra) -> Dto:
@@ -181,13 +193,13 @@ class DaoSurrogateId(DaoCommons[Dto], typing.Protocol[Dto, DtoCreation_contra]):
                 resource ID (which will be set automatically).
 
         Returns:
-            Returns a copy of the newly inserted resource including it assigned ID.
+            Returns a copy of the newly inserted resource including its assigned ID.
         """
         ...
 
 
 class DaoNaturalId(DaoCommons[Dto], typing.Protocol[Dto]):
-    """A duck type of a DAO that uses natural resource ID profided by the client."""
+    """A duck type of a DAO that uses a natural resource ID profided by the client."""
 
     def insert(self, dto: Dto) -> None:
         """Create a new resource.
@@ -199,7 +211,7 @@ class DaoNaturalId(DaoCommons[Dto], typing.Protocol[Dto]):
 
         Raises:
             ResourceAlreadyExistsError:
-                when a resource with the id specified in the dto does already exist.
+                when a resource with the ID specified in the dto does already exist.
         """
         ...
 
@@ -215,16 +227,72 @@ class DaoNaturalId(DaoCommons[Dto], typing.Protocol[Dto]):
 
 
 class DaoFactoryProtcol(ABC):
-    """A Protocol describing a factory to produce Data Access Objects (DAO) objects when
-    providing a Data Transfer Objetct (DTO) class.
+    """A protocol describing a factory to produce Data Access Objects (DAO) objects when
+    providing a Data Transfer Object (DTO) class.
     """
 
-    class DtoIdFieldNotFoundError(ValueError):
+    class IdFieldNotFoundError(ValueError):
         """Raised when the dto_model did not contain the expected id_field."""
 
-    class DtoCreationModelInvalidInvalid(ValueError):
+    class CreationModelInvalidError(ValueError):
         """Raised when the DtoCreationModel was invalid in relation to the main
         DTO model."""
+
+    class IndexFieldsInvalidError(ValueError):
+        """Raised when providing an invalid list of fields to index."""
+
+    @classmethod
+    def _validate_dto_model_id(cls, *, dto_model: type[Dto], id_field: str) -> None:
+        """Checks whether the dto_model contains the expected id_field.
+        Raises otherwises."""
+
+        if id_field not in dto_model.schema()["properties"]:
+            raise cls.IdFieldNotFoundError()
+
+    @classmethod
+    def _validate_dto_creation_model(
+        cls,
+        *,
+        dto_model: type[Dto],
+        dto_creation_model: Optional[type[DtoCreation]],
+        id_field: str,
+    ) -> None:
+        """Checks that the dto_creation_model has the same fields as the dto_model
+        except missing the ID. Raises CreationModelInvalidError otherwise."""
+
+        if dto_creation_model is None:
+            return
+
+        expected_properties = copy(dto_model.schema()["properties"])
+        # (the schema method returns an attribute of the class, making a copy to not
+        # alter the class)
+        del expected_properties[id_field]
+        observed_properties = dto_creation_model.schema()["properties"]
+
+        if observed_properties != expected_properties:
+            raise cls.CreationModelInvalidError()
+
+    @classmethod
+    def _validate_fields_to_index(
+        cls,
+        *,
+        dto_model: type[Dto],
+        fields_to_index: Optional[set[str]],
+    ) -> None:
+        """Checks that all index fields are present in the dto_model.
+        Raises IndexFieldsInvalidError otherwise."""
+
+        if fields_to_index is None:
+            return
+
+        existing_fields = set(dto_model.schema()["properties"])
+
+        if not fields_to_index.issubset(existing_fields):
+            additional_fields = fields_to_index.difference(existing_fields)
+            raise cls.IndexFieldsInvalidError(
+                "The following fields are not part of the DTO model: "
+                + str(additional_fields)
+            )
 
     @overload
     def get_dao(
@@ -233,7 +301,7 @@ class DaoFactoryProtcol(ABC):
         name: str,
         dto_model: type[Dto],
         id_field: str,
-        fields_to_index: Optional[list[str]],
+        fields_to_index: Optional[set[str]] = None,
     ) -> DaoNaturalId[Dto]:
         ...
 
@@ -244,20 +312,19 @@ class DaoFactoryProtcol(ABC):
         name: str,
         dto_model: type[Dto],
         id_field: str,
-        fields_to_index: Optional[list[str]],
         dto_creation_model: type[DtoCreation],
+        fields_to_index: Optional[set[str]] = None,
     ) -> DaoSurrogateId[Dto, DtoCreation]:
         ...
 
-    @abstractmethod
     def get_dao(
         self,
         *,
         name: str,
         dto_model: type[Dto],
         id_field: str,
-        fields_to_index: Optional[list[str]] = None,
         dto_creation_model: Optional[type[DtoCreation]] = None,
+        fields_to_index: Optional[set[str]] = None,
     ) -> Union[DaoSurrogateId[Dto, DtoCreation], DaoNaturalId[Dto]]:
         """Constructs a DAO for interacting with resources in a database.
 
@@ -277,8 +344,8 @@ class DaoFactoryProtcol(ABC):
                 An optional DTO model specific for creation of a new resource. This
                 model has to be identical to the `dto_model` except that it has to miss
                 the `id_field`. If specified, resource ID will be generated by the DAO
-                implementation upon. Otherwise (if set to None), resource IDs have to
-                be specified upon resource creation. Defaults to None.
+                implementation upon resource creation. Otherwise (if set to None), resource IDs
+                 have to be specified upon resource creation. Defaults to None.
         Returns:
             If a dedicated `dto_creation_model` is specified, a DAO of type
             DaoSurrogateID, which autogenerates IDs upon resource creation, is returned.
@@ -286,10 +353,67 @@ class DaoFactoryProtcol(ABC):
             specification upon resource creation.
 
         Raises:
-            self.DtoCreationModelInvalidInvalid:
+            self.CreationModelInvalidError:
                 Raised when the DtoCreationModel was invalid in relation to the main
                 DTO model.
-            self.DtoIdFieldNotFoundError:
+            self.IdFieldNotFoundError:
                 Raised when the dto_model did not contain the expected id_field.
         """
+
+        self._validate_dto_model_id(dto_model=dto_model, id_field=id_field)
+
+        self._validate_dto_creation_model(
+            dto_model=dto_model,
+            dto_creation_model=dto_creation_model,
+            id_field=id_field,
+        )
+
+        self._validate_fields_to_index(
+            dto_model=dto_model, fields_to_index=fields_to_index
+        )
+
+        return self._get_dao(
+            name=name,
+            dto_model=dto_model,
+            id_field=id_field,
+            fields_to_index=fields_to_index,
+            dto_creation_model=dto_creation_model,  # type: ignore
+            # (above behavior by mypy seems incorrect)
+        )
+
+    @overload
+    def _get_dao(
+        self,
+        *,
+        name: str,
+        dto_model: type[Dto],
+        id_field: str,
+        fields_to_index: Optional[set[str]] = None,
+    ) -> DaoNaturalId[Dto]:
+        ...
+
+    @overload
+    def _get_dao(
+        self,
+        *,
+        name: str,
+        dto_model: type[Dto],
+        id_field: str,
+        dto_creation_model: type[DtoCreation],
+        fields_to_index: Optional[set[str]] = None,
+    ) -> DaoSurrogateId[Dto, DtoCreation]:
+        ...
+
+    @abstractmethod
+    def _get_dao(
+        self,
+        *,
+        name: str,
+        dto_model: type[Dto],
+        id_field: str,
+        dto_creation_model: Optional[type[DtoCreation]] = None,
+        fields_to_index: Optional[set[str]] = None,
+    ) -> Union[DaoSurrogateId[Dto, DtoCreation], DaoNaturalId[Dto]]:
+        """*To be implemented by the provider. Input validation is done outside of this
+        method.*"""
         ...
