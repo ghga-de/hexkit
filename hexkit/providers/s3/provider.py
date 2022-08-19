@@ -29,15 +29,15 @@ import botocore.client
 import botocore.config
 import botocore.configloader
 import botocore.exceptions
-from pydantic import BaseSettings, Field
+from pydantic import BaseSettings, Field, SecretStr
 
 from hexkit.protocols.objstorage import ObjectStorageProtocol, PresignedPostURL
 
 __all__ = ["ObjectStorageProtocol", "PresignedPostURL"]
 
 
-class S3ConfigBase(BaseSettings):
-    """A base class with S3-specific config params.
+class S3Config(BaseSettings):
+    """S3-specific config params.
     Inherit your config class from this class if you need
     to talk to an S3 service in the backend.
 
@@ -70,7 +70,7 @@ class S3ConfigBase(BaseSettings):
             + " https://boto3.amazonaws.com/v1/documentation/api/latest/guide/credentials.html"
         ),
     )
-    s3_secret_access_key: str = Field(
+    s3_secret_access_key: SecretStr = Field(
         ...,
         example="my-secret-access-key",
         description=(
@@ -78,7 +78,7 @@ class S3ConfigBase(BaseSettings):
             + " https://boto3.amazonaws.com/v1/documentation/api/latest/guide/credentials.html"
         ),
     )
-    s3_session_token: Optional[str] = Field(
+    s3_session_token: Optional[SecretStr] = Field(
         None,
         example="my-session-token",
         description=(
@@ -120,7 +120,7 @@ class S3ObjectStorage(
     def __init__(  # pylint: disable=too-many-arguments
         self,
         *,
-        config: S3ConfigBase,
+        config: S3Config,
     ):
         """Initialize with parameters needed to connect to the S3 storage
 
@@ -161,7 +161,7 @@ class S3ObjectStorage(
         )
 
     def __repr__(self) -> str:
-        return f"S3ObjectStorage(config=S3ConfigBase(s3_endpoint_url={self.endpoint_url}, ...))"
+        return f"{self.__class__.__qualname__}(config={repr(self._config)})"
 
     @staticmethod
     def _format_s3_error_code(error_code: str):
