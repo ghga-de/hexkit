@@ -27,6 +27,7 @@ from hexkit.protocols.dao import (
     DaoSurrogateId,
     Dto,
     DtoCreation,
+    TransactionalScope,
 )
 
 
@@ -41,7 +42,7 @@ class FakeDaoFactory(DaoFactoryProtcol):
         dto_model: type[Dto],
         id_field: str,
         fields_to_index: Optional[set[str]] = None,
-    ) -> DaoNaturalId[Dto]:
+    ) -> TransactionalScope[DaoNaturalId[Dto]]:
         ...
 
     @overload
@@ -53,7 +54,7 @@ class FakeDaoFactory(DaoFactoryProtcol):
         id_field: str,
         dto_creation_model: type[DtoCreation],
         fields_to_index: Optional[set[str]] = None,
-    ) -> DaoSurrogateId[Dto, DtoCreation]:
+    ) -> TransactionalScope[DaoSurrogateId[Dto, DtoCreation]]:
         ...
 
     async def _get_dao(
@@ -64,7 +65,10 @@ class FakeDaoFactory(DaoFactoryProtcol):
         id_field: str,
         dto_creation_model: Optional[type[DtoCreation]] = None,
         fields_to_index: Optional[set[str]] = None,
-    ) -> Union[DaoSurrogateId[Dto, DtoCreation], DaoNaturalId[Dto]]:
+    ) -> Union[
+        TransactionalScope[DaoSurrogateId[Dto, DtoCreation]],
+        TransactionalScope[DaoNaturalId[Dto]],
+    ]:
         """*To be implemented by the provider. Input validation is done outside of this
         method.*"""
 
