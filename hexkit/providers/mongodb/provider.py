@@ -323,8 +323,8 @@ class MongoDbDaoFactory(DaoFactoryProtcol):
         self._config = config
 
         # get a database-specific client:
-        client = AsyncIOMotorClient(self._config.db_connection_str)
-        self._db = client[self._config.db_name]
+        self._client = AsyncIOMotorClient(self._config.db_connection_str)
+        self._db = self._client[self._config.db_name]
 
     def __repr__(self) -> str:
         return f"{self.__class__.__qualname__}(config={repr(self._config)})"
@@ -401,4 +401,4 @@ class MongoDbDaoFactory(DaoFactoryProtcol):
             )
         )
 
-        raise NotImplementedError()
+        return mongodb_transactional_scope(partial_dao=partial_dao, client=self._client)
