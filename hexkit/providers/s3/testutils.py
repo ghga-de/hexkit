@@ -310,7 +310,7 @@ async def populate_storage(
 
 
 def config_from_localstack_container(container: LocalStackContainer) -> S3Config:
-    """Prepares a S3ConfigBase from an instance of a localstack test container."""
+    """Prepares a S3Config from an instance of a localstack test container."""
 
     s3_endpoint_url = container.get_url()
     return S3Config(  # nosec

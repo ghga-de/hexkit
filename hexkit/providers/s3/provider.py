@@ -129,7 +129,7 @@ class S3ObjectStorage(
         https://boto3.amazonaws.com/v1/documentation/api/latest/reference/core/session.html#boto3.session.Session.client
 
         Args:
-            config (S3ConfigBase): Config parameters specified using the S3ConfigBase model.
+            config (S3Config): Config parameters specified using the S3Config model.
         """
 
         self._config = config

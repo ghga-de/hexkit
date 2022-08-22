@@ -19,9 +19,13 @@
 Utilities for testing are located in `./testutils.py`.
 """
 
+from abc import ABC
+from contextlib import asynccontextmanager
 from functools import partial
 from typing import (
+    Any,
     AsyncGenerator,
+    Generic,
     Literal,
     Mapping,
     Optional,
@@ -29,19 +33,14 @@ from typing import (
     TypeVar,
     Union,
     overload,
-    Generic,
 )
 
-
-from contextlib import asynccontextmanager
-from abc import ABC
-
-from pydantic import BaseModel, BaseSettings, Field, SecretStr
 from motor.motor_asyncio import (
     AsyncIOMotorClient,
-    AsyncIOMotorCollection,
     AsyncIOMotorClientSession,
+    AsyncIOMotorCollection,
 )
+from pydantic import BaseModel, BaseSettings, Field, SecretStr
 
 from hexkit.protocols.dao import (
     DaoFactoryProtcol,
@@ -52,6 +51,8 @@ from hexkit.protocols.dao import (
     DtoCreation_contra,
     TransactionalScope,
 )
+
+__all__ = ["MongoDbConfig", "MongoDbDaoFactory"]
 
 
 class MongoDbDaoBase(ABC, Generic[Dto]):
@@ -70,12 +71,16 @@ class MongoDbDaoBase(ABC, Generic[Dto]):
         """Initialize the DAO.
 
         Args:
-            collection: A collection object from the motor library.
             dto_model:
                 A DTO (Data Transfer Object) model describing the shape of resources.
             id_field:
                 The name of the field of the `dto_model` that serves as resource ID.
                 (DAO implementation might use this field as primary key.)
+            collection:
+                A collection object from the motor library.
+            session:
+                A AsyncIOMotorClientSession that is within an active transaction.
+                Transactions are managed outside of this class.
         """
 
         self._collection = collection
@@ -195,7 +200,6 @@ class MongoDbDaoSurrogateId(MongoDbDaoBase[Dto], Generic[Dto, DtoCreation_contra
         """Initialize the DAO.
 
         Args:
-            collection: A collection object from the motor library.
             dto_model:
                 A DTO (Data Transfer Object) model describing the shape of resources.
             dto_creation_model:
@@ -206,7 +210,21 @@ class MongoDbDaoSurrogateId(MongoDbDaoBase[Dto], Generic[Dto, DtoCreation_contra
             id_field:
                 The name of the field of the `dto_model` that serves as resource ID.
                 (DAO implementation might use this field as primary key.)
+            collection:
+                A collection object from the motor library.
+            session:
+                A AsyncIOMotorClientSession that is within an active transaction.
+                Transactions are managed outside of this class.
         """
+
+        super().__init__(
+            dto_model=dto_model,
+            id_field=id_field,
+            collection=collection,
+            session=session,
+        )
+
+        self._dto_creation_model = dto_creation_model
 
     async def insert(self, dto: DtoCreation_contra) -> Dto:
         """Create a new resource.
@@ -257,7 +275,7 @@ Dao = TypeVar("Dao")
 
 
 @asynccontextmanager
-async def mongodb_transactional_scope(
+async def _mongodb_transactional_scope(
     *,
     partial_dao: partial[Dao],
     client: AsyncIOMotorClient,
@@ -385,7 +403,9 @@ class MongoDbDaoFactory(DaoFactoryProtcol):
         # Prepare a partially initialized DAO Object so that the the transaction scope
         # (see below) is only responsible for supplying the missing the session
         # session argument to obtain a fully initialized DAO:
-        partial_dao = (
+        # (Using Any because mypy does not (but pylance does) recognize this as
+        # Union[partial[MongoDbDaoNaturalId],partial[MongoDbDaoSurrogateId]].)
+        partial_dao: Any = (
             partial(
                 MongoDbDaoNaturalId,
                 collection=collection,
@@ -401,4 +421,6 @@ class MongoDbDaoFactory(DaoFactoryProtcol):
             )
         )
 
-        return mongodb_transactional_scope(partial_dao=partial_dao, client=self._client)
+        return _mongodb_transactional_scope(
+            partial_dao=partial_dao, client=self._client
+        )

@@ -17,3 +17,10 @@
 """Subpackage containing a MongoDB-based provider implementing the DaoFactoryProtocol
 and associated utilities.
 """
+
+from hexkit.providers.mongodb.provider import (  # noqa: F401
+    MongoDbConfig,
+    MongoDbDaoFactory,
+)
+
+__all__ = ["MongoDbConfig", "MongoDbDaoFactory"]
