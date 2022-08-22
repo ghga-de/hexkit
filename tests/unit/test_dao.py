@@ -34,7 +34,7 @@ class FakeDaoFactory(DaoFactoryProtcol):
     """Implements the DaoFactoryProtocol without providing any logic."""
 
     @overload
-    def _get_dao(
+    async def _get_dao(
         self,
         *,
         name: str,
@@ -45,7 +45,7 @@ class FakeDaoFactory(DaoFactoryProtcol):
         ...
 
     @overload
-    def _get_dao(
+    async def _get_dao(
         self,
         *,
         name: str,
@@ -56,7 +56,7 @@ class FakeDaoFactory(DaoFactoryProtcol):
     ) -> DaoSurrogateId[Dto, DtoCreation]:
         ...
 
-    def _get_dao(
+    async def _get_dao(
         self,
         *,
         name: str,
@@ -98,7 +98,7 @@ async def test_get_dto_valid():
     dao_factory = FakeDaoFactory()
 
     with pytest.raises(NotImplementedError):
-        _ = dao_factory.get_dao(
+        _ = await dao_factory.get_dao(
             name="test_dao",
             dto_model=ExampleDto,
             id_field="id",
@@ -115,7 +115,7 @@ async def test_get_dto_invalid_id():
     dao_factory = FakeDaoFactory()
 
     with pytest.raises(DaoFactoryProtcol.IdFieldNotFoundError):
-        _ = dao_factory.get_dao(
+        _ = await dao_factory.get_dao(
             name="test_dao", dto_model=ExampleDto, id_field="invalid_id"
         )
 
@@ -131,7 +131,7 @@ async def test_get_dto_invalid_creation_model(dto_creation_model: type[BaseModel
     dao_factory = FakeDaoFactory()
 
     with pytest.raises(DaoFactoryProtcol.CreationModelInvalidError):
-        _ = dao_factory.get_dao(
+        _ = await dao_factory.get_dao(
             name="test_dao",
             dto_model=ExampleDto,
             id_field="id",
@@ -146,7 +146,7 @@ async def test_get_dto_invalid_fields_to_index():
     dao_factory = FakeDaoFactory()
 
     with pytest.raises(DaoFactoryProtcol.IndexFieldsInvalidError):
-        _ = dao_factory.get_dao(
+        _ = await dao_factory.get_dao(
             name="test_dao",
             dto_model=ExampleDto,
             id_field="id",

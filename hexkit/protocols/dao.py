@@ -87,7 +87,7 @@ class DaoCommons(typing.Protocol[Dto]):
     other DAO duck types.
     """
 
-    def get(self, *, id_: str) -> Dto:
+    async def get(self, *, id_: str) -> Dto:
         """Get a resource by providing its ID.
 
         Args:
@@ -101,7 +101,7 @@ class DaoCommons(typing.Protocol[Dto]):
         """
         ...
 
-    def update(self, dto: Dto) -> None:
+    async def update(self, dto: Dto) -> None:
         """Update an existing resource.
 
         Args:
@@ -115,7 +115,7 @@ class DaoCommons(typing.Protocol[Dto]):
         """
         ...
 
-    def delete(self, *, id_: str) -> None:
+    async def delete(self, *, id_: str) -> None:
         """Delete a resource by providing its ID.
 
         Args:
@@ -126,13 +126,13 @@ class DaoCommons(typing.Protocol[Dto]):
         """
 
     @overload
-    def find(
+    async def find(
         self, *, kv: Mapping[str, object], returns: Literal["all"]
     ) -> Sequence[Dto]:
         ...
 
     @overload
-    def find(
+    async def find(
         self,
         *,
         kv: Mapping[str, object],
@@ -140,7 +140,7 @@ class DaoCommons(typing.Protocol[Dto]):
     ) -> Dto:
         ...
 
-    def find(
+    async def find(
         self,
         *,
         kv: Mapping[str, object],
@@ -184,7 +184,7 @@ class DaoSurrogateId(DaoCommons[Dto], typing.Protocol[Dto, DtoCreation_contra]):
      creation of new resources, is needed.
     """
 
-    def insert(self, dto: DtoCreation_contra) -> Dto:
+    async def insert(self, dto: DtoCreation_contra) -> Dto:
         """Create a new resource.
 
         Args:
@@ -201,7 +201,7 @@ class DaoSurrogateId(DaoCommons[Dto], typing.Protocol[Dto, DtoCreation_contra]):
 class DaoNaturalId(DaoCommons[Dto], typing.Protocol[Dto]):
     """A duck type of a DAO that uses a natural resource ID profided by the client."""
 
-    def insert(self, dto: Dto) -> None:
+    async def insert(self, dto: Dto) -> None:
         """Create a new resource.
 
         Args:
@@ -215,7 +215,7 @@ class DaoNaturalId(DaoCommons[Dto], typing.Protocol[Dto]):
         """
         ...
 
-    def upsert(self, dto: Dto) -> None:
+    async def upsert(self, dto: Dto) -> None:
         """Update the provided resource if it already exists, create it otherwise.
 
         Args:
@@ -295,7 +295,7 @@ class DaoFactoryProtcol(ABC):
             )
 
     @overload
-    def get_dao(
+    async def get_dao(
         self,
         *,
         name: str,
@@ -306,7 +306,7 @@ class DaoFactoryProtcol(ABC):
         ...
 
     @overload
-    def get_dao(
+    async def get_dao(
         self,
         *,
         name: str,
@@ -317,7 +317,7 @@ class DaoFactoryProtcol(ABC):
     ) -> DaoSurrogateId[Dto, DtoCreation]:
         ...
 
-    def get_dao(
+    async def get_dao(
         self,
         *,
         name: str,
@@ -372,7 +372,7 @@ class DaoFactoryProtcol(ABC):
             dto_model=dto_model, fields_to_index=fields_to_index
         )
 
-        return self._get_dao(
+        return await self._get_dao(
             name=name,
             dto_model=dto_model,
             id_field=id_field,
@@ -382,7 +382,7 @@ class DaoFactoryProtcol(ABC):
         )
 
     @overload
-    def _get_dao(
+    async def _get_dao(
         self,
         *,
         name: str,
@@ -393,7 +393,7 @@ class DaoFactoryProtcol(ABC):
         ...
 
     @overload
-    def _get_dao(
+    async def _get_dao(
         self,
         *,
         name: str,
@@ -405,7 +405,7 @@ class DaoFactoryProtcol(ABC):
         ...
 
     @abstractmethod
-    def _get_dao(
+    async def _get_dao(
         self,
         *,
         name: str,
