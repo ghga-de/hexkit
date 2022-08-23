@@ -68,6 +68,10 @@ class FileObject(BaseModel):
     def read_content(cls, _, values):
         """Read in the file content."""
 
+
+
+
+
         with open(values["file_path"], "rb") as file:
             return file.read()
 

@@ -142,12 +142,17 @@ class S3ObjectStorage(
             else read_aws_config_ini(config.aws_config_ini)
         )
 
+        session_token = (
+            None
+            if self._config.s3_session_token is None
+            else self._config.s3_session_token.get_secret_value()
+        )
         self._client = boto3.client(
             service_name="s3",
             endpoint_url=self.endpoint_url,
             aws_access_key_id=self._config.s3_access_key_id,
-            aws_secret_access_key=self._config.s3_secret_access_key,
-            aws_session_token=self._config.s3_session_token,
+            aws_secret_access_key=self._config.s3_secret_access_key.get_secret_value(),
+            aws_session_token=session_token,
             config=self._advanced_config,
         )
 
@@ -155,8 +160,8 @@ class S3ObjectStorage(
             service_name="s3",
             endpoint_url=self.endpoint_url,
             aws_access_key_id=self._config.s3_access_key_id,
-            aws_secret_access_key=self._config.s3_secret_access_key,
-            aws_session_token=self._config.s3_session_token,
+            aws_secret_access_key=self._config.s3_secret_access_key.get_secret_value(),
+            aws_session_token=session_token,
             config=self._advanced_config,
         )
 
