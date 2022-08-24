@@ -75,6 +75,26 @@ async def test_dao_factory_happy_crud(mongodb_fixture: MongoDbFixture):  # noqa:
 
     assert resource_update == resource_updated
 
+    # insert additional resources:
+    add_resources_to_create = (
+        ExampleCreationDto(param_a="test2", param_b=27, param_c=False),
+        ExampleCreationDto(param_a="test2", param_b=27, param_c=True),
+    )
+    async with dao as transaction:
+        add_resources_inserted = (
+            await transaction.insert(resource) for resource in add_resources_to_create
+        )
+
+    # perform a search:
+    async with dao as transaction:
+        obtained_hits = {
+            hit
+            async for hit in transaction.find(mapping={"param_b": 27, "param_c": True})
+        }
+
+    expected_hits = {resource_inserted, add_resources_inserted[1]}
+    assert obtained_hits == expected_hits
+
     # delete the resource:
     async with dao as transaction:
         await transaction.delete(id_=resource_inserted.id)

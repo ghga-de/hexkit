@@ -23,6 +23,7 @@ from abc import ABC
 from functools import partial
 from typing import (
     Any,
+    AsyncIterator,
     Generic,
     Literal,
     Mapping,
@@ -48,6 +49,7 @@ from hexkit.protocols.dao import (
     Dto,
     DtoCreation,
     DtoCreation_contra,
+    InvalidMappingError,
     ResourceNotFoundError,
     TransactionManager,
 )
@@ -89,6 +91,13 @@ class MongoDbDaoBase(ABC, Generic[Dto]):
         self._dto_model = dto_model
         self._id_field = id_field
 
+    def _document_to_dto(self, document: Mapping) -> Dto:
+        """Converts a document obtained from the MongoDB database into a DTO model-
+        compliant representation."""
+
+        document[self._id_field] = document.pop("_id")
+        return self._dto_model(**document)
+
     async def get(self, *, id_: str) -> Dto:
         """Get a resource by providing its ID.
 
@@ -102,16 +111,12 @@ class MongoDbDaoBase(ABC, Generic[Dto]):
             ResourceNotFoundError: when resource with the specified id_ was not found
         """
 
-        document = await self._collection.find_one({"_id": id_})
+        document = await self._collection.find_one({"_id": id_}, session=self._session)
 
         if document is None:
             raise ResourceNotFoundError(id_=id_)
 
-        # transform the document data into the expected DTO format by renaming the
-        # document's primary key (_id) to the expected name of the id_field:
-        document[self._id_field] = document.pop("_id")
-
-        return self._dto_model(**document)
+        return self._document_to_dto(document)
 
     async def update(self, dto: Dto) -> None:
         """Update an existing resource.
@@ -129,7 +134,7 @@ class MongoDbDaoBase(ABC, Generic[Dto]):
         id_ = getattr(dto, self._id_field)
 
         result = await self._collection.replace_one(
-            {"_id": id_}, dto.dict(exclude={self._id_field})
+            {"_id": id_}, dto.dict(exclude={self._id_field}), session=self._session
         )
 
         if result.matched_count == 0:
@@ -148,7 +153,7 @@ class MongoDbDaoBase(ABC, Generic[Dto]):
             ResourceNotFoundError: when resource with the specified id_ was not found
         """
 
-        result = await self._collection.delete_one({"_id": id_})
+        result = await self._collection.delete_one({"_id": id_}, session=self._session)
 
         if result.deleted_count == 0:
             raise ResourceNotFoundError(id_=id_)
@@ -156,10 +161,21 @@ class MongoDbDaoBase(ABC, Generic[Dto]):
         # (trusting MongoDB that matching on the _id field can only yield one or
         # zero matches)
 
+    async def _find_all(self, *, mapping: Mapping[str, object]) -> AsyncIterator[Dto]:
+        # (in this case it is even an async generator but let's stay complient with the
+        # protocol)
+        """Finds all resources that match the provided mapping. See the find method
+        for more documentation."""
+
+        cursor = await self._collection.find(filter=mapping, session=self._session)
+
+        async for document in cursor:
+            yield self._document_to_dto(document)
+
     @overload
     async def find(
         self, *, mapping: Mapping[str, object], returns: Literal["all"]
-    ) -> Sequence[Dto]:
+    ) -> AsyncIterator[Dto]:
         ...
 
     @overload
@@ -176,7 +192,7 @@ class MongoDbDaoBase(ABC, Generic[Dto]):
         *,
         mapping: Mapping[str, object],
         returns: Literal["all", "newest", "oldest", "single"] = "all",
-    ) -> Union[Sequence[Dto], Dto]:
+    ) -> Union[AsyncIterator[Dto], Dto]:
         """Find resource by specifing a list of key-value pairs that must match.
 
         Args:
@@ -191,9 +207,9 @@ class MongoDbDaoBase(ABC, Generic[Dto]):
                 (will raise an exception otherwise). Defaults to "all".
 
         Returns:
-            If `returns` was set to "all", a sequence of hits is returned. Otherwise will
-            return only a single hit. All hits are in the form of the respective DTO
-            model.
+            If `returns` was set to "all", an AsyncIterator of hits is returned.
+            Otherwise will return only a single hit. All hits are in the form of the
+            respective DTO model.
 
         Raises:
             NoHitsFoundError:
@@ -203,6 +219,16 @@ class MongoDbDaoBase(ABC, Generic[Dto]):
             MultpleHitsFoundError:
                 Raised when obtaining more than one hit when using the "single" mode.
         """
+
+        try:
+            validate_fields_in_model(model=self._dto_model, fields=set(mapping.keys()))
+        except FieldNotInModelError as error:
+            raise InvalidMappingError(
+                f"The provided find mapping was invalid: {error}."
+            ) from error
+
+        if returns == "all":
+            return await self._find_all(mapping=mapping)
 
         raise NotImplementedError()
 
@@ -286,7 +312,7 @@ class MongoDbDaoSurrogateId(MongoDbDaoBase[Dto], Generic[Dto, DtoCreation_contra
         document = full_dto.dict()
         document["_id"] = document.pop(self._id_field)
 
-        await self._collection.insert_one(document)
+        await self._collection.insert_one(document, session=self._session)
 
         return full_dto
 

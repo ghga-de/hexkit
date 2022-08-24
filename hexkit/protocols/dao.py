@@ -20,7 +20,16 @@ with the database."""
 import typing
 from abc import ABC, abstractmethod
 from copy import copy
-from typing import Literal, Mapping, Optional, Sequence, TypeVar, Union, overload
+from typing import (
+    AsyncIterator,
+    Literal,
+    Mapping,
+    Optional,
+    Sequence,
+    TypeVar,
+    Union,
+    overload,
+)
 
 from pydantic import BaseModel
 
@@ -61,6 +70,10 @@ class ResourceAlreadyExistsError(RuntimeError):
 
 class FindError(RuntimeError):
     """Base for all error related to DAO find operations."""
+
+
+class InvalidMappingError(FindError):
+    """Raised when an invalid mapping was passed provided to find."""
 
 
 class NoHitsFoundError(FindError):
@@ -131,7 +144,7 @@ class DaoCommons(typing.Protocol[Dto]):
     @overload
     async def find(
         self, *, mapping: Mapping[str, object], returns: Literal["all"]
-    ) -> Sequence[Dto]:
+    ) -> AsyncIterator[Dto]:
         ...
 
     @overload
@@ -148,7 +161,7 @@ class DaoCommons(typing.Protocol[Dto]):
         *,
         mapping: Mapping[str, object],
         returns: Literal["all", "newest", "oldest", "single"] = "all",
-    ) -> Union[Sequence[Dto], Dto]:
+    ) -> Union[AsyncIterator[Dto], Dto]:
         """Find resource by specifing a list of key-value pairs that must match.
 
         Args:
@@ -163,9 +176,9 @@ class DaoCommons(typing.Protocol[Dto]):
                 (will raise an exception otherwise). Defaults to "all".
 
         Returns:
-            If `returns` was set to "all", a sequence of hits is returned. Otherwise will
-            return only a single hit. All hits are in the form of the respective DTO
-            model.
+            If `returns` was set to "all", an AsyncIterator of hits is returned.
+            Otherwise will return only a single hit. All hits are in the form of the
+            respective DTO model.
 
         Raises:
             NoHitsFoundError:
