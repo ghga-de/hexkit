@@ -230,7 +230,7 @@ class DaoNaturalId(DaoCommons[Dto], typing.Protocol[Dto]):
 Dao_co = TypeVar("Dao_co", covariant=True)
 
 
-class TransactionalScope(typing.Protocol[Dao_co]):
+class TransactionManager(typing.Protocol[Dao_co]):
     """A duck type of an object that manages a transactional scope for database
     interactions using a async context manager interface."""
 
@@ -322,7 +322,7 @@ class DaoFactoryProtcol(ABC):
         dto_model: type[Dto],
         id_field: str,
         fields_to_index: Optional[set[str]] = None,
-    ) -> TransactionalScope[DaoNaturalId[Dto]]:
+    ) -> TransactionManager[DaoNaturalId[Dto]]:
         ...
 
     @overload
@@ -334,7 +334,7 @@ class DaoFactoryProtcol(ABC):
         id_field: str,
         dto_creation_model: type[DtoCreation],
         fields_to_index: Optional[set[str]] = None,
-    ) -> TransactionalScope[DaoSurrogateId[Dto, DtoCreation]]:
+    ) -> TransactionManager[DaoSurrogateId[Dto, DtoCreation]]:
         ...
 
     async def get_dao(
@@ -346,8 +346,8 @@ class DaoFactoryProtcol(ABC):
         dto_creation_model: Optional[type[DtoCreation]] = None,
         fields_to_index: Optional[set[str]] = None,
     ) -> Union[
-        TransactionalScope[DaoSurrogateId[Dto, DtoCreation]],
-        TransactionalScope[DaoNaturalId[Dto]],
+        TransactionManager[DaoSurrogateId[Dto, DtoCreation]],
+        TransactionManager[DaoNaturalId[Dto]],
     ]:
         """Constructs a DAO for interacting with resources in a database.
 
@@ -412,7 +412,7 @@ class DaoFactoryProtcol(ABC):
         dto_model: type[Dto],
         id_field: str,
         fields_to_index: Optional[set[str]] = None,
-    ) -> TransactionalScope[DaoNaturalId[Dto]]:
+    ) -> TransactionManager[DaoNaturalId[Dto]]:
         ...
 
     @overload
@@ -424,7 +424,7 @@ class DaoFactoryProtcol(ABC):
         id_field: str,
         dto_creation_model: type[DtoCreation],
         fields_to_index: Optional[set[str]] = None,
-    ) -> TransactionalScope[DaoSurrogateId[Dto, DtoCreation]]:
+    ) -> TransactionManager[DaoSurrogateId[Dto, DtoCreation]]:
         ...
 
     @abstractmethod
@@ -437,8 +437,8 @@ class DaoFactoryProtcol(ABC):
         dto_creation_model: Optional[type[DtoCreation]] = None,
         fields_to_index: Optional[set[str]] = None,
     ) -> Union[
-        TransactionalScope[DaoSurrogateId[Dto, DtoCreation]],
-        TransactionalScope[DaoNaturalId[Dto]],
+        TransactionManager[DaoSurrogateId[Dto, DtoCreation]],
+        TransactionManager[DaoNaturalId[Dto]],
     ]:
         """*To be implemented by the provider. Input validation is done outside of this
         method.*"""

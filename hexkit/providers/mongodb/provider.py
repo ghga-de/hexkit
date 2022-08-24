@@ -20,7 +20,6 @@ Utilities for testing are located in `./testutils.py`.
 """
 
 from abc import ABC
-from contextlib import asynccontextmanager
 from functools import partial
 from typing import (
     Any,
@@ -41,7 +40,8 @@ from motor.motor_asyncio import (
     AsyncIOMotorClientSession,
     AsyncIOMotorCollection,
 )
-from pydantic import BaseModel, BaseSettings, Field, SecretStr
+from pymongo.client_session import ClientSession as AsyncIOMotorClientSession
+from pydantic import BaseSettings, Field, SecretStr
 
 from hexkit.protocols.dao import (
     DaoFactoryProtcol,
@@ -51,7 +51,7 @@ from hexkit.protocols.dao import (
     DtoCreation,
     DtoCreation_contra,
     ResourceNotFoundError,
-    TransactionalScope,
+    TransactionManager,
 )
 
 __all__ = ["MongoDbConfig", "MongoDbDaoFactory"]
@@ -65,7 +65,7 @@ class MongoDbDaoBase(ABC, Generic[Dto]):
     def __init__(
         self,
         *,
-        dto_model: Dto,
+        dto_model: type[Dto],
         id_field: str,
         collection: AsyncIOMotorCollection,
         session: AsyncIOMotorClientSession,
@@ -103,7 +103,7 @@ class MongoDbDaoBase(ABC, Generic[Dto]):
             ResourceNotFoundError: when resource with the specified id_ was not found
         """
 
-        document = self._collection.find_one({"_id": id_})
+        document = await self._collection.find_one({"_id": id_})
 
         if document is None:
             raise ResourceNotFoundError(id_=id_)
@@ -203,8 +203,8 @@ class MongoDbDaoSurrogateId(MongoDbDaoBase[Dto], Generic[Dto, DtoCreation_contra
     def __init__(
         self,
         *,
-        dto_model: Dto,
-        dto_creation_model: DtoCreation_contra,
+        dto_model: type[Dto],
+        dto_creation_model: type[DtoCreation_contra],
         id_field: str,
         collection: AsyncIOMotorCollection,
         session: AsyncIOMotorClientSession,
@@ -241,9 +241,9 @@ class MongoDbDaoSurrogateId(MongoDbDaoBase[Dto], Generic[Dto, DtoCreation_contra
     @staticmethod
     def _generate_id() -> str:
         """Generates a new ID for a resource that can be used as primary key in the
-        database."""
+        database. It should be assumed that the ID is statistically unique."""
 
-        return uuid4()
+        return str(uuid4())
 
     async def insert(self, dto: DtoCreation_contra) -> Dto:
         """Create a new resource.
@@ -270,7 +270,7 @@ class MongoDbDaoSurrogateId(MongoDbDaoBase[Dto], Generic[Dto, DtoCreation_contra
         document = full_dto.dict()
         document["_id"] = document.pop(self._id_field)
 
-        self._collection.insert_one(document)
+        await self._collection.insert_one(document)
 
         return full_dto
 
@@ -308,33 +308,61 @@ class MongoDbDaoNaturalId(MongoDbDaoBase[Dto]):
 Dao = TypeVar("Dao")
 
 
-@asynccontextmanager
-async def _mongodb_transactional_scope(
-    *,
-    partial_dao: partial[Dao],
-    client: AsyncIOMotorClient,
-) -> AsyncGenerator[Dao, None]:
+class MongoDbTransactionManager(Generic[Dao]):
     """Manages transactional scopes for database interactions using an async context
-    manager interface.
+    manager interface."""
 
-    Upon __enter__, opens a new transactional scope. Returns a DAO according to the
-    Dao_co type variable."
+    def __init__(self, *, dao_constructor: partial[Dao], client: AsyncIOMotorClient):
+        """Iniatialize the transaction manager with a preconfigured DAO constructor and
+        a preconfigured MongoDB client.
 
-    Upon __exit__, closes the transactional scope. A full rollback of the transaction is
-    performed in case of an exception. Otherwise, the changes to the database are
-    committed and flushed.
+        Args:
+            dao_constructor:
+                A partially-initialized DAO object that is only missing a `session`
+                argument of type motor.motor_asyncio.AsyncIOMotorClientSession.
+            client:
+                A MongoDB client object from the motors library.
+        """
 
-    Args:
-        partial_dao:
-            A partially-initialized DAO object that is only missing a `session`
-            argument of type motor.motor_asyncio.AsyncIOMotorClientSession.
-        client:
-            A MongoDB client obkect from the motors library.
-    """
+        self._dao_constructor = dao_constructor
+        self._client = client
 
-    async with await client.start_session() as session:
-        async with session.start_transaction():
-            yield partial_dao(session=session)
+        self._session: Optional[AsyncIOMotorClientSession] = None
+
+    async def __aenter__(self) -> Dao:
+        """Upon __enter__, opens a new transactional scope. Returns a DAO according to
+        the Dao_co type variable."""
+
+        if self._session is not None:
+            raise RuntimeError(
+                "This transaction manager is already in use. Please close the ongoing"
+                + " transaction by running the __aexit__ method."
+            )
+
+        self._session = await self._client.start_session()
+        self._session.start_transaction()
+
+        return self._dao_constructor(session=self._session)
+
+    async def __aexit__(self, exc_type, exc_value, exc_trace):
+        """
+        Upon __exit__, closes the transactional scope. A full rollback of the transaction is
+        performed in case of an exception. Otherwise, the changes to the database are
+        committed and flushed.
+        """
+
+        if self._session is None:
+            raise RuntimeError("No transaction running, call __aenter__ first.")
+
+        if exc_type is None:
+            await self._session.commit_transaction()
+        else:
+            await self._session.abort_transaction()
+
+        await self._session.end_session()
+        self._session = None
+
+        return False
 
 
 class MongoDbConfig(BaseSettings):
@@ -391,7 +419,7 @@ class MongoDbDaoFactory(DaoFactoryProtcol):
         dto_model: type[Dto],
         id_field: str,
         fields_to_index: Optional[set[str]] = None,
-    ) -> TransactionalScope[DaoNaturalId[Dto]]:
+    ) -> TransactionManager[DaoNaturalId[Dto]]:
         ...
 
     @overload
@@ -403,7 +431,7 @@ class MongoDbDaoFactory(DaoFactoryProtcol):
         id_field: str,
         dto_creation_model: type[DtoCreation],
         fields_to_index: Optional[set[str]] = None,
-    ) -> TransactionalScope[DaoSurrogateId[Dto, DtoCreation]]:
+    ) -> TransactionManager[DaoSurrogateId[Dto, DtoCreation]]:
         ...
 
     async def _get_dao(
@@ -415,8 +443,8 @@ class MongoDbDaoFactory(DaoFactoryProtcol):
         dto_creation_model: Optional[type[DtoCreation]] = None,
         fields_to_index: Optional[set[str]] = None,
     ) -> Union[
-        TransactionalScope[DaoSurrogateId[Dto, DtoCreation]],
-        TransactionalScope[DaoNaturalId[Dto]],
+        TransactionManager[DaoSurrogateId[Dto, DtoCreation]],
+        TransactionManager[DaoNaturalId[Dto]],
     ]:
         """Constructs a DAO for interacting with resources in a MongoDB database.
 
@@ -458,6 +486,6 @@ class MongoDbDaoFactory(DaoFactoryProtcol):
             )
         )
 
-        return _mongodb_transactional_scope(
-            partial_dao=partial_dao, client=self._client
+        return MongoDbTransactionManager(
+            dao_constructor=partial_dao, client=self._client
         )
