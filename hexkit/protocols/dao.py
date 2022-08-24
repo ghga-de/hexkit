@@ -24,6 +24,8 @@ from typing import Literal, Mapping, Optional, Sequence, TypeVar, Union, overloa
 
 from pydantic import BaseModel
 
+from hexkit.utils import FieldNotInModelError, validate_fields_in_model
+
 __all__ = [
     "ResourceNotFoundError",
     "ResourceAlreadyExistsError",
@@ -299,20 +301,18 @@ class DaoFactoryProtcol(ABC):
         dto_model: type[Dto],
         fields_to_index: Optional[set[str]],
     ) -> None:
-        """Checks that all index fields are present in the dto_model.
+        """Checks that all provided fields are present in the dto_model.
         Raises IndexFieldsInvalidError otherwise."""
 
         if fields_to_index is None:
             return
 
-        existing_fields = set(dto_model.schema()["properties"])
-
-        if not fields_to_index.issubset(existing_fields):
-            additional_fields = fields_to_index.difference(existing_fields)
+        try:
+            validate_fields_in_model(model=dto_model, fields=fields_to_index)
+        except FieldNotInModelError as error:
             raise cls.IndexFieldsInvalidError(
-                "The following fields are not part of the DTO model: "
-                + str(additional_fields)
-            )
+                f"Provided index fields are invalid: {error}"
+            ) from error
 
     @overload
     async def get_dao(

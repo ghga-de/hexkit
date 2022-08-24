@@ -51,6 +51,7 @@ from hexkit.protocols.dao import (
     ResourceNotFoundError,
     TransactionManager,
 )
+from hexkit.utils import FieldNotInModelError, validate_fields_in_model
 
 __all__ = ["MongoDbConfig", "MongoDbDaoFactory"]
 
