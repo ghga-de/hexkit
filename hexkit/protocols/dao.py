@@ -65,8 +65,8 @@ class NoHitsFoundError(FindError):
     """Raised when a DAO find operation did not result in any hits but at least one
     hit was expected."""
 
-    def __init__(self, *, kv: Mapping[str, str]):
-        message = f"No match was found for key-value pairs: {kv}"
+    def __init__(self, *, mapping: Mapping[str, str]):
+        message = f"No match was found for key-value pairs: {mapping}"
         super().__init__(message)
 
 
@@ -74,10 +74,10 @@ class MultpleHitsFoundError(FindError):
     """Raised when a DAO find operation did result in multiple hits while only a
     single hit was expected."""
 
-    def __init__(self, *, kv: Mapping[str, str]):
+    def __init__(self, *, mapping: Mapping[str, str]):
         message = (
             "Multiple hits were found for the following key-value pairs while only a"
-            f" single one was expected: {kv}"
+            f" single one was expected: {mapping}"
         )
         super().__init__(message)
 
@@ -128,7 +128,7 @@ class DaoCommons(typing.Protocol[Dto]):
 
     @overload
     async def find(
-        self, *, kv: Mapping[str, object], returns: Literal["all"]
+        self, *, mapping: Mapping[str, object], returns: Literal["all"]
     ) -> Sequence[Dto]:
         ...
 
@@ -136,7 +136,7 @@ class DaoCommons(typing.Protocol[Dto]):
     async def find(
         self,
         *,
-        kv: Mapping[str, object],
+        mapping: Mapping[str, object],
         returns: Literal["newest", "oldest", "single"],
     ) -> Dto:
         ...
@@ -144,13 +144,13 @@ class DaoCommons(typing.Protocol[Dto]):
     async def find(
         self,
         *,
-        kv: Mapping[str, object],
+        mapping: Mapping[str, object],
         returns: Literal["all", "newest", "oldest", "single"] = "all",
     ) -> Union[Sequence[Dto], Dto]:
         """Find resource by specifing a list of key-value pairs that must match.
 
         Args:
-            kv:
+            mapping:
                 A mapping where the keys correspond to the names of resource fields
                 and the values correspond to the actual values of the resource fields.
             returns:

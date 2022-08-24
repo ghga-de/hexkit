@@ -125,7 +125,17 @@ class MongoDbDaoBase(ABC, Generic[Dto]):
                 when resource with the id specified in the dto was not found
         """
 
-        raise NotImplementedError()
+        id_ = getattr(dto, self._id_field)
+
+        result = await self._collection.replace_one(
+            {"_id": id_}, dto.dict(exclude={self._id_field})
+        )
+
+        if result.matched_count == 0:
+            raise ResourceNotFoundError(id_=id_)
+
+        # (trusting MongoDB that matching on the _id field can only yield one or
+        # zero matches)
 
     async def delete(self, *, id_: str) -> None:
         """Delete a resource by providing its ID.
@@ -136,11 +146,18 @@ class MongoDbDaoBase(ABC, Generic[Dto]):
         Raises:
             ResourceNotFoundError: when resource with the specified id_ was not found
         """
-        raise NotImplementedError()
+
+        result = await self._collection.delete_one({"_id": id_})
+
+        if result.deleted_count == 0:
+            raise ResourceNotFoundError(id_=id_)
+
+        # (trusting MongoDB that matching on the _id field can only yield one or
+        # zero matches)
 
     @overload
     async def find(
-        self, *, kv: Mapping[str, object], returns: Literal["all"]
+        self, *, mapping: Mapping[str, object], returns: Literal["all"]
     ) -> Sequence[Dto]:
         ...
 
@@ -148,7 +165,7 @@ class MongoDbDaoBase(ABC, Generic[Dto]):
     async def find(
         self,
         *,
-        kv: Mapping[str, object],
+        mapping: Mapping[str, object],
         returns: Literal["newest", "oldest", "single"],
     ) -> Dto:
         ...
@@ -156,13 +173,13 @@ class MongoDbDaoBase(ABC, Generic[Dto]):
     async def find(
         self,
         *,
-        kv: Mapping[str, object],
+        mapping: Mapping[str, object],
         returns: Literal["all", "newest", "oldest", "single"] = "all",
     ) -> Union[Sequence[Dto], Dto]:
         """Find resource by specifing a list of key-value pairs that must match.
 
         Args:
-            kv:
+            mapping:
                 A mapping where the keys correspond to the names of resource fields
                 and the values correspond to the actual values of the resource fields.
             returns:
