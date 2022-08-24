@@ -23,7 +23,6 @@ from abc import ABC
 from functools import partial
 from typing import (
     Any,
-    AsyncGenerator,
     Generic,
     Literal,
     Mapping,
@@ -40,7 +39,6 @@ from motor.motor_asyncio import (
     AsyncIOMotorClientSession,
     AsyncIOMotorCollection,
 )
-from pymongo.client_session import ClientSession as AsyncIOMotorClientSession
 from pydantic import BaseSettings, Field, SecretStr
 
 from hexkit.protocols.dao import (
@@ -423,7 +421,7 @@ class MongoDbDaoFactory(DaoFactoryProtcol):
         ...
 
     @overload
-    async def _get_dao(
+    async def _get_dao(  # pylint: disable=arguments-differ
         self,
         *,
         name: str,
