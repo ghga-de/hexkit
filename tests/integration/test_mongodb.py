@@ -42,9 +42,9 @@ class ExampleDto(ExampleCreationDto):
 
 
 @pytest.mark.asyncio
-async def test_dao_factory_happy_crud(mongodb_fixture: MongoDbFixture):  # noqa: F811
+async def test_dao_happy(mongodb_fixture: MongoDbFixture):  # noqa: F811
     """Test the happy path of performing basic CRUD database interactions using
-    the MongoDbDaoFactory."""
+    the MongoDbDaoFactory in a surrograte ID setting."""
 
     dao = await mongodb_fixture.dao_factory.get_dao(
         name="example",
@@ -102,3 +102,52 @@ async def test_dao_factory_happy_crud(mongodb_fixture: MongoDbFixture):  # noqa:
     # confirm that the resource was deleted:
     with pytest.raises(ResourceNotFoundError):
         _ = await dao.get(id_=resource_inserted.id)
+
+
+@pytest.mark.asyncio
+async def test_dao_insert_natural_id_happy(
+    mongodb_fixture: MongoDbFixture,  # noqa: F811
+):
+    """Tests the happy path of inserting a new resource in a natural ID setting."""
+
+    dao = await mongodb_fixture.dao_factory.get_dao(
+        name="example",
+        dto_model=ExampleDto,
+        id_field="id",
+    )
+
+    resource = ExampleDto(id="example_001", param_a="test1", param_b=27, param_c=True)
+    await dao.insert(resource)
+
+    # check the newly inserted resource:
+    resource_observed = await dao.get(id_=resource.id)
+    assert resource == resource_observed
+
+
+@pytest.mark.asyncio
+async def test_dao_upsert_natural_id_happy(
+    mongodb_fixture: MongoDbFixture,  # noqa: F811
+):
+    """Tests the happy path of upserting new and existing resources in a natural ID
+    setting."""
+
+    dao = await mongodb_fixture.dao_factory.get_dao(
+        name="example",
+        dto_model=ExampleDto,
+        id_field="id",
+    )
+
+    resource = ExampleDto(id="example_001", param_a="test1", param_b=27, param_c=True)
+    await dao.upsert(resource)
+
+    # check the newly inserted resource:
+    resource_observed = await dao.get(id_=resource.id)
+    assert resource == resource_observed
+
+    # update the resource:
+    resource_update = resource.copy(update={"param_c": False})
+    await dao.upsert(resource_update)
+
+    # check the updated resource:
+    resource_update_observed = await dao.get(id_=resource.id)
+    assert resource_update == resource_update_observed

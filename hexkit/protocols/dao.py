@@ -22,7 +22,7 @@ from abc import ABC, abstractmethod
 from collections.abc import AsyncIterator
 from contextlib import AbstractAsyncContextManager
 from copy import copy
-from typing import Any, Literal, Mapping, Optional, TypeVar, Union, overload
+from typing import Any, Mapping, Optional, TypeVar, Union, overload
 
 from pydantic import BaseModel
 
@@ -134,21 +134,18 @@ class DaoCommons(typing.Protocol[Dto]):
         """
         ...
 
-    async def find_one(
-        self,
-        *,
-        mapping: Mapping[str, Any],
-        mode: Literal["single", "newest", "oldest"] = "single",
-    ) -> Optional[Dto]:
-        """Find one resource that matches the specified mapping.
+    async def find_one(self, *, mapping: Mapping[str, Any]) -> Optional[Dto]:
+        """Find the resource that matches the specified mapping. It is expected that
+        at most one resource matches the constraints. An exception is raise if multiple
+        hits are found.
 
         Args:
             mapping:
                 A mapping where the keys correspond to the names of resource fields
                 and the values correspond to the actual values of the resource fields
             mode:
-                One of: "single" (asserts that there will only be one hit, will raise an
-                exception otherwise), "newest" (returns only the resource of the hit
+                One of: "single" (asserts that there will be at most one hit, will raise
+                an exception otherwise), "newest" (returns only the resource of the hit
                 list that was inserted first), or "oldest" - returns only the resource of
                 the hist list that was inserted last. Defaults to "single".
 

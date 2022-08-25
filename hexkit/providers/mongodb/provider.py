@@ -21,16 +21,7 @@ Utilities for testing are located in `./testutils.py`.
 
 from abc import ABC
 from contextlib import AbstractAsyncContextManager
-from typing import (
-    Any,
-    AsyncIterator,
-    Generic,
-    Literal,
-    Mapping,
-    Optional,
-    Union,
-    overload,
-)
+from typing import Any, AsyncIterator, Generic, Mapping, Optional, Union, overload
 from uuid import uuid4
 
 from motor.motor_asyncio import (
@@ -91,12 +82,21 @@ class MongoDbDaoBase(ABC, Generic[Dto]):
         self._dto_model = dto_model
         self._id_field = id_field
 
-    def _document_to_dto(self, document: dict) -> Dto:
+    def _document_to_dto(self, document: dict[str, Any]) -> Dto:
         """Converts a document obtained from the MongoDB database into a DTO model-
         compliant representation."""
 
         document[self._id_field] = document.pop("_id")
         return self._dto_model(**document)
+
+    def _dto_to_document(self, dto: Dto) -> dict[str, Any]:
+        """Converts a DTO into a representation that is compatible documents for a
+        MongoDB Database."""
+
+        document = dto.dict()
+        document["_id"] = document.pop(self._id_field)
+
+        return document
 
     async def get(self, *, id_: str) -> Dto:
         """Get a resource by providing its ID.
@@ -131,14 +131,13 @@ class MongoDbDaoBase(ABC, Generic[Dto]):
                 when resource with the id specified in the dto was not found
         """
 
-        id_ = getattr(dto, self._id_field)
-
+        document = self._dto_to_document(dto)
         result = await self._collection.replace_one(
-            {"_id": id_}, dto.dict(exclude={self._id_field}), session=self._session
+            {"_id": document["_id"]}, document, session=self._session
         )
 
         if result.matched_count == 0:
-            raise ResourceNotFoundError(id_=id_)
+            raise ResourceNotFoundError(id_=document["_id"])
 
         # (trusting MongoDB that matching on the _id field can only yield one or
         # zero matches)
@@ -174,24 +173,10 @@ class MongoDbDaoBase(ABC, Generic[Dto]):
                 f"The provided find mapping was invalid: {error}."
             ) from error
 
-    async def _find_all(self, *, mapping: Mapping[str, Any]) -> AsyncIterator[Dto]:
-        # (in this case it is even an async generator but let's stay complient with the
-        # protocol)
-        """Finds all resources that match the provided mapping. See the find method
-        for more documentation."""
-
-        cursor = self._collection.find(filter=mapping, session=self._session)
-
-        async for document in cursor:
-            yield self._document_to_dto(document)
-
-    async def find_one(
-        self,
-        *,
-        mapping: Mapping[str, Any],
-        mode: Literal["single", "newest", "oldest"] = "single",
-    ) -> Optional[Dto]:
-        """Find one resource that matches the specified mapping.
+    async def find_one(self, *, mapping: Mapping[str, Any]) -> Optional[Dto]:
+        """Find the resource that matches the specified mapping. It is expected that
+        at most one resource matches the constraints. An exception is raise if multiple
+        hits are found.
 
         Args:
             mapping:
@@ -212,23 +197,20 @@ class MongoDbDaoBase(ABC, Generic[Dto]):
                 Raised when obtaining more than one hit when using the "single" mode.
         """
 
-        if mode == "single":
-            hits = self.find_all(mapping=mapping)
+        hits = self.find_all(mapping=mapping)
 
-            try:
-                document = await hits.__anext__()
-            except StopAsyncIteration:
-                return None
+        try:
+            document = await hits.__anext__()
+        except StopAsyncIteration:
+            return None
 
-            try:
-                _ = await hits.__anext__()
-            except StopAsyncIteration:
-                # This is expected:
-                return document
+        try:
+            _ = await hits.__anext__()
+        except StopAsyncIteration:
+            # This is expected:
+            return document
 
-            raise MultpleHitsFoundError(mapping=mapping)
-
-        raise NotImplementedError()
+        raise MultpleHitsFoundError(mapping=mapping)
 
     async def find_all(self, *, mapping: Mapping[str, Any]) -> AsyncIterator[Dto]:
         """Find all resources that match the specified mapping.
@@ -342,11 +324,7 @@ class MongoDbDaoSurrogateId(MongoDbDaoBase[Dto], Generic[Dto, DtoCreation_contra
         # introduced by the pydantic model):
         full_dto = self._dto_model(**data)
 
-        # construct the document that is stored in the DB by using the id_field of the
-        # model as primary identifier (_id):
-        document = full_dto.dict()
-        document["_id"] = document.pop(self._id_field)
-
+        document = self._dto_to_document(full_dto)
         await self._collection.insert_one(document, session=self._session)
 
         return full_dto
@@ -382,7 +360,8 @@ class MongoDbDaoNaturalId(MongoDbDaoBase[Dto]):
                 when a resource with the ID specified in the dto does already exist.
         """
 
-        raise NotImplementedError()
+        document = self._dto_to_document(dto)
+        await self._collection.insert_one(document, session=self._session)
 
     async def upsert(self, dto: Dto) -> None:
         """Update the provided resource if it already exists, create it otherwise.
@@ -393,7 +372,10 @@ class MongoDbDaoNaturalId(MongoDbDaoBase[Dto]):
                 resource ID.
         """
 
-        raise NotImplementedError()
+        document = self._dto_to_document(dto)
+        await self._collection.replace_one(
+            {"_id": document["_id"]}, document, session=self._session, upsert=True
+        )
 
 
 class MongoDbConfig(BaseSettings):
