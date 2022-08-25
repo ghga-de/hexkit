@@ -190,7 +190,7 @@ async def test_dao_update_not_found(
     )
 
     with pytest.raises(ResourceNotFoundError):
-        _ = await dao.update(resource)
+        await dao.update(resource)
 
 
 @pytest.mark.asyncio
@@ -206,7 +206,7 @@ async def test_dao_delete_not_found(
     )
 
     with pytest.raises(ResourceNotFoundError):
-        _ = await dao.delete(id_="my_non_existing_id_001")
+        await dao.delete(id_="my_non_existing_id_001")
 
 
 @pytest.mark.asyncio
