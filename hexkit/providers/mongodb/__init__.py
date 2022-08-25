@@ -14,11 +14,13 @@
 # limitations under the License.
 #
 
-"""Subpackage containing an S3-based provider implementing the ObjectStorageProtocol
+"""Subpackage containing a MongoDB-based provider implementing the DaoFactoryProtocol
 and associated utilities.
 """
 
-# shortcuts:
-from hexkit.providers.s3.provider import S3Config, S3ObjectStorage  # noqa: F401
+from hexkit.providers.mongodb.provider import (  # noqa: F401
+    MongoDbConfig,
+    MongoDbDaoFactory,
+)
 
-__all__ = ["S3Config", "S3ObjectStorage"]
+__all__ = ["MongoDbConfig", "MongoDbDaoFactory"]
