@@ -38,7 +38,7 @@ from hexkit.protocols.dao import (
     Dto,
     DtoCreation,
     DtoCreation_contra,
-    InvalidMappingError,
+    InvalidFindMappingError,
     MultpleHitsFoundError,
     ResourceNotFoundError,
 )
@@ -169,7 +169,7 @@ class MongoDbDaoBase(ABC, Generic[Dto]):
         try:
             validate_fields_in_model(model=self._dto_model, fields=set(mapping.keys()))
         except FieldNotInModelError as error:
-            raise InvalidMappingError(
+            raise InvalidFindMappingError(
                 f"The provided find mapping was invalid: {error}."
             ) from error
 

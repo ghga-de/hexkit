@@ -32,7 +32,6 @@ __all__ = [
     "ResourceNotFoundError",
     "ResourceAlreadyExistsError",
     "FindError",
-    "NoHitsFoundError",
     "MultpleHitsFoundError",
     "DaoNaturalId",
     "DaoSurrogateId",
@@ -65,17 +64,8 @@ class FindError(RuntimeError):
     """Base for all error related to DAO find operations."""
 
 
-class InvalidMappingError(FindError):
+class InvalidFindMappingError(FindError):
     """Raised when an invalid mapping was passed provided to find."""
-
-
-class NoHitsFoundError(FindError):
-    """Raised when a DAO find operation did not result in any hits but at least one
-    hit was expected."""
-
-    def __init__(self, *, mapping: Mapping[str, str]):
-        message = f"No match was found for key-value pairs: {mapping}"
-        super().__init__(message)
 
 
 class MultpleHitsFoundError(FindError):
