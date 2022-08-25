@@ -20,7 +20,7 @@ Utilities for testing are located in `./testutils.py`.
 """
 
 from abc import ABC
-from functools import partial
+from contextlib import AbstractAsyncContextManager
 from typing import (
     Any,
     AsyncIterator,
@@ -28,8 +28,6 @@ from typing import (
     Literal,
     Mapping,
     Optional,
-    Sequence,
-    TypeVar,
     Union,
     overload,
 )
@@ -50,8 +48,8 @@ from hexkit.protocols.dao import (
     DtoCreation,
     DtoCreation_contra,
     InvalidMappingError,
+    MultpleHitsFoundError,
     ResourceNotFoundError,
-    TransactionManager,
 )
 from hexkit.utils import FieldNotInModelError, validate_fields_in_model
 
@@ -69,7 +67,7 @@ class MongoDbDaoBase(ABC, Generic[Dto]):
         dto_model: type[Dto],
         id_field: str,
         collection: AsyncIOMotorCollection,
-        session: AsyncIOMotorClientSession,
+        session: Optional[AsyncIOMotorClientSession] = None,
     ):
         """Initialize the DAO.
 
@@ -82,8 +80,10 @@ class MongoDbDaoBase(ABC, Generic[Dto]):
             collection:
                 A collection object from the motor library.
             session:
-                A AsyncIOMotorClientSession that is within an active transaction.
-                Transactions are managed outside of this class.
+                If transactional support is needed, please provide an
+                AsyncIOMotorClientSession that is within an active transaction. If None
+                is provided, every database operation is immediately commited. Defaults
+                to None.
         """
 
         self._collection = collection
@@ -91,7 +91,7 @@ class MongoDbDaoBase(ABC, Generic[Dto]):
         self._dto_model = dto_model
         self._id_field = id_field
 
-    def _document_to_dto(self, document: Mapping) -> Dto:
+    def _document_to_dto(self, document: dict) -> Dto:
         """Converts a document obtained from the MongoDB database into a DTO model-
         compliant representation."""
 
@@ -161,65 +161,12 @@ class MongoDbDaoBase(ABC, Generic[Dto]):
         # (trusting MongoDB that matching on the _id field can only yield one or
         # zero matches)
 
-    async def _find_all(self, *, mapping: Mapping[str, object]) -> AsyncIterator[Dto]:
-        # (in this case it is even an async generator but let's stay complient with the
-        # protocol)
-        """Finds all resources that match the provided mapping. See the find method
-        for more documentation."""
-
-        cursor = await self._collection.find(filter=mapping, session=self._session)
-
-        async for document in cursor:
-            yield self._document_to_dto(document)
-
-    @overload
-    async def find(
-        self, *, mapping: Mapping[str, object], returns: Literal["all"]
-    ) -> AsyncIterator[Dto]:
-        ...
-
-    @overload
-    async def find(
-        self,
-        *,
-        mapping: Mapping[str, object],
-        returns: Literal["newest", "oldest", "single"],
-    ) -> Dto:
-        ...
-
-    async def find(
-        self,
-        *,
-        mapping: Mapping[str, object],
-        returns: Literal["all", "newest", "oldest", "single"] = "all",
-    ) -> Union[AsyncIterator[Dto], Dto]:
-        """Find resource by specifing a list of key-value pairs that must match.
-
-        Args:
-            mapping:
-                A mapping where the keys correspond to the names of resource fields
-                and the values correspond to the actual values of the resource fields.
-            returns:
-                Controls the return behavior. Can be one of: "all" - returns all hits;
-                "newest" - returns only the resource of the hit list that was inserted
-                first); "oldest" - returns only the resource of the hist list that was
-                inserted last; "single" - asserts that there will only be one hit
-                (will raise an exception otherwise). Defaults to "all".
-
-        Returns:
-            If `returns` was set to "all", an AsyncIterator of hits is returned.
-            Otherwise will return only a single hit. All hits are in the form of the
-            respective DTO model.
+    def _validate_find_mapping(self, mapping: Mapping[str, Any]):
+        """Validates a key/value mapping used in find methods.
 
         Raises:
-            NoHitsFoundError:
-                Raised when no hits where found when used in "newest", "oldest", or
-                "single" mode. When using the "all" mode, zero hits will not cause an
-                exception but simply result in an empty list beeing returned.
-            MultpleHitsFoundError:
-                Raised when obtaining more than one hit when using the "single" mode.
+            InvalidMappingError: If validation fails.
         """
-
         try:
             validate_fields_in_model(model=self._dto_model, fields=set(mapping.keys()))
         except FieldNotInModelError as error:
@@ -227,10 +174,81 @@ class MongoDbDaoBase(ABC, Generic[Dto]):
                 f"The provided find mapping was invalid: {error}."
             ) from error
 
-        if returns == "all":
-            return await self._find_all(mapping=mapping)
+    async def _find_all(self, *, mapping: Mapping[str, Any]) -> AsyncIterator[Dto]:
+        # (in this case it is even an async generator but let's stay complient with the
+        # protocol)
+        """Finds all resources that match the provided mapping. See the find method
+        for more documentation."""
+
+        cursor = self._collection.find(filter=mapping, session=self._session)
+
+        async for document in cursor:
+            yield self._document_to_dto(document)
+
+    async def find_one(
+        self,
+        *,
+        mapping: Mapping[str, Any],
+        mode: Literal["single", "newest", "oldest"] = "single",
+    ) -> Optional[Dto]:
+        """Find one resource that matches the specified mapping.
+
+        Args:
+            mapping:
+                A mapping where the keys correspond to the names of resource fields
+                and the values correspond to the actual values of the resource fields
+            mode:
+                One of: "single" (asserts that there will be at most one hit, will raise
+                an exception otherwise), "newest" (returns only the resource of the hit
+                list that was inserted first), or "oldest" - returns only the resource of
+                the hist list that was inserted last. Defaults to "single".
+
+        Returns:
+            Returns a hit in the form of the respective DTO model or None if no hit
+            was found.
+
+        Raises:
+            MultpleHitsFoundError:
+                Raised when obtaining more than one hit when using the "single" mode.
+        """
+
+        if mode == "single":
+            hits = self.find_all(mapping=mapping)
+
+            try:
+                document = await hits.__anext__()
+            except StopAsyncIteration:
+                return None
+
+            try:
+                _ = await hits.__anext__()
+            except StopAsyncIteration:
+                # This is expected:
+                return document
+
+            raise MultpleHitsFoundError(mapping=mapping)
 
         raise NotImplementedError()
+
+    async def find_all(self, *, mapping: Mapping[str, Any]) -> AsyncIterator[Dto]:
+        """Find all resources that match the specified mapping.
+
+        Args:
+            mapping:
+                A mapping where the keys correspond to the names of resource fields
+                and the values correspond to the actual values of the resource fields.
+
+        Returns:
+            An AsyncIterator of hits. All hits are in the form of the respective DTO
+            model.
+        """
+
+        self._validate_find_mapping(mapping)
+
+        cursor = self._collection.find(filter=mapping, session=self._session)
+
+        async for document in cursor:
+            yield self._document_to_dto(document)
 
 
 class MongoDbDaoSurrogateId(MongoDbDaoBase[Dto], Generic[Dto, DtoCreation_contra]):
@@ -242,6 +260,21 @@ class MongoDbDaoSurrogateId(MongoDbDaoBase[Dto], Generic[Dto, DtoCreation_contra
      creation of new resources, is needed.
     """
 
+    @classmethod
+    def with_transaction(
+        cls,
+    ) -> AbstractAsyncContextManager["DaoSurrogateId[Dto, DtoCreation_contra]"]:
+        """Creates a transaction manager that uses an async context manager interface:
+
+        Upon __aenter__, pens a new transactional scope. Returns a transaction-scoped
+        DAO.
+
+        Upon __aexit__, closes the transactional scope. A full rollback of the
+        transaction is performed in case of an exception. Otherwise, the changes to the
+        database are committed and flushed.
+        """
+        raise NotImplementedError()
+
     def __init__(
         self,
         *,
@@ -249,7 +282,7 @@ class MongoDbDaoSurrogateId(MongoDbDaoBase[Dto], Generic[Dto, DtoCreation_contra
         dto_creation_model: type[DtoCreation_contra],
         id_field: str,
         collection: AsyncIOMotorCollection,
-        session: AsyncIOMotorClientSession,
+        session: Optional[AsyncIOMotorClientSession] = None,
     ):
         """Initialize the DAO.
 
@@ -267,8 +300,10 @@ class MongoDbDaoSurrogateId(MongoDbDaoBase[Dto], Generic[Dto, DtoCreation_contra
             collection:
                 A collection object from the motor library.
             session:
-                A AsyncIOMotorClientSession that is within an active transaction.
-                Transactions are managed outside of this class.
+                If transactional support is needed, please provide an
+                AsyncIOMotorClientSession that is within an active transaction. If None
+                is provided, every database operation is immediately commited. Defaults
+                to None.
         """
 
         super().__init__(
@@ -320,6 +355,20 @@ class MongoDbDaoSurrogateId(MongoDbDaoBase[Dto], Generic[Dto, DtoCreation_contra
 class MongoDbDaoNaturalId(MongoDbDaoBase[Dto]):
     """A duck type of a DAO that uses a natural resource ID profided by the client."""
 
+    @classmethod
+    def with_transaction(cls) -> AbstractAsyncContextManager["DaoNaturalId[Dto]"]:
+        """Creates a transaction manager that uses an async context manager interface:
+
+        Upon __aenter__, pens a new transactional scope. Returns a transaction-scoped
+        DAO.
+
+        Upon __aexit__, closes the transactional scope. A full rollback of the
+        transaction is performed in case of an exception. Otherwise, the changes to the
+        database are committed and flushed.
+        """
+
+        raise NotImplementedError()
+
     async def insert(self, dto: Dto) -> None:
         """Create a new resource.
 
@@ -345,66 +394,6 @@ class MongoDbDaoNaturalId(MongoDbDaoBase[Dto]):
         """
 
         raise NotImplementedError()
-
-
-Dao = TypeVar("Dao")
-
-
-class MongoDbTransactionManager(Generic[Dao]):
-    """Manages transactional scopes for database interactions using an async context
-    manager interface."""
-
-    def __init__(self, *, dao_constructor: partial[Dao], client: AsyncIOMotorClient):
-        """Iniatialize the transaction manager with a preconfigured DAO constructor and
-        a preconfigured MongoDB client.
-
-        Args:
-            dao_constructor:
-                A partially-initialized DAO object that is only missing a `session`
-                argument of type motor.motor_asyncio.AsyncIOMotorClientSession.
-            client:
-                A MongoDB client object from the motors library.
-        """
-
-        self._dao_constructor = dao_constructor
-        self._client = client
-
-        self._session: Optional[AsyncIOMotorClientSession] = None
-
-    async def __aenter__(self) -> Dao:
-        """Upon __enter__, opens a new transactional scope. Returns a DAO according to
-        the Dao_co type variable."""
-
-        if self._session is not None:
-            raise RuntimeError(
-                "This transaction manager is already in use. Please close the ongoing"
-                + " transaction by running the __aexit__ method."
-            )
-
-        self._session = await self._client.start_session()
-        self._session.start_transaction()
-
-        return self._dao_constructor(session=self._session)
-
-    async def __aexit__(self, exc_type, exc_value, exc_trace):
-        """
-        Upon __exit__, closes the transactional scope. A full rollback of the transaction is
-        performed in case of an exception. Otherwise, the changes to the database are
-        committed and flushed.
-        """
-
-        if self._session is None:
-            raise RuntimeError("No transaction running, call __aenter__ first.")
-
-        if exc_type is None:
-            await self._session.commit_transaction()
-        else:
-            await self._session.abort_transaction()
-
-        await self._session.end_session()
-        self._session = None
-
-        return False
 
 
 class MongoDbConfig(BaseSettings):
@@ -461,7 +450,7 @@ class MongoDbDaoFactory(DaoFactoryProtcol):
         dto_model: type[Dto],
         id_field: str,
         fields_to_index: Optional[set[str]] = None,
-    ) -> TransactionManager[DaoNaturalId[Dto]]:
+    ) -> DaoNaturalId[Dto]:
         ...
 
     @overload
@@ -473,7 +462,7 @@ class MongoDbDaoFactory(DaoFactoryProtcol):
         id_field: str,
         dto_creation_model: type[DtoCreation],
         fields_to_index: Optional[set[str]] = None,
-    ) -> TransactionManager[DaoSurrogateId[Dto, DtoCreation]]:
+    ) -> DaoSurrogateId[Dto, DtoCreation]:
         ...
 
     async def _get_dao(
@@ -484,10 +473,7 @@ class MongoDbDaoFactory(DaoFactoryProtcol):
         id_field: str,
         dto_creation_model: Optional[type[DtoCreation]] = None,
         fields_to_index: Optional[set[str]] = None,
-    ) -> Union[
-        TransactionManager[DaoSurrogateId[Dto, DtoCreation]],
-        TransactionManager[DaoNaturalId[Dto]],
-    ]:
+    ) -> Union[DaoSurrogateId[Dto, DtoCreation], DaoNaturalId[Dto],]:
         """Constructs a DAO for interacting with resources in a MongoDB database.
 
         Please see the DaoFactoryProtcol superclass for documentation of parameters.
@@ -506,28 +492,16 @@ class MongoDbDaoFactory(DaoFactoryProtcol):
 
         collection = self._db[name]
 
-        # Prepare a partially initialized DAO Object so that the the transaction scope
-        # (see below) is only responsible for supplying the missing the session
-        # session argument to obtain a fully initialized DAO:
-        # (Using Any because mypy does not (but pylance does) recognize this as
-        # Union[partial[MongoDbDaoNaturalId],partial[MongoDbDaoSurrogateId]].)
-        partial_dao: Any = (
-            partial(
-                MongoDbDaoNaturalId,
+        if dto_creation_model is None:
+            return MongoDbDaoNaturalId(
                 collection=collection,
                 dto_model=dto_model,
                 id_field=id_field,
             )
-            if dto_creation_model is None
-            else partial(
-                MongoDbDaoSurrogateId,
-                collection=collection,
-                dto_model=dto_model,
-                dto_creation_model=dto_creation_model,
-                id_field=id_field,
-            )
-        )
 
-        return MongoDbTransactionManager(
-            dao_constructor=partial_dao, client=self._client
+        return MongoDbDaoSurrogateId(
+            collection=collection,
+            dto_model=dto_model,
+            dto_creation_model=dto_creation_model,
+            id_field=id_field,
         )

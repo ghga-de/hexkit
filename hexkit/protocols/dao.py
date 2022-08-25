@@ -19,17 +19,10 @@ with the database."""
 
 import typing
 from abc import ABC, abstractmethod
+from collections.abc import AsyncIterator
+from contextlib import AbstractAsyncContextManager
 from copy import copy
-from typing import (
-    AsyncIterator,
-    Literal,
-    Mapping,
-    Optional,
-    Sequence,
-    TypeVar,
-    Union,
-    overload,
-)
+from typing import Any, Literal, Mapping, Optional, TypeVar, Union, overload
 
 from pydantic import BaseModel
 
@@ -141,52 +134,45 @@ class DaoCommons(typing.Protocol[Dto]):
         """
         ...
 
-    @overload
-    async def find(
-        self, *, mapping: Mapping[str, object], returns: Literal["all"]
-    ) -> AsyncIterator[Dto]:
-        ...
-
-    @overload
-    async def find(
+    async def find_one(
         self,
         *,
-        mapping: Mapping[str, object],
-        returns: Literal["newest", "oldest", "single"],
-    ) -> Dto:
+        mapping: Mapping[str, Any],
+        mode: Literal["single", "newest", "oldest"] = "single",
+    ) -> Optional[Dto]:
+        """Find one resource that matches the specified mapping.
+
+        Args:
+            mapping:
+                A mapping where the keys correspond to the names of resource fields
+                and the values correspond to the actual values of the resource fields
+            mode:
+                One of: "single" (asserts that there will only be one hit, will raise an
+                exception otherwise), "newest" (returns only the resource of the hit
+                list that was inserted first), or "oldest" - returns only the resource of
+                the hist list that was inserted last. Defaults to "single".
+
+        Returns:
+            Returns a hit in the form of the respective DTO model or None if no hit
+            was found.
+
+        Raises:
+            MultpleHitsFoundError:
+                Raised when obtaining more than one hit when using the "single" mode.
+        """
         ...
 
-    async def find(
-        self,
-        *,
-        mapping: Mapping[str, object],
-        returns: Literal["all", "newest", "oldest", "single"] = "all",
-    ) -> Union[AsyncIterator[Dto], Dto]:
-        """Find resource by specifing a list of key-value pairs that must match.
+    def find_all(self, *, mapping: Mapping[str, Any]) -> AsyncIterator[Dto]:
+        """Find all resources that match the specified mapping.
 
         Args:
             mapping:
                 A mapping where the keys correspond to the names of resource fields
                 and the values correspond to the actual values of the resource fields.
-            returns:
-                Controls the return behavior. Can be one of: "all" - returns all hits;
-                "newest" - returns only the resource of the hit list that was inserted
-                first); "oldest" - returns only the resource of the hist list that was
-                inserted last; "single" - asserts that there will only be one hit
-                (will raise an exception otherwise). Defaults to "all".
 
         Returns:
-            If `returns` was set to "all", an AsyncIterator of hits is returned.
-            Otherwise will return only a single hit. All hits are in the form of the
-            respective DTO model.
-
-        Raises:
-            NoHitsFoundError:
-                Raised when no hits where found when used in "newest", "oldest", or
-                "single" mode. When using the "all" mode, zero hits will not cause an
-                exception but simply result in an empty list beeing returned.
-            MultpleHitsFoundError:
-                Raised when obtaining more than one hit when using the "single" mode.
+            An AsyncIterator of hits. All hits are in the form of the respective DTO
+            model.
         """
         ...
 
@@ -199,6 +185,21 @@ class DaoSurrogateId(DaoCommons[Dto], typing.Protocol[Dto, DtoCreation_contra]):
     identical to the first one, but does not include the ID field and is dedicated for
      creation of new resources, is needed.
     """
+
+    @classmethod
+    def with_transaction(
+        cls,
+    ) -> AbstractAsyncContextManager["DaoSurrogateId[Dto, DtoCreation_contra]"]:
+        """Creates a transaction manager that uses an async context manager interface:
+
+        Upon __aenter__, pens a new transactional scope. Returns a transaction-scoped
+        DAO.
+
+        Upon __aexit__, closes the transactional scope. A full rollback of the
+        transaction is performed in case of an exception. Otherwise, the changes to the
+        database are committed and flushed.
+        """
+        ...
 
     async def insert(self, dto: DtoCreation_contra) -> Dto:
         """Create a new resource.
@@ -216,6 +217,19 @@ class DaoSurrogateId(DaoCommons[Dto], typing.Protocol[Dto, DtoCreation_contra]):
 
 class DaoNaturalId(DaoCommons[Dto], typing.Protocol[Dto]):
     """A duck type of a DAO that uses a natural resource ID profided by the client."""
+
+    @classmethod
+    def with_transaction(cls) -> AbstractAsyncContextManager["DaoNaturalId[Dto]"]:
+        """Creates a transaction manager that uses an async context manager interface:
+
+        Upon __aenter__, pens a new transactional scope. Returns a transaction-scoped
+        DAO.
+
+        Upon __aexit__, closes the transactional scope. A full rollback of the
+        transaction is performed in case of an exception. Otherwise, the changes to the
+        database are committed and flushed.
+        """
+        ...
 
     async def insert(self, dto: Dto) -> None:
         """Create a new resource.
@@ -239,25 +253,6 @@ class DaoNaturalId(DaoCommons[Dto], typing.Protocol[Dto]):
                 Resource content as a pydantic-based data transfer object including the
                 resource ID.
         """
-        ...
-
-
-Dao_co = TypeVar("Dao_co", covariant=True)
-
-
-class TransactionManager(typing.Protocol[Dao_co]):
-    """A duck type of an object that manages a transactional scope for database
-    interactions using a async context manager interface."""
-
-    async def __aenter__(self) -> Dao_co:
-        """Opens a new transactional scope. Returns a DAO according to the Dao_co type
-        variable."""
-        ...
-
-    async def __aexit__(self, exc_type, exc_value, exc_trace):
-        """Closes the transactional scope. A full rollback of the transaction is
-        performed in case of an exception. Otherwise, the changes to the database are
-        committed and flushed."""
         ...
 
 
@@ -335,7 +330,7 @@ class DaoFactoryProtcol(ABC):
         dto_model: type[Dto],
         id_field: str,
         fields_to_index: Optional[set[str]] = None,
-    ) -> TransactionManager[DaoNaturalId[Dto]]:
+    ) -> DaoNaturalId[Dto]:
         ...
 
     @overload
@@ -347,7 +342,7 @@ class DaoFactoryProtcol(ABC):
         id_field: str,
         dto_creation_model: type[DtoCreation],
         fields_to_index: Optional[set[str]] = None,
-    ) -> TransactionManager[DaoSurrogateId[Dto, DtoCreation]]:
+    ) -> DaoSurrogateId[Dto, DtoCreation]:
         ...
 
     async def get_dao(
@@ -358,10 +353,7 @@ class DaoFactoryProtcol(ABC):
         id_field: str,
         dto_creation_model: Optional[type[DtoCreation]] = None,
         fields_to_index: Optional[set[str]] = None,
-    ) -> Union[
-        TransactionManager[DaoSurrogateId[Dto, DtoCreation]],
-        TransactionManager[DaoNaturalId[Dto]],
-    ]:
+    ) -> Union[DaoSurrogateId[Dto, DtoCreation], DaoNaturalId[Dto],]:
         """Constructs a DAO for interacting with resources in a database.
 
         Args:
@@ -425,7 +417,7 @@ class DaoFactoryProtcol(ABC):
         dto_model: type[Dto],
         id_field: str,
         fields_to_index: Optional[set[str]] = None,
-    ) -> TransactionManager[DaoNaturalId[Dto]]:
+    ) -> DaoNaturalId[Dto]:
         ...
 
     @overload
@@ -437,7 +429,7 @@ class DaoFactoryProtcol(ABC):
         id_field: str,
         dto_creation_model: type[DtoCreation],
         fields_to_index: Optional[set[str]] = None,
-    ) -> TransactionManager[DaoSurrogateId[Dto, DtoCreation]]:
+    ) -> DaoSurrogateId[Dto, DtoCreation]:
         ...
 
     @abstractmethod
@@ -449,10 +441,7 @@ class DaoFactoryProtcol(ABC):
         id_field: str,
         dto_creation_model: Optional[type[DtoCreation]] = None,
         fields_to_index: Optional[set[str]] = None,
-    ) -> Union[
-        TransactionManager[DaoSurrogateId[Dto, DtoCreation]],
-        TransactionManager[DaoNaturalId[Dto]],
-    ]:
+    ) -> Union[DaoSurrogateId[Dto, DtoCreation], DaoNaturalId[Dto],]:
         """*To be implemented by the provider. Input validation is done outside of this
         method.*"""
         ...

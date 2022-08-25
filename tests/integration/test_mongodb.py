@@ -31,6 +31,9 @@ class ExampleCreationDto(BaseModel):
     param_b: int
     param_c: bool
 
+    class Config:
+        frozen = True
+
 
 class ExampleDto(ExampleCreationDto):
     """Example DTO model."""
@@ -51,57 +54,51 @@ async def test_dao_factory_happy_crud(mongodb_fixture: MongoDbFixture):  # noqa:
     )
 
     # insert an example resource:
-    resource_to_create = ExampleCreationDto(param_a="test", param_b=27, param_c=True)
-    async with dao as transaction:
-        resource_inserted = await transaction.insert(resource_to_create)
+    resource_to_create = ExampleCreationDto(param_a="test1", param_b=27, param_c=True)
+    resource_inserted = await dao.insert(resource_to_create)
 
     assert isinstance(resource_inserted, ExampleDto)
     assert resource_inserted.dict(exclude={"id"}) == resource_to_create.dict()
 
     # read the newly inserted resource:
-    async with dao as transaction:
-        resource_read = await transaction.get(id_=resource_inserted.id)
+    resource_read = await dao.get(id_=resource_inserted.id)
 
     assert resource_read == resource_inserted
 
     # update the resource:
     resource_update = resource_inserted.copy(update={"param_c": False})
-    async with dao as transaction:
-        await transaction.update(resource_update)
+    await dao.update(resource_update)
 
     # read the updated resource again:
-    async with dao as transaction:
-        resource_updated = await transaction.get(id_=resource_inserted.id)
+    resource_updated = await dao.get(id_=resource_inserted.id)
 
     assert resource_update == resource_updated
 
     # insert additional resources:
     add_resources_to_create = (
-        ExampleCreationDto(param_a="test2", param_b=27, param_c=False),
         ExampleCreationDto(param_a="test2", param_b=27, param_c=True),
+        ExampleCreationDto(param_a="test3", param_b=27, param_c=False),
     )
-    async with dao as transaction:
-        add_resources_inserted = (
-            await transaction.insert(resource) for resource in add_resources_to_create
-        )
+    add_resources_inserted = [
+        await dao.insert(resource) for resource in add_resources_to_create
+    ]
 
-    # perform a search:
-    async with dao as transaction:
-        obtained_hits = {
-            hit
-            async for hit in transaction.find(mapping={"param_b": 27, "param_c": True})
-        }
+    # perform a search for multiple resources:
+    obtained_hits = {
+        hit async for hit in dao.find_all(mapping={"param_b": 27, "param_c": False})
+    }
 
-    expected_hits = {resource_inserted, add_resources_inserted[1]}
+    expected_hits = {resource_updated, add_resources_inserted[1]}
     assert obtained_hits == expected_hits
 
+    # find a single resource:
+    obtained_hit = await dao.find_one(mapping={"param_a": "test1"})
+
+    assert obtained_hit == resource_updated
+
     # delete the resource:
-    async with dao as transaction:
-        await transaction.delete(id_=resource_inserted.id)
+    await dao.delete(id_=resource_inserted.id)
 
     # confirm that the resource was deleted:
-
-    # read the newly inserted resource:
-    async with dao as transaction:
-        with pytest.raises(ResourceNotFoundError):
-            _ = await transaction.get(id_=resource_inserted.id)
+    with pytest.raises(ResourceNotFoundError):
+        _ = await dao.get(id_=resource_inserted.id)
