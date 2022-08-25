@@ -15,6 +15,8 @@
 
 """General utilities that don't require heavy dependencies."""
 
+from pydantic import BaseModel
+
 
 class NonAsciiStrError(RuntimeError):
     """Thrown when non-ASCII string was unexpectedly provided"""
@@ -30,3 +32,29 @@ def check_ascii(*str_values: str):
     for str_value in str_values:
         if not str_value.isascii():
             raise NonAsciiStrError(str_value=str_value)
+
+
+class FieldNotInModelError(RuntimeError):
+    """Raised when provided fields where not contained in a pydantic model."""
+
+    def __init__(self, *, model: BaseModel, unexpected_field: set[str]):
+        message = (
+            f"The pydantic model {model} does not contain following fields: "
+            + str(unexpected_field)
+        )
+        super().__init__(message)
+
+
+def validate_fields_in_model(
+    *,
+    model: type[BaseModel],
+    fields: set[str],
+) -> None:
+    """Checks that all provided fields are present in the dto_model.
+    Raises IndexFieldsInvalidError otherwise."""
+
+    existing_fields = set(model.schema()["properties"])
+
+    if not fields.issubset(existing_fields):
+        unexpected_fields = fields.difference(existing_fields)
+        raise FieldNotInModelError(model=model, unexpected_field=unexpected_fields)
