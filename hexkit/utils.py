@@ -37,7 +37,7 @@ def check_ascii(*str_values: str):
 class FieldNotInModelError(RuntimeError):
     """Raised when provided fields where not contained in a pydantic model."""
 
-    def __init__(self, *, model: BaseModel, unexpected_field: set[str]):
+    def __init__(self, *, model: type[BaseModel], unexpected_field: set[str]):
         message = (
             f"The pydantic model {model} does not contain following fields: "
             + str(unexpected_field)
