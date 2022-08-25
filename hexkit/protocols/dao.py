@@ -19,16 +19,19 @@ with the database."""
 
 import typing
 from abc import ABC, abstractmethod
+from collections.abc import AsyncIterator
+from contextlib import AbstractAsyncContextManager
 from copy import copy
-from typing import Literal, Mapping, Optional, Sequence, TypeVar, Union, overload
+from typing import Any, Mapping, Optional, TypeVar, Union, overload
 
 from pydantic import BaseModel
+
+from hexkit.utils import FieldNotInModelError, validate_fields_in_model
 
 __all__ = [
     "ResourceNotFoundError",
     "ResourceAlreadyExistsError",
     "FindError",
-    "NoHitsFoundError",
     "MultpleHitsFoundError",
     "DaoNaturalId",
     "DaoSurrogateId",
@@ -61,23 +64,18 @@ class FindError(RuntimeError):
     """Base for all error related to DAO find operations."""
 
 
-class NoHitsFoundError(FindError):
-    """Raised when a DAO find operation did not result in any hits but at least one
-    hit was expected."""
-
-    def __init__(self, *, kv: Mapping[str, str]):
-        message = f"No match was found for key-value pairs: {kv}"
-        super().__init__(message)
+class InvalidFindMappingError(FindError):
+    """Raised when an invalid mapping was passed provided to find."""
 
 
 class MultpleHitsFoundError(FindError):
     """Raised when a DAO find operation did result in multiple hits while only a
     single hit was expected."""
 
-    def __init__(self, *, kv: Mapping[str, str]):
+    def __init__(self, *, mapping: Mapping[str, str]):
         message = (
             "Multiple hits were found for the following key-value pairs while only a"
-            f" single one was expected: {kv}"
+            f" single one was expected: {mapping}"
         )
         super().__init__(message)
 
@@ -124,53 +122,44 @@ class DaoCommons(typing.Protocol[Dto]):
         Raises:
             ResourceNotFoundError: when resource with the specified id_ was not found
         """
-
-    @overload
-    async def find(
-        self, *, kv: Mapping[str, object], returns: Literal["all"]
-    ) -> Sequence[Dto]:
         ...
 
-    @overload
-    async def find(
-        self,
-        *,
-        kv: Mapping[str, object],
-        returns: Literal["newest", "oldest", "single"],
-    ) -> Dto:
-        ...
-
-    async def find(
-        self,
-        *,
-        kv: Mapping[str, object],
-        returns: Literal["all", "newest", "oldest", "single"] = "all",
-    ) -> Union[Sequence[Dto], Dto]:
-        """Find resource by specifing a list of key-value pairs that must match.
+    async def find_one(self, *, mapping: Mapping[str, Any]) -> Optional[Dto]:
+        """Find the resource that matches the specified mapping. It is expected that
+        at most one resource matches the constraints. An exception is raise if multiple
+        hits are found.
 
         Args:
-            kv:
+            mapping:
                 A mapping where the keys correspond to the names of resource fields
-                and the values correspond to the actual values of the resource fields.
-            returns:
-                Controls the return behavior. Can be one of: "all" - returns all hits;
-                "newest" - returns only the resource of the hit list that was inserted
-                first); "oldest" - returns only the resource of the hist list that was
-                inserted last; "single" - asserts that there will only be one hit
-                (will raise an exception otherwise). Defaults to "all".
+                and the values correspond to the actual values of the resource fields
+            mode:
+                One of: "single" (asserts that there will be at most one hit, will raise
+                an exception otherwise), "newest" (returns only the resource of the hit
+                list that was inserted first), or "oldest" - returns only the resource of
+                the hist list that was inserted last. Defaults to "single".
 
         Returns:
-            If `returns` was set to "all", a sequence of hits is returned. Otherwise will
-            return only a single hit. All hits are in the form of the respective DTO
-            model.
+            Returns a hit in the form of the respective DTO model or None if no hit
+            was found.
 
         Raises:
-            NoHitsFoundError:
-                Raised when no hits where found when used in "newest", "oldest", or
-                "single" mode. When using the "all" mode, zero hits will not cause an
-                exception but simply result in an empty list beeing returned.
             MultpleHitsFoundError:
                 Raised when obtaining more than one hit when using the "single" mode.
+        """
+        ...
+
+    def find_all(self, *, mapping: Mapping[str, Any]) -> AsyncIterator[Dto]:
+        """Find all resources that match the specified mapping.
+
+        Args:
+            mapping:
+                A mapping where the keys correspond to the names of resource fields
+                and the values correspond to the actual values of the resource fields.
+
+        Returns:
+            An AsyncIterator of hits. All hits are in the form of the respective DTO
+            model.
         """
         ...
 
@@ -183,6 +172,21 @@ class DaoSurrogateId(DaoCommons[Dto], typing.Protocol[Dto, DtoCreation_contra]):
     identical to the first one, but does not include the ID field and is dedicated for
      creation of new resources, is needed.
     """
+
+    @classmethod
+    def with_transaction(
+        cls,
+    ) -> AbstractAsyncContextManager["DaoSurrogateId[Dto, DtoCreation_contra]"]:
+        """Creates a transaction manager that uses an async context manager interface:
+
+        Upon __aenter__, pens a new transactional scope. Returns a transaction-scoped
+        DAO.
+
+        Upon __aexit__, closes the transactional scope. A full rollback of the
+        transaction is performed in case of an exception. Otherwise, the changes to the
+        database are committed and flushed.
+        """
+        ...
 
     async def insert(self, dto: DtoCreation_contra) -> Dto:
         """Create a new resource.
@@ -200,6 +204,19 @@ class DaoSurrogateId(DaoCommons[Dto], typing.Protocol[Dto, DtoCreation_contra]):
 
 class DaoNaturalId(DaoCommons[Dto], typing.Protocol[Dto]):
     """A duck type of a DAO that uses a natural resource ID profided by the client."""
+
+    @classmethod
+    def with_transaction(cls) -> AbstractAsyncContextManager["DaoNaturalId[Dto]"]:
+        """Creates a transaction manager that uses an async context manager interface:
+
+        Upon __aenter__, pens a new transactional scope. Returns a transaction-scoped
+        DAO.
+
+        Upon __aexit__, closes the transactional scope. A full rollback of the
+        transaction is performed in case of an exception. Otherwise, the changes to the
+        database are committed and flushed.
+        """
+        ...
 
     async def insert(self, dto: Dto) -> None:
         """Create a new resource.
@@ -223,25 +240,6 @@ class DaoNaturalId(DaoCommons[Dto], typing.Protocol[Dto]):
                 Resource content as a pydantic-based data transfer object including the
                 resource ID.
         """
-        ...
-
-
-Dao_co = TypeVar("Dao_co", covariant=True)
-
-
-class TransactionalScope(typing.Protocol[Dao_co]):
-    """A duck type of an object that manages the transactional scope for database
-    interactions using a context manager."""
-
-    async def __aenter__(self) -> Dao_co:
-        """Opens a new transactional scope. Returns a DAO according to the Dao_co type
-        variable."""
-        ...
-
-    async def __aexit__(self, exc_type, exc_value, exc_trace):
-        """Closes the transactional scope. A full rollback of the transaction is
-        performed in case of an exception. Otherwise, the changes to the database are
-        committed and flushed."""
         ...
 
 
@@ -298,20 +296,18 @@ class DaoFactoryProtcol(ABC):
         dto_model: type[Dto],
         fields_to_index: Optional[set[str]],
     ) -> None:
-        """Checks that all index fields are present in the dto_model.
+        """Checks that all provided fields are present in the dto_model.
         Raises IndexFieldsInvalidError otherwise."""
 
         if fields_to_index is None:
             return
 
-        existing_fields = set(dto_model.schema()["properties"])
-
-        if not fields_to_index.issubset(existing_fields):
-            additional_fields = fields_to_index.difference(existing_fields)
+        try:
+            validate_fields_in_model(model=dto_model, fields=fields_to_index)
+        except FieldNotInModelError as error:
             raise cls.IndexFieldsInvalidError(
-                "The following fields are not part of the DTO model: "
-                + str(additional_fields)
-            )
+                f"Provided index fields are invalid: {error}"
+            ) from error
 
     @overload
     async def get_dao(
@@ -321,7 +317,7 @@ class DaoFactoryProtcol(ABC):
         dto_model: type[Dto],
         id_field: str,
         fields_to_index: Optional[set[str]] = None,
-    ) -> TransactionalScope[DaoNaturalId[Dto]]:
+    ) -> DaoNaturalId[Dto]:
         ...
 
     @overload
@@ -333,7 +329,7 @@ class DaoFactoryProtcol(ABC):
         id_field: str,
         dto_creation_model: type[DtoCreation],
         fields_to_index: Optional[set[str]] = None,
-    ) -> TransactionalScope[DaoSurrogateId[Dto, DtoCreation]]:
+    ) -> DaoSurrogateId[Dto, DtoCreation]:
         ...
 
     async def get_dao(
@@ -344,10 +340,7 @@ class DaoFactoryProtcol(ABC):
         id_field: str,
         dto_creation_model: Optional[type[DtoCreation]] = None,
         fields_to_index: Optional[set[str]] = None,
-    ) -> Union[
-        TransactionalScope[DaoSurrogateId[Dto, DtoCreation]],
-        TransactionalScope[DaoNaturalId[Dto]],
-    ]:
+    ) -> Union[DaoSurrogateId[Dto, DtoCreation], DaoNaturalId[Dto],]:
         """Constructs a DAO for interacting with resources in a database.
 
         Args:
@@ -365,7 +358,7 @@ class DaoFactoryProtcol(ABC):
             dto_creation_model:
                 An optional DTO model specific for creation of a new resource. This
                 model has to be identical to the `dto_model` except that it has to miss
-                the `id_field`. If specified, resource ID will be generated by the DAO
+                the `id_field`. If specified, the resource ID will be generated by the DAO
                 implementation upon resource creation. Otherwise (if set to None), resource IDs
                  have to be specified upon resource creation. Defaults to None.
         Returns:
@@ -411,7 +404,7 @@ class DaoFactoryProtcol(ABC):
         dto_model: type[Dto],
         id_field: str,
         fields_to_index: Optional[set[str]] = None,
-    ) -> TransactionalScope[DaoNaturalId[Dto]]:
+    ) -> DaoNaturalId[Dto]:
         ...
 
     @overload
@@ -423,7 +416,7 @@ class DaoFactoryProtcol(ABC):
         id_field: str,
         dto_creation_model: type[DtoCreation],
         fields_to_index: Optional[set[str]] = None,
-    ) -> TransactionalScope[DaoSurrogateId[Dto, DtoCreation]]:
+    ) -> DaoSurrogateId[Dto, DtoCreation]:
         ...
 
     @abstractmethod
@@ -435,10 +428,7 @@ class DaoFactoryProtcol(ABC):
         id_field: str,
         dto_creation_model: Optional[type[DtoCreation]] = None,
         fields_to_index: Optional[set[str]] = None,
-    ) -> Union[
-        TransactionalScope[DaoSurrogateId[Dto, DtoCreation]],
-        TransactionalScope[DaoNaturalId[Dto]],
-    ]:
+    ) -> Union[DaoSurrogateId[Dto, DtoCreation], DaoNaturalId[Dto],]:
         """*To be implemented by the provider. Input validation is done outside of this
         method.*"""
         ...
