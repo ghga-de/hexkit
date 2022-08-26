@@ -126,18 +126,13 @@ class DaoCommons(typing.Protocol[Dto]):
 
     async def find_one(self, *, mapping: Mapping[str, Any]) -> Optional[Dto]:
         """Find the resource that matches the specified mapping. It is expected that
-        at most one resource matches the constraints. An exception is raise if multiple
+        at most one resource matches the constraints. An exception is raised if multiple
         hits are found.
 
         Args:
             mapping:
                 A mapping where the keys correspond to the names of resource fields
                 and the values correspond to the actual values of the resource fields
-            mode:
-                One of: "single" (asserts that there will be at most one hit, will raise
-                an exception otherwise), "newest" (returns only the resource of the hit
-                list that was inserted first), or "oldest" - returns only the resource of
-                the hist list that was inserted last. Defaults to "single".
 
         Returns:
             Returns a hit in the form of the respective DTO model or None if no hit
@@ -145,7 +140,7 @@ class DaoCommons(typing.Protocol[Dto]):
 
         Raises:
             MultpleHitsFoundError:
-                Raised when obtaining more than one hit when using the "single" mode.
+                Raised when obtaining more than one hit.
         """
         ...
 
@@ -203,7 +198,8 @@ class DaoSurrogateId(DaoCommons[Dto], typing.Protocol[Dto, DtoCreation_contra]):
 
 
 class DaoNaturalId(DaoCommons[Dto], typing.Protocol[Dto]):
-    """A duck type of a DAO that uses a natural resource ID profided by the client."""
+    """A duck type of a DAO that uses a natural resource ID provided by the client."""
+```
 
     @classmethod
     def with_transaction(cls) -> AbstractAsyncContextManager["DaoNaturalId[Dto]"]:
