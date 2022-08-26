@@ -27,7 +27,9 @@ framework are called `Providers`.
 """
 
 import inspect
-from typing import Any, AsyncContextManager, AsyncIterator, Callable, Optional, TypeVar
+from collections.abc import AsyncIterator
+from contextlib import AbstractAsyncContextManager
+from typing import Any, Callable, Optional, TypeVar
 
 import dependency_injector.containers
 import dependency_injector.providers
@@ -84,7 +86,7 @@ class ContextConstructor(dependency_injector.providers.Resource):
         async def resource(*args: Any, **kwargs: Any) -> AsyncIterator[Any]:
             constructor = constructable.construct(*args, **kwargs)
 
-            if not isinstance(constructor, AsyncContextManager):
+            if not isinstance(constructor, AbstractAsyncContextManager):
                 raise NotConstructableError(
                     "Callable attribute `construct` of ContextConstructable class must"
                     + " return an async context manager."
@@ -104,7 +106,7 @@ class ContextConstructor(dependency_injector.providers.Resource):
         *args: dependency_injector.providers.Injection,
         **kwargs: dependency_injector.providers.Injection
     ):
-        """Initialize `dependency_injector`'s Resource with an AsyncContextManager."""
+        """Initialize `dependency_injector`'s Resource with an AbstractAsyncContextManager."""
 
         if provides is None:
             super().__init__()

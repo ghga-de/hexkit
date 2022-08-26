@@ -19,10 +19,10 @@ with the database."""
 
 import typing
 from abc import ABC, abstractmethod
-from collections.abc import AsyncIterator
+from collections.abc import AsyncIterator, Collection, Mapping
 from contextlib import AbstractAsyncContextManager
 from copy import copy
-from typing import Any, Mapping, Optional, TypeVar, Union, overload
+from typing import Any, Optional, TypeVar, Union, overload
 
 from pydantic import BaseModel
 
@@ -158,20 +158,6 @@ class DaoCommons(typing.Protocol[Dto]):
         """
         ...
 
-    def find_all(self, *, mapping: Mapping[str, Any]) -> AsyncIterator[Dto]:
-        """Find all resources that match the specified mapping.
-
-        Args:
-            mapping:
-                A mapping where the keys correspond to the names of resource fields
-                and the values correspond to the actual values of the resource fields.
-
-        Returns:
-            An AsyncIterator of hits. All hits are in the form of the respective DTO
-            model.
-        """
-        ...
-
 
 class DaoSurrogateId(DaoCommons[Dto], typing.Protocol[Dto, DtoCreation_contra]):
     """A duck type of a DAO that generates an internal/surrogate key for
@@ -213,19 +199,6 @@ class DaoSurrogateId(DaoCommons[Dto], typing.Protocol[Dto, DtoCreation_contra]):
 
 class DaoNaturalId(DaoCommons[Dto], typing.Protocol[Dto]):
     """A duck type of a DAO that uses a natural resource ID provided by the client."""
-
-    @classmethod
-    def with_transaction(cls) -> AbstractAsyncContextManager["DaoNaturalId[Dto]"]:
-        """Creates a transaction manager that uses an async context manager interface:
-
-        Upon __aenter__, pens a new transactional scope. Returns a transaction-scoped
-        DAO.
-
-        Upon __aexit__, closes the transactional scope. A full rollback of the
-        transaction is performed in case of an exception. Otherwise, the changes to the
-        database are committed and flushed.
-        """
-        ...
 
     @classmethod
     def with_transaction(cls) -> AbstractAsyncContextManager["DaoNaturalId[Dto]"]:
@@ -316,7 +289,7 @@ class DaoFactoryProtcol(ABC):
         cls,
         *,
         dto_model: type[Dto],
-        fields_to_index: Optional[set[str]],
+        fields_to_index: Optional[Collection[str]],
     ) -> None:
         """Checks that all provided fields are present in the dto_model.
         Raises IndexFieldsInvalidError otherwise."""
@@ -338,7 +311,7 @@ class DaoFactoryProtcol(ABC):
         name: str,
         dto_model: type[Dto],
         id_field: str,
-        fields_to_index: Optional[set[str]] = None,
+        fields_to_index: Optional[Collection[str]] = None,
     ) -> DaoNaturalId[Dto]:
         ...
 
@@ -350,7 +323,7 @@ class DaoFactoryProtcol(ABC):
         dto_model: type[Dto],
         id_field: str,
         dto_creation_model: type[DtoCreation],
-        fields_to_index: Optional[set[str]] = None,
+        fields_to_index: Optional[Collection[str]] = None,
     ) -> DaoSurrogateId[Dto, DtoCreation]:
         ...
 
@@ -361,7 +334,7 @@ class DaoFactoryProtcol(ABC):
         dto_model: type[Dto],
         id_field: str,
         dto_creation_model: Optional[type[DtoCreation]] = None,
-        fields_to_index: Optional[set[str]] = None,
+        fields_to_index: Optional[Collection[str]] = None,
     ) -> Union[DaoSurrogateId[Dto, DtoCreation], DaoNaturalId[Dto]]:
         """Constructs a DAO for interacting with resources in a database.
 
@@ -425,7 +398,7 @@ class DaoFactoryProtcol(ABC):
         name: str,
         dto_model: type[Dto],
         id_field: str,
-        fields_to_index: Optional[set[str]] = None,
+        fields_to_index: Optional[Collection[str]] = None,
     ) -> DaoNaturalId[Dto]:
         ...
 
@@ -437,7 +410,7 @@ class DaoFactoryProtcol(ABC):
         dto_model: type[Dto],
         id_field: str,
         dto_creation_model: type[DtoCreation],
-        fields_to_index: Optional[set[str]] = None,
+        fields_to_index: Optional[Collection[str]] = None,
     ) -> DaoSurrogateId[Dto, DtoCreation]:
         ...
 
@@ -449,7 +422,7 @@ class DaoFactoryProtcol(ABC):
         dto_model: type[Dto],
         id_field: str,
         dto_creation_model: Optional[type[DtoCreation]] = None,
-        fields_to_index: Optional[set[str]] = None,
+        fields_to_index: Optional[Collection[str]] = None,
     ) -> Union[DaoSurrogateId[Dto, DtoCreation], DaoNaturalId[Dto]]:
         """*To be implemented by the provider. Input validation is done outside of this
         method.*"""

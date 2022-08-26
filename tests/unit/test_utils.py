@@ -16,6 +16,8 @@
 
 """Test functionality in the utils package."""
 
+from collections.abc import Collection
+
 import pytest
 from pydantic import BaseModel
 
@@ -54,14 +56,14 @@ class ExampleModel(BaseModel):
 
 
 @pytest.mark.parametrize("fields", ({"param_a"}, {"param_a", "param_b"}))
-def test_validate_fields_in_model_happy(fields: set[str]):
+def test_validate_fields_in_model_happy(fields: Collection[str]):
     """Test validate_fields_in_model with valid parameters."""
 
     validate_fields_in_model(model=ExampleModel, fields=fields)
 
 
 @pytest.mark.parametrize("fields", ({"param_c"}, {"param_a", "param_c"}))
-def test_validate_fields_in_model_error(fields: set[str]):
+def test_validate_fields_in_model_error(fields: Collection[str]):
     """Test validate_fields_in_model with invalid parameters."""
 
     with pytest.raises(FieldNotInModelError):

@@ -20,8 +20,9 @@ Utilities for testing are located in `./testutils.py`.
 """
 
 from abc import ABC
+from collections.abc import AsyncIterator, Collection, Mapping
 from contextlib import AbstractAsyncContextManager
-from typing import Any, AsyncIterator, Generic, Mapping, Optional, Union, overload
+from typing import Any, Generic, Optional, Union, overload
 from uuid import uuid4
 
 from motor.motor_asyncio import (
@@ -431,7 +432,7 @@ class MongoDbDaoFactory(DaoFactoryProtcol):
         name: str,
         dto_model: type[Dto],
         id_field: str,
-        fields_to_index: Optional[set[str]] = None,
+        fields_to_index: Optional[Collection[str]] = None,
     ) -> DaoNaturalId[Dto]:
         ...
 
@@ -443,7 +444,7 @@ class MongoDbDaoFactory(DaoFactoryProtcol):
         dto_model: type[Dto],
         id_field: str,
         dto_creation_model: type[DtoCreation],
-        fields_to_index: Optional[set[str]] = None,
+        fields_to_index: Optional[Collection[str]] = None,
     ) -> DaoSurrogateId[Dto, DtoCreation]:
         ...
 
@@ -454,7 +455,7 @@ class MongoDbDaoFactory(DaoFactoryProtcol):
         dto_model: type[Dto],
         id_field: str,
         dto_creation_model: Optional[type[DtoCreation]] = None,
-        fields_to_index: Optional[set[str]] = None,
+        fields_to_index: Optional[Collection[str]] = None,
     ) -> Union[DaoSurrogateId[Dto, DtoCreation], DaoNaturalId[Dto]]:
         """Constructs a DAO for interacting with resources in a MongoDB database.
 
