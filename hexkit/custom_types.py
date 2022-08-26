@@ -16,7 +16,8 @@
 
 """Module collecting custom types."""
 
-from typing import Any, Mapping, Sequence, Union
+from collections.abc import Mapping, Sequence
+from typing import Any, Union
 
 # This is intended to type objects that could be a potential output of `json.loads`.
 # (Scalar types as well as arrays are excluded from the above assumption.)

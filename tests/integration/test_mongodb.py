@@ -21,7 +21,7 @@ from pydantic import BaseModel
 
 from hexkit.protocols.dao import (
     InvalidFindMappingError,
-    MultpleHitsFoundError,
+    MultipleHitsFoundError,
     ResourceNotFoundError,
 )
 from hexkit.providers.mongodb.testutils import mongodb_fixture  # noqa: F401
@@ -262,11 +262,11 @@ async def test_dao_find_one_with_multiple_hits(
         id_field="id",
     )
 
-    # insert three identical resource (we are in a surrogate ID setting so the
+    # insert three identical resources (we are in a surrogate ID setting so the
     # created resources will differ in ID):
     resource_blueprint = ExampleCreationDto(field_a="test1", field_b=27, field_c=True)
     for _ in range(3):
         _ = await dao.insert(resource_blueprint)
 
-    with pytest.raises(MultpleHitsFoundError):
+    with pytest.raises(MultipleHitsFoundError):
         _ = await dao.find_one(mapping={"field_b": 27})

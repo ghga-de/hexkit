@@ -15,6 +15,8 @@
 
 """General utilities that don't require heavy dependencies."""
 
+from collections.abc import Collection
+
 from pydantic import BaseModel
 
 
@@ -37,7 +39,7 @@ def check_ascii(*str_values: str):
 class FieldNotInModelError(RuntimeError):
     """Raised when provided fields where not contained in a pydantic model."""
 
-    def __init__(self, *, model: type[BaseModel], unexpected_field: set[str]):
+    def __init__(self, *, model: type[BaseModel], unexpected_field: Collection[str]):
         message = (
             f"The pydantic model {model} does not contain following fields: "
             + str(unexpected_field)
@@ -48,13 +50,14 @@ class FieldNotInModelError(RuntimeError):
 def validate_fields_in_model(
     *,
     model: type[BaseModel],
-    fields: set[str],
+    fields: Collection[str],
 ) -> None:
     """Checks that all provided fields are present in the dto_model.
     Raises IndexFieldsInvalidError otherwise."""
 
-    existing_fields = set(model.schema()["properties"])
+    fields_set = set(fields)
+    existing_fields_set = set(model.schema()["properties"])
 
-    if not fields.issubset(existing_fields):
-        unexpected_fields = fields.difference(existing_fields)
+    if not fields_set.issubset(existing_fields_set):
+        unexpected_fields = fields_set.difference(existing_fields_set)
         raise FieldNotInModelError(model=model, unexpected_field=unexpected_fields)

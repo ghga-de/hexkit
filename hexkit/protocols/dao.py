@@ -19,10 +19,10 @@ with the database."""
 
 import typing
 from abc import ABC, abstractmethod
-from collections.abc import AsyncIterator
+from collections.abc import AsyncIterator, Collection, Mapping
 from contextlib import AbstractAsyncContextManager
 from copy import copy
-from typing import Any, Mapping, Optional, TypeVar, Union, overload
+from typing import Any, Optional, TypeVar, Union, overload
 
 from pydantic import BaseModel
 
@@ -32,7 +32,7 @@ __all__ = [
     "ResourceNotFoundError",
     "ResourceAlreadyExistsError",
     "FindError",
-    "MultpleHitsFoundError",
+    "MultipleHitsFoundError",
     "DaoNaturalId",
     "DaoSurrogateId",
     "DaoFactoryProtcol",
@@ -68,7 +68,7 @@ class InvalidFindMappingError(FindError):
     """Raised when an invalid mapping was passed provided to find."""
 
 
-class MultpleHitsFoundError(FindError):
+class MultipleHitsFoundError(FindError):
     """Raised when a DAO find operation did result in multiple hits while only a
     single hit was expected."""
 
@@ -289,7 +289,7 @@ class DaoFactoryProtcol(ABC):
         cls,
         *,
         dto_model: type[Dto],
-        fields_to_index: Optional[set[str]],
+        fields_to_index: Optional[Collection[str]],
     ) -> None:
         """Checks that all provided fields are present in the dto_model.
         Raises IndexFieldsInvalidError otherwise."""
@@ -311,7 +311,7 @@ class DaoFactoryProtcol(ABC):
         name: str,
         dto_model: type[Dto],
         id_field: str,
-        fields_to_index: Optional[set[str]] = None,
+        fields_to_index: Optional[Collection[str]] = None,
     ) -> DaoNaturalId[Dto]:
         ...
 
@@ -323,7 +323,7 @@ class DaoFactoryProtcol(ABC):
         dto_model: type[Dto],
         id_field: str,
         dto_creation_model: type[DtoCreation],
-        fields_to_index: Optional[set[str]] = None,
+        fields_to_index: Optional[Collection[str]] = None,
     ) -> DaoSurrogateId[Dto, DtoCreation]:
         ...
 
@@ -334,8 +334,8 @@ class DaoFactoryProtcol(ABC):
         dto_model: type[Dto],
         id_field: str,
         dto_creation_model: Optional[type[DtoCreation]] = None,
-        fields_to_index: Optional[set[str]] = None,
-    ) -> Union[DaoSurrogateId[Dto, DtoCreation], DaoNaturalId[Dto],]:
+        fields_to_index: Optional[Collection[str]] = None,
+    ) -> Union[DaoSurrogateId[Dto, DtoCreation], DaoNaturalId[Dto]]:
         """Constructs a DAO for interacting with resources in a database.
 
         Args:
@@ -398,7 +398,7 @@ class DaoFactoryProtcol(ABC):
         name: str,
         dto_model: type[Dto],
         id_field: str,
-        fields_to_index: Optional[set[str]] = None,
+        fields_to_index: Optional[Collection[str]] = None,
     ) -> DaoNaturalId[Dto]:
         ...
 
@@ -410,7 +410,7 @@ class DaoFactoryProtcol(ABC):
         dto_model: type[Dto],
         id_field: str,
         dto_creation_model: type[DtoCreation],
-        fields_to_index: Optional[set[str]] = None,
+        fields_to_index: Optional[Collection[str]] = None,
     ) -> DaoSurrogateId[Dto, DtoCreation]:
         ...
 
@@ -422,8 +422,8 @@ class DaoFactoryProtcol(ABC):
         dto_model: type[Dto],
         id_field: str,
         dto_creation_model: Optional[type[DtoCreation]] = None,
-        fields_to_index: Optional[set[str]] = None,
-    ) -> Union[DaoSurrogateId[Dto, DtoCreation], DaoNaturalId[Dto],]:
+        fields_to_index: Optional[Collection[str]] = None,
+    ) -> Union[DaoSurrogateId[Dto, DtoCreation], DaoNaturalId[Dto]]:
         """*To be implemented by the provider. Input validation is done outside of this
         method.*"""
         ...

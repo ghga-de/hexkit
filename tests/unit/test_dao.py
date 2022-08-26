@@ -16,6 +16,7 @@
 
 """Testing the dao factory protocol."""
 
+from collections.abc import Collection
 from typing import Optional, Union, overload
 
 import pytest
@@ -40,7 +41,7 @@ class FakeDaoFactory(DaoFactoryProtcol):
         name: str,
         dto_model: type[Dto],
         id_field: str,
-        fields_to_index: Optional[set[str]] = None,
+        fields_to_index: Optional[Collection[str]] = None,
     ) -> DaoNaturalId[Dto]:
         ...
 
@@ -52,7 +53,7 @@ class FakeDaoFactory(DaoFactoryProtcol):
         dto_model: type[Dto],
         id_field: str,
         dto_creation_model: type[DtoCreation],
-        fields_to_index: Optional[set[str]] = None,
+        fields_to_index: Optional[Collection[str]] = None,
     ) -> DaoSurrogateId[Dto, DtoCreation]:
         ...
 
@@ -63,8 +64,8 @@ class FakeDaoFactory(DaoFactoryProtcol):
         dto_model: type[Dto],
         id_field: str,
         dto_creation_model: Optional[type[DtoCreation]] = None,
-        fields_to_index: Optional[set[str]] = None,
-    ) -> Union[DaoSurrogateId[Dto, DtoCreation], DaoNaturalId[Dto],]:
+        fields_to_index: Optional[Collection[str]] = None,
+    ) -> Union[DaoSurrogateId[Dto, DtoCreation], DaoNaturalId[Dto]]:
         """*To be implemented by the provider. Input validation is done outside of this
         method.*"""
 
