@@ -133,11 +133,6 @@ class DaoCommons(typing.Protocol[Dto]):
             mapping:
                 A mapping where the keys correspond to the names of resource fields
                 and the values correspond to the actual values of the resource fields
-            mode:
-                One of: "single" (asserts that there will be at most one hit, will raise
-                an exception otherwise), "newest" (returns only the resource of the hit
-                list that was inserted first), or "oldest" - returns only the resource of
-                the hist list that was inserted last. Defaults to "single".
 
         Returns:
             Returns a hit in the form of the respective DTO model or None if no hit
