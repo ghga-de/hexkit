@@ -455,7 +455,7 @@ class MongoDbDaoFactory(DaoFactoryProtcol):
         id_field: str,
         dto_creation_model: Optional[type[DtoCreation]] = None,
         fields_to_index: Optional[set[str]] = None,
-    ) -> Union[DaoSurrogateId[Dto, DtoCreation], DaoNaturalId[Dto],]:
+    ) -> Union[DaoSurrogateId[Dto, DtoCreation], DaoNaturalId[Dto]]:
         """Constructs a DAO for interacting with resources in a MongoDB database.
 
         Please see the DaoFactoryProtcol superclass for documentation of parameters.

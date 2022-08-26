@@ -340,7 +340,7 @@ class DaoFactoryProtcol(ABC):
         id_field: str,
         dto_creation_model: Optional[type[DtoCreation]] = None,
         fields_to_index: Optional[set[str]] = None,
-    ) -> Union[DaoSurrogateId[Dto, DtoCreation], DaoNaturalId[Dto],]:
+    ) -> Union[DaoSurrogateId[Dto, DtoCreation], DaoNaturalId[Dto]]:
         """Constructs a DAO for interacting with resources in a database.
 
         Args:
@@ -428,7 +428,7 @@ class DaoFactoryProtcol(ABC):
         id_field: str,
         dto_creation_model: Optional[type[DtoCreation]] = None,
         fields_to_index: Optional[set[str]] = None,
-    ) -> Union[DaoSurrogateId[Dto, DtoCreation], DaoNaturalId[Dto],]:
+    ) -> Union[DaoSurrogateId[Dto, DtoCreation], DaoNaturalId[Dto]]:
         """*To be implemented by the provider. Input validation is done outside of this
         method.*"""
         ...
