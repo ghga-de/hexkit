@@ -198,7 +198,8 @@ class DaoSurrogateId(DaoCommons[Dto], typing.Protocol[Dto, DtoCreation_contra]):
 
 
 class DaoNaturalId(DaoCommons[Dto], typing.Protocol[Dto]):
-    """A duck type of a DAO that uses a natural resource ID profided by the client."""
+    """A duck type of a DAO that uses a natural resource ID provided by the client."""
+```
 
     @classmethod
     def with_transaction(cls) -> AbstractAsyncContextManager["DaoNaturalId[Dto]"]:
