@@ -46,7 +46,7 @@ def config_from_mongodb_container(container: MongoDbContainer) -> MongoDbConfig:
 
 @pytest_asyncio.fixture
 def mongodb_fixture() -> Generator[MongoDbFixture, None, None]:
-    """Pytest fixture for tests depending on the S3ObjectStorage DAO."""
+    """Pytest fixture for tests depending on the MongoDbDaoFactory DAO."""
 
     with MongoDbContainer(image="mongo:5.0.11") as mongodb:
         config = config_from_mongodb_container(mongodb)
