@@ -140,7 +140,7 @@ class DaoCommons(typing.Protocol[Dto]):
 
         Raises:
             MultpleHitsFoundError:
-                Raised when obtaining more than one hit when using the "single" mode.
+                Raised when obtaining more than one hit.
         """
         ...
 
