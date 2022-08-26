@@ -39,7 +39,7 @@ from hexkit.protocols.dao import (
     DtoCreation,
     DtoCreation_contra,
     InvalidFindMappingError,
-    MultpleHitsFoundError,
+    MultipleHitsFoundError,
     ResourceNotFoundError,
 )
 from hexkit.utils import FieldNotInModelError, validate_fields_in_model
@@ -210,7 +210,7 @@ class MongoDbDaoBase(ABC, Generic[Dto]):
             # This is expected:
             return document
 
-        raise MultpleHitsFoundError(mapping=mapping)
+        raise MultipleHitsFoundError(mapping=mapping)
 
     async def find_all(self, *, mapping: Mapping[str, Any]) -> AsyncIterator[Dto]:
         """Find all resources that match the specified mapping.

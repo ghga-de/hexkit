@@ -32,7 +32,7 @@ __all__ = [
     "ResourceNotFoundError",
     "ResourceAlreadyExistsError",
     "FindError",
-    "MultpleHitsFoundError",
+    "MultipleHitsFoundError",
     "DaoNaturalId",
     "DaoSurrogateId",
     "DaoFactoryProtcol",
@@ -68,7 +68,7 @@ class InvalidFindMappingError(FindError):
     """Raised when an invalid mapping was passed provided to find."""
 
 
-class MultpleHitsFoundError(FindError):
+class MultipleHitsFoundError(FindError):
     """Raised when a DAO find operation did result in multiple hits while only a
     single hit was expected."""
 
