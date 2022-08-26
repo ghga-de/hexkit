@@ -16,7 +16,7 @@
 
 """Testing the dao factory protocol."""
 
-from collections.abc import Collection
+from collections.abc import AsyncGenerator, Collection
 from typing import Optional, Union, overload
 
 import pytest
@@ -28,6 +28,7 @@ from hexkit.protocols.dao import (
     DaoSurrogateId,
     Dto,
     DtoCreation,
+    default_uuid4_id_generator,
 )
 
 
@@ -42,11 +43,12 @@ class FakeDaoFactory(DaoFactoryProtcol):
         dto_model: type[Dto],
         id_field: str,
         fields_to_index: Optional[Collection[str]] = None,
+        id_generator: AsyncGenerator[str, None] = default_uuid4_id_generator,
     ) -> DaoNaturalId[Dto]:
         ...
 
     @overload
-    async def _get_dao(
+    async def _get_dao(  # pylint: disable=arguments-differ
         self,
         *,
         name: str,
@@ -54,6 +56,7 @@ class FakeDaoFactory(DaoFactoryProtcol):
         id_field: str,
         dto_creation_model: type[DtoCreation],
         fields_to_index: Optional[Collection[str]] = None,
+        id_generator: AsyncGenerator[str, None] = default_uuid4_id_generator,
     ) -> DaoSurrogateId[Dto, DtoCreation]:
         ...
 
@@ -65,6 +68,7 @@ class FakeDaoFactory(DaoFactoryProtcol):
         id_field: str,
         dto_creation_model: Optional[type[DtoCreation]] = None,
         fields_to_index: Optional[Collection[str]] = None,
+        id_generator: AsyncGenerator[str, None] = default_uuid4_id_generator,
     ) -> Union[DaoSurrogateId[Dto, DtoCreation], DaoNaturalId[Dto]]:
         """*To be implemented by the provider. Input validation is done outside of this
         method.*"""
