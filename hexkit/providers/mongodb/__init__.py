@@ -18,9 +18,6 @@
 and associated utilities.
 """
 
-from hexkit.providers.mongodb.provider import (  # noqa: F401
-    MongoDbConfig,
-    MongoDbDaoFactory,
-)
+from .provider import MongoDbConfig, MongoDbDaoFactory  # noqa: F401
 
 __all__ = ["MongoDbConfig", "MongoDbDaoFactory"]
