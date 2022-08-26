@@ -170,7 +170,7 @@ class DaoSurrogateId(DaoCommons[Dto], typing.Protocol[Dto, DtoCreation_contra]):
     the DAO. Thus, both a standard DTO model (first type parameter), which includes
     the key field, as well as special DTO model (second type parameter), which is
     identical to the first one, but does not include the ID field and is dedicated for
-     creation of new resources, is needed.
+     creation of new resources.
     """
 
     @classmethod
