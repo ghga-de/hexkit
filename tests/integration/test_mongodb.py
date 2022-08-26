@@ -190,7 +190,7 @@ async def test_dao_update_not_found(
     )
 
     with pytest.raises(ResourceNotFoundError):
-        _ = await dao.update(resource)
+        await dao.update(resource)
 
 
 @pytest.mark.asyncio
@@ -206,7 +206,7 @@ async def test_dao_delete_not_found(
     )
 
     with pytest.raises(ResourceNotFoundError):
-        _ = await dao.delete(id_="my_non_existing_id_001")
+        await dao.delete(id_="my_non_existing_id_001")
 
 
 @pytest.mark.asyncio
@@ -262,7 +262,7 @@ async def test_dao_find_one_with_multiple_hits(
         id_field="id",
     )
 
-    # insert three identical resource (we are in a surrogate ID setting so the
+    # insert three identical resources (we are in a surrogate ID setting so the
     # created resources will differ in ID):
     resource_blueprint = ExampleCreationDto(field_a="test1", field_b=27, field_c=True)
     for _ in range(3):
