@@ -18,17 +18,20 @@
 
 from typing import Literal
 
-from pydantic import BaseSettings
+from hexkit.providers.akafka import KafkaConfig
 
 LOGLEVEL = Literal["DEBUG", "INFO", "WARNING", "ERROR", "CRITICAL"]
 
 
-class Config(BaseSettings):
+class Config(KafkaConfig):
     """Config parameters and their defaults."""
 
+    # adding defaults to params defined in the KafkaConfig, just for convenience in this
+    # example:
     service_name: str = "stream_calc"
-    client_suffix: str = "1"
+    service_instance_id: str = "1"
     kafka_servers: list[str] = ["kafka:9092"]
+
     log_level: LOGLEVEL = "INFO"
     result_emit_output_topic: str = "calc_output"
     result_emit_success_type: str = "calc_success"

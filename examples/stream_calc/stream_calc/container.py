@@ -24,6 +24,7 @@
 from dependency_injector import providers
 
 # pylint: disable=wrong-import-order
+from stream_calc.config import Config
 from stream_calc.core.calc import StreamCalculator
 from stream_calc.translators.eventpub import EventResultEmitter
 from stream_calc.translators.eventsub import EventProblemReceiver
@@ -40,9 +41,7 @@ class Container(ContainerBase):
     # outbound providers:
     event_publisher = get_constructor(
         KafkaEventPublisher,
-        service_name=config.service_name,
-        client_suffix=config.client_suffix,
-        kafka_servers=config.kafka_servers,
+        config=config,
     )
 
     # outbound translators:
@@ -69,8 +68,6 @@ class Container(ContainerBase):
     # inbound providers:
     event_subscriber = get_constructor(
         KafkaEventSubscriber,
-        service_name=config.service_name,
-        client_suffix=config.client_suffix,
-        kafka_servers=config.kafka_servers,
+        config=config,
         translator=event_problem_receiver,
     )
