@@ -33,7 +33,7 @@ from pydantic import BaseModel, validator
 from testcontainers.localstack import LocalStackContainer
 
 from hexkit.protocols.objstorage import ObjectStorageProtocol, PresignedPostURL
-from hexkit.providers.s3.provider import S3ConfigBase, S3ObjectStorage
+from hexkit.providers.s3.provider import S3Config, S3ObjectStorage
 
 TEST_FILE_DIR = Path(__file__).parent.resolve() / "test_files"
 
@@ -82,7 +82,7 @@ class FileObject(BaseModel):
 class S3Fixture:
     """Yielded by the `s3_fixture` function"""
 
-    def __init__(self, config: S3ConfigBase, storage: S3ObjectStorage):
+    def __init__(self, config: S3Config, storage: S3ObjectStorage):
         """Initialize with config."""
         self.config = config
         self.storage = storage
@@ -309,11 +309,11 @@ async def populate_storage(
         )
 
 
-def config_from_localstack_container(container: LocalStackContainer) -> S3ConfigBase:
-    """Prepares a S3ConfigBase from an instance of a localstack test container."""
+def config_from_localstack_container(container: LocalStackContainer) -> S3Config:
+    """Prepares a S3Config from an instance of a localstack test container."""
 
     s3_endpoint_url = container.get_url()
-    return S3ConfigBase(  # nosec
+    return S3Config(  # nosec
         s3_endpoint_url=s3_endpoint_url,
         s3_access_key_id="test",
         s3_secret_access_key="test",

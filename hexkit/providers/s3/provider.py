@@ -29,15 +29,15 @@ import botocore.client
 import botocore.config
 import botocore.configloader
 import botocore.exceptions
-from pydantic import BaseSettings, Field
+from pydantic import BaseSettings, Field, SecretStr
 
 from hexkit.protocols.objstorage import ObjectStorageProtocol, PresignedPostURL
 
 __all__ = ["ObjectStorageProtocol", "PresignedPostURL"]
 
 
-class S3ConfigBase(BaseSettings):
-    """A base class with S3-specific config params.
+class S3Config(BaseSettings):
+    """S3-specific config params.
     Inherit your config class from this class if you need
     to talk to an S3 service in the backend.
 
@@ -70,7 +70,7 @@ class S3ConfigBase(BaseSettings):
             + " https://boto3.amazonaws.com/v1/documentation/api/latest/guide/credentials.html"
         ),
     )
-    s3_secret_access_key: str = Field(
+    s3_secret_access_key: SecretStr = Field(
         ...,
         example="my-secret-access-key",
         description=(
@@ -78,7 +78,7 @@ class S3ConfigBase(BaseSettings):
             + " https://boto3.amazonaws.com/v1/documentation/api/latest/guide/credentials.html"
         ),
     )
-    s3_session_token: Optional[str] = Field(
+    s3_session_token: Optional[SecretStr] = Field(
         None,
         example="my-session-token",
         description=(
@@ -120,7 +120,7 @@ class S3ObjectStorage(
     def __init__(  # pylint: disable=too-many-arguments
         self,
         *,
-        config: S3ConfigBase,
+        config: S3Config,
     ):
         """Initialize with parameters needed to connect to the S3 storage
 
@@ -129,7 +129,7 @@ class S3ObjectStorage(
         https://boto3.amazonaws.com/v1/documentation/api/latest/reference/core/session.html#boto3.session.Session.client
 
         Args:
-            config (S3ConfigBase): Config parameters specified using the S3ConfigBase model.
+            config (S3Config): Config parameters specified using the S3Config model.
         """
 
         self._config = config
@@ -142,12 +142,17 @@ class S3ObjectStorage(
             else read_aws_config_ini(config.aws_config_ini)
         )
 
+        session_token = (
+            None
+            if self._config.s3_session_token is None
+            else self._config.s3_session_token.get_secret_value()
+        )
         self._client = boto3.client(
             service_name="s3",
             endpoint_url=self.endpoint_url,
             aws_access_key_id=self._config.s3_access_key_id,
-            aws_secret_access_key=self._config.s3_secret_access_key,
-            aws_session_token=self._config.s3_session_token,
+            aws_secret_access_key=self._config.s3_secret_access_key.get_secret_value(),
+            aws_session_token=session_token,
             config=self._advanced_config,
         )
 
@@ -155,13 +160,13 @@ class S3ObjectStorage(
             service_name="s3",
             endpoint_url=self.endpoint_url,
             aws_access_key_id=self._config.s3_access_key_id,
-            aws_secret_access_key=self._config.s3_secret_access_key,
-            aws_session_token=self._config.s3_session_token,
+            aws_secret_access_key=self._config.s3_secret_access_key.get_secret_value(),
+            aws_session_token=session_token,
             config=self._advanced_config,
         )
 
     def __repr__(self) -> str:
-        return f"S3ObjectStorage(config=S3ConfigBase(s3_endpoint_url={self.endpoint_url}, ...))"
+        return f"{self.__class__.__qualname__}(config={repr(self._config)})"
 
     @staticmethod
     def _format_s3_error_code(error_code: str):

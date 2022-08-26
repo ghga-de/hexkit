@@ -16,24 +16,53 @@
 
 """Test functionality in the utils package."""
 
-from contextlib import nullcontext
-from typing import Optional
-
 import pytest
+from pydantic import BaseModel
 
-from hexkit.utils import NonAsciiStrError, check_ascii
+from hexkit.utils import (
+    FieldNotInModelError,
+    NonAsciiStrError,
+    check_ascii,
+    validate_fields_in_model,
+)
 
 
 @pytest.mark.parametrize(
-    "str_values, exception",
-    [
-        (["valid"], None),
-        (["invälid"], NonAsciiStrError),
-        (["valid", "also_valid_123-?$3&"], None),
-        (["valid", "invälid"], NonAsciiStrError),
-    ],
+    "str_values",
+    (["valid"], ["valid", "also_valid_123-?$3&"]),
 )
-def test_check_ascii(str_values: list[str], exception: Optional[type[Exception]]):
-    """Test the check_ascii function"""
-    with pytest.raises(exception) if exception else nullcontext():  # type: ignore
+def test_check_ascii_happy(str_values: list[str]):
+    """Test the check_ascii function with valid parameters."""
+    check_ascii(*str_values)
+
+
+@pytest.mark.parametrize(
+    "str_values",
+    (["invälid"], ["valid", "invälid"]),
+)
+def test_check_ascii_error(str_values: list[str]):
+    """Test the check_ascii function with invalid parameters."""
+    with pytest.raises(NonAsciiStrError):
         check_ascii(*str_values)
+
+
+class ExampleModel(BaseModel):
+    """An example pydantic model."""
+
+    param_a: str
+    param_b: int
+
+
+@pytest.mark.parametrize("fields", ({"param_a"}, {"param_a", "param_b"}))
+def test_validate_fields_in_model_happy(fields: set[str]):
+    """Test validate_fields_in_model with valid parameters."""
+
+    validate_fields_in_model(model=ExampleModel, fields=fields)
+
+
+@pytest.mark.parametrize("fields", ({"param_c"}, {"param_a", "param_c"}))
+def test_validate_fields_in_model_error(fields: set[str]):
+    """Test validate_fields_in_model with invalid parameters."""
+
+    with pytest.raises(FieldNotInModelError):
+        validate_fields_in_model(model=ExampleModel, fields=fields)
