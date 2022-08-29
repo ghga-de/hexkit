@@ -16,6 +16,9 @@
 
 """Test MongoDB-based providers."""
 
+import itertools
+from collections.abc import AsyncGenerator
+
 import pytest
 from pydantic import BaseModel
 
@@ -270,3 +273,40 @@ async def test_dao_find_one_with_multiple_hits(
 
     with pytest.raises(MultipleHitsFoundError):
         _ = await dao.find_one(mapping={"field_b": 27})
+
+
+@pytest.mark.asyncio
+async def test_custom_id_generator(
+    mongodb_fixture: MongoDbFixture,  # noqa: F811
+):
+    """Tests find_one with a mapping that results in multiple hits."""
+
+    # define a custom generator:
+    async def prefixed_count_id_generator(
+        prefix: str, count_offset: int = 1
+    ) -> AsyncGenerator[str, None]:
+        """A generator that yields IDs by counting upwards und prefixing that counts
+        with a predefined string."""
+
+        for count in itertools.count(start=count_offset):
+            yield f"{prefix}-{count}"
+
+    count_offset = 10
+    prefix = "my-test-id"
+    my_test_id_generator = prefixed_count_id_generator(
+        prefix=prefix, count_offset=count_offset
+    )
+
+    # use that custom generator for inserting 3 resources:
+    dao = await mongodb_fixture.dao_factory.get_dao(
+        name="example",
+        dto_model=ExampleDto,
+        dto_creation_model=ExampleCreationDto,
+        id_field="id",
+        id_generator=my_test_id_generator,
+    )
+
+    resource_blueprint = ExampleCreationDto(field_a="test1", field_b=27, field_c=True)
+    for count in range(3):
+        resource_inserted = await dao.insert(resource_blueprint)
+        assert resource_inserted.id == f"{prefix}-{count_offset+count}"
