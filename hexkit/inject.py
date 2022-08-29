@@ -29,10 +29,11 @@ framework are called `Providers`.
 import inspect
 from collections.abc import AsyncIterator
 from contextlib import AbstractAsyncContextManager
-from typing import Any, Callable, Optional, TypeVar
+from typing import Any, Callable, Generic, Optional, TypeVar
 
 import dependency_injector.containers
 import dependency_injector.providers
+from pydantic import BaseSettings
 
 from hexkit.custom_types import ContextConstructable
 
@@ -42,6 +43,7 @@ __all__ = [
     "NotConstructableError",
     "ContextConstructor",
     "AsyncInitShutdownError",
+    "Configurator",
 ]
 
 
@@ -104,7 +106,7 @@ class ContextConstructor(dependency_injector.providers.Resource):
         self,
         provides: Optional[type[ContextConstructable]] = None,
         *args: dependency_injector.providers.Injection,
-        **kwargs: dependency_injector.providers.Injection
+        **kwargs: dependency_injector.providers.Injection,
     ):
         """Initialize `dependency_injector`'s Resource with an AbstractAsyncContextManager."""
 
@@ -186,3 +188,40 @@ class ContainerBase(dependency_injector.containers.DeclarativeContainer):
     async def __aexit__(self, exc_type, exc_value, exc_trace):
         """Shutdown/teardown resources"""
         ...
+
+
+PydanticConfig = TypeVar("PydanticConfig", bound=BaseSettings)
+
+
+class Configurator(dependency_injector.providers.Factory, Generic[PydanticConfig]):
+    """A configuration constructor that holds configuration parameters using a pydantic
+    model.
+
+    Please note: While this is specific for reflecting"""
+
+    def load_from(self, config: PydanticConfig):
+        """"""
+
+        self.override(dependency_injector.providers.Callable(lambda: config))
+
+    def get(self, param_name: str):
+
+        return dependency_injector.providers.Callable(
+            lambda: getattr(self.provides(), param_name)
+        )
+
+    def __getattr__(self, attr):
+
+        if attr.startswith("__") and attr.endswith("__"):
+            return super().__getattr__(attr)
+
+        return self.get(attr)
+
+
+def get_configurator(
+    pydantic_cls: type[PydanticConfig],
+) -> Configurator[PydanticConfig]:
+    """Automatically selects and applies the right constructor for the class given to
+    `provides`."""
+
+    return Configurator[PydanticConfig](pydantic_cls)

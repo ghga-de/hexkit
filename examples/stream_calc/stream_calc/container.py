@@ -29,14 +29,14 @@ from stream_calc.core.calc import StreamCalculator
 from stream_calc.translators.eventpub import EventResultEmitter
 from stream_calc.translators.eventsub import EventProblemReceiver
 
-from hexkit.inject import ContainerBase, get_constructor
+from hexkit.inject import ContainerBase, get_constructor, get_configurator, Configurator
 from hexkit.providers.akafka import KafkaEventPublisher, KafkaEventSubscriber
 
 
 class Container(ContainerBase):
     """DI Container"""
 
-    config = providers.Configuration()
+    config = get_configurator(Config)
 
     # outbound providers:
     event_publisher = get_constructor(

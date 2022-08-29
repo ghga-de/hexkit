@@ -33,7 +33,7 @@ def get_container(config: Config) -> Container:
     logging.basicConfig(level=config.log_level)
 
     container = Container()
-    container.config.from_pydantic(config)
+    container.config.load_from(config)
 
     return container
 
