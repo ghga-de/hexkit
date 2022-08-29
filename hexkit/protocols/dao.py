@@ -246,7 +246,8 @@ async def uuid4_id_generator() -> AsyncGenerator[str, None]:
     DaoFactoryProtocol.
     """
 
-    yield str(uuid4())
+    while True:
+        yield str(uuid4())
 
 
 default_uuid4_id_generator = uuid4_id_generator()
