@@ -199,15 +199,30 @@ class Configurator(dependency_injector.providers.Factory, Generic[PydanticConfig
 
     Please note: While this is specific for reflecting"""
 
-    def load_from(self, config: PydanticConfig):
+    def load_config(self, config: PydanticConfig):
         """"""
 
         self.override(dependency_injector.providers.Callable(lambda: config))
 
+    def resolve(self):
+        """"""
+
+        if len(self.overridden) > 0:
+            if isinstance(self.last_overriding, dependency_injector.providers.Callable):
+                return self.last_overriding.provides()
+
+            raise RuntimeError(
+                "A Configurator should only be overwritten with a provider of type"
+                + " 'dependency_injector.providers.Callable' but got: "
+                + str(type(self.last_overriding))
+            )
+
+        return self.provides()
+
     def get(self, param_name: str):
 
         return dependency_injector.providers.Callable(
-            lambda: getattr(self.provides(), param_name)
+            lambda: getattr(self.resolve(), param_name)
         )
 
     def __getattr__(self, attr):

@@ -16,11 +16,20 @@
 
 """Test utilities from the `inject` module."""
 
+from contextlib import asynccontextmanager
+
 import dependency_injector.containers
 import dependency_injector.providers
 import pytest
+from pydantic import BaseSettings
 
-from hexkit.inject import AsyncInitShutdownError, ContainerBase, ContextConstructor
+from hexkit.inject import (
+    AsyncInitShutdownError,
+    ContainerBase,
+    ContextConstructor,
+    get_configurator,
+    get_constructor,
+)
 from tests.fixtures.inject import ValidConstructable, ValidResource, ValidSyncResource
 
 
@@ -96,3 +105,80 @@ async def test_container_base_sync_resouce():
 
     with pytest.raises(AsyncInitShutdownError):
         await container.__aexit__(..., ..., ...)
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("load_config", [True, False])
+async def test_configurator(load_config: bool):
+    """Test the configurator with default config parameters."""
+
+    class ExampleConfig(BaseSettings):
+        """A collection of example config parameter and their defaults."""
+
+        param_a: str = "foo"
+        param_b: int = 27
+        param_c: bool = True
+
+    # If load_config is false, the default config values are expected, otherwise a
+    # custom set of values is used:
+    expected_config = (
+        ExampleConfig(param_a="bar", param_b=28) if load_config else ExampleConfig()
+    )
+
+    class FullConfigConsumer:
+        """A class that consumes an entire ExampleConfig instance (and not just
+        individual parameters)."""
+
+        @classmethod
+        @asynccontextmanager
+        async def construct(cls, *, config: ExampleConfig):
+            """A constructor with setup and teardown logic.
+            Just there so that we can use the container as an async context manager."""
+
+            yield cls(config=config)
+
+        def __init__(self, *, config: ExampleConfig):
+            """Takes an ExampleConfig instance and checks their values against the
+            expectation."""
+
+            self.config = config
+
+    class IndividualConfigParamConsumer:
+        """A class that consumes individual config parameters."""
+
+        @classmethod
+        @asynccontextmanager
+        async def construct(cls, *, param_a: str, param_b: int):
+            """A constructor with setup and teardown logic.
+            Just there so that we can use the container as an async context manager."""
+
+            yield cls(param_a=param_a, param_b=param_b)
+
+        def __init__(self, *, param_a: str, param_b: int):
+            """Takes individual config parameters and checks their values against the
+            expectation."""
+
+            self.param_a = param_a
+            self.param_b = param_b
+
+    class Container(ContainerBase):
+        config = get_configurator(ExampleConfig)
+        full_config_consumer = get_constructor(FullConfigConsumer, config=config)
+        config_param_consumer = get_constructor(
+            IndividualConfigParamConsumer,
+            param_a=config.param_a,
+            param_b=config.param_b,
+        )
+        test = ContextConstructor(ValidConstructable, "foo")
+
+    container_cm = Container()
+
+    container_cm.config.load_config(expected_config)
+    async with container_cm as container:
+
+        # Construct consumers:
+        full_config_consumer = await container.full_config_consumer()
+        config_param_consumer = await container.config_param_consumer()
+
+        # Check the consumed values:
+        assert full_config_consumer.config.dict() == expected_config.dict()
