@@ -34,7 +34,6 @@ from hexkit.custom_types import JsonObject
 from hexkit.protocols.eventpub import EventPublisherProtocol
 from hexkit.protocols.eventsub import EventSubscriberProtocol
 
-
 __all__ = [
     "KafkaConfig",
     "KafkaEventPublisher",

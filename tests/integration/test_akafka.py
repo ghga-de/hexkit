@@ -25,9 +25,9 @@ from testcontainers.kafka import KafkaContainer
 
 from hexkit.custom_types import JsonObject
 from hexkit.providers.akafka import (
+    KafkaConfig,
     KafkaEventPublisher,
     KafkaEventSubscriber,
-    KafkaConfig,
 )
 from tests.fixtures.utils import exec_with_timeout
 

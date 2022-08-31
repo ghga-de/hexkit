@@ -16,10 +16,19 @@
 
 """Translators that target the event publishing protocol."""
 
+from pydantic import BaseSettings
 from stream_calc.ports.result_emitter import CalcResultEmitterPort
 
 from hexkit.custom_types import JsonObject
 from hexkit.protocols.eventpub import EventPublisherProtocol
+
+
+class EventResultEmitterConfig(BaseSettings):
+    """Config parameters and their defaults."""
+
+    result_emit_output_topic: str = "calc_output"
+    result_emit_success_type: str = "calc_success"
+    result_emit_failure_type: str = "calc_failure"
 
 
 class EventResultEmitter(CalcResultEmitterPort):
@@ -29,17 +38,15 @@ class EventResultEmitter(CalcResultEmitterPort):
     def __init__(
         self,
         *,
-        output_topic: str,
-        success_type: str,
-        failure_type: str,
+        config: EventResultEmitterConfig,
         event_publisher: EventPublisherProtocol
     ) -> None:
         """Configure with provider for the the EventPublisherProto"""
 
         self._event_publisher = event_publisher
-        self._output_topic = output_topic
-        self._success_type = success_type
-        self._failure_type = failure_type
+        self._output_topic = config.result_emit_output_topic
+        self._success_type = config.result_emit_success_type
+        self._failure_type = config.result_emit_failure_type
 
     async def emit_result(self, *, problem_id: str, result: float) -> None:
         """Emits the result of the calc task with the given ID."""

@@ -125,9 +125,19 @@ async def test_configurator(load_config: bool):
         ExampleConfig(param_a="bar", param_b=28) if load_config else ExampleConfig()
     )
 
-    class FullConfigConsumer:
+    class SyncConfigConsumer:
         """A class that consumes an entire ExampleConfig instance (and not just
         individual parameters)."""
+
+        def __init__(self, *, config: ExampleConfig):
+            """Takes an ExampleConfig instance and checks their values against the
+            expectation."""
+
+            self.config = config
+
+    class AsyncConfigConsumer(SyncConfigConsumer):
+        """A class that consumes an entire ExampleConfig instance (and not just
+        individual parameters). Is constucted using an async context manager."""
 
         @classmethod
         @asynccontextmanager
@@ -137,51 +147,20 @@ async def test_configurator(load_config: bool):
 
             yield cls(config=config)
 
-        def __init__(self, *, config: ExampleConfig):
-            """Takes an ExampleConfig instance and checks their values against the
-            expectation."""
-
-            self.config = config
-
-    class IndividualConfigParamConsumer:
-        """A class that consumes individual config parameters."""
-
-        @classmethod
-        @asynccontextmanager
-        async def construct(cls, *, param_a: str, param_b: int):
-            """A constructor with setup and teardown logic.
-            Just there so that we can use the container as an async context manager."""
-
-            yield cls(param_a=param_a, param_b=param_b)
-
-        def __init__(self, *, param_a: str, param_b: int):
-            """Takes individual config parameters and checks their values against the
-            expectation."""
-
-            self.param_a = param_a
-            self.param_b = param_b
-
     class Container(ContainerBase):
         config = get_configurator(ExampleConfig)
-        full_config_consumer = get_constructor(FullConfigConsumer, config=config)
-        config_param_consumer = get_constructor(
-            IndividualConfigParamConsumer,
-            param_a=config.param_a,
-            param_b=config.param_b,
-        )
-        test = ContextConstructor(ValidConstructable, "foo")
+        sync_config_consumer = get_constructor(SyncConfigConsumer, config=config)
+        async_config_consumer = get_constructor(AsyncConfigConsumer, config=config)
 
     container_cm = Container()
 
     if load_config:
         container_cm.config.load_config(expected_config)
     async with container_cm as container:
-
         # Construct consumers:
-        full_config_consumer = await container.full_config_consumer()
-        config_param_consumer = await container.config_param_consumer()
+        sync_config_consumer = container.sync_config_consumer()
+        async_config_consumer = await container.async_config_consumer()
 
         # Check the consumed values:
-        assert full_config_consumer.config.dict() == expected_config.dict()
-        assert config_param_consumer.param_a == expected_config.param_a
-        assert config_param_consumer.param_b == expected_config.param_b
+        assert sync_config_consumer.config.dict() == expected_config.dict()
+        assert async_config_consumer.config.dict() == expected_config.dict()

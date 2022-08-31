@@ -195,48 +195,20 @@ PydanticConfig = TypeVar("PydanticConfig", bound=BaseSettings)
 
 class Configurator(dependency_injector.providers.Factory, Generic[PydanticConfig]):
     """A configuration constructor that holds configuration parameters using a pydantic
-    model.
-
-    Please note: While this is specific for reflecting"""
+    model."""
 
     def load_config(self, config: PydanticConfig):
-        """"""
+        """Loading config parameters form an pydantic config instance."""
 
         self.override(dependency_injector.providers.Callable(lambda: config))
-
-    def resolve(self):
-        """"""
-
-        if len(self.overridden) > 0:
-            if isinstance(self.last_overriding, dependency_injector.providers.Callable):
-                return self.last_overriding.provides()
-
-            raise RuntimeError(
-                "A Configurator should only be overwritten with a provider of type"
-                + " 'dependency_injector.providers.Callable' but got: "
-                + str(type(self.last_overriding))
-            )
-
-        return self.provides()
-
-    def get(self, param_name: str):
-
-        return dependency_injector.providers.Callable(
-            lambda: getattr(self.resolve(), param_name)
-        )
-
-    def __getattr__(self, attr):
-
-        if attr.startswith("__") and attr.endswith("__"):
-            return super().__getattr__(attr)
-
-        return self.get(attr)
 
 
 def get_configurator(
     pydantic_cls: type[PydanticConfig],
 ) -> Configurator[PydanticConfig]:
-    """Automatically selects and applies the right constructor for the class given to
-    `provides`."""
+    """Initializes a configuration provider.
+
+    This helper function is necessary because the __init__ of Providers used by the
+    dependency_injector framework need to always use the same singnature."""
 
     return Configurator[PydanticConfig](pydantic_cls)

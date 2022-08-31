@@ -17,7 +17,10 @@
 """Testing the `translators.eventpub` module."""
 
 import pytest
-from stream_calc.translators.eventpub import EventResultEmitter
+from stream_calc.translators.eventpub import (
+    EventResultEmitter,
+    EventResultEmitterConfig,
+)
 
 from hexkit.providers.testing.eventpub import InMemEventPublisher
 
@@ -33,10 +36,13 @@ async def test_emit_result():
     failure_type = "test_fail"
     event_publisher = InMemEventPublisher()
 
+    config = EventResultEmitterConfig(
+        result_emit_output_topic=output_topic,
+        result_emit_success_type=success_type,
+        result_emit_failure_type=failure_type,
+    )
     result_emitter = EventResultEmitter(
-        output_topic=output_topic,
-        success_type=success_type,
-        failure_type=failure_type,
+        config=config,
         event_publisher=event_publisher,
     )
     await result_emitter.emit_result(problem_id=problem_id, result=result)
@@ -59,10 +65,13 @@ async def test_emit_failure():
     failure_type = "test_fail"
     event_publisher = InMemEventPublisher()
 
+    config = EventResultEmitterConfig(
+        result_emit_output_topic=output_topic,
+        result_emit_success_type=success_type,
+        result_emit_failure_type=failure_type,
+    )
     result_emitter = EventResultEmitter(
-        output_topic=output_topic,
-        success_type=success_type,
-        failure_type=failure_type,
+        config=config,
         event_publisher=event_publisher,
     )
     await result_emitter.emit_failure(problem_id=problem_id, reason=reason)
