@@ -47,7 +47,7 @@ async def test_kafka_event_publisher():
     # publish event using the provider:
     config = KafkaConfig(
         service_name="test_publisher",
-        client_suffix="1",
+        service_instance_id="1",
         kafka_servers=["my-fake-kafka-server"],
     )
     async with KafkaEventPublisher.construct(
@@ -159,7 +159,7 @@ async def test_kafka_event_subscriber(
     # setup the provider:
     config = KafkaConfig(
         service_name=service_name,
-        client_suffix="1",
+        service_instance_id="1",
         kafka_servers=["my-fake-kafka-server"],
     )
     async with KafkaEventSubscriber.construct(
