@@ -173,7 +173,8 @@ async def test_configurator(load_config: bool):
 
     container_cm = Container()
 
-    container_cm.config.load_config(expected_config)
+    if load_config:
+        container_cm.config.load_config(expected_config)
     async with container_cm as container:
 
         # Construct consumers:
@@ -182,3 +183,5 @@ async def test_configurator(load_config: bool):
 
         # Check the consumed values:
         assert full_config_consumer.config.dict() == expected_config.dict()
+        assert config_param_consumer.param_a == expected_config.param_a
+        assert config_param_consumer.param_b == expected_config.param_b
