@@ -30,7 +30,7 @@ from aiokafka import AIOKafkaConsumer, AIOKafkaProducer
 from pydantic import BaseSettings, Field
 
 from hexkit.base import InboundProviderBase
-from hexkit.custom_types import JsonObject
+from hexkit.custom_types import JsonObject, Ascii
 from hexkit.protocols.eventpub import EventPublisherProtocol
 from hexkit.protocols.eventsub import EventSubscriberProtocol
 
@@ -167,7 +167,7 @@ class KafkaEventPublisher(EventPublisherProtocol):
         self._producer = producer
 
     async def _publish_validated(
-        self, *, payload: JsonObject, type_: str, key: str, topic: str
+        self, *, payload: JsonObject, type_: Ascii, key: Ascii, topic: Ascii
     ) -> None:
         """Publish an event with already validated topic and type.
 
@@ -338,25 +338,25 @@ class KafkaEventSubscriber(InboundProviderBase):
             type_ = self._get_type(event)
         except EventTypeNotFoundError:
             logging.warning("Ignored an event without type: %s", event_label)
+            return
+
+        if type_ in self._types_whitelist:
+            logging.info('Consuming event of type "%s": %s', type_, event_label)
+
+            try:
+                # blocks until event processing is completed:
+                await self._translator.consume(
+                    payload=event.value, type_=type_, topic=event.topic
+                )
+            except Exception:
+                logging.error(
+                    "A fatal error occured while processing the event: %s",
+                    event_label,
+                )
+                raise
+
         else:
-
-            if type_ in self._types_whitelist:
-                logging.info('Consuming event of type "%s": %s', type_, event_label)
-
-                try:
-                    # blocks until event processing is completed:
-                    await self._translator.consume(
-                        payload=event.value, type_=type_, topic=event.topic
-                    )
-                except Exception:
-                    logging.error(
-                        "A fatal error occured while processing the event: %s",
-                        event_label,
-                    )
-                    raise
-
-            else:
-                logging.info("Ignored event of type %s: %s", type_, event_label)
+            logging.info("Ignored event of type %s: %s", type_, event_label)
 
     async def run(self, forever: bool = True) -> None:
         """
