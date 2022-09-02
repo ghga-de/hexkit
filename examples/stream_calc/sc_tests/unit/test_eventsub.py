@@ -19,7 +19,10 @@
 from unittest.mock import AsyncMock
 
 import pytest
-from stream_calc.translators.eventsub import EventProblemReceiver
+from stream_calc.translators.eventsub import (
+    EventProblemReceiver,
+    EventProblemReceiverConfig,
+)
 
 from hexkit.custom_types import JsonObject
 
@@ -49,7 +52,7 @@ async def test_event_problem_receiver(
     problem_handler = AsyncMock()
 
     problem_receiver = EventProblemReceiver(
-        topics_of_interest=[topic], problem_handler=problem_handler
+        config=EventProblemReceiverConfig(), problem_handler=problem_handler
     )
     await problem_receiver.consume(payload=payload, type_=type_, topic=topic)
 
@@ -66,7 +69,7 @@ async def test_event_problem_receiver_with_missing_field():
     payload: JsonObject = {"problem_id": "bad_problem", "multiplier": 0}
     problem_handler = AsyncMock()
     problem_receiver = EventProblemReceiver(
-        topics_of_interest=[topic], problem_handler=problem_handler
+        config=EventProblemReceiverConfig(), problem_handler=problem_handler
     )
     with pytest.raises(
         EventProblemReceiver.MalformedPayloadError,

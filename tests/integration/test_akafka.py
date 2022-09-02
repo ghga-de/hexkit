@@ -24,7 +24,11 @@ from kafka import KafkaConsumer, KafkaProducer
 from testcontainers.kafka import KafkaContainer
 
 from hexkit.custom_types import JsonObject
-from hexkit.providers.akafka import KafkaEventPublisher, KafkaEventSubscriber
+from hexkit.providers.akafka import (
+    KafkaConfig,
+    KafkaEventPublisher,
+    KafkaEventSubscriber,
+)
 from tests.fixtures.utils import exec_with_timeout
 
 
@@ -38,12 +42,13 @@ async def test_kafka_event_publisher():
 
     with KafkaContainer() as kafka:
         bootstrap_servers = [kafka.get_bootstrap_server()]
-
-        async with KafkaEventPublisher.construct(
+        config = KafkaConfig(
             service_name="test_publisher",
-            client_suffix="1",
+            service_instance_id="1",
             kafka_servers=bootstrap_servers,
-        ) as event_publisher:
+        )
+
+        async with KafkaEventPublisher.construct(config=config) as event_publisher:
 
             await event_publisher.publish(
                 payload=payload,
@@ -93,9 +98,11 @@ async def test_kafka_event_subscriber():
 
     with KafkaContainer() as kafka:
         # publish one event the python-kafka library directly:
+        bootstrap_servers = [kafka.get_bootstrap_server()]
+
         producer = KafkaProducer(
             client_id="test_producer",
-            bootstrap_servers=[kafka.get_bootstrap_server()],
+            bootstrap_servers=bootstrap_servers,
             key_serializer=lambda key: key.encode("ascii"),
             value_serializer=lambda event_value: json.dumps(event_value).encode(
                 "ascii"
@@ -107,10 +114,13 @@ async def test_kafka_event_subscriber():
             producer.close()
 
         # setup the provider:
-        async with KafkaEventSubscriber.construct(
+        config = KafkaConfig(
             service_name="event_subscriber",
-            client_suffix="1",
-            kafka_servers=[kafka.get_bootstrap_server()],
+            service_instance_id="1",
+            kafka_servers=bootstrap_servers,
+        )
+        async with KafkaEventSubscriber.construct(
+            config=config,
             translator=translator,
         ) as event_subscriber:
             # consume one event:

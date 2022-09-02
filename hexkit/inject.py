@@ -29,10 +29,11 @@ framework are called `Providers`.
 import inspect
 from collections.abc import AsyncIterator
 from contextlib import AbstractAsyncContextManager
-from typing import Any, Callable, Optional, TypeVar
+from typing import Any, Callable, Generic, Optional, TypeVar
 
 import dependency_injector.containers
 import dependency_injector.providers
+from pydantic import BaseSettings
 
 from hexkit.custom_types import ContextConstructable
 
@@ -42,6 +43,7 @@ __all__ = [
     "NotConstructableError",
     "ContextConstructor",
     "AsyncInitShutdownError",
+    "Configurator",
 ]
 
 
@@ -104,7 +106,7 @@ class ContextConstructor(dependency_injector.providers.Resource):
         self,
         provides: Optional[type[ContextConstructable]] = None,
         *args: dependency_injector.providers.Injection,
-        **kwargs: dependency_injector.providers.Injection
+        **kwargs: dependency_injector.providers.Injection,
     ):
         """Initialize `dependency_injector`'s Resource with an AbstractAsyncContextManager."""
 
@@ -186,3 +188,27 @@ class ContainerBase(dependency_injector.containers.DeclarativeContainer):
     async def __aexit__(self, exc_type, exc_value, exc_trace):
         """Shutdown/teardown resources"""
         ...
+
+
+PydanticConfig = TypeVar("PydanticConfig", bound=BaseSettings)
+
+
+class Configurator(dependency_injector.providers.Factory, Generic[PydanticConfig]):
+    """A configuration constructor that holds configuration parameters using a pydantic
+    model."""
+
+    def load_config(self, config: PydanticConfig):
+        """Loading config parameters form an pydantic config instance."""
+
+        self.override(dependency_injector.providers.Callable(lambda: config))
+
+
+def get_configurator(
+    pydantic_cls: type[PydanticConfig],
+) -> Configurator[PydanticConfig]:
+    """Initializes a configuration provider.
+
+    This helper function is necessary because the __init__ of Providers used by the
+    dependency_injector framework need to always use the same singnature."""
+
+    return Configurator[PydanticConfig](pydantic_cls)

@@ -16,10 +16,17 @@
 
 """Translators that target the event publishing protocol."""
 
+from pydantic import BaseSettings
 from stream_calc.ports.problem_receiver import ArithProblemHandlerPort
 
 from hexkit.custom_types import Ascii, JsonObject
 from hexkit.protocols.eventsub import EventSubscriberProtocol
+
+
+class EventProblemReceiverConfig(BaseSettings):
+    """Config parameters and their defaults."""
+
+    problem_receive_topics: list[str] = ["arithmetic_problems"]
 
 
 class EventProblemReceiver(EventSubscriberProtocol):
@@ -31,12 +38,12 @@ class EventProblemReceiver(EventSubscriberProtocol):
     def __init__(
         self,
         *,
-        topics_of_interest: list[str],
+        config: EventProblemReceiverConfig,
         problem_handler: ArithProblemHandlerPort,
     ):
         """Configure the translator with a corresponding port implementation."""
         self._problem_handler = problem_handler
-        self.topics_of_interest = topics_of_interest
+        self.topics_of_interest = config.problem_receive_topics
 
     @classmethod
     def _extract_payload(cls, payload: JsonObject, expected_fields: list[str]) -> tuple:

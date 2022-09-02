@@ -27,23 +27,55 @@ from contextlib import asynccontextmanager
 from typing import Any, Callable, Literal, Protocol
 
 from aiokafka import AIOKafkaConsumer, AIOKafkaProducer
+from pydantic import BaseSettings, Field
 
 from hexkit.base import InboundProviderBase
 from hexkit.custom_types import JsonObject
 from hexkit.protocols.eventpub import EventPublisherProtocol
 from hexkit.protocols.eventsub import EventSubscriberProtocol
 
+__all__ = [
+    "KafkaConfig",
+    "KafkaEventPublisher",
+    "ConsumerEvent",
+    "KafkaEventSubscriber",
+]
+
+
+class KafkaConfig(BaseSettings):
+    """Config parameters needed for connecting to Apache Kafka."""
+
+    service_name: str = Field(
+        ...,
+        example="my-cool-special-service",
+        description="The name of the (micro-)service from which messages are published.",
+    )
+    service_instance_id: str = Field(
+        ...,
+        example="germany-bw-instance-001",
+        description=(
+            "A string that uniquely identifies this instance across all instances of"
+            + " this service. A globally unique Kafka client ID will be created by"
+            + " concatenating the service_name and the service_instance_id."
+        ),
+    )
+    kafka_servers: list[str] = Field(
+        ...,
+        example=["localhost:9092"],
+        description="A list of connection strings to connect to Kafka bootstrap servers.",
+    )
+
 
 class EventTypeNotFoundError(RuntimeError):
     """Thrown when no `type` was set in the headers of an event."""
 
 
-def generate_client_id(service_name: str, client_suffix: str) -> str:
+def generate_client_id(*, service_name: str, instance_id: str) -> str:
     """
     Generate client id (from the perspective of the Kafka broker) by concatenating
     the service name and the client suffix.
     """
-    return f"{service_name}.{client_suffix}"
+    return f"{service_name}.{instance_id}"
 
 
 class KafkaProducerCompatible(Protocol):
@@ -92,29 +124,24 @@ class KafkaEventPublisher(EventPublisherProtocol):
     async def construct(
         cls,
         *,
-        service_name: str,
-        client_suffix: str,
-        kafka_servers: list[str],
+        config: KafkaConfig,
         kafka_producer_cls: type[KafkaProducerCompatible] = AIOKafkaProducer,
     ):
         """
         Setup and teardown KafkaEventPublisher instance with some config params.
 
         Args:
-            service_name (str):
-                The name of the (micro-)service from which messages are published.
-            client_suffix (str):
-                String that uniquely identifies this instance across all instances of this
-                service. Will create a globally unique Kafka client ID by concatenating
-            kafka_servers (list[str]):
-                List of connection strings pointing to the kafka brokers.
+            config:
+                Config parameters needed for connecting to Apache Kafka.
             kafka_producer_cls:
                 Overwrite the used Kafka Producer class. Only intented for unit testing.
         """
-        client_id = generate_client_id(service_name, client_suffix)
+        client_id = generate_client_id(
+            service_name=config.service_name, instance_id=config.service_instance_id
+        )
 
         producer = kafka_producer_cls(
-            bootstrap_servers=kafka_servers,
+            bootstrap_servers=config.kafka_servers,
             client_id=client_id,
             key_serializer=lambda key: key.encode("ascii"),
             value_serializer=lambda event_value: json.dumps(event_value).encode(
@@ -227,9 +254,7 @@ class KafkaEventSubscriber(InboundProviderBase):
     async def construct(
         cls,
         *,
-        service_name: str,
-        client_suffix: str,
-        kafka_servers: list[str],
+        config: KafkaConfig,
         translator: EventSubscriberProtocol,
         kafka_consumer_cls: type[KafkaConsumerCompatible] = AIOKafkaConsumer,
     ):
@@ -237,14 +262,8 @@ class KafkaEventSubscriber(InboundProviderBase):
         Setup and teardown KafkaEventPublisher instance with some config params.
 
         Args:
-            service_name (str):
-                The name of the (micro-)service from which messages are published.
-            client_suffix (str):
-                String that uniquely this instance across all instances of this service.
-                Will create a globally unique Kafka client IDidentifier by concatenating
-                the service_name and the client_suffix.
-            kafka_servers (list[str]):
-                List of connection strings pointing to the kafka brokers.
+            config:
+                Config parameters needed for connecting to Apache Kafka.
             translator (EventSubscriberProtocol):
                 The translator that translates between the protocol (mentioned in the
                 type annotation) and an application-specific port
@@ -253,15 +272,17 @@ class KafkaEventSubscriber(InboundProviderBase):
                 Overwrite the used Kafka consumer class. Only intented for unit testing.
         """
 
-        client_id = generate_client_id(service_name, client_suffix)
+        client_id = generate_client_id(
+            service_name=config.service_name, instance_id=config.service_instance_id
+        )
 
         topics = translator.topics_of_interest
 
         consumer = kafka_consumer_cls(
             *topics,
-            bootstrap_servers=kafka_servers,
+            bootstrap_servers=config.kafka_servers,
             client_id=client_id,
-            group_id=service_name,
+            group_id=config.service_name,
             auto_offset_reset="earliest",
             key_deserializer=lambda event_key: event_key.decode("ascii"),
             value_deserializer=lambda event_value: json.loads(

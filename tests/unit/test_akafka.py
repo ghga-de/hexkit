@@ -24,7 +24,11 @@ from unittest.mock import AsyncMock, Mock
 import pytest
 
 from hexkit.custom_types import JsonObject
-from hexkit.providers.akafka import KafkaEventPublisher, KafkaEventSubscriber
+from hexkit.providers.akafka import (
+    KafkaConfig,
+    KafkaEventPublisher,
+    KafkaEventSubscriber,
+)
 
 
 @pytest.mark.asyncio
@@ -41,10 +45,13 @@ async def test_kafka_event_publisher():
     producer_class = Mock(return_value=producer)
 
     # publish event using the provider:
-    async with KafkaEventPublisher.construct(
+    config = KafkaConfig(
         service_name="test_publisher",
-        client_suffix="1",
+        service_instance_id="1",
         kafka_servers=["my-fake-kafka-server"],
+    )
+    async with KafkaEventPublisher.construct(
+        config=config,
         kafka_producer_cls=producer_class,
     ) as event_publisher:
 
@@ -150,10 +157,13 @@ async def test_kafka_event_subscriber(
     translator.types_of_interest = types_of_interest
 
     # setup the provider:
-    async with KafkaEventSubscriber.construct(
+    config = KafkaConfig(
         service_name=service_name,
-        client_suffix="1",
+        service_instance_id="1",
         kafka_servers=["my-fake-kafka-server"],
+    )
+    async with KafkaEventSubscriber.construct(
+        config=config,
         translator=translator,
         kafka_consumer_cls=consumer_cls,
     ) as event_subscriber:

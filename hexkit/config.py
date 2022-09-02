@@ -168,6 +168,8 @@ def config_from_yaml(
                 class Config:
                     """pydantic Config subclass"""
 
+                    frozen = True
+
                     # add this prefix to all variable names to
                     # define them as environment variables:
                     env_prefix = f"{prefix}_"

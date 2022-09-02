@@ -21,36 +21,31 @@
 
 """Module hosting the dependency injection container."""
 
-from dependency_injector import providers
-
 # pylint: disable=wrong-import-order
+from stream_calc.config import Config
 from stream_calc.core.calc import StreamCalculator
 from stream_calc.translators.eventpub import EventResultEmitter
 from stream_calc.translators.eventsub import EventProblemReceiver
 
-from hexkit.inject import ContainerBase, get_constructor
+from hexkit.inject import ContainerBase, get_configurator, get_constructor
 from hexkit.providers.akafka import KafkaEventPublisher, KafkaEventSubscriber
 
 
 class Container(ContainerBase):
     """DI Container"""
 
-    config = providers.Configuration()
+    config = get_configurator(Config)
 
     # outbound providers:
     event_publisher = get_constructor(
         KafkaEventPublisher,
-        service_name=config.service_name,
-        client_suffix=config.client_suffix,
-        kafka_servers=config.kafka_servers,
+        config=config,
     )
 
     # outbound translators:
     event_result_emitter = get_constructor(
         EventResultEmitter,
-        output_topic=config.result_emit_output_topic,
-        success_type=config.result_emit_success_type,
-        failure_type=config.result_emit_failure_type,
+        config=config,
         event_publisher=event_publisher,
     )
 
@@ -62,15 +57,13 @@ class Container(ContainerBase):
     # inbound translators:
     event_problem_receiver = get_constructor(
         EventProblemReceiver,
-        topics_of_interest=config.problem_receive_topics,
+        config=config,
         problem_handler=problem_handler,
     )
 
     # inbound providers:
     event_subscriber = get_constructor(
         KafkaEventSubscriber,
-        service_name=config.service_name,
-        client_suffix=config.client_suffix,
-        kafka_servers=config.kafka_servers,
+        config=config,
         translator=event_problem_receiver,
     )
