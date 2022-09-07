@@ -23,7 +23,7 @@ import pytest
 from pydantic import BaseModel
 
 from hexkit.protocols.dao import (
-    DaoFactoryProtcol,
+    DaoFactoryProtocol,
     DaoNaturalId,
     DaoSurrogateId,
     Dto,
@@ -32,7 +32,7 @@ from hexkit.protocols.dao import (
 )
 
 
-class FakeDaoFactory(DaoFactoryProtcol):
+class FakeDaoFactory(DaoFactoryProtocol):
     """Implements the DaoFactoryProtocol without providing any logic."""
 
     @overload
@@ -119,7 +119,7 @@ async def test_get_dto_invalid_id():
 
     dao_factory = FakeDaoFactory()
 
-    with pytest.raises(DaoFactoryProtcol.IdFieldNotFoundError):
+    with pytest.raises(DaoFactoryProtocol.IdFieldNotFoundError):
         _ = await dao_factory.get_dao(
             name="test_dao", dto_model=ExampleDto, id_field="invalid_id"
         )
@@ -135,7 +135,7 @@ async def test_get_dto_invalid_creation_model(dto_creation_model: type[BaseModel
 
     dao_factory = FakeDaoFactory()
 
-    with pytest.raises(DaoFactoryProtcol.CreationModelInvalidError):
+    with pytest.raises(DaoFactoryProtocol.CreationModelInvalidError):
         _ = await dao_factory.get_dao(
             name="test_dao",
             dto_model=ExampleDto,
@@ -150,7 +150,7 @@ async def test_get_dto_invalid_fields_to_index():
 
     dao_factory = FakeDaoFactory()
 
-    with pytest.raises(DaoFactoryProtcol.IndexFieldsInvalidError):
+    with pytest.raises(DaoFactoryProtocol.IndexFieldsInvalidError):
         _ = await dao_factory.get_dao(
             name="test_dao",
             dto_model=ExampleDto,

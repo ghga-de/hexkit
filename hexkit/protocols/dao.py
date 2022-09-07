@@ -36,7 +36,7 @@ __all__ = [
     "MultipleHitsFoundError",
     "DaoNaturalId",
     "DaoSurrogateId",
-    "DaoFactoryProtcol",
+    "DaoFactoryProtocol",
     "uuid4_id_generator",
 ]
 
@@ -163,7 +163,7 @@ class DaoCommons(typing.Protocol[Dto]):
 
 class DaoSurrogateId(DaoCommons[Dto], typing.Protocol[Dto, DtoCreation_contra]):
     """A duck type of a DAO that generates an internal/surrogate key for
-    indentifying resources in the database. ID/keys cannot be defined by the client of
+    identifying resources in the database. ID/keys cannot be defined by the client of
     the DAO. Thus, both a standard DTO model (first type parameter), which includes
     the key field, as well as special DTO model (second type parameter), which is
     identical to the first one, but does not include the ID field and is dedicated for
@@ -253,7 +253,7 @@ async def uuid4_id_generator() -> AsyncGenerator[str, None]:
 default_uuid4_id_generator = uuid4_id_generator()
 
 
-class DaoFactoryProtcol(ABC):
+class DaoFactoryProtocol(ABC):
     """A protocol describing a factory to produce Data Access Objects (DAO) objects
     that are enclosed in transactional scopes.
     """
@@ -271,7 +271,7 @@ class DaoFactoryProtcol(ABC):
     @classmethod
     def _validate_dto_model_id(cls, *, dto_model: type[Dto], id_field: str) -> None:
         """Checks whether the dto_model contains the expected id_field.
-        Raises otherwises."""
+        Raises IdFieldNotFoundError otherwise."""
 
         if id_field not in dto_model.schema()["properties"]:
             raise cls.IdFieldNotFoundError()
