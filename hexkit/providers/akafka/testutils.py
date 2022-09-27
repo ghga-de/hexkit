@@ -19,25 +19,28 @@
 Please note, only use for testing purposes.
 """
 
-from contextlib import asynccontextmanager
 import json
+from contextlib import asynccontextmanager
 from dataclasses import dataclass
+import math
 from typing import AsyncGenerator, Generator, Optional
 
 import pytest_asyncio
+from aiokafka import AIOKafkaConsumer, TopicPartition
 from testcontainers.kafka import KafkaContainer
-from aiokafka import AIOKafkaConsumer
 
+from hexkit.custom_types import Ascii, JsonObject
 from hexkit.providers.akafka.provider import (
+    ConsumerEvent,
     KafkaConfig,
     KafkaEventPublisher,
     KafkaEventSubscriber,
+    get_event_type,
 )
-from hexkit.custom_types import JsonObject, Ascii
 
 
 @dataclass(frozen=True)
-class ExpectedEvent:
+class Event:
     """Used to describe events expected in a specific topic with a specific key.
     To be used with an instance of the EventRecorder class.
     """
@@ -50,12 +53,32 @@ class EventRecorder:
     """Instances of this class can look at at specific topic and check for expected
     events occuring with a specified event key."""
 
+    class NotStartedError(RuntimeError):
+        """Raised when the recording has not been started yet but is required for the
+        requested action."""
+
+        def __init__(self):
+            super().__init__("Event recording has not been started yet.")
+            
+    class ValidationError(RuntimeError):
+        """Raised when the recorded events do not match the expectations."""
+
+        def __init__(self, recorded_events: list[Event], expected_events: list[Event]):
+            """Initialize the error with information on the recorded and
+            expected_events."""
+
+            message = 
+
+        def __init__(self):
+            super().__init__("Event recording has not been started yet.")
+
     def __init__(
         self,
         *,
         consumer: AIOKafkaConsumer,
+        topic: Ascii,
         with_key: Ascii,
-        expect_events: list[ExpectedEvent],
+        expect_events: list[Event],
     ):
         """Initialize with connection detials and by defining an expectation.
         The specified events with the specified key are expected in the exact order as
@@ -63,27 +86,110 @@ class EventRecorder:
         """
 
         self._consumer = consumer
+        self._topic = topic
         self._key = with_key
         self._expected_events = expect_events
 
-        self.recording_started = False
-        self._offset_by_partition: Optional[dict[str, int]]
+        self._starting_offsets: Optional[dict[str, int]] = None
+
+    async def _get_current_offsets(self) -> dict[str, int]:
+        """Returns a dictionary where the keys are partition IDs and the values are the
+        current offsets in the corresponding partitions."""
+
+        subscribed_partitions: list[str] = [
+            topic_partition.partition for topic_partition in self._consumer.assignment()
+        ]
+
+        return {
+            partition: await self._consumer.position(partition)
+            for partition in subscribed_partitions
+        }
+
+    def _set_offsets(self, offsets: dict[str, int]):
+        """Set partition offsets.
+
+        Args:
+            offsets: A dictionary with partition IDs as keys and offsets as values.
+        """
+
+        for partition in offsets:
+            self._consumer.seek(
+                partition=TopicPartition(topic=self._topic, partition=partition),
+                offset=offsets[partition],
+            )
 
     async def start_recording(self) -> None:
         """Start looking for the expected events from now on."""
 
-        if self.recording_started:
+        if self._starting_offsets is not None:
             raise RuntimeError(
                 "Recording has already been started. Cannot restart. Please define a"
                 + " new EventRecorder."
             )
 
         await self._consumer.seek_to_end()
-        subscribed_partitions = self._consumer.assignment()
-        self._offset_by_partition = {
-            partition: await self._consumer.position(partition)
-            for partition in subscribed_partitions
-        }
+        self._starting_offsets = await self._get_current_offsets()
+
+    async def _count_events_since_start(self) -> int:
+        """Determines how many events have been publish since the starting offset.
+        Thereby, it sums over all partitions. The offset will not be change.
+        """
+
+        if self._starting_offsets is None:
+            raise self.NotStartedError()
+
+        # get the offsets of the latest available events:
+        await self._consumer.seek_to_end()
+        latest_offsets = await self._get_current_offsets()
+
+        # reset the offsets to the starting positions:
+        self._set_offsets(self._starting_offsets)
+
+        # calculate the difference in offsets and sum up:
+        partition_wise_counts = [
+            latest_offsets[partition] - self._starting_offsets[partition]
+            for partition in self._starting_offsets
+        ]
+        return sum(partition_wise_counts)
+
+    async def _consume_event(self) -> ConsumerEvent:
+        """Consume a single event and return it."""
+
+        return await self._consumer.__anext__()
+
+    async def _get_events_since_start(self) -> list[Event]:
+        """Consume events since the starting offset."""
+
+        event_count = await self._count_events_since_start()
+
+        # consume all the available events (but not more which would lead to an infitive
+        # waiting):
+        raw_events = [await self._consume_event() for _ in range(event_count)]
+
+        # discard all events that do not match the key of interest:
+        return [
+            Event(payload=raw_event.value, type_=get_event_type(raw_event))
+            for raw_event in raw_events
+            if raw_event.key == self._key
+        ]
+
+    async def stop_and_check(self) -> None:
+        """Stop recording and check the recorded events against the expectation.
+
+        Raises:
+            EventsMissmatchError: When the recorded events do not match the expectation.
+        """
+
+        recorded_events = await self._get_events_since_start()
+
+        # ignore events that are not in the expected events:
+        events_of_interest = [
+            event for event in recorded_events if event in self._expected_events
+        ]
+
+        # check the expectations:
+        if events_of_interest != self._expected_events:
+
 
 
 @dataclass(frozen=True)
@@ -104,8 +210,8 @@ class KafkaFixture:
         await self.publisher.publish(payload=payload, type_=type_, key=key, topic=topic)
 
     @asynccontextmanager
-    async def get_event_recorder(
-        *, in_topic: Ascii, with_key: Ascii, expect_events: list[ExpectedEvent]
+    async def expect_events(
+        events: list[Event], *, in_topic: Ascii, with_key: Ascii
     ) -> AsyncGenerator[EventRecorder, None, None]:
         """"""
 
@@ -124,7 +230,10 @@ class KafkaFixture:
         try:
             await consumer.start()
             yield EventRecorder(
-                consumer=consumer, with_key=with_key, expect_events=expect_events
+                consumer=consumer,
+                topic=in_topic,
+                with_key=with_key,
+                expect_events=events,
             )
         finally:
             await consumer.stop()

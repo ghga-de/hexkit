@@ -30,7 +30,7 @@ from aiokafka import AIOKafkaConsumer, AIOKafkaProducer
 from pydantic import BaseSettings, Field
 
 from hexkit.base import InboundProviderBase
-from hexkit.custom_types import JsonObject, Ascii
+from hexkit.custom_types import Ascii, JsonObject
 from hexkit.protocols.eventpub import EventPublisherProtocol
 from hexkit.protocols.eventsub import EventSubscriberProtocol
 
@@ -196,6 +196,14 @@ class ConsumerEvent(Protocol):
     offset: int
 
 
+def get_event_type(event: ConsumerEvent) -> str:
+    """Extract the event type out of an ConsumerEvent."""
+    for header in event.headers:
+        if header[0] == "type":
+            return header[1].decode("ascii")
+    raise EventTypeNotFoundError()
+
+
 class KafkaConsumerCompatible(Protocol):
     """A python duck type protocol describing an AIOKafkaConsumer or equivalent."""
 
@@ -315,14 +323,6 @@ class KafkaEventSubscriber(InboundProviderBase):
         self._types_whitelist = translator.types_of_interest
 
     @staticmethod
-    def _get_type(event: ConsumerEvent) -> str:
-        """Extract the event type out of an ConsumerEvent."""
-        for header in event.headers:
-            if header[0] == "type":
-                return header[1].decode("ascii")
-        raise EventTypeNotFoundError()
-
-    @staticmethod
     def _get_event_label(event: ConsumerEvent) -> str:
         """Get a label that identifies an event."""
         return (
@@ -335,7 +335,7 @@ class KafkaEventSubscriber(InboundProviderBase):
         event_label = self._get_event_label(event)
 
         try:
-            type_ = self._get_type(event)
+            type_ = get_event_type(event)
         except EventTypeNotFoundError:
             logging.warning("Ignored an event without type: %s", event_label)
             return
