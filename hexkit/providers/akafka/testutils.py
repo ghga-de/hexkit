@@ -67,7 +67,10 @@ class EventRecorder:
             """Initialize the error with information on the recorded and
             expected_events."""
 
-            message = 
+            message = ("The recorded events did not match the expectations." +
+            " Events recorded: " + ", ".join(recorded_events) + 
+            " - but expected: " + ",".join(expected_events)
+            )
 
         def __init__(self):
             super().__init__("Event recording has not been started yet.")
