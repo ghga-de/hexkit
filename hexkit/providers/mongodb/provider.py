@@ -41,7 +41,6 @@ from hexkit.protocols.dao import (
     InvalidFindMappingError,
     MultipleHitsFoundError,
     ResourceNotFoundError,
-    default_uuid4_id_generator,
 )
 from hexkit.utils import FieldNotInModelError, validate_fields_in_model
 
@@ -73,9 +72,9 @@ class MongoDbDaoBase(ABC, Generic[Dto]):
                 A collection object from the motor library.
             session:
                 If transactional support is needed, please provide an
-                AsyncIOMotorClientSession that is within an active transaction.
-                If None is provided, every database operation is immediately committed.
-                Defaults to None.
+                AsyncIOMotorClientSession that is within an active transaction. If None
+                is provided, every database operation is immediately commited. Defaults
+                to None.
         """
 
         self._collection = collection
@@ -236,7 +235,7 @@ class MongoDbDaoBase(ABC, Generic[Dto]):
 
 class MongoDbDaoSurrogateId(MongoDbDaoBase[Dto], Generic[Dto, DtoCreation_contra]):
     """A duck type of a DAO that generates an internal/surrogate key for
-    identifying resources in the database. ID/keys cannot be defined by the client of
+    indentifying resources in the database. ID/keys cannot be defined by the client of
     the DAO. Thus, both a standard DTO model (first type parameter), which includes
     the key field, as well as special DTO model (second type parameter), which is
     identical to the first one, but does not include the ID field and is dedicated for
@@ -285,9 +284,9 @@ class MongoDbDaoSurrogateId(MongoDbDaoBase[Dto], Generic[Dto, DtoCreation_contra
                 A collection object from the motor library.
             session:
                 If transactional support is needed, please provide an
-                AsyncIOMotorClientSession that is within an active transaction.
-                If None is provided, every database operation is immediately committed.
-                Defaults to None.
+                AsyncIOMotorClientSession that is within an active transaction. If None
+                is provided, every database operation is immediately commited. Defaults
+                to None.
         """
 
         super().__init__(
@@ -427,8 +426,9 @@ class MongoDbDaoFactory(DaoFactoryProtocol):
         name: str,
         dto_model: type[Dto],
         id_field: str,
-        fields_to_index: Optional[Collection[str]] = None,
-        id_generator: AsyncGenerator[str, None] = default_uuid4_id_generator,
+        dto_creation_model: None,
+        fields_to_index: Optional[Collection[str]],
+        id_generator: AsyncGenerator[str, None],
     ) -> DaoNaturalId[Dto]:
         ...
 
@@ -440,8 +440,8 @@ class MongoDbDaoFactory(DaoFactoryProtocol):
         dto_model: type[Dto],
         id_field: str,
         dto_creation_model: type[DtoCreation],
-        fields_to_index: Optional[Collection[str]] = None,
-        id_generator: AsyncGenerator[str, None] = default_uuid4_id_generator,
+        fields_to_index: Optional[Collection[str]],
+        id_generator: AsyncGenerator[str, None],
     ) -> DaoSurrogateId[Dto, DtoCreation]:
         ...
 
@@ -451,18 +451,18 @@ class MongoDbDaoFactory(DaoFactoryProtocol):
         name: str,
         dto_model: type[Dto],
         id_field: str,
-        dto_creation_model: Optional[type[DtoCreation]] = None,
-        fields_to_index: Optional[Collection[str]] = None,
-        id_generator: AsyncGenerator[str, None] = default_uuid4_id_generator,
+        dto_creation_model: Optional[type[DtoCreation]],
+        fields_to_index: Optional[Collection[str]],
+        id_generator: AsyncGenerator[str, None],
     ) -> Union[DaoSurrogateId[Dto, DtoCreation], DaoNaturalId[Dto]]:
         """Constructs a DAO for interacting with resources in a MongoDB database.
 
-        Please see the DaoFactoryProtocol superclass for documentation of parameters.
+        Please see the DaoFactoryProtcol superclass for documentation of parameters.
 
         Please note, the method in this MongoDB-specific implementation of the
-        DaoFactoryProtocol would not require to be coroutine. However, other
-        implementations of the DaoFactoryProtocol might need to perform await responses
-        from the database server. Thus for compliance with the DaoFactoryProtocol, this
+        DaoFactoryProtcol would not require to be coroutine. However, other
+        implementations of the DaoFactoryProtcol might need to perform await responses
+        from the database server. Thus for compliance with the DaoFactoryProtcol, this
         method is async.
         """
 

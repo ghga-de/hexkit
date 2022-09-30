@@ -28,7 +28,6 @@ from hexkit.protocols.dao import (
     DaoSurrogateId,
     Dto,
     DtoCreation,
-    default_uuid4_id_generator,
 )
 
 
@@ -42,8 +41,9 @@ class FakeDaoFactory(DaoFactoryProtocol):
         name: str,
         dto_model: type[Dto],
         id_field: str,
-        fields_to_index: Optional[Collection[str]] = None,
-        id_generator: AsyncGenerator[str, None] = default_uuid4_id_generator,
+        dto_creation_model: None,
+        fields_to_index: Optional[Collection[str]],
+        id_generator: AsyncGenerator[str, None],
     ) -> DaoNaturalId[Dto]:
         ...
 
@@ -55,8 +55,8 @@ class FakeDaoFactory(DaoFactoryProtocol):
         dto_model: type[Dto],
         id_field: str,
         dto_creation_model: type[DtoCreation],
-        fields_to_index: Optional[Collection[str]] = None,
-        id_generator: AsyncGenerator[str, None] = default_uuid4_id_generator,
+        fields_to_index: Optional[Collection[str]],
+        id_generator: AsyncGenerator[str, None],
     ) -> DaoSurrogateId[Dto, DtoCreation]:
         ...
 
@@ -66,10 +66,14 @@ class FakeDaoFactory(DaoFactoryProtocol):
         name: str,
         dto_model: type[Dto],
         id_field: str,
-        dto_creation_model: Optional[type[DtoCreation]] = None,
-        fields_to_index: Optional[Collection[str]] = None,
-        id_generator: AsyncGenerator[str, None] = default_uuid4_id_generator,
+        dto_creation_model: Optional[type[DtoCreation]],
+        fields_to_index: Optional[Collection[str]],
+        id_generator: AsyncGenerator[str, None],
     ) -> Union[DaoSurrogateId[Dto, DtoCreation], DaoNaturalId[Dto]]:
+        """*To be implemented by the provider. Input validation is done outside of this
+        method.*"""
+        ...
+
         """*To be implemented by the provider. Input validation is done outside of this
         method.*"""
 
