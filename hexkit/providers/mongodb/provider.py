@@ -460,9 +460,9 @@ class MongoDbDaoFactory(DaoFactoryProtocol):
         Please see the DaoFactoryProtcol superclass for documentation of parameters.
 
         Please note, the method in this MongoDB-specific implementation of the
-        DaoFactoryProtcol would not require to be coroutine. However, other
-        implementations of the DaoFactoryProtcol might need to perform await responses
-        from the database server. Thus for compliance with the DaoFactoryProtcol, this
+        DaoFactoryProtocol would not require to be coroutine. However, other
+        implementations of the DaoFactoryProtocol might need to perform await responses
+        from the database server. Thus for compliance with the DaoFactoryProtocol, this
         method is async.
         """
 
