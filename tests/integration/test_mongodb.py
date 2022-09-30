@@ -68,7 +68,7 @@ async def test_dao_happy(mongodb_fixture: MongoDbFixture):  # noqa: F811
     assert resource_inserted.dict(exclude={"id"}) == resource_to_create.dict()
 
     # read the newly inserted resource:
-    resource_read = await dao.get(id_=resource_inserted.id)
+    resource_read = await dao.get_by_id(resource_inserted.id)
 
     assert resource_read == resource_inserted
 
@@ -77,7 +77,7 @@ async def test_dao_happy(mongodb_fixture: MongoDbFixture):  # noqa: F811
     await dao.update(resource_update)
 
     # read the updated resource again:
-    resource_updated = await dao.get(id_=resource_inserted.id)
+    resource_updated = await dao.get_by_id(resource_inserted.id)
 
     assert resource_update == resource_updated
 
@@ -108,7 +108,7 @@ async def test_dao_happy(mongodb_fixture: MongoDbFixture):  # noqa: F811
 
     # confirm that the resource was deleted:
     with pytest.raises(ResourceNotFoundError):
-        _ = await dao.get(id_=resource_inserted.id)
+        _ = await dao.get_by_id(resource_inserted.id)
 
 
 @pytest.mark.asyncio
@@ -127,7 +127,7 @@ async def test_dao_insert_natural_id_happy(
     await dao.insert(resource)
 
     # check the newly inserted resource:
-    resource_observed = await dao.get(id_=resource.id)
+    resource_observed = await dao.get_by_id(resource.id)
     assert resource == resource_observed
 
 
@@ -148,7 +148,7 @@ async def test_dao_upsert_natural_id_happy(
     await dao.upsert(resource)
 
     # check the newly inserted resource:
-    resource_observed = await dao.get(id_=resource.id)
+    resource_observed = await dao.get_by_id(resource.id)
     assert resource == resource_observed
 
     # update the resource:
@@ -156,7 +156,7 @@ async def test_dao_upsert_natural_id_happy(
     await dao.upsert(resource_update)
 
     # check the updated resource:
-    resource_update_observed = await dao.get(id_=resource.id)
+    resource_update_observed = await dao.get_by_id(resource.id)
     assert resource_update == resource_update_observed
 
 
@@ -173,7 +173,7 @@ async def test_dao_get_not_found(
     )
 
     with pytest.raises(ResourceNotFoundError):
-        _ = await dao.get(id_="my_non_existing_id_001")
+        _ = await dao.get_by_id("my_non_existing_id_001")
 
 
 @pytest.mark.asyncio

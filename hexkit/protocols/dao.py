@@ -87,7 +87,7 @@ class DaoCommons(typing.Protocol[Dto]):
     other DAO duck types.
     """
 
-    async def get(self, *, id_: str) -> Dto:
+    async def get_by_id(self, id_: str) -> Dto:
         """Get a resource by providing its ID.
 
         Args:
