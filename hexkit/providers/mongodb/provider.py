@@ -457,7 +457,7 @@ class MongoDbDaoFactory(DaoFactoryProtocol):
     ) -> Union[DaoSurrogateId[Dto, DtoCreation], DaoNaturalId[Dto]]:
         """Constructs a DAO for interacting with resources in a MongoDB database.
 
-        Please see the DaoFactoryProtcol superclass for documentation of parameters.
+        Please see the DaoFactoryProtocol superclass for documentation of parameters.
 
         Please note, the method in this MongoDB-specific implementation of the
         DaoFactoryProtocol would not require to be coroutine. However, other
