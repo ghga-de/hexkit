@@ -250,9 +250,6 @@ async def uuid4_id_generator() -> AsyncGenerator[str, None]:
         yield str(uuid4())
 
 
-default_uuid4_id_generator = uuid4_id_generator()
-
-
 class DaoFactoryProtocol(ABC):
     """A protocol describing a factory to produce Data Access Objects (DAO) objects
     that are enclosed in transactional scopes.
@@ -327,7 +324,7 @@ class DaoFactoryProtocol(ABC):
         dto_model: type[Dto],
         id_field: str,
         fields_to_index: Optional[Collection[str]] = None,
-        id_generator: AsyncGenerator[str, None] = default_uuid4_id_generator,
+        id_generator: Optional[AsyncGenerator[str, None]] = None,
     ) -> DaoNaturalId[Dto]:
         ...
 
@@ -340,7 +337,7 @@ class DaoFactoryProtocol(ABC):
         id_field: str,
         dto_creation_model: type[DtoCreation],
         fields_to_index: Optional[Collection[str]] = None,
-        id_generator: AsyncGenerator[str, None] = default_uuid4_id_generator,
+        id_generator: Optional[AsyncGenerator[str, None]] = None,
     ) -> DaoSurrogateId[Dto, DtoCreation]:
         ...
 
@@ -352,7 +349,7 @@ class DaoFactoryProtocol(ABC):
         id_field: str,
         dto_creation_model: Optional[type[DtoCreation]] = None,
         fields_to_index: Optional[Collection[str]] = None,
-        id_generator: AsyncGenerator[str, None] = default_uuid4_id_generator,
+        id_generator: Optional[AsyncGenerator[str, None]] = None,
     ) -> Union[DaoSurrogateId[Dto, DtoCreation], DaoNaturalId[Dto]]:
         """Constructs a DAO for interacting with resources in a database.
 
@@ -405,38 +402,45 @@ class DaoFactoryProtocol(ABC):
             dto_model=dto_model, fields_to_index=fields_to_index
         )
 
+        if id_generator is None:
+            # instanciate the default ID generator:
+            id_generator = uuid4_id_generator()
+
         return await self._get_dao(
             name=name,
             dto_model=dto_model,
             id_field=id_field,
             fields_to_index=fields_to_index,
-            dto_creation_model=dto_creation_model,  # type: ignore
+            dto_creation_model=dto_creation_model,
             # (above behavior by mypy seems incorrect)
             id_generator=id_generator,
         )
 
     @overload
+    @abstractmethod
     async def _get_dao(
         self,
         *,
         name: str,
         dto_model: type[Dto],
         id_field: str,
-        fields_to_index: Optional[Collection[str]] = None,
-        id_generator: AsyncGenerator[str, None] = default_uuid4_id_generator,
+        dto_creation_model: None,
+        fields_to_index: Optional[Collection[str]],
+        id_generator: AsyncGenerator[str, None],
     ) -> DaoNaturalId[Dto]:
         ...
 
     @overload
-    async def _get_dao(
+    @abstractmethod
+    async def _get_dao(  # pylint: disable=arguments-differ
         self,
         *,
         name: str,
         dto_model: type[Dto],
         id_field: str,
         dto_creation_model: type[DtoCreation],
-        fields_to_index: Optional[Collection[str]] = None,
-        id_generator: AsyncGenerator[str, None] = default_uuid4_id_generator,
+        fields_to_index: Optional[Collection[str]],
+        id_generator: AsyncGenerator[str, None],
     ) -> DaoSurrogateId[Dto, DtoCreation]:
         ...
 
@@ -447,9 +451,9 @@ class DaoFactoryProtocol(ABC):
         name: str,
         dto_model: type[Dto],
         id_field: str,
-        dto_creation_model: Optional[type[DtoCreation]] = None,
-        fields_to_index: Optional[Collection[str]] = None,
-        id_generator: AsyncGenerator[str, None] = default_uuid4_id_generator,
+        dto_creation_model: Optional[type[DtoCreation]],
+        fields_to_index: Optional[Collection[str]],
+        id_generator: AsyncGenerator[str, None],
     ) -> Union[DaoSurrogateId[Dto, DtoCreation], DaoNaturalId[Dto]]:
         """*To be implemented by the provider. Input validation is done outside of this
         method.*"""
