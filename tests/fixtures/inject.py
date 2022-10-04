@@ -36,7 +36,7 @@ class ValidResource(dependency_injector.resources.AsyncResource):
             self.foo: Optional[str] = foo
             self.in_context = True
 
-    async def init(self, foo: str = "foo") -> Resource:  # type: ignore
+    async def init(self, foo: str = "foo") -> Resource:
         """Initializes a new resource."""
         return self.Resource(foo=foo)
 
@@ -57,7 +57,7 @@ class ValidSyncResource(dependency_injector.resources.Resource):
             self.foo: Optional[str] = foo
             self.in_context = True
 
-    def init(self, foo: str = "foo") -> Resource:  # type: ignore
+    def init(self, foo: str = "foo") -> Resource:
         """Initializes a new resource."""
         return self.Resource(foo=foo)
 

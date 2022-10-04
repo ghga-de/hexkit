@@ -16,14 +16,14 @@
 
 """Testing the dao factory protocol."""
 
-from collections.abc import Collection
+from collections.abc import AsyncGenerator, Collection
 from typing import Optional, Union, overload
 
 import pytest
 from pydantic import BaseModel
 
 from hexkit.protocols.dao import (
-    DaoFactoryProtcol,
+    DaoFactoryProtocol,
     DaoNaturalId,
     DaoSurrogateId,
     Dto,
@@ -31,7 +31,7 @@ from hexkit.protocols.dao import (
 )
 
 
-class FakeDaoFactory(DaoFactoryProtcol):
+class FakeDaoFactory(DaoFactoryProtocol):
     """Implements the DaoFactoryProtocol without providing any logic."""
 
     @overload
@@ -41,19 +41,22 @@ class FakeDaoFactory(DaoFactoryProtcol):
         name: str,
         dto_model: type[Dto],
         id_field: str,
-        fields_to_index: Optional[Collection[str]] = None,
+        dto_creation_model: None,
+        fields_to_index: Optional[Collection[str]],
+        id_generator: AsyncGenerator[str, None],
     ) -> DaoNaturalId[Dto]:
         ...
 
     @overload
-    async def _get_dao(
+    async def _get_dao(  # pylint: disable=arguments-differ
         self,
         *,
         name: str,
         dto_model: type[Dto],
         id_field: str,
         dto_creation_model: type[DtoCreation],
-        fields_to_index: Optional[Collection[str]] = None,
+        fields_to_index: Optional[Collection[str]],
+        id_generator: AsyncGenerator[str, None],
     ) -> DaoSurrogateId[Dto, DtoCreation]:
         ...
 
@@ -63,9 +66,14 @@ class FakeDaoFactory(DaoFactoryProtcol):
         name: str,
         dto_model: type[Dto],
         id_field: str,
-        dto_creation_model: Optional[type[DtoCreation]] = None,
-        fields_to_index: Optional[Collection[str]] = None,
+        dto_creation_model: Optional[type[DtoCreation]],
+        fields_to_index: Optional[Collection[str]],
+        id_generator: AsyncGenerator[str, None],
     ) -> Union[DaoSurrogateId[Dto, DtoCreation], DaoNaturalId[Dto]]:
+        """*To be implemented by the provider. Input validation is done outside of this
+        method.*"""
+        ...
+
         """*To be implemented by the provider. Input validation is done outside of this
         method.*"""
 
@@ -115,7 +123,7 @@ async def test_get_dto_invalid_id():
 
     dao_factory = FakeDaoFactory()
 
-    with pytest.raises(DaoFactoryProtcol.IdFieldNotFoundError):
+    with pytest.raises(DaoFactoryProtocol.IdFieldNotFoundError):
         _ = await dao_factory.get_dao(
             name="test_dao", dto_model=ExampleDto, id_field="invalid_id"
         )
@@ -131,7 +139,7 @@ async def test_get_dto_invalid_creation_model(dto_creation_model: type[BaseModel
 
     dao_factory = FakeDaoFactory()
 
-    with pytest.raises(DaoFactoryProtcol.CreationModelInvalidError):
+    with pytest.raises(DaoFactoryProtocol.CreationModelInvalidError):
         _ = await dao_factory.get_dao(
             name="test_dao",
             dto_model=ExampleDto,
@@ -146,7 +154,7 @@ async def test_get_dto_invalid_fields_to_index():
 
     dao_factory = FakeDaoFactory()
 
-    with pytest.raises(DaoFactoryProtcol.IndexFieldsInvalidError):
+    with pytest.raises(DaoFactoryProtocol.IndexFieldsInvalidError):
         _ = await dao_factory.get_dao(
             name="test_dao",
             dto_model=ExampleDto,
