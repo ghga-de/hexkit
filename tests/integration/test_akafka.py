@@ -29,25 +29,29 @@ from hexkit.providers.akafka import (
     KafkaEventPublisher,
     KafkaEventSubscriber,
 )
+from hexkit.providers.akafka.testutils import ExpectedEvent, KafkaFixture, kafka_fixture
 from tests.fixtures.utils import exec_with_timeout
 
 
 @pytest.mark.asyncio
-async def test_kafka_event_publisher():
+async def test_kafka_event_publisher(kafka_fixture: KafkaFixture):
     """Test the KafkaEventPublisher."""
     payload: JsonObject = {"test_content": "Hello World"}
     type_ = "test_type"
     key = "test_key"
     topic = "test_topic"
 
-    with KafkaContainer() as kafka:
-        bootstrap_servers = [kafka.get_bootstrap_server()]
-        config = KafkaConfig(
-            service_name="test_publisher",
-            service_instance_id="1",
-            kafka_servers=bootstrap_servers,
-        )
+    config = KafkaConfig(
+        service_name="test_publisher",
+        service_instance_id="1",
+        kafka_servers=kafka_fixture.kafka_servers,
+    )
 
+    async with kafka_fixture.expect_events(
+        events=[ExpectedEvent(payload=payload, type_=type_)],
+        in_topic=topic,
+        with_key=key,
+    ):
         async with KafkaEventPublisher.construct(config=config) as event_publisher:
 
             await event_publisher.publish(
@@ -57,33 +61,9 @@ async def test_kafka_event_publisher():
                 topic=topic,
             )
 
-        # consume event using the python-kafka library directly:
-        consumer = KafkaConsumer(
-            topic,
-            client_id="test_consumer",
-            group_id="test_consumer_group",
-            bootstrap_servers=bootstrap_servers,
-            auto_offset_reset="earliest",
-            key_deserializer=lambda key: key.decode("ascii"),
-            value_deserializer=lambda val: json.loads(val.decode("ascii")),
-        )
-        try:
-            received_event = exec_with_timeout(lambda: next(consumer), timeout_after=4)
-        finally:
-            consumer.close()
-
-        # check if received event matches the expectations:
-        assert payload == received_event.value
-        assert received_event.headers[0][0] == "type"
-        received_header_dict = {
-            header[0]: header[1].decode("ascii") for header in received_event.headers
-        }
-        assert type_ == received_header_dict["type"]
-        assert key == received_event.key
-
 
 @pytest.mark.asyncio
-async def test_kafka_event_subscriber():
+async def test_kafka_event_subscriber(kafka_fixture: KafkaFixture):
     """Test the KafkaEventSubscriber with mocked KafkaEventSubscriber."""
     payload = {"test_content": "Hello World"}
     type_ = "test_type"
@@ -96,37 +76,32 @@ async def test_kafka_event_subscriber():
     translator.topics_of_interest = [topic]
     translator.types_of_interest = [type_]
 
-    with KafkaContainer() as kafka:
-        # publish one event the python-kafka library directly:
-        bootstrap_servers = [kafka.get_bootstrap_server()]
+    # publish one event with the python-kafka library directly:
+    producer = KafkaProducer(
+        client_id="test_producer",
+        bootstrap_servers=kafka_fixture.kafka_servers,
+        key_serializer=lambda key: key.encode("ascii"),
+        value_serializer=lambda event_value: json.dumps(event_value).encode("ascii"),
+    )
+    try:
+        producer.send(topic=topic, value=payload, key=key, headers=headers)
+    finally:
+        producer.close()
 
-        producer = KafkaProducer(
-            client_id="test_producer",
-            bootstrap_servers=bootstrap_servers,
-            key_serializer=lambda key: key.encode("ascii"),
-            value_serializer=lambda event_value: json.dumps(event_value).encode(
-                "ascii"
-            ),
-        )
-        try:
-            producer.send(topic=topic, value=payload, key=key, headers=headers)
-        finally:
-            producer.close()
+    # setup the provider:
+    config = KafkaConfig(
+        service_name="event_subscriber",
+        service_instance_id="1",
+        kafka_servers=kafka_fixture.kafka_servers,
+    )
+    async with KafkaEventSubscriber.construct(
+        config=config,
+        translator=translator,
+    ) as event_subscriber:
+        # consume one event:
+        await event_subscriber.run(forever=False)
 
-        # setup the provider:
-        config = KafkaConfig(
-            service_name="event_subscriber",
-            service_instance_id="1",
-            kafka_servers=bootstrap_servers,
-        )
-        async with KafkaEventSubscriber.construct(
-            config=config,
-            translator=translator,
-        ) as event_subscriber:
-            # consume one event:
-            await event_subscriber.run(forever=False)
-
-        # check if the translator was called correctly:
-        translator.consume.assert_awaited_once_with(
-            payload=payload, type_=type_, topic=topic
-        )
+    # check if the translator was called correctly:
+    translator.consume.assert_awaited_once_with(
+        payload=payload, type_=type_, topic=topic
+    )
