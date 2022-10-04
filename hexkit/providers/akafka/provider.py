@@ -24,7 +24,7 @@ Require dependencies of the `akafka` extra. See the `setup.cfg`.
 import json
 import logging
 from contextlib import asynccontextmanager
-from typing import Any, Callable, Literal, Protocol
+from typing import Any, Callable, Literal, Protocol, TypeVar
 
 from aiokafka import AIOKafkaConsumer, AIOKafkaProducer
 from pydantic import BaseSettings, Field
@@ -83,7 +83,8 @@ class KafkaProducerCompatible(Protocol):
 
     def __init__(
         self,
-        bootstrap_servers: list[str],
+        *,
+        bootstrap_servers: str,
         client_id: str,
         key_serializer: Callable[[Any], bytes],
         value_serializer: Callable[[Any], bytes],
@@ -91,9 +92,10 @@ class KafkaProducerCompatible(Protocol):
         """
         Initialize the producer with some config params.
         Args:
-            bootstrap_servers (list[str]):
-                List of connection strings pointing to the kafka brokers.
-            client_id (str):
+            bootstrap_servers:
+                Comma-separated list of connection strings pointing to the kafka
+                brokers.
+            client_id:
                 A globally unique ID identifying this the Kafka client.
             key_serializer:
                 Function to serialize the keys into bytes.
@@ -111,7 +113,7 @@ class KafkaProducerCompatible(Protocol):
         """Teardown the producer."""
         ...
 
-    async def send_and_wait(self, topic, *, key, value, headers) -> None:
+    async def send_and_wait(self, topic, *, key, value, headers) -> Any:
         """Send event."""
         ...
 
@@ -141,7 +143,7 @@ class KafkaEventPublisher(EventPublisherProtocol):
         )
 
         producer = kafka_producer_cls(
-            bootstrap_servers=config.kafka_servers,
+            bootstrap_servers=",".join(config.kafka_servers),
             client_id=client_id,
             key_serializer=lambda key: key.encode("ascii"),
             value_serializer=lambda event_value: json.dumps(event_value).encode(
@@ -157,7 +159,7 @@ class KafkaEventPublisher(EventPublisherProtocol):
     def __init__(
         self,
         *,
-        producer: AIOKafkaProducer,
+        producer: KafkaProducerCompatible,
     ):
         """Please do not call directly! Should be called by the `construct` method.
         Args:
@@ -204,13 +206,16 @@ def get_event_type(event: ConsumerEvent) -> str:
     raise EventTypeNotFoundError()
 
 
+KCC = TypeVar("KCC")
+
+
 class KafkaConsumerCompatible(Protocol):
     """A python duck type protocol describing an AIOKafkaConsumer or equivalent."""
 
     def __init__(
         self,
-        *topics,
-        bootstrap_servers: list[str],
+        *topics: str,
+        bootstrap_servers: str,
         client_id: str,
         group_id: str,
         auto_offset_reset: Literal["earliest"],
@@ -221,9 +226,10 @@ class KafkaConsumerCompatible(Protocol):
         Initialize the consumer with some config params.
 
         Args:
-            bootstrap_servers (list[str]):
-                List of connection strings pointing to the kafka brokers.
-            client_id (str):
+            bootstrap_servers:
+                Comma-separated list of connection strings pointing to the kafka
+                brokers.
+            client_id:
                 A globally unique ID identifying this the Kafka client.
             group_id:
                 An identifier for the consumer group.
@@ -237,15 +243,15 @@ class KafkaConsumerCompatible(Protocol):
 
         ...
 
-    async def start(self):
+    async def start(self) -> None:
         """Setup the consumer."""
         ...
 
-    async def stop(self):
+    async def stop(self) -> None:
         """Teardown the consumer."""
         ...
 
-    async def __aiter__(self):
+    def __aiter__(self: KCC) -> KCC:
         """Returns an asnyc iterator for iterating through events."""  #
         ...
 
@@ -288,7 +294,7 @@ class KafkaEventSubscriber(InboundProviderBase):
 
         consumer = kafka_consumer_cls(
             *topics,
-            bootstrap_servers=config.kafka_servers,
+            bootstrap_servers=",".join(config.kafka_servers),
             client_id=client_id,
             group_id=config.service_name,
             auto_offset_reset="earliest",
