@@ -59,7 +59,7 @@ async def test_kafka_event_publisher():
         producer_class.assert_called_once()
         pc_kwargs = producer_class.call_args.kwargs
         assert pc_kwargs["client_id"] == "test_publisher.1"
-        assert pc_kwargs["bootstrap_servers"] == ["my-fake-kafka-server"]
+        assert pc_kwargs["bootstrap_servers"] == "my-fake-kafka-server"
         assert callable(pc_kwargs["key_serializer"])
         assert callable(pc_kwargs["value_serializer"])
         producer.start.assert_awaited_once()
@@ -172,7 +172,7 @@ async def test_kafka_event_subscriber(
         consumer_cls.assert_called_once()
         cc_kwargs = consumer_cls.call_args.kwargs
         assert cc_kwargs["client_id"] == "event_subscriber.1"
-        assert cc_kwargs["bootstrap_servers"] == ["my-fake-kafka-server"]
+        assert cc_kwargs["bootstrap_servers"] == "my-fake-kafka-server"
         assert cc_kwargs["group_id"] == service_name
         assert cc_kwargs["auto_offset_reset"] == "earliest"
         assert callable(cc_kwargs["key_deserializer"])
