@@ -21,7 +21,6 @@ from typing import Sequence
 
 import pytest
 
-from hexkit.custom_types import JsonObject
 from hexkit.providers.akafka import KafkaConfig, KafkaEventPublisher
 from hexkit.providers.akafka.testutils import kafka_fixture  # noqa: F401
 from hexkit.providers.akafka.testutils import (
