@@ -16,12 +16,9 @@
 
 """Testing Apache Kafka based providers."""
 
-import json
 from unittest.mock import AsyncMock
 
 import pytest
-from kafka import KafkaConsumer, KafkaProducer
-from testcontainers.kafka import KafkaContainer
 
 from hexkit.custom_types import JsonObject
 from hexkit.providers.akafka import (
@@ -29,12 +26,15 @@ from hexkit.providers.akafka import (
     KafkaEventPublisher,
     KafkaEventSubscriber,
 )
-from hexkit.providers.akafka.testutils import ExpectedEvent, KafkaFixture, kafka_fixture
-from tests.fixtures.utils import exec_with_timeout
+from hexkit.providers.akafka.testutils import (  # noqa: F401
+    ExpectedEvent,
+    KafkaFixture,
+    kafka_fixture,
+)
 
 
 @pytest.mark.asyncio
-async def test_kafka_event_publisher(kafka_fixture: KafkaFixture):
+async def test_kafka_event_publisher(kafka_fixture: KafkaFixture):  # noqa: F811
     """Test the KafkaEventPublisher."""
     payload: JsonObject = {"test_content": "Hello World"}
     type_ = "test_type"
@@ -53,7 +53,6 @@ async def test_kafka_event_publisher(kafka_fixture: KafkaFixture):
         with_key=key,
     ):
         async with KafkaEventPublisher.construct(config=config) as event_publisher:
-
             await event_publisher.publish(
                 payload=payload,
                 type_=type_,
@@ -63,30 +62,22 @@ async def test_kafka_event_publisher(kafka_fixture: KafkaFixture):
 
 
 @pytest.mark.asyncio
-async def test_kafka_event_subscriber(kafka_fixture: KafkaFixture):
+async def test_kafka_event_subscriber(kafka_fixture: KafkaFixture):  # noqa: F811
     """Test the KafkaEventSubscriber with mocked KafkaEventSubscriber."""
     payload = {"test_content": "Hello World"}
     type_ = "test_type"
     key = "test_key"
     topic = "test_topic"
-    headers = [("type", b"test_type")]
 
     # create protocol-compatiple translator mock:
     translator = AsyncMock()
     translator.topics_of_interest = [topic]
     translator.types_of_interest = [type_]
 
-    # publish one event with the python-kafka library directly:
-    producer = KafkaProducer(
-        client_id="test_producer",
-        bootstrap_servers=kafka_fixture.kafka_servers,
-        key_serializer=lambda key: key.encode("ascii"),
-        value_serializer=lambda event_value: json.dumps(event_value).encode("ascii"),
+    # publish one event:
+    await kafka_fixture.publish_event(
+        topic=topic, payload=payload, key=key, type_=type_
     )
-    try:
-        producer.send(topic=topic, value=payload, key=key, headers=headers)
-    finally:
-        producer.close()
 
     # setup the provider:
     config = KafkaConfig(
