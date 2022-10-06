@@ -155,9 +155,9 @@ class EventRecorder:
         )
 
     async def _count_events_since_start(self, *, consumer: AIOKafkaConsumer) -> int:
-        """Given a consumer instance, it determines how many events have been publish
-        since the starting offset. Thereby, it sums over all partitions. The offset will
-        not be change. The provided consumer instance must have been started.
+        """Given a consumer instance, determine how many events have been published
+        since the starting offset. Thereby, sum over all partitions. This does not
+        change the offset. The provided consumer instance must have been started.
         """
 
         if self._starting_offsets is None:
