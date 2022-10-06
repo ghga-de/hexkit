@@ -86,7 +86,7 @@ class EventRecorder:
         with_key: Ascii,
         expect_events: Sequence[ExpectedEvent],
     ):
-        """Initialize with connection detials and by defining an expectation.
+        """Initialize with connection details and by defining an expectation.
         The specified events with the specified key are expected in the exact order as
         defined in the list. Events with other keys are ignored.
         """
