@@ -275,8 +275,8 @@ class KafkaFixture:
     def expect_events(
         self, events: Sequence[ExpectedEvent], *, in_topic: Ascii, with_key: Ascii
     ) -> EventRecorder:
-        """Returns an EventRecorder object that can be used in a asnyc with block to
-        records events with the specified key in the specified topic (on __aenter__) and
+        """Returns an EventRecorder object that can be used in an asnyc with block to
+        record events with the specified key in the specified topic (on __aenter__) and
         check that they match the specified sequence of expected events (on __aexit__).
         """
 
