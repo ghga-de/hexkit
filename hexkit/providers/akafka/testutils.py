@@ -192,7 +192,7 @@ class EventRecorder:
 
         event_count = await self._count_events_since_start(consumer=consumer)
 
-        # consume all the available events (but not more which would lead to an infitive
+        # consume all the available events (but no more, as this would lead to infinite
         # waiting):
         raw_events = [
             await self._consume_event(consumer=consumer) for _ in range(event_count)
