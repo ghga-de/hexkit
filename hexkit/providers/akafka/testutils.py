@@ -268,7 +268,7 @@ class KafkaFixture:
     async def publish_event(
         self, *, payload: JsonObject, type_: Ascii, topic: Ascii, key: Ascii = "test"
     ) -> None:
-        """A convienience method to publish a test event."""
+        """A convenience method to publish a test event."""
 
         await self.publisher.publish(payload=payload, type_=type_, key=key, topic=topic)
 
