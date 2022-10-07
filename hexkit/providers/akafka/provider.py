@@ -214,7 +214,7 @@ class KafkaConsumerCompatible(Protocol):
 
     def __init__(
         self,
-        *topics: str,
+        *topics: Ascii,
         bootstrap_servers: str,
         client_id: str,
         group_id: str,
