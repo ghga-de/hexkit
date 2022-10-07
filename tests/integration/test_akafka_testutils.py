@@ -91,7 +91,7 @@ async def test_event_recorder_missmatch(
     key_to_publish: str,
     kafka_fixture: KafkaFixture,  # noqa: F811
 ):
-    """Test the handling of missmatches between recorded and expected events.
+    """Test the handling of mismatches between recorded and expected events.
 
     Here, we are not using the async generator interface of the EventRecorder class but
     the methods `start_recording` and `stop_and_check` so that we can nicely locate

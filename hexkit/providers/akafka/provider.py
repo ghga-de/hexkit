@@ -96,7 +96,7 @@ class KafkaProducerCompatible(Protocol):
                 Comma-separated list of connection strings pointing to the kafka
                 brokers.
             client_id:
-                A globally unique ID identifying this the Kafka client.
+                A globally unique ID identifying the Kafka client.
             key_serializer:
                 Function to serialize the keys into bytes.
             value_serializer:
@@ -230,7 +230,7 @@ class KafkaConsumerCompatible(Protocol):
                 Comma-separated list of connection strings pointing to the kafka
                 brokers.
             client_id:
-                A globally unique ID identifying this the Kafka client.
+                A globally unique ID identifying the Kafka client.
             group_id:
                 An identifier for the consumer group.
             auto_offset_reset:

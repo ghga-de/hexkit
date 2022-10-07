@@ -86,7 +86,7 @@ class EventRecorder:
         with_key: Ascii,
         expect_events: Sequence[ExpectedEvent],
     ):
-        """Initialize with connection detials and by defining an expectation.
+        """Initialize with connection details and by defining an expectation.
         The specified events with the specified key are expected in the exact order as
         defined in the list. Events with other keys are ignored.
         """
@@ -155,9 +155,9 @@ class EventRecorder:
         )
 
     async def _count_events_since_start(self, *, consumer: AIOKafkaConsumer) -> int:
-        """Given a consumer instance, it determines how many events have been publish
-        since the starting offset. Thereby, it sums over all partitions. The offset will
-        not be change. The provided consumer instance must have been started.
+        """Given a consumer instance, determine how many events have been published
+        since the starting offset. Thereby, sum over all partitions. This does not
+        change the offset. The provided consumer instance must have been started.
         """
 
         if self._starting_offsets is None:
@@ -192,7 +192,7 @@ class EventRecorder:
 
         event_count = await self._count_events_since_start(consumer=consumer)
 
-        # consume all the available events (but not more which would lead to an infitive
+        # consume all the available events (but no more, as this would lead to infinite
         # waiting):
         raw_events = [
             await self._consume_event(consumer=consumer) for _ in range(event_count)
@@ -268,15 +268,15 @@ class KafkaFixture:
     async def publish_event(
         self, *, payload: JsonObject, type_: Ascii, topic: Ascii, key: Ascii = "test"
     ) -> None:
-        """A convienience method to publish a test event."""
+        """A convenience method to publish a test event."""
 
         await self.publisher.publish(payload=payload, type_=type_, key=key, topic=topic)
 
     def expect_events(
         self, events: Sequence[ExpectedEvent], *, in_topic: Ascii, with_key: Ascii
     ) -> EventRecorder:
-        """Returns an EventRecorder object that can be used in a asnyc with block to
-        records events with the specified key in the specified topic (on __aenter__) and
+        """Returns an EventRecorder object that can be used in an asnyc with block to
+        record events with the specified key in the specified topic (on __aenter__) and
         check that they match the specified sequence of expected events (on __aexit__).
         """
 
