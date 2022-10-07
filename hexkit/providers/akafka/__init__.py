@@ -12,7 +12,17 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
+#
 
-"""A Toolkit for Building Microservices using the Hexagonal Architecture"""
+"""Apache Kafka-specific event publisher and subscriber provider.
+They correspond to the `EventPublisherProtocol` and `EventSubscriberProtocol`,
+respectively.
+"""
 
-__version__ = "0.4.0"
+from .provider import (  # noqa: F401
+    KafkaConfig,
+    KafkaEventPublisher,
+    KafkaEventSubscriber,
+)
+
+__all__ = ["KafkaEventPublisher", "KafkaEventSubscriber", "KafkaConfig"]
