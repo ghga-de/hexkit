@@ -29,26 +29,26 @@ framework are called `Providers`.
 import inspect
 from collections.abc import AsyncIterator
 from contextlib import AbstractAsyncContextManager
-from typing import Any, Callable, Generic, Optional, TypeVar
+from typing import Any, Callable, Generic, Optional, TypeVar, Union
 
 import dependency_injector.containers
 import dependency_injector.providers
 from pydantic import BaseSettings
 
-from hexkit.custom_types import ContextConstructable
+from hexkit.custom_types import AsyncConstructable, AsyncContextConstructable
 
 __all__ = [
     "get_constructor",
     "ContainerBase",
     "NotConstructableError",
-    "ContextConstructor",
+    "AsyncConstructor",
     "AsyncInitShutdownError",
     "Configurator",
 ]
 
 
 class NotConstructableError(TypeError):
-    """Thrown when a ContextConstructable expected but not obtained."""
+    """Thrown when a AsyncContextConstructable expected but not obtained."""
 
 
 class AsyncInitShutdownError(TypeError):
@@ -56,46 +56,51 @@ class AsyncInitShutdownError(TypeError):
     but coroutines are needed."""
 
 
-def assert_context_constructable(constructable: type[ContextConstructable]):
+def assert_async_constructable(constructable: type[AsyncContextConstructable]):
     """
     Make sure that the provided object has a callable attribute `construct`.
     If this check passes, it can be seen as a strong indication that the provided object
-    is compliant with our definition of a ContextConstructable. However, it does not
-    check whether `construct` really returns an async context manager.
+    is compliant with our definition of a Async(Context)Constructable. However, it does
+    not check whether `construct` really returns an awaitable or an async context
+    manager.
     """
 
     if not callable(getattr(constructable, "construct", None)):
         raise NotConstructableError(
-            "ContextConstructable class must have a callable `construct` attribute."
+            "AsyncContextConstructable class must have a callable `construct` attribute."
         )
 
 
-class ContextConstructor(dependency_injector.providers.Resource):
-    """Maps an asynchronous context manager onto the Resource class from the
+class AsyncConstructor(dependency_injector.providers.Resource):
+    """Maps an Async(Context)Constructable onto the Resource class from the
     `dependency_injector` framework."""
 
     @staticmethod
     def constructable_to_resource(
-        constructable: type[ContextConstructable],
+        constructable: Union[type[AsyncContextConstructable], type[AsyncConstructable]],
     ) -> Callable[..., AsyncIterator[Any]]:
         """
-        Converts an async context manager to an async generator that is compatible
+        Converts an Async(Context)Constructable to an async generator that is compatible
         with the Resource definition of the `dependency_injector` framework.
         """
 
-        assert_context_constructable(constructable)
+        assert_async_constructable(constructable)
 
         async def resource(*args: Any, **kwargs: Any) -> AsyncIterator[Any]:
             constructor = constructable.construct(*args, **kwargs)
 
-            if not isinstance(constructor, AbstractAsyncContextManager):
+            if isinstance(constructor, AbstractAsyncContextManager):
+                async with constructor as context:
+                    yield context
+
+            elif inspect.isawaitable(constructor):
+                yield await constructor
+
+            else:
                 raise NotConstructableError(
-                    "Callable attribute `construct` of ContextConstructable class must"
+                    "Callable attribute `construct` of AsyncContextConstructable class must"
                     + " return an async context manager."
                 )
-
-            async with constructor as context:
-                yield context
 
         return resource
 
@@ -104,7 +109,7 @@ class ContextConstructor(dependency_injector.providers.Resource):
     # pylint: disable=keyword-arg-before-vararg
     def __init__(
         self,
-        provides: Optional[type[ContextConstructable]] = None,
+        provides: Optional[type[AsyncContextConstructable]] = None,
         *args: dependency_injector.providers.Injection,
         **kwargs: dependency_injector.providers.Injection,
     ):
@@ -124,13 +129,13 @@ def get_constructor(provides: type, *args, **kwargs):
     constructor_cls: type
 
     try:
-        assert_context_constructable(provides)
+        assert_async_constructable(provides)
     except TypeError:
-        # `provides` is not a ContextConstructable
+        # `provides` is not a Async(Context)Constructable
         constructor_cls = dependency_injector.providers.Factory
     else:
-        # `provides` is a ContextConstructable
-        constructor_cls = ContextConstructor
+        # `provides` is a Async(Context)Constructable
+        constructor_cls = AsyncConstructor
 
     return constructor_cls(provides, *args, **kwargs)
 

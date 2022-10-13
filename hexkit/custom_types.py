@@ -31,13 +31,35 @@ JsonObject = Mapping[
 Ascii = str
 
 
-# A ContextConstructable is a class with a classmethod `construct` that creates an async
+# A AsyncConstructable is a class with a async classmethod `construct` that is used when
+# asynchronous constuction/instantiation logic is needed (which cannot be handeled in
+# a synchronous __init__ method).
+# With the current typing features of Python, it seems not possible to correctly type
+# a class with that signature.
+# E.g. one could define a typing.Protocol subclass with following method:
+# ```
+# class AsyncConstructable(Protocol):
+#     @classmethod
+#     def construct(cls, *args: Any, **kwargs: Any): ...
+# ```
+# However, this is incompatible with implementations that don't explicitly use `*args`
+# and `*kwargs`, e.g. the following method does not comply with the above function stub:
+# ```
+# class SomeImplementation:
+#     @classmethod
+#     def construct(cls, foo: str): ...
+# ```
+# Thus using a type alias for now:
+AsyncConstructable = Any
+
+
+# A AsyncContextConstructable is a class with a classmethod `construct` that creates an async
 # context manager for safely setting up and tearing down an instance of that class.
 # With the current typing features of Python, it seems not possible to correctly type
 # a class with that signature.
 # E.g. one could define a typing.Protocol subclass with following method:
 # ```
-# class ContextConstructable(Protocol):
+# class AsyncContextConstructable(Protocol):
 #     @classmethod
 #     @asynccontextmanager
 #     def construct(cls, *args: Any, **kwargs: Any): ...
@@ -51,4 +73,4 @@ Ascii = str
 #     def construct(cls, foo: str): ...
 # ```
 # Thus using a type alias for now:
-ContextConstructable = Any
+AsyncContextConstructable = Any
