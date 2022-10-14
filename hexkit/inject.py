@@ -67,7 +67,7 @@ def assert_async_constructable(
     manager.
     """
 
-    if not inspect.iscoroutinefunction(getattr(constructable, "construct", None)):
+    if not callable(getattr(constructable, "construct", None)):
         raise NotConstructableError(
             "Async(Context)Constructable class must have a callable `construct` attribute."
         )
