@@ -40,7 +40,7 @@ Ascii = str
 # ```
 # class AsyncConstructable(Protocol):
 #     @classmethod
-#     def construct(cls, *args: Any, **kwargs: Any): ...
+#     async def construct(cls, *args: Any, **kwargs: Any): ...
 # ```
 # However, this is incompatible with implementations that don't explicitly use `*args`
 # and `*kwargs`, e.g. the following method does not comply with the above function stub:
