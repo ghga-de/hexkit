@@ -79,7 +79,7 @@ async def test_assert_constructable(
     ],
 )
 async def test_context_constructor_init(
-    constructable: AsyncContextConstructable, exception: Optional[type[Exception]]
+    constructable: Type[AsyncContextConstructable], exception: Optional[type[Exception]]
 ):
     """
     Test the initialization of a context constructor with valid and invalid
