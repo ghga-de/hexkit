@@ -24,13 +24,18 @@ import pytest
 from pydantic import BaseSettings
 
 from hexkit.inject import (
+    AsyncConstructor,
     AsyncInitShutdownError,
     ContainerBase,
-    ContextConstructor,
     get_configurator,
     get_constructor,
 )
-from tests.fixtures.inject import ValidConstructable, ValidResource, ValidSyncResource
+from tests.fixtures.inject import (
+    ValidAsyncConstructable,
+    ValidAsyncContextConstructable,
+    ValidResource,
+    ValidSyncResource,
+)
 
 
 @pytest.mark.asyncio
@@ -43,29 +48,33 @@ async def test_context_constructor_with_decl_container():
     foo = "bar"
 
     class Container(dependency_injector.containers.DeclarativeContainer):
-        test = ContextConstructor(ValidConstructable, foo)
+        test1 = AsyncConstructor(ValidAsyncContextConstructable, foo)
+        test2 = AsyncConstructor(ValidAsyncConstructable, foo)
 
     container = Container()
     await container.init_resources()  # type: ignore
 
-    test_instance = await container.test()
+    test1_instance = await container.test1()
+    test2_instance = await container.test2()
 
-    assert test_instance.foo == foo
-    assert test_instance.in_context
+    assert test1_instance.foo == foo
+    assert test1_instance.in_context
+    assert test2_instance.foo == foo
 
     await container.shutdown_resources()  # type: ignore
-    assert not test_instance.in_context
+    assert not test1_instance.in_context
 
 
 @pytest.mark.asyncio
 @pytest.mark.parametrize(
-    "provides, constructor",
+    "provides, constructor, has_context",
     [
-        (ValidResource, dependency_injector.providers.Resource),
-        (ValidConstructable, ContextConstructor),
+        (ValidResource, dependency_injector.providers.Resource, True),
+        (ValidAsyncConstructable, AsyncConstructor, False),
+        (ValidAsyncContextConstructable, AsyncConstructor, True),
     ],
 )
-async def test_container_base(provides, constructor):
+async def test_container_base(provides, constructor, has_context: bool):
     """
     Test the ContainerBase and its contextual setup and teardown functionality.
     """
@@ -80,9 +89,12 @@ async def test_container_base(provides, constructor):
         test_instance = await container.test()
 
         assert test_instance.foo == foo
-        assert test_instance.in_context
 
-    assert not test_instance.in_context
+        if has_context:
+            assert test_instance.in_context
+
+    if has_context:
+        assert not test_instance.in_context
 
 
 @pytest.mark.asyncio

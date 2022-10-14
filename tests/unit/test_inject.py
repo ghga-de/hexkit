@@ -23,18 +23,19 @@ import dependency_injector.containers
 import dependency_injector.providers
 import pytest
 
-from hexkit.custom_types import ContextConstructable
+from hexkit.custom_types import AsyncContextConstructable
 from hexkit.inject import (
-    ContextConstructor,
+    AsyncConstructor,
     NotConstructableError,
-    assert_context_constructable,
+    assert_async_constructable,
     get_constructor,
 )
 from tests.fixtures.inject import (
-    NoCMConstructable,
+    NoAsyncConstructable,
     NoMethodConstructable,
     NonResource,
-    ValidConstructable,
+    ValidAsyncConstructable,
+    ValidAsyncContextConstructable,
 )
 
 
@@ -42,8 +43,9 @@ from tests.fixtures.inject import (
 @pytest.mark.parametrize(
     "constructable, does_raises",
     [
-        (ValidConstructable, False),
-        (NoCMConstructable, False),
+        (ValidAsyncContextConstructable, False),
+        (ValidAsyncConstructable, False),
+        (NoAsyncConstructable, False),
         # The above does not raise an exception even though the `construct` method does
         # not return an async context manager. This is a limitation of the current
         # implementation.
@@ -52,28 +54,32 @@ from tests.fixtures.inject import (
     ],
 )
 async def test_assert_constructable(
-    constructable: ContextConstructable, does_raises: bool
+    constructable: type[AsyncContextConstructable], does_raises: bool
 ):
     """
     Test that assert_constructable can distinguish between
     """
 
     with pytest.raises(NotConstructableError) if does_raises else nullcontext():  # type: ignore
-        assert_context_constructable(constructable)
+        assert_async_constructable(constructable)
 
 
 @pytest.mark.asyncio
 @pytest.mark.parametrize(
     "constructable, exception",
     [
-        (ValidConstructable, None),
-        (NoCMConstructable, None),  # passed resources are not initialized in this test
+        (ValidAsyncConstructable, None),
+        (ValidAsyncContextConstructable, None),
+        (
+            NoAsyncConstructable,
+            None,
+        ),  # passed resources are not initialized in this test
         (object(), NotConstructableError),
         (NoMethodConstructable, NotConstructableError),
     ],
 )
 async def test_context_constructor_init(
-    constructable: ContextConstructable, exception: Optional[type[Exception]]
+    constructable: type[AsyncContextConstructable], exception: Optional[type[Exception]]
 ):
     """
     Test the initialization of a context constructor with valid and invalid
@@ -81,7 +87,7 @@ async def test_context_constructor_init(
     """
 
     with pytest.raises(exception) if exception else nullcontext():  # type: ignore
-        test = ContextConstructor(constructable)
+        test = AsyncConstructor(constructable)
 
     if not exception:
         isinstance(test, dependency_injector.providers.Resource)
@@ -89,20 +95,23 @@ async def test_context_constructor_init(
 
 @pytest.mark.asyncio
 @pytest.mark.parametrize(
-    "constructable, exception",
+    "constructable, exception, has_context",
     [
-        (ValidConstructable, None),
-        (NoCMConstructable, NotConstructableError),
+        (ValidAsyncConstructable, None, False),
+        (ValidAsyncContextConstructable, None, True),
+        (NoAsyncConstructable, NotConstructableError, True),
     ],
 )
 async def test_context_constructor_setup_teardown(
-    constructable: ContextConstructable, exception: Optional[type[Exception]]
+    constructable: type[AsyncContextConstructable],
+    exception: Optional[type[Exception]],
+    has_context: bool,
 ):
     """Test whether init and shutdown correctly works with a context constructor."""
 
     foo = "bar"
 
-    test = ContextConstructor(constructable, foo)
+    test = AsyncConstructor(constructable, foo)
 
     with pytest.raises(exception) if exception else nullcontext():  # type: ignore
         resource = await test.async_()
@@ -110,16 +119,21 @@ async def test_context_constructor_setup_teardown(
         test_instance = await test.init()  # type: ignore
 
         assert test_instance.foo == foo
-        assert test_instance.in_context
+
+        if has_context:
+            assert test_instance.in_context
 
         await test.shutdown()  # type: ignore
-        assert not test_instance.in_context
+
+        if has_context:
+            assert not test_instance.in_context
 
 
 @pytest.mark.parametrize(
     "provides, args, kwargs, constructor_cls",
     [
-        (ValidConstructable, [], {}, ContextConstructor),
+        (ValidAsyncConstructable, [], {}, AsyncConstructor),
+        (ValidAsyncContextConstructable, [], {}, AsyncConstructor),
         (NonResource, ["foo"], {"bar": "bar"}, dependency_injector.providers.Factory),
     ],
 )

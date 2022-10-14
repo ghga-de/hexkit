@@ -65,9 +65,25 @@ class ValidSyncResource(dependency_injector.resources.Resource):
         resource.in_context = False
 
 
-class ValidConstructable:
+class ValidAsyncConstructable:
     """
-    A test class with a `construct` method that is an async context manager.
+    A test class with an async `construct` method that returns an instance.
+    Functionally, this is equivalent to the above `ValidResource` class.
+    """
+
+    @classmethod
+    async def construct(cls, foo: str = "foo"):
+        """A constructor with setup and teardown logic."""
+        return cls(foo=foo)
+
+    def __init__(self, foo: str = "foo"):
+        """Init TestConstructable."""
+        self.foo: Optional[str] = foo
+
+
+class ValidAsyncContextConstructable:
+    """
+    A test class with a `construct` method that creates an async context manager.
     Functionally, this is equivalent to the above `ValidResource` class.
     """
 
@@ -89,32 +105,27 @@ class ValidConstructable:
 
 class NoMethodConstructable:
     """
-    A non valid ContextConstructable:
+    A non valid AsyncContextConstructable:
     has a `construct` attribute, however, it's not a callable.
     """
 
     construct = "invalid"
 
 
-class NoCMConstructable:
+class NoAsyncConstructable:
     """
-    A non valid ContextConstructable:
-    has a `construct` method which, however, does not return an async context manager.
+    A non valid AsyncContextConstructable:
+    has a `construct` method which, however, is not async.
     """
 
     @classmethod
-    async def construct(cls, foo: str = "foo"):
+    def construct(cls, foo: str = "foo"):
         """A constructor with setup and teardown logic."""
-        try:
-            instance = cls(foo=foo)
-            yield instance
-        finally:
-            instance.in_context = False
+        return cls(foo=foo)
 
     def __init__(self, foo: str = "foo"):
         """Init TestConstructable."""
         self.foo: Optional[str] = foo
-        self.in_context = True
 
 
 class NonResource:
