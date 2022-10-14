@@ -83,7 +83,7 @@ class ValidAsyncConstructable:
 
 class ValidAsyncContextConstructable:
     """
-    A test class with a `construct` method that is an async context manager.
+    A test class with a `construct` method that creates an async context manager.
     Functionally, this is equivalent to the above `ValidResource` class.
     """
 
