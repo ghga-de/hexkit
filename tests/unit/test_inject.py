@@ -103,7 +103,7 @@ async def test_context_constructor_init(
     ],
 )
 async def test_context_constructor_setup_teardown(
-    constructable: AsyncContextConstructable,
+    constructable: Type[AsyncContextConstructable],
     exception: Optional[type[Exception]],
     has_context: bool,
 ):
