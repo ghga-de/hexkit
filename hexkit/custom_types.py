@@ -70,7 +70,7 @@ AsyncConstructable = Any
 # class SomeImplementation:
 #     @classmethod
 #     @asynccontextmanager
-#     def construct(cls, foo: str): ...
+#    async def construct(cls, foo: str): ...
 # ```
 # Thus using a type alias for now:
 AsyncContextConstructable = Any
