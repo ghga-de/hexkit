@@ -48,18 +48,21 @@ async def test_context_constructor_with_decl_container():
     foo = "bar"
 
     class Container(dependency_injector.containers.DeclarativeContainer):
-        test = AsyncConstructor(ValidAsyncContextConstructable, foo)
+        test1 = AsyncConstructor(ValidAsyncContextConstructable, foo)
+        test2 = AsyncConstructor(ValidAsyncConstructable, foo)
 
     container = Container()
     await container.init_resources()  # type: ignore
 
-    test_instance = await container.test()
+    test1_instance = await container.test1()
+    test2_instance = await container.test2()
 
-    assert test_instance.foo == foo
-    assert test_instance.in_context
+    assert test1_instance.foo == foo
+    assert test1_instance.in_context
+    assert test2_instance.foo == foo
 
     await container.shutdown_resources()  # type: ignore
-    assert not test_instance.in_context
+    assert not test1_instance.in_context
 
 
 @pytest.mark.asyncio

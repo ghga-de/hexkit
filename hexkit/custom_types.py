@@ -31,7 +31,7 @@ JsonObject = Mapping[
 Ascii = str
 
 
-# A AsyncConstructable is a class with a async classmethod `construct` that is used when
+# A AsyncConstructable is a class with a async (class-)method `construct` that is used when
 # asynchronous constuction/instantiation logic is needed (which cannot be handeled in
 # a synchronous __init__ method).
 # With the current typing features of Python, it seems not possible to correctly type
@@ -61,7 +61,7 @@ class AsyncConstructable(Protocol):
     construct: Callable[..., Awaitable]
 
 
-# A AsyncContextConstructable is a class with a classmethod `construct` that creates an async
+# A AsyncContextConstructable is a class with a (class-)method `construct` that creates an async
 # context manager for safely setting up and tearing down an instance of that class.
 # With the current typing features of Python, it seems not possible to correctly type
 # a class with that signature.
@@ -81,4 +81,12 @@ class AsyncConstructable(Protocol):
 #    async def construct(cls, foo: str): ...
 # ```
 # Thus using a type alias for now:
-AsyncContextConstructable = Any
+class AsyncContextConstructable(Protocol):
+    """A class that can be asynchronously constructed with a context manager.
+
+    An AsyncContextConstructable is a class with a classmethod `construct`
+    that creates an async context manager for safely setting up and tearing down
+    an instance of that class.
+    """
+
+    construct: Callable

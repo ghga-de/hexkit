@@ -56,7 +56,9 @@ class AsyncInitShutdownError(TypeError):
     but coroutines are needed."""
 
 
-def assert_async_constructable(constructable: type[AsyncContextConstructable]):
+def assert_async_constructable(
+    constructable: Union[type[AsyncContextConstructable], type[AsyncConstructable]]
+):
     """
     Make sure that the provided object has a callable attribute `construct`.
     If this check passes, it can be seen as a strong indication that the provided object
@@ -65,9 +67,9 @@ def assert_async_constructable(constructable: type[AsyncContextConstructable]):
     manager.
     """
 
-    if not callable(getattr(constructable, "construct", None)):
+    if not inspect.iscoroutinefunction(getattr(constructable, "construct", None)):
         raise NotConstructableError(
-            "AsyncContextConstructable class must have a callable `construct` attribute."
+            "Async(Context)Constructable class must have a callable `construct` attribute."
         )
 
 
@@ -109,7 +111,9 @@ class AsyncConstructor(dependency_injector.providers.Resource):
     # pylint: disable=keyword-arg-before-vararg
     def __init__(
         self,
-        provides: Optional[type[AsyncContextConstructable]] = None,
+        provides: Optional[
+            Union[type[AsyncContextConstructable], type[AsyncConstructable]]
+        ] = None,
         *args: dependency_injector.providers.Injection,
         **kwargs: dependency_injector.providers.Injection,
     ):

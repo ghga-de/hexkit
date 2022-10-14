@@ -54,7 +54,7 @@ from tests.fixtures.inject import (
     ],
 )
 async def test_assert_constructable(
-    constructable: Type[AsyncContextConstructable], does_raises: bool
+    constructable: type[AsyncContextConstructable], does_raises: bool
 ):
     """
     Test that assert_constructable can distinguish between
@@ -79,7 +79,7 @@ async def test_assert_constructable(
     ],
 )
 async def test_context_constructor_init(
-    constructable: Type[AsyncContextConstructable], exception: Optional[type[Exception]]
+    constructable: type[AsyncContextConstructable], exception: Optional[type[Exception]]
 ):
     """
     Test the initialization of a context constructor with valid and invalid
@@ -103,7 +103,7 @@ async def test_context_constructor_init(
     ],
 )
 async def test_context_constructor_setup_teardown(
-    constructable: Type[AsyncContextConstructable],
+    constructable: type[AsyncContextConstructable],
     exception: Optional[type[Exception]],
     has_context: bool,
 ):
