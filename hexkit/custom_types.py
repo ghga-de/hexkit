@@ -17,7 +17,7 @@
 """Module collecting custom types."""
 
 from collections.abc import Mapping, Sequence
-from typing import Any, Awaitable, Callable, Protocol, Union
+from typing import Any, Union
 
 # This is intended to type objects that could be a potential output of `json.loads`.
 # (Scalar types as well as arrays are excluded from the above assumption.)
@@ -50,15 +50,7 @@ Ascii = str
 #     async def construct(cls, foo: str): ...
 # ```
 # Thus using a type alias for now:
-class AsyncConstructable(Protocol):
-    """A class that can be asynchronously constructed.
-
-    An AsyncConstructable is a class with an async classmethod `construct`
-    that is used when asynchronous constuction/instantiation logic is needed
-    (which cannot be handeled in a synchronous __init__ method).
-    """
-
-    construct: Callable[..., Awaitable]
+AsyncConstructable: Any
 
 
 # A AsyncContextConstructable is a class with a (class-)method `construct` that creates an async
@@ -81,12 +73,4 @@ class AsyncConstructable(Protocol):
 #    async def construct(cls, foo: str): ...
 # ```
 # Thus using a type alias for now:
-class AsyncContextConstructable(Protocol):
-    """A class that can be asynchronously constructed with a context manager.
-
-    An AsyncContextConstructable is a class with a classmethod `construct`
-    that creates an async context manager for safely setting up and tearing down
-    an instance of that class.
-    """
-
-    construct: Callable
+AsyncContextConstructable: Any
