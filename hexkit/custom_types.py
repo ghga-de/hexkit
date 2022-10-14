@@ -50,7 +50,7 @@ Ascii = str
 #     async def construct(cls, foo: str): ...
 # ```
 # Thus using a type alias for now:
-AsyncConstructable: Any
+AsyncConstructable = Any
 
 
 # A AsyncContextConstructable is a class with a (class-)method `construct` that creates an async
@@ -73,4 +73,4 @@ AsyncConstructable: Any
 #    async def construct(cls, foo: str): ...
 # ```
 # Thus using a type alias for now:
-AsyncContextConstructable: Any
+AsyncContextConstructable = Any
