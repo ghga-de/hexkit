@@ -40,14 +40,14 @@ Ascii = str
 # ```
 # class AsyncConstructable(Protocol):
 #     @classmethod
-#     def construct(cls, *args: Any, **kwargs: Any): ...
+#     async def construct(cls, *args: Any, **kwargs: Any): ...
 # ```
 # However, this is incompatible with implementations that don't explicitly use `*args`
 # and `*kwargs`, e.g. the following method does not comply with the above function stub:
 # ```
-# class SomeImplementation:
+# class SomeImplementation(AsyncConstructable):
 #     @classmethod
-#     def construct(cls, foo: str): ...
+#     async def construct(cls, foo: str): ...
 # ```
 # Thus using a type alias for now:
 class AsyncConstructable(Protocol):
@@ -70,7 +70,7 @@ class AsyncConstructable(Protocol):
 # class AsyncContextConstructable(Protocol):
 #     @classmethod
 #     @asynccontextmanager
-#     def construct(cls, *args: Any, **kwargs: Any): ...
+#     async def construct(cls, *args: Any, **kwargs: Any): ...
 # ```
 # However, this is incompatible with implementations that don't explicitly use `*args`
 # and `*kwargs`, e.g. the following method does not comply with the above function stub:
@@ -78,7 +78,7 @@ class AsyncConstructable(Protocol):
 # class SomeImplementation:
 #     @classmethod
 #     @asynccontextmanager
-#     def construct(cls, foo: str): ...
+#    async def construct(cls, foo: str): ...
 # ```
 # Thus using a type alias for now:
 AsyncContextConstructable = Any
