@@ -54,7 +54,7 @@ from tests.fixtures.inject import (
     ],
 )
 async def test_assert_constructable(
-    constructable: AsyncContextConstructable, does_raises: bool
+    constructable: Type[AsyncContextConstructable], does_raises: bool
 ):
     """
     Test that assert_constructable can distinguish between
