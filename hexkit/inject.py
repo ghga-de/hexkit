@@ -48,7 +48,7 @@ __all__ = [
 
 
 class NotConstructableError(TypeError):
-    """Thrown when a AsyncContextConstructable expected but not obtained."""
+    """Thrown when an AsyncContextConstructable was expected but not obtained."""
 
 
 class AsyncInitShutdownError(TypeError):
