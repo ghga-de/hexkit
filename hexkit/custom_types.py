@@ -45,9 +45,9 @@ Ascii = str
 # However, this is incompatible with implementations that don't explicitly use `*args`
 # and `*kwargs`, e.g. the following method does not comply with the above function stub:
 # ```
-# class SomeImplementation:
+# class SomeImplementation(AsyncConstructable):
 #     @classmethod
-#     def construct(cls, foo: str): ...
+#     async def construct(cls, foo: str): ...
 # ```
 # Thus using a type alias for now:
 AsyncConstructable = Any
