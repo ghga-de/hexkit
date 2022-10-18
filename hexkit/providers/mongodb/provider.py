@@ -19,6 +19,7 @@
 Utilities for testing are located in `./testutils.py`.
 """
 
+import json
 from abc import ABC
 from collections.abc import AsyncGenerator, AsyncIterator, Collection, Mapping
 from contextlib import AbstractAsyncContextManager
@@ -93,7 +94,7 @@ class MongoDbDaoBase(ABC, Generic[Dto]):
         """Converts a DTO into a representation that is compatible documents for a
         MongoDB Database."""
 
-        document = dto.dict()
+        document = json.loads(dto.json())
         document["_id"] = document.pop(self._id_field)
 
         return document

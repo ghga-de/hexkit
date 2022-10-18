@@ -18,6 +18,8 @@
 
 import itertools
 from collections.abc import AsyncGenerator
+from datetime import datetime
+from pathlib import Path
 
 import pytest
 from pydantic import BaseModel
@@ -310,3 +312,41 @@ async def test_custom_id_generator(
     for count in range(3):
         resource_inserted = await dao.insert(resource_blueprint)
         assert resource_inserted.id == f"{prefix}-{count_offset+count}"
+
+
+@pytest.mark.asyncio
+async def test_complex_models(mongodb_fixture: MongoDbFixture):  # noqa: F811
+    """Tests whether complex pydantic models are correctly saved and retrieved."""
+
+    # a complex model:
+    class ComplexModel(BaseModel):
+
+        id: str
+        some_date: datetime
+        some_path: Path
+        some_nested_data: ExampleDto
+
+        class Config:
+            frozen = True
+
+    dao = await mongodb_fixture.dao_factory.get_dao(
+        name="example",
+        dto_model=ComplexModel,
+        id_field="id",
+    )
+
+    # insert an example resource:
+    resource_to_create = ComplexModel(
+        id="complex_data",
+        some_date=datetime.now(),
+        some_path=Path(__file__).resolve(),
+        some_nested_data=ExampleDto(
+            id="nested_data", field_a="a", field_b=2, field_c=True
+        ),
+    )
+    await dao.insert(resource_to_create)
+
+    # read the newly inserted resource:
+    resource_read = await dao.get_by_id(resource_to_create.id)
+
+    assert resource_read == resource_to_create
