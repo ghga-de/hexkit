@@ -338,7 +338,7 @@ async def test_complex_models(mongodb_fixture: MongoDbFixture):  # noqa: F811
     # insert an example resource:
     resource_to_create = ComplexModel(
         id="complex_data",
-        some_date=datetime.now(),
+        some_date=datetime(2022, 10, 18, 16, 41, 34, 780735),
         some_path=Path(__file__).resolve(),
         some_nested_data=ExampleDto(
             id="nested_data", field_a="a", field_b=2, field_c=True
