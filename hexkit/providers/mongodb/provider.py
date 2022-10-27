@@ -192,7 +192,7 @@ class MongoDbDaoBase(ABC, Generic[Dto]):
         Raises:
             NoHitsFoundError:
                 If no hit was found.
-            MultpleHitsFoundError:
+            MultipleHitsFoundError:
                 Raised when obtaining more than one hit.
         """
 
