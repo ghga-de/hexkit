@@ -27,6 +27,7 @@ from pydantic import BaseModel
 from hexkit.protocols.dao import (
     InvalidFindMappingError,
     MultipleHitsFoundError,
+    NoHitsFoundError,
     ResourceNotFoundError,
 )
 from hexkit.providers.mongodb.testutils import mongodb_fixture  # noqa: F401
@@ -247,8 +248,8 @@ async def test_dao_find_no_hits(
     )
     mapping = {"field_c": 28}
 
-    resource = await dao.find_one(mapping=mapping)
-    assert resource is None
+    with pytest.raises(NoHitsFoundError):
+        _ = await dao.find_one(mapping=mapping)
 
     resources = [hit async for hit in dao.find_all(mapping=mapping)]
     assert len(resources) == 0

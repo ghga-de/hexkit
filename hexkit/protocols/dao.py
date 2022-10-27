@@ -82,6 +82,18 @@ class MultipleHitsFoundError(FindError):
         super().__init__(message)
 
 
+class NoHitsFoundError(FindError):
+    """Raised when a DAO find operation did result in multiple hits while only a
+    single hit was expected."""
+
+    def __init__(self, *, mapping: Mapping[str, str]):
+        message = (
+            "No hits were found for the following key-value pairs while a single one"
+            + " was expected: {mapping}"
+        )
+        super().__init__(message)
+
+
 class DaoCommons(typing.Protocol[Dto]):
     """A duck type with methods common to all DAOs. This shall be used as base class for
     other DAO duck types.
@@ -141,6 +153,8 @@ class DaoCommons(typing.Protocol[Dto]):
             was found.
 
         Raises:
+            NoHitsFoundError:
+                If no hit was found.
             MultpleHitsFoundError:
                 Raised when obtaining more than one hit.
         """
