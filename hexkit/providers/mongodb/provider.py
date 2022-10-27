@@ -41,6 +41,7 @@ from hexkit.protocols.dao import (
     DtoCreation_contra,
     InvalidFindMappingError,
     MultipleHitsFoundError,
+    NoHitsFoundError,
     ResourceNotFoundError,
 )
 from hexkit.utils import FieldNotInModelError, validate_fields_in_model
@@ -183,27 +184,24 @@ class MongoDbDaoBase(ABC, Generic[Dto]):
             mapping:
                 A mapping where the keys correspond to the names of resource fields
                 and the values correspond to the actual values of the resource fields
-            mode:
-                One of: "single" (asserts that there will be at most one hit, will raise
-                an exception otherwise), "newest" (returns only the resource of the hit
-                list that was inserted first), or "oldest" - returns only the resource of
-                the hist list that was inserted last. Defaults to "single".
 
         Returns:
             Returns a hit in the form of the respective DTO model or None if no hit
             was found.
 
         Raises:
-            MultpleHitsFoundError:
-                Raised when obtaining more than one hit when using the "single" mode.
+            NoHitsFoundError:
+                If no hit was found.
+            MultipleHitsFoundError:
+                Raised when obtaining more than one hit.
         """
 
         hits = self.find_all(mapping=mapping)
 
         try:
             document = await hits.__anext__()
-        except StopAsyncIteration:
-            return None
+        except StopAsyncIteration as error:
+            raise NoHitsFoundError(mapping=mapping) from error
 
         try:
             _ = await hits.__anext__()
