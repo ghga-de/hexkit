@@ -89,7 +89,7 @@ class NoHitsFoundError(FindError):
     def __init__(self, *, mapping: Mapping[str, str]):
         message = (
             "No hits were found for the following key-value pairs while a single one"
-            + " was expected: {mapping}"
+            f" was expected: {mapping}"
         )
         super().__init__(message)
 
