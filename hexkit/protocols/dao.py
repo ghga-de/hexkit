@@ -138,10 +138,10 @@ class DaoCommons(typing.Protocol[Dto]):
         """
         ...
 
-    async def find_one(self, *, mapping: Mapping[str, Any]) -> Optional[Dto]:
+    async def find_one(self, *, mapping: Mapping[str, Any]) -> Dto:
         """Find the resource that matches the specified mapping. It is expected that
-        at most one resource matches the constraints. An exception is raised if multiple
-        hits are found.
+        at most one resource matches the constraints. An exception is raised if no or
+        multiple hits are found.
 
         Args:
             mapping:
@@ -149,13 +149,13 @@ class DaoCommons(typing.Protocol[Dto]):
                 and the values correspond to the actual values of the resource fields
 
         Returns:
-            Returns a hit in the form of the respective DTO model or None if no hit
-            was found.
+            Returns a hit in the form of the respective DTO model if exactly one hit
+            was found that matches the given mapping.
 
         Raises:
             NoHitsFoundError:
                 If no hit was found.
-            MultpleHitsFoundError:
+            MultipleHitsFoundError:
                 Raised when obtaining more than one hit.
         """
         ...
