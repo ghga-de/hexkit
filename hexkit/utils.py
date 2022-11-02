@@ -16,24 +16,14 @@
 """General utilities that don't require heavy dependencies."""
 
 from collections.abc import Collection
+from typing import Optional
 
 from pydantic import BaseModel
 
-
-class NonAsciiStrError(RuntimeError):
-    """Thrown when non-ASCII string was unexpectedly provided"""
-
-    def __init__(self, str_value: str):
-        """Prepare custom message."""
-        super().__init__(f"Non-ASCII string provided: {str_value!r}")
-
-
-def check_ascii(*str_values: str):
-    """Checks that the provided `str_values` are ASCII compatible,
-    raises an exception otherwise."""
-    for str_value in str_values:
-        if not str_value.isascii():
-            raise NonAsciiStrError(str_value=str_value)
+LOWER_BOUND = 8 * 1024**2
+UPPER_BOUND = 4 * 1024**3
+FILE_SIZE_LIMIT = 5 * 1024**4
+MAX_NUM_PARTS = 10_000
 
 
 class FieldNotInModelError(RuntimeError):
@@ -45,6 +35,66 @@ class FieldNotInModelError(RuntimeError):
             + str(unexpected_field)
         )
         super().__init__(message)
+
+
+class NonAsciiStrError(RuntimeError):
+    """Thrown when non-ASCII string was unexpectedly provided"""
+
+    def __init__(self, str_value: str):
+        """Prepare custom message."""
+        super().__init__(f"Non-ASCII string provided: {str_value!r}")
+
+
+def calc_part_size(*, file_size: int, preferred_part_size: Optional[int] = None) -> int:
+    """
+    Gives recommendations on the part_size to use for up- or download of a file given
+    it's total size. It makes sure that chosen part size is within bounds and produces
+    <= 10_000 parts.
+    Args:
+        file_size (int): total file size in bytes
+        preferred_part_size (int):
+            You may provide your preferred part size in bytes. If it satisfies the technical
+            constraints, it will be returned unchanged. Otherwise, it is ignored and a
+            technically viable part size is chosen instead.
+
+    Returns: a recommendation for the part size in bytes.
+
+    Raises:
+        ValueError if file size exceeds the maximum of 5 TiB
+    """
+
+    if preferred_part_size is None:
+        preferred_part_size = 8 * 1024**2
+
+    if file_size > FILE_SIZE_LIMIT:
+        raise ValueError(
+            f"""Provided file size of {file_size/1024**4:2.f}TiB
+            exceeds maximum allowed file size of 5 TiB"""
+        )
+
+    # clamp to lower/upper bound, respectively
+    if preferred_part_size < LOWER_BOUND:
+        preferred_part_size = LOWER_BOUND
+    elif preferred_part_size > UPPER_BOUND:
+        preferred_part_size = UPPER_BOUND
+
+    # powers of two from 8 MiB to 1024 MiBs, everything above would produce files
+    # over the limit
+    part_size_candidates = [2**i * 1024**2 for i in range(3, 11)]
+
+    if file_size / preferred_part_size > MAX_NUM_PARTS:
+        for part_size_candidate in part_size_candidates:
+            if file_size / part_size_candidate <= MAX_NUM_PARTS:
+                return part_size_candidate
+    return preferred_part_size
+
+
+def check_ascii(*str_values: str):
+    """Checks that the provided `str_values` are ASCII compatible,
+    raises an exception otherwise."""
+    for str_value in str_values:
+        if not str_value.isascii():
+            raise NonAsciiStrError(str_value=str_value)
 
 
 def validate_fields_in_model(
