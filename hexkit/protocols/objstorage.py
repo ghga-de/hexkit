@@ -19,7 +19,7 @@
 
 import re
 from abc import ABC, abstractmethod
-from typing import NamedTuple, Optional
+from typing import Any, NamedTuple, Optional
 
 __all__ = ["PresignedPostURL", "ObjectStorageProtocol"]
 
@@ -197,6 +197,16 @@ class ObjectStorageProtocol(ABC):
         return await self._get_object_download_url(
             bucket_id=bucket_id, object_id=object_id, expires_after=expires_after
         )
+
+    async def get_object_metadata(
+        self, *, bucket_id: str, object_id: str
+    ) -> dict[str, Any]:
+        """
+        Returns object metadata without downloading the actual object.
+        """
+        self._validate_bucket_id(bucket_id)
+        self._validate_object_id(object_id)
+        return await self._get_object_metadata(bucket_id=bucket_id, object_id=object_id)
 
     async def does_object_exist(
         self, *, bucket_id: str, object_id: str, object_md5sum: Optional[str] = None
@@ -396,6 +406,18 @@ class ObjectStorageProtocol(ABC):
         ...
 
     @abstractmethod
+    async def _get_object_metadata(
+        self, *, bucket_id: str, object_id: str
+    ) -> dict[str, Any]:
+        """
+        Returns object metadata without downloading the actual object.
+
+        *To be implemented by the provider. Input validation is done outside of this
+        method.*
+        """
+        ...
+
+    @abstractmethod
     async def _does_object_exist(
         self, *, bucket_id: str, object_id: str, object_md5sum: Optional[str] = None
     ) -> bool:
@@ -426,10 +448,6 @@ class ObjectStorageProtocol(ABC):
         *To be implemented by the provider. Input validation is done outside of this
         method.*
         """
-        self._validate_bucket_id(source_bucket_id)
-        self._validate_object_id(source_object_id)
-        self._validate_bucket_id(dest_bucket_id)
-        self._validate_object_id(dest_object_id)
         ...
 
     @abstractmethod
