@@ -259,9 +259,16 @@ class EventRecorder:
 class KafkaFixture:
     """Yielded by the `kafka_fixture` function"""
 
-    def __init__(self, kafka_servers: list[str], publisher: KafkaEventPublisher):
+    def __init__(
+        self,
+        *,
+        config: KafkaConfig,
+        kafka_servers: list[str],
+        publisher: KafkaEventPublisher,
+    ):
         """Initialize with connection details and a ready-to-use publisher."""
 
+        self.config = config
         self.kafka_servers = kafka_servers
         self.publisher = publisher
 
@@ -294,12 +301,13 @@ async def kafka_fixture() -> AsyncGenerator[KafkaFixture, None]:
 
     with KafkaContainer(image="confluentinc/cp-kafka:5.4.9-1-deb8") as kafka:
         kafka_servers = [kafka.get_bootstrap_server()]
+        config = KafkaConfig(
+            service_name="test_publisher",
+            service_instance_id="001",
+            kafka_servers=kafka_servers,
+        )
 
-        async with KafkaEventPublisher.construct(
-            config=KafkaConfig(
-                service_name="test_publisher",
-                service_instance_id="001",
-                kafka_servers=kafka_servers,
+        async with KafkaEventPublisher.construct(config=config) as publisher:
+            yield KafkaFixture(
+                config=config, kafka_servers=kafka_servers, publisher=publisher
             )
-        ) as publisher:
-            yield KafkaFixture(kafka_servers=kafka_servers, publisher=publisher)
