@@ -29,9 +29,11 @@ import botocore.client
 import botocore.config
 import botocore.configloader
 import botocore.exceptions
+from boto3.s3.transfer import TransferConfig
 from pydantic import BaseSettings, Field, SecretStr
 
 from hexkit.protocols.objstorage import ObjectStorageProtocol, PresignedPostURL
+from hexkit.utils import calc_part_size
 
 __all__ = ["ObjectStorageProtocol", "PresignedPostURL"]
 
@@ -775,6 +777,23 @@ class S3ObjectStorage(
 
         return presigned_url
 
+    async def _get_object_metadata(
+        self, *, bucket_id: str, object_id: str
+    ) -> dict[str, Any]:
+        """
+        Returns object metadata without downloading the actual object.
+        """
+        try:
+            metadata = await asyncio.to_thread(
+                self._client.head_object,
+                Bucket=bucket_id,
+                Key=object_id,
+            )
+        except botocore.exceptions.ClientError as error:
+            raise self._translate_s3_client_errors(error) from error
+
+        return metadata
+
     async def _copy_object(
         self,
         *,
@@ -794,6 +813,15 @@ class S3ObjectStorage(
             bucket_id=dest_bucket_id, object_id=dest_object_id
         )
 
+        source_metadata = await self._get_object_metadata(
+            bucket_id=source_bucket_id, object_id=source_object_id
+        )
+        file_size = source_metadata["ContentLength"]
+        part_size = calc_part_size(file_size=file_size)
+
+        transfer_config = TransferConfig(
+            multipart_threshold=8 * 1024**2, multipart_chunksize=part_size
+        )
         try:
             copy_source = {
                 "Bucket": source_bucket_id,
@@ -804,6 +832,7 @@ class S3ObjectStorage(
                 CopySource=copy_source,
                 Bucket=dest_bucket_id,
                 Key=dest_object_id,
+                Config=transfer_config,
             )
         except botocore.exceptions.ClientError as error:
             raise self._translate_s3_client_errors(error) from error
