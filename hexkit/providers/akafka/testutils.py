@@ -37,13 +37,29 @@ from hexkit.providers.akafka.provider import (
 
 
 @dataclass(frozen=True)
-class ExpectedEvent:
-    """Used to describe events expected in a specific topic with a specific key.
-    To be used with an instance of the EventRecorder class.
-    """
+class EventBase:
+    """Base for describing events expected and recorded by the EventRecorder class."""
 
     payload: JsonObject
     type_: Ascii
+
+
+@dataclass(frozen=True)
+class ExpectedEvent(EventBase):
+    """Used to describe events expected in a specific topic using an EventRecorder.
+
+    Please note, the key type is optional. If it is set to `None` (the default), the
+    event key will be ignored when compared to the recording.
+    """
+
+    key: Optional[Ascii] = None
+
+
+@dataclass(frozen=True)
+class RecordedEvent(EventBase):
+    """Used by the EventyRecorder class to describe events recorded in a specific topic."""
+
+    key: Ascii
 
 
 class ValidationError(RuntimeError):
@@ -97,6 +113,7 @@ class EventRecorder:
         self._expected_events = expect_events
 
         self._starting_offsets: Optional[dict[str, int]] = None
+        self._recorded_events
 
     async def _get_consumer_offsets(
         self, *, consumer: AIOKafkaConsumer
@@ -222,27 +239,21 @@ class EventRecorder:
         finally:
             await consumer.stop()
 
-    async def stop_and_check(self) -> None:
-        """Stop recording and check the recorded events against the expectation.
+    async def stop(self) -> None:
+        """Stop recording and collect the recorded events"""
 
-        Raises:
-            ValidationError: When the recorded events do not match the expectation.
-        """
+        if self._starting_offsets is None:
+            raise self.NotStartedError()
 
         consumer = self._get_consumer()
         await consumer.start()
 
         try:
-            recorded_events = await self._get_events_since_start(consumer=consumer)
+            self._recorded_events = await self._get_events_since_start(
+                consumer=consumer
+            )
         finally:
             await consumer.stop()
-
-        # check the expectations:
-        if recorded_events != self._expected_events:
-            raise ValidationError(
-                recorded_events=recorded_events,
-                expected_events=self._expected_events,
-            )
 
     async def __aenter__(self):
         """Start recording when entering the context block."""
