@@ -198,16 +198,6 @@ class ObjectStorageProtocol(ABC):
             bucket_id=bucket_id, object_id=object_id, expires_after=expires_after
         )
 
-    async def get_object_metadata(
-        self, *, bucket_id: str, object_id: str
-    ) -> dict[str, Any]:
-        """
-        Returns object metadata without downloading the actual object.
-        """
-        self._validate_bucket_id(bucket_id)
-        self._validate_object_id(object_id)
-        return await self._get_object_metadata(bucket_id=bucket_id, object_id=object_id)
-
     async def does_object_exist(
         self, *, bucket_id: str, object_id: str, object_md5sum: Optional[str] = None
     ) -> bool:
