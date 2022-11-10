@@ -48,9 +48,8 @@ async def test_kafka_event_publisher(kafka_fixture: KafkaFixture):  # noqa: F811
     )
 
     async with kafka_fixture.expect_events(
-        events=[ExpectedEvent(payload=payload, type_=type_)],
+        events=[ExpectedEvent(payload=payload, type_=type_, key=key)],
         in_topic=topic,
-        with_key=key,
     ):
         async with KafkaEventPublisher.construct(config=config) as event_publisher:
             await event_publisher.publish(
