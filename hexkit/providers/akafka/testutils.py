@@ -86,7 +86,7 @@ class ValidationError(RuntimeError):
         message = f"The recorded events did not match the expectations: {details}." + (
             f" {event_log}"
             if len(event_log) <= 1000
-            else " (Not showing recorded events because the output be too long.)"
+            else " (Not showing recorded events because the output log is too long.)"
         )
         super().__init__(message)
 
