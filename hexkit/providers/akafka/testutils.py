@@ -20,7 +20,9 @@ Please note, only use for testing purposes.
 """
 
 import json
+from contextlib import asynccontextmanager
 from dataclasses import dataclass
+from functools import partial
 from typing import AsyncGenerator, Optional, Sequence
 
 import pytest_asyncio
@@ -37,13 +39,29 @@ from hexkit.providers.akafka.provider import (
 
 
 @dataclass(frozen=True)
-class ExpectedEvent:
-    """Used to describe events expected in a specific topic with a specific key.
-    To be used with an instance of the EventRecorder class.
-    """
+class EventBase:
+    """Base for describing events expected and recorded by the EventRecorder class."""
 
     payload: JsonObject
     type_: Ascii
+
+
+@dataclass(frozen=True)
+class ExpectedEvent(EventBase):
+    """Used to describe events expected in a specific topic using an EventRecorder.
+
+    Please note, the key type is optional. If it is set to `None` (the default), the
+    event key will be ignored when compared to the recording.
+    """
+
+    key: Optional[Ascii] = None
+
+
+@dataclass(frozen=True)
+class RecordedEvent(EventBase):
+    """Used by the EventyRecorder class to describe events recorded in a specific topic."""
+
+    key: Ascii
 
 
 class ValidationError(RuntimeError):
@@ -51,20 +69,59 @@ class ValidationError(RuntimeError):
 
     def __init__(
         self,
-        recorded_events: Sequence[ExpectedEvent],
+        recorded_events: Sequence[RecordedEvent],
         expected_events: Sequence[ExpectedEvent],
+        details: str,
     ):
         """Initialize the error with information on the recorded and
         expected_events."""
 
-        message = (
-            "The recorded events did not match the expectations."
-            + " Events recorded: "
+        event_log = (
+            " Events recorded: "
             + ", ".join([str(event) for event in recorded_events])
             + " - but expected: "
             + ",".join([str(event) for event in expected_events])
         )
+
+        message = f"The recorded events did not match the expectations: {details}." + (
+            f" {event_log}"
+            if len(event_log) <= 1000
+            else " (Not showing recorded events because the output log is too long.)"
+        )
         super().__init__(message)
+
+
+def check_recorded_events(
+    recorded_events: Sequence[RecordedEvent], expected_events: Sequence[ExpectedEvent]
+):
+    """Check a sequence of recorded events against a sequence of expected events.
+    Raises ValidationError in case of missmatches."""
+
+    get_detailed_error = partial(
+        ValidationError,
+        recorded_events=recorded_events,
+        expected_events=expected_events,
+    )
+
+    n_recorded_events = len(recorded_events)
+    n_expected_events = len(expected_events)
+    if n_recorded_events != n_expected_events:
+        raise get_detailed_error(
+            details=f"expected {n_expected_events} events but recorded {n_recorded_events}"
+        )
+
+    get_field_missmatch_error = lambda field, index: get_detailed_error(
+        details=f"the {field} of the recorded event no. {index+1} does not match the expectations"
+    )
+    for index, (recorded_event, expected_event) in enumerate(
+        zip(recorded_events, expected_events)
+    ):
+        if recorded_event.payload != expected_event.payload:
+            raise get_field_missmatch_error(field="payload", index=index)
+        if recorded_event.type_ != expected_event.type_:
+            raise get_field_missmatch_error(field="type", index=index)
+        if expected_event.key is not None and recorded_event.key != expected_event.key:
+            raise get_field_missmatch_error(field="key", index=index)
 
 
 class EventRecorder:
@@ -78,25 +135,44 @@ class EventRecorder:
         def __init__(self):
             super().__init__("Event recording has not been started yet.")
 
+    class InProgressError(RuntimeError):
+        """Raised when the recording is still in progress but need to be stopped for
+        the rested action."""
+
+        def __init__(self):
+            super().__init__(
+                "Event recording has not been stopped yet and is still in progress."
+            )
+
     def __init__(
         self,
         *,
         kafka_servers: list[str],
         topic: Ascii,
-        with_key: Ascii,
-        expect_events: Sequence[ExpectedEvent],
     ):
-        """Initialize with connection details and by defining an expectation.
-        The specified events with the specified key are expected in the exact order as
-        defined in the list. Events with other keys are ignored.
-        """
+        """Initialize with connection details."""
 
         self._kafka_servers = kafka_servers
         self._topic = topic
-        self._key = with_key
-        self._expected_events = expect_events
 
         self._starting_offsets: Optional[dict[str, int]] = None
+        self._recorded_events: Optional[Sequence[RecordedEvent]] = None
+
+    def _assert_recording_stopped(self) -> None:
+        """Assert that the recording has been stopped. Raises an InProgessError or a
+        NotStartedError otherwise."""
+
+        if self._recorded_events is None:
+            if self._starting_offsets is None:
+                raise self.NotStartedError()
+            raise self.InProgressError()
+
+    @property
+    def recorded_events(self) -> Sequence[RecordedEvent]:
+        """The recorded events. Only available after the recording has been stopped."""
+
+        self._assert_recording_stopped()
+        return self._recorded_events  # type: ignore
 
     async def _get_consumer_offsets(
         self, *, consumer: AIOKafkaConsumer
@@ -186,7 +262,7 @@ class EventRecorder:
 
     async def _get_events_since_start(
         self, *, consumer: AIOKafkaConsumer
-    ) -> list[ExpectedEvent]:
+    ) -> list[RecordedEvent]:
         """Consume events since the starting offset. The provided consumer instance must
         have been started."""
 
@@ -200,9 +276,12 @@ class EventRecorder:
 
         # discard all events that do not match the key of interest:
         return [
-            ExpectedEvent(payload=raw_event.value, type_=get_event_type(raw_event))
+            RecordedEvent(
+                payload=raw_event.value,
+                type_=get_event_type(raw_event),
+                key=raw_event.key,
+            )
             for raw_event in raw_events
-            if raw_event.key == self._key
         ]
 
     async def start_recording(self) -> None:
@@ -222,38 +301,33 @@ class EventRecorder:
         finally:
             await consumer.stop()
 
-    async def stop_and_check(self) -> None:
-        """Stop recording and check the recorded events against the expectation.
+    async def stop_recording(self) -> None:
+        """Stop recording and collect the recorded events"""
 
-        Raises:
-            ValidationError: When the recorded events do not match the expectation.
-        """
+        if self._starting_offsets is None:
+            raise self.NotStartedError()
 
         consumer = self._get_consumer()
         await consumer.start()
 
         try:
-            recorded_events = await self._get_events_since_start(consumer=consumer)
+            self._recorded_events = await self._get_events_since_start(
+                consumer=consumer
+            )
         finally:
             await consumer.stop()
 
-        # check the expectations:
-        if recorded_events != self._expected_events:
-            raise ValidationError(
-                recorded_events=recorded_events,
-                expected_events=self._expected_events,
-            )
-
-    async def __aenter__(self):
+    async def __aenter__(self) -> "EventRecorder":
         """Start recording when entering the context block."""
 
         await self.start_recording()
+        return self
 
     async def __aexit__(self, error_type, error_val, error_tb):
         """Stop recording and check the recorded events agains the expectation when
         exiting the context block."""
 
-        await self.stop_and_check()
+        await self.stop_recording()
 
 
 class KafkaFixture:
@@ -279,19 +353,28 @@ class KafkaFixture:
 
         await self.publisher.publish(payload=payload, type_=type_, key=key, topic=topic)
 
-    def expect_events(
-        self, events: Sequence[ExpectedEvent], *, in_topic: Ascii, with_key: Ascii
-    ) -> EventRecorder:
-        """Returns an EventRecorder object that can be used in an asnyc with block to
-        record events with the specified key in the specified topic (on __aenter__) and
-        check that they match the specified sequence of expected events (on __aexit__).
+    def record_events(self, *, in_topic: Ascii) -> EventRecorder:
+        """Constructs an EventRecorder object that can be used in an asnyc with block to
+        record events in the specified topic upon __aenter__ and stops the recording
+        upon __aexit__.
         """
 
-        return EventRecorder(
-            kafka_servers=self.kafka_servers,
-            topic=in_topic,
-            with_key=with_key,
-            expect_events=events,
+        return EventRecorder(kafka_servers=self.kafka_servers, topic=in_topic)
+
+    @asynccontextmanager
+    async def expect_events(
+        self, events: Sequence[ExpectedEvent], *, in_topic: Ascii
+    ) -> AsyncGenerator[EventRecorder, None]:
+        """Can be used in an asnyc with block to record events in the specified topic
+        (on __aenter__) and check that they match the specified sequence of expected
+        events (on __aexit__).
+        """
+
+        async with self.record_events(in_topic=in_topic) as event_recorder:
+            yield event_recorder
+
+        check_recorded_events(
+            recorded_events=event_recorder.recorded_events, expected_events=events
         )
 
 
