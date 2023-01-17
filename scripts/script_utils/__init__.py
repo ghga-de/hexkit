@@ -14,15 +14,4 @@
 # limitations under the License.
 #
 
-"""Apache Kafka-specific event publisher and subscriber provider.
-They correspond to the `EventPublisherProtocol` and `EventSubscriberProtocol`,
-respectively.
-"""
-
-from .provider import (  # noqa: F401
-    KafkaConfig,
-    KafkaEventPublisher,
-    KafkaEventSubscriber,
-)
-
-__all__ = ["KafkaEventPublisher", "KafkaEventSubscriber", "KafkaConfig"]
+"""A collection of utilities used by scripts."""

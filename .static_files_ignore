@@ -1,0 +1,8 @@
+# Optional list of files which are actually static in the template
+# but are allowed to have different content in the current repository
+
+.github/workflows/check_config_docs.yaml
+
+scripts/update_config_docs.py
+
+example_data/README.md

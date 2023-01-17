@@ -1,0 +1,13 @@
+# List of all deprecated files and directories that
+# should not exist any more in this repo.
+# This list is similar to the `./mandatory_files`,
+# however, the entries here will be removed if they
+# still exist.
+
+.devcontainer/library-scripts/docker-in-docker-debian.sh
+.devcontainer/library-scripts
+
+.github/workflows/check_mandatory_and_static_files.yaml
+
+scripts/check_mandatory_and_static_files.py
+scripts/update_static_files.py

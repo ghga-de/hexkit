@@ -1,4 +1,4 @@
-# Copyright 2021 - 2022 Universität Tübingen, DKFZ and EMBL
+# Copyright 2021 - 2023 Universität Tübingen, DKFZ and EMBL
 # for the German Human Genome-Phenome Archive (GHGA)
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
@@ -15,4 +15,4 @@
 
 """A Toolkit for Building Microservices using the Hexagonal Architecture"""
 
-__version__ = "0.8.1"
+__version__ = "0.8.2"

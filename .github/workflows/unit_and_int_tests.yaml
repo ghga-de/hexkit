@@ -8,10 +8,10 @@ jobs:
     name: Unit and Integration Tests
 
     steps:
-      - uses: actions/checkout@v2.4.2
+      - uses: actions/checkout@v3
 
       - id: common
-        uses: ghga-de/gh-action-common@v1.0.2
+        uses: ghga-de/gh-action-common@v1.0.3
 
       - name: Run pytest
         run: |

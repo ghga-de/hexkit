@@ -11,11 +11,4 @@ FROM mcr.microsoft.com/vscode/devcontainers/python:0-${VARIANT}
 # Copy install script to bin:
 COPY ./dev_install /bin
 
-# make docker in docker work:
-# (https://github.com/microsoft/vscode-dev-containers/blob/main/script-library/docs/docker-in-docker.md#script-use)
-COPY library-scripts/*.sh /tmp/library-scripts/
-ENV DOCKER_BUILDKIT=1
-RUN apt-get update && /bin/bash /tmp/library-scripts/docker-in-docker-debian.sh
-ENTRYPOINT ["/usr/local/share/docker-init.sh"]
-VOLUME [ "/var/lib/docker" ]
 CMD ["sleep", "infinity"]

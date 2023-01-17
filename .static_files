@@ -8,27 +8,32 @@
 # your repo by running the script at:
 # ./scripts/update_static_files.py
 
-.devcontainer/library-scripts/docker-in-docker-debian.sh
 .devcontainer/license_header.txt
 
-scripts/update_static_files.py
+scripts/script_utils/__init__.py
+scripts/script_utils/cli.py
+
 scripts/license_checker.py
 scripts/get_package_name.py
-scripts/check_mandatory_and_static_files.py
+scripts/update_config_docs.py
+scripts/update_template_files.py
 scripts/README.md
 
+.github/workflows/check_config_docs.yaml
+.github/workflows/check_template_files.yaml
 .github/workflows/static_code_analysis.yaml
-.github/workflows/check_mandatory_and_static_files.yaml
 .github/workflows/unit_and_int_tests.yaml
+
+example_data/README.md
 
 .editorconfig
 .flake8
 .gitattributes
 .gitignore
-.mypy.ini
 .pre-commit-config.yaml
 .pylintrc
 .mypy.ini
+pytest.ini
 
 LICENSE
 requirements.txt

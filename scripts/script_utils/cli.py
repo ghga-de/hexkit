@@ -14,15 +14,23 @@
 # limitations under the License.
 #
 
-"""Apache Kafka-specific event publisher and subscriber provider.
-They correspond to the `EventPublisherProtocol` and `EventSubscriberProtocol`,
-respectively.
-"""
+"""A collection of CLI utilities"""
 
-from .provider import (  # noqa: F401
-    KafkaConfig,
-    KafkaEventPublisher,
-    KafkaEventSubscriber,
-)
+import typer
 
-__all__ = ["KafkaEventPublisher", "KafkaEventSubscriber", "KafkaConfig"]
+
+def echo_success(message: str):
+    """Print a success message."""
+
+    styled_message = typer.style(text=message, fg=typer.colors.GREEN)
+    typer.echo(styled_message)
+
+
+def echo_failure(message: str):
+    """Print a failure message."""
+
+    styled_message = typer.style(text=message, fg=typer.colors.RED)
+    typer.echo(styled_message)
+
+
+run = typer.run

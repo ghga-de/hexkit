@@ -1,4 +1,4 @@
-# Copyright 2021 - 2022 Universität Tübingen, DKFZ and EMBL
+# Copyright 2021 - 2023 Universität Tübingen, DKFZ and EMBL
 # for the German Human Genome-Phenome Archive (GHGA)
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
@@ -110,9 +110,12 @@ def check_recorded_events(
             details=f"expected {n_expected_events} events but recorded {n_recorded_events}"
         )
 
-    get_field_missmatch_error = lambda field, index: get_detailed_error(
-        details=f"the {field} of the recorded event no. {index+1} does not match the expectations"
-    )
+    def get_field_missmatch_error(field, index):
+        return get_detailed_error(
+            details=f"the {field} of the recorded event no. {index+1}"
+            " does not match the expectations"
+        )
+
     for index, (recorded_event, expected_event) in enumerate(
         zip(recorded_events, expected_events)
     ):
@@ -382,7 +385,7 @@ class KafkaFixture:
 async def kafka_fixture() -> AsyncGenerator[KafkaFixture, None]:
     """Pytest fixture for tests depending on the Kafka-base providers."""
 
-    with KafkaContainer(image="confluentinc/cp-kafka:5.4.9-1-deb8") as kafka:
+    with KafkaContainer(image="confluentinc/cp-server:7.3.1") as kafka:
         kafka_servers = [kafka.get_bootstrap_server()]
         config = KafkaConfig(
             service_name="test_publisher",

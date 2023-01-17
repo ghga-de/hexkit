@@ -1,4 +1,4 @@
-# Copyright 2021 - 2022 Universität Tübingen, DKFZ and EMBL
+# Copyright 2021 - 2023 Universität Tübingen, DKFZ and EMBL
 # for the German Human Genome-Phenome Archive (GHGA)
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
@@ -44,6 +44,7 @@ TEST_FILE_PATHS = [
 ]
 
 MEBIBYTE = 1024 * 1024
+TIMEOUT = 30
 
 
 def calc_md5(content: bytes) -> str:
@@ -63,7 +64,7 @@ class FileObject(BaseModel):
     content: bytes = b"will be overwritten"
     md5: str = "will be overwritten"
 
-    # pylint: disable=no-self-argument,no-self-use
+    # pylint: disable=no-self-argument
     @validator("content", always=True)
     def read_content(cls, _, values):
         """Read in the file content."""
@@ -71,7 +72,7 @@ class FileObject(BaseModel):
         with open(values["file_path"], "rb") as file:
             return file.read()
 
-    # pylint: disable=no-self-argument,no-self-use
+    # pylint: disable=no-self-argument
     @validator("md5", always=True)
     def calc_md5_from_content(cls, _, values):
         """Calculate md5 based on the content."""
@@ -106,7 +107,7 @@ class S3Fixture:
 def s3_fixture() -> Generator[S3Fixture, None, None]:
     """Pytest fixture for tests depending on the S3ObjectStorage DAO."""
 
-    with LocalStackContainer(image="localstack/localstack:0.14.2").with_services(
+    with LocalStackContainer(image="localstack/localstack:0.14.5").with_services(
         "s3"
     ) as localstack:
         config = config_from_localstack_container(localstack)
@@ -155,7 +156,11 @@ def upload_file(presigned_url: PresignedPostURL, file_path: Path, file_md5: str)
         files = {"file": (str(file_path), test_file)}
         headers = {"ContentMD5": file_md5}
         response = requests.post(
-            presigned_url.url, data=presigned_url.fields, files=files, headers=headers
+            presigned_url.url,
+            data=presigned_url.fields,
+            files=files,
+            headers=headers,
+            timeout=TIMEOUT,
         )
         response.raise_for_status()
 
@@ -191,7 +196,7 @@ async def upload_part(
         object_id=object_id,
         part_number=part_number,
     )
-    response = requests.put(upload_url, data=content)
+    response = requests.put(upload_url, data=content, timeout=TIMEOUT)
     response.raise_for_status()
 
 
@@ -224,7 +229,7 @@ def upload_part_via_url(*, url: str, size: int):
     """Upload a file part of given size using the given URL."""
 
     content = b"\0" * size
-    response = requests.put(url, data=content)
+    response = requests.put(url, data=content, timeout=TIMEOUT)
     response.raise_for_status()
 
 
@@ -274,7 +279,7 @@ async def multipart_upload_file(
 def download_and_check_test_file(presigned_url: str, expected_md5: str):
     """Download the test file from the specified URL and check its integrity (md5)."""
 
-    response = requests.get(presigned_url)
+    response = requests.get(presigned_url, timeout=TIMEOUT)
     response.raise_for_status()
 
     observed_md5 = calc_md5(response.content)
