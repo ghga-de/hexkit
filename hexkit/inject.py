@@ -190,7 +190,7 @@ class ContainerBase(dependency_injector.containers.DeclarativeContainer):
     # (See the implementation of the dependency_injector.containers.DeclarativeContainer
     # for more details.)
 
-    async def __aenter__(self: SELF) -> SELF:
+    async def __aenter__(self: SELF) -> SELF:  # type: ignore[empty-body]
         """Init/setup resources."""
         ...
 

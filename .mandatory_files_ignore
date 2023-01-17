@@ -1,0 +1,12 @@
+# Optional list of files which are actually mandatory in the template
+# but are allowed to be removed in the current repository
+
+.devcontainer/dev_launcher
+
+.github/workflows/dev_cd.yaml
+
+example_data
+
+Dockerfile
+config_schema.json
+example_config.yaml

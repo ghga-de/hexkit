@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 
-# Copyright 2021 - 2022 Universität Tübingen, DKFZ and EMBL
+# Copyright 2021 - 2023 Universität Tübingen, DKFZ and EMBL
 # for the German Human Genome-Phenome Archive (GHGA)
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
@@ -34,7 +34,7 @@ ROOT_DIR = Path(__file__).parent.parent.resolve()
 # file containing the default global copyright notice:
 GLOBAL_COPYRIGHT_FILE_PATH = ROOT_DIR / ".devcontainer" / "license_header.txt"
 
-# exlude files and dirs from license header check:
+# exclude files and dirs from license header check:
 EXCLUDE = [
     ".devcontainer",
     "eggs",
@@ -65,11 +65,26 @@ EXCLUDE = [
     ".pytest_cache",
     ".editorconfig",
     ".static_files",
+    ".static_files_ignore",
     ".mandatory_files",
+    ".mandatory_files_ignore",
+    ".deprecated_files",
+    ".deprecated_files_ignore",
 ]
 
 # exclude file by file ending from license header check:
-EXCLUDE_ENDINGS = ["json", "pyc", "yaml", "yml", "md", "html", "xml"]
+EXCLUDE_ENDINGS = [
+    "html",
+    "ini",
+    "json",
+    "md",
+    "pub",
+    "pyc",
+    "sec",
+    "xml",
+    "yaml",
+    "yml",
+]
 
 # exclude any files with names that match any of the following regex:
 EXCLUDE_PATTERN = [r".*\.egg-info.*", r".*__cache__.*", r".*\.git.*"]
@@ -99,7 +114,7 @@ for the German Human Genome-Phenome Archive (GHGA)"""
 MIN_YEAR = 2021
 
 # The path to the License file relative to target dir
-LICENCE_FILE = "LICENSE"
+LICENSE_FILE = "LICENSE"
 
 
 class GlobalCopyrightNotice:
@@ -108,7 +123,7 @@ class GlobalCopyrightNotice:
     files.
     The text of the copyright notice is stored in the `text`
     property. This property can only be set once.
-    The property `n_lines` gives the number of lines of the text. It is infered once
+    The property `n_lines` gives the number of lines of the text. It is inferred once
     `text` is set.
     """
 
@@ -226,8 +241,8 @@ def format_copyright_template(copyright_template: str, author: str) -> str:
 def is_commented_line(line: str, comment_chars: List[str] = COMMENT_CHARS) -> bool:
     """Checks whether a line is a comment."""
     line_stripped = line.strip()
-    for commment_char in comment_chars:
-        if line_stripped.startswith(commment_char):
+    for comment_char in comment_chars:
+        if line_stripped.startswith(comment_char):
             return True
 
     return False
@@ -269,7 +284,7 @@ def validate_year_string(year_string: str, min_year: int = MIN_YEAR) -> bool:
     if year_string.isnumeric():
         return int(year_string) == current_year
 
-    # Otherwise, a range (e.g. 2021 - 2022) is expected:
+    # Otherwise, a range (e.g. 2021 - 2023) is expected:
     match = re.match("(\d+) - (\d+)", year_string)
 
     if not match:
@@ -379,7 +394,7 @@ def check_file_headers(
         author (str, optional):
             The author that shall be included in the license header.
             It will replace any appearance of "{author}" in the license
-            header. This defaults to an auther info for GHGA.
+            header. This defaults to an author info for GHGA.
         exclude (List[str], optional):
             Overwrite default list of file/dir paths relative to
             the target dir that shall be excluded.
@@ -447,7 +462,7 @@ def check_license_file(
         author (str, optional):
             The author that shall be included in the copyright notice.
             It will replace any appearance of "{author}" in the copyright
-            notice. This defaults to an auther info for GHGA.
+            notice. This defaults to an author info for GHGA.
     """
 
     if not license_file.is_file():
@@ -512,7 +527,7 @@ def run():
     if args.no_license_file_check:
         license_file_valid = True
     else:
-        license_file = Path(target_dir / LICENCE_FILE)
+        license_file = Path(target_dir / LICENSE_FILE)
         print(f'Checking if LICENSE file is up to date: "{license_file}"')
         license_file_valid = check_license_file(
             license_file, global_copyright=global_copyright

@@ -110,9 +110,12 @@ def check_recorded_events(
             details=f"expected {n_expected_events} events but recorded {n_recorded_events}"
         )
 
-    get_field_missmatch_error = lambda field, index: get_detailed_error(
-        details=f"the {field} of the recorded event no. {index+1} does not match the expectations"
-    )
+    def get_field_missmatch_error(field, index):
+        return get_detailed_error(
+            details=f"the {field} of the recorded event no. {index+1}"
+            " does not match the expectations"
+        )
+
     for index, (recorded_event, expected_event) in enumerate(
         zip(recorded_events, expected_events)
     ):

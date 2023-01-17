@@ -1,4 +1,4 @@
-; Copyright 2021 - 2022 Universität Tübingen, DKFZ and EMBL
+; Copyright 2021 - 2023 Universität Tübingen, DKFZ and EMBL
 ; for the German Human Genome-Phenome Archive (GHGA)
 ;
 ; Licensed under the Apache License, Version 2.0 (the "License");
@@ -14,7 +14,8 @@
 ; limitations under the License.
 
 [flake8]
-ignore = E, W # ignore all style checks from pycodestyle
-              # as they are already checked by black
+ignore = E, W
+    # ignore all style checks from pycodestyle
+    # as they are already checked by black
 exclude = .git,__pycache__,build,dist
 max-complexity = 10

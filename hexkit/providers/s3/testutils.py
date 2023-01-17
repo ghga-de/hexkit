@@ -63,7 +63,7 @@ class FileObject(BaseModel):
     content: bytes = b"will be overwritten"
     md5: str = "will be overwritten"
 
-    # pylint: disable=no-self-argument,no-self-use
+    # pylint: disable=no-self-argument
     @validator("content", always=True)
     def read_content(cls, _, values):
         """Read in the file content."""
@@ -71,7 +71,7 @@ class FileObject(BaseModel):
         with open(values["file_path"], "rb") as file:
             return file.read()
 
-    # pylint: disable=no-self-argument,no-self-use
+    # pylint: disable=no-self-argument
     @validator("md5", always=True)
     def calc_md5_from_content(cls, _, values):
         """Calculate md5 based on the content."""
