@@ -48,7 +48,7 @@ def config_from_mongodb_container(container: MongoDbContainer) -> MongoDbConfig:
 def mongodb_fixture() -> Generator[MongoDbFixture, None, None]:
     """Pytest fixture for tests depending on the MongoDbDaoFactory DAO."""
 
-    with MongoDbContainer(image="mongo:5.0.11") as mongodb:
+    with MongoDbContainer(image="mongo:6.0.3") as mongodb:
         config = config_from_mongodb_container(mongodb)
         dao_factory = MongoDbDaoFactory(config=config)
 
