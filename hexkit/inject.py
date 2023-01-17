@@ -46,6 +46,8 @@ __all__ = [
     "Configurator",
 ]
 
+# pylint: disable=c-extension-no-member
+
 
 class NotConstructableError(TypeError):
     """Thrown when an AsyncContextConstructable was expected but not obtained."""
