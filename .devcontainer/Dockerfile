@@ -10,3 +10,5 @@ FROM mcr.microsoft.com/vscode/devcontainers/python:0-${VARIANT}
 
 # Copy install script to bin:
 COPY ./dev_install /bin
+
+CMD ["sleep", "infinity"]
