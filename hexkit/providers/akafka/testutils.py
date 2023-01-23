@@ -1,4 +1,4 @@
-# Copyright 2021 - 2023 Universität Tübingen, DKFZ and EMBL
+# Copyright 2021 - 2023 Universität Tübingen, DKFZ, EMBL, and Universität zu Köln
 # for the German Human Genome-Phenome Archive (GHGA)
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
@@ -385,7 +385,7 @@ class KafkaFixture:
 async def kafka_fixture() -> AsyncGenerator[KafkaFixture, None]:
     """Pytest fixture for tests depending on the Kafka-base providers."""
 
-    with KafkaContainer(image="confluentinc/cp-server:7.3.1") as kafka:
+    with KafkaContainer(image="confluentinc/cp-kafka:5.4.9-1-deb8") as kafka:
         kafka_servers = [kafka.get_bootstrap_server()]
         config = KafkaConfig(
             service_name="test_publisher",
