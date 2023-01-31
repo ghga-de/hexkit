@@ -780,9 +780,6 @@ class S3ObjectStorage(
     async def _get_object_size(self, *, bucket_id: str, object_id: str) -> int:
         """
         Returns the size of an object in bytes.
-
-        *To be implemented by the provider. Input validation is done outside of this
-        method.*
         """
 
         await self._assert_object_exists(bucket_id=bucket_id, object_id=object_id)
