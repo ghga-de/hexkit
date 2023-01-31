@@ -793,7 +793,7 @@ class S3ObjectStorage(
 
         if not "ContentLength" in object_metadata:
             raise self.ObjectError(
-                f"Could not get the size of the object with ID '{object_id}' in the"
+                f"Could not get the size of the object with ID '{object_id}' in"
                 + f" bucket '{bucket_id}'."
             )
 
