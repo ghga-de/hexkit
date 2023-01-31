@@ -777,6 +777,28 @@ class S3ObjectStorage(
 
         return presigned_url
 
+    async def _get_object_size(self, *, bucket_id: str, object_id: str) -> int:
+        """
+        Returns the size of an object in bytes.
+
+        *To be implemented by the provider. Input validation is done outside of this
+        method.*
+        """
+
+        await self._assert_object_exists(bucket_id=bucket_id, object_id=object_id)
+
+        object_metadata = await self._get_object_metadata(
+            bucket_id=bucket_id, object_id=object_id
+        )
+
+        if not "ContentLength" in object_metadata:
+            raise self.ObjectError(
+                f"Could not get the size of the object with ID '{object_id}' in the"
+                + f" bucket '{bucket_id}'."
+            )
+
+        return object_metadata["ContentLength"]
+
     async def _get_object_metadata(
         self, *, bucket_id: str, object_id: str
     ) -> dict[str, Any]:

@@ -19,7 +19,7 @@
 
 import re
 from abc import ABC, abstractmethod
-from typing import Any, NamedTuple, Optional
+from typing import NamedTuple, Optional
 
 __all__ = ["PresignedPostURL", "ObjectStorageProtocol"]
 
@@ -213,6 +213,15 @@ class ObjectStorageProtocol(ABC):
             bucket_id=bucket_id, object_id=object_id, object_md5sum=object_md5sum
         )
 
+    async def get_object_size(self, *, bucket_id: str, object_id: str) -> int:
+        """
+        Returns the size of an object in bytes.
+        """
+
+        self._validate_bucket_id(bucket_id)
+        self._validate_object_id(object_id)
+        return await self._get_object_size(bucket_id=bucket_id, object_id=object_id)
+
     async def copy_object(
         self,
         *,
@@ -396,11 +405,9 @@ class ObjectStorageProtocol(ABC):
         ...
 
     @abstractmethod
-    async def _get_object_metadata(
-        self, *, bucket_id: str, object_id: str
-    ) -> dict[str, Any]:
+    async def _get_object_size(self, *, bucket_id: str, object_id: str) -> int:
         """
-        Returns object metadata without downloading the actual object.
+        Returns the size of an object in bytes.
 
         *To be implemented by the provider. Input validation is done outside of this
         method.*
