@@ -824,10 +824,14 @@ class S3ObjectStorage(
         """Copy an object from one bucket (`source_bucket_id` and `source_object_id`) to
         another bucket (`dest_bucket_id` and `dest_object_id`).
         """
-
         file_size = await self._get_object_size(
             bucket_id=source_bucket_id, object_id=source_object_id
         )
+
+        await self._assert_object_not_exists(
+            bucket_id=dest_bucket_id, object_id=dest_object_id
+        )
+
         part_size = calc_part_size(file_size=file_size)
 
         transfer_config = TransferConfig(
