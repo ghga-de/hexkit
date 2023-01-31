@@ -9,6 +9,7 @@
 # ./scripts/update_static_files.py
 
 .devcontainer/license_header.txt
+.devcontainer/Dockerfile
 
 scripts/script_utils/__init__.py
 scripts/script_utils/cli.py

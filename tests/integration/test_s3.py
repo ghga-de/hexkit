@@ -87,6 +87,23 @@ async def test_object_existence_checks(
 
 
 @pytest.mark.asyncio
+async def test_get_object_size(
+    s3_fixture: S3Fixture,  # noqa: F811
+    file_fixture: FileObject,  # noqa: F811
+):
+    """Test if the get_object_size method returns the correct size."""
+
+    expected_size = len(file_fixture.content)
+
+    await s3_fixture.populate_file_objects([file_fixture])
+    observed_size = await s3_fixture.storage.get_object_size(
+        bucket_id=file_fixture.bucket_id, object_id=file_fixture.object_id
+    )
+
+    assert expected_size == observed_size
+
+
+@pytest.mark.asyncio
 async def test_bucket_existence_checks(s3_fixture: S3Fixture):  # noqa: F811
     """Test if the checks for existence of buckets work correctly."""
 
@@ -186,6 +203,11 @@ async def test_handling_non_existing_file_and_bucket(
             source_object_id=existing_object_id,
             dest_bucket_id=non_existing_bucket_id,
             dest_object_id=non_existing_object_id,
+        )
+
+    with pytest.raises(ObjectStorageProtocol.ObjectNotFoundError):
+        await s3_fixture.storage.get_object_size(
+            bucket_id=existing_bucket_id, object_id=non_existing_object_id
         )
 
     with pytest.raises(ObjectStorageProtocol.ObjectNotFoundError):
