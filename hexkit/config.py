@@ -161,7 +161,7 @@ def config_from_yaml(
                 if not config_yaml.is_file():
                     raise ConfigYamlDoesNotExist(path=config_yaml)
 
-            class ModSettings(settings):  # type: ignore
+            class ModSettings(settings):
                 """Modifies the orginal Settings class provided by the user"""
 
                 # pylint: disable=too-few-public-methods
