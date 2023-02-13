@@ -6,3 +6,5 @@
 scripts/update_config_docs.py
 
 example_data/README.md
+
+.devcontainer/Dockerfile
