@@ -17,6 +17,7 @@
 """JSON web token based provider implementing the AuthContextProtocol."""
 
 import json
+from contextlib import asynccontextmanager
 from typing import Any, Optional
 
 from jwcrypto import jwk, jwt
@@ -60,6 +61,19 @@ class JWTAuthConfig(BaseSettings):
 
 class JWTAuthContextProvider(AuthContextProtocol[AuthContext_co]):
     """A JWT based provider implementing the AuthContextProtocol."""
+
+    @classmethod
+    @asynccontextmanager
+    async def construct(
+        cls, *, config: JWTAuthConfig, context_class: type[AuthContext_co]
+    ):
+        """Make this usable as an async dependency.
+
+        Args:
+            config:
+                Config parameters needed for JWT validation and transformation.
+        """
+        yield cls(config=config, context_class=context_class)
 
     def __init__(self, *, config: JWTAuthConfig, context_class: type[AuthContext_co]):
         """Initialize the provider with the given configuration.
