@@ -26,27 +26,7 @@ from pydantic import BaseSettings, Field, ValidationError
 from hexkit.custom_types import JsonObject
 from hexkit.protocols.auth import AuthContext_co, AuthContextProtocol
 
-__all__ = [
-    "JWTAuthConfig",
-    "JWTAuthConfigError",
-    "JWTAuthError",
-    "JWTAuthValidationError",
-    "JWTAuthContextProvider",
-]
-
-
-class JWTAuthError(AuthContextProtocol.AuthContextError):
-    """Error in JSON web token based authentication and authorization"""
-
-
-class JWTAuthValidationError(
-    JWTAuthError, AuthContextProtocol.AuthContextValidationError
-):
-    """Error when validating the JSON web token"""
-
-
-class JWTAuthConfigError(JWTAuthError):
-    """Error in auth-specific config params"""
+__all__ = ["JWTAuthConfig", "JWTAuthContextProvider"]
 
 
 class JWTAuthConfig(BaseSettings):
@@ -93,7 +73,7 @@ class JWTAuthContextProvider(AuthContextProtocol[AuthContext_co]):
             if key.has_private:
                 raise ValueError("Private key found, this should not be added here.")
         except Exception as exc:
-            raise JWTAuthConfigError(
+            raise self.AuthContextError(
                 "No valid token signing key found in the configuration:" f" {exc}"
             ) from exc
         self._key = key
@@ -115,14 +95,16 @@ class JWTAuthContextProvider(AuthContextProtocol[AuthContext_co]):
             try:
                 value = claims.pop(claim)
             except KeyError as exc:
-                raise JWTAuthValidationError(f"Missing claim {claim}") from exc
+                raise self.AuthContextValidationError(f"Missing claim {claim}") from exc
             if attribute is not None:
                 claims[attribute] = value
         try:
             claims["expires"] = "Indemann"
             return self._context_class(**claims)
         except ValidationError as error:
-            raise JWTAuthValidationError(f"Invalid auth context: {error}") from error
+            raise self.AuthContextValidationError(
+                f"Invalid auth context: {error}"
+            ) from error
 
     def _decode_and_validate_token(self, token: str) -> JsonObject:
         """Decode and validate the given JSON Web Token.
@@ -132,7 +114,7 @@ class JWTAuthContextProvider(AuthContextProtocol[AuthContext_co]):
         Raises a JWTAuthValidationError if the token is invalid.
         """
         if not token:
-            raise JWTAuthValidationError("Empty token")
+            raise self.AuthContextValidationError("Empty token")
         try:
             jwt_token = jwt.JWT(
                 jwt=token,
@@ -148,9 +130,11 @@ class JWTAuthContextProvider(AuthContextProtocol[AuthContext_co]):
             TypeError,
             ValueError,
         ) as exc:
-            raise JWTAuthValidationError(f"Not a valid token: {exc}") from exc
+            raise self.AuthContextValidationError(f"Not a valid token: {exc}") from exc
         try:
             claims = json.loads(jwt_token.claims)
         except json.JSONDecodeError as exc:
-            raise JWTAuthValidationError(f"Claims cannot be decoded: {exc}") from exc
+            raise self.AuthContextValidationError(
+                f"Claims cannot be decoded: {exc}"
+            ) from exc
         return claims
