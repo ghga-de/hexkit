@@ -24,12 +24,7 @@ from jwcrypto.common import JWException
 from pydantic import BaseSettings, Field, ValidationError
 
 from hexkit.custom_types import JsonObject
-from hexkit.protocols.auth import (
-    AuthContext_co,
-    AuthContextError,
-    AuthContextProtocol,
-    AuthContextValidationError,
-)
+from hexkit.protocols.auth import AuthContext_co, AuthContextProtocol
 
 __all__ = [
     "JWTAuthConfig",
@@ -40,11 +35,13 @@ __all__ = [
 ]
 
 
-class JWTAuthError(AuthContextError):
+class JWTAuthError(AuthContextProtocol.AuthContextError):
     """Error in JSON web token based authentication and authorization"""
 
 
-class JWTAuthValidationError(JWTAuthError, AuthContextValidationError):
+class JWTAuthValidationError(
+    JWTAuthError, AuthContextProtocol.AuthContextValidationError
+):
     """Error when validating the JSON web token"""
 
 

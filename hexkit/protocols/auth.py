@@ -20,20 +20,7 @@ from typing import Optional, Protocol, TypeVar
 
 from pydantic import BaseModel
 
-__all__ = [
-    "AuthContext_co",
-    "AuthContextProtocol",
-    "AuthContextError",
-    "AuthContextValidationError",
-]
-
-
-class AuthContextError(RuntimeError):
-    """Error when retrieving the authentication and authorization context failed."""
-
-
-class AuthContextValidationError(RuntimeError):
-    """Error that is raised when the underlying token is invalid."""
+__all__ = ["AuthContext_co", "AuthContextProtocol"]
 
 
 # type variable for handling different kinds of auth contexts
@@ -42,6 +29,12 @@ AuthContext_co = TypeVar("AuthContext_co", bound=BaseModel, covariant=True)
 
 class AuthContextProtocol(Protocol[AuthContext_co]):
     """A protocol for retrieving an authentication and authorization context."""
+
+    class AuthContextError(RuntimeError):
+        """Error when retrieving the authentication and authorization context failed."""
+
+    class AuthContextValidationError(RuntimeError):
+        """Error that is raised when the underlying token is invalid."""
 
     async def get_context(self, token: str) -> Optional[AuthContext_co]:
         """Derive an authentication and authorization context from a token.

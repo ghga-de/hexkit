@@ -26,7 +26,7 @@ from fastapi.exceptions import HTTPException
 from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 from starlette.status import HTTP_403_FORBIDDEN
 
-from hexkit.protocols.auth import AuthContextError, AuthContextProtocol
+from hexkit.protocols.auth import AuthContextProtocol
 
 __all__ = ["AuthContext", "get_auth", "require_auth", "require_vip"]
 
@@ -47,7 +47,7 @@ async def get_auth_token(
         return None
     try:
         return await auth_provider.get_context(token)
-    except AuthContextError as exc:
+    except AuthContextProtocol.AuthContextError as exc:
         raise HTTPException(
             status_code=HTTP_403_FORBIDDEN,
             detail="Invalid authentication credentials",
@@ -80,8 +80,8 @@ def get_require_auth_token(vip_only: bool = False):
         try:
             context = await auth_provider.get_context(token)
             if not context:
-                raise AuthContextError("Not authenticated")
-        except AuthContextError as exc:
+                raise AuthContextProtocol.AuthContextError("Not authenticated")
+        except AuthContextProtocol.AuthContextError as exc:
             raise HTTPException(
                 status_code=HTTP_403_FORBIDDEN,
                 detail="Invalid authentication credentials",
