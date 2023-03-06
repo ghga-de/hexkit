@@ -72,10 +72,10 @@ class JWTAuthContextProvider(AuthContextProtocol[AuthContext_co]):
                 raise ValueError("No public key found.")
             if key.has_private:
                 raise ValueError("Private key found, this should not be added here.")
-        except Exception as exc:
+        except Exception as error:
             raise self.AuthContextError(
-                "No valid token signing key found in the configuration:" f" {exc}"
-            ) from exc
+                "No valid token signing key found in the configuration:" f" {error}"
+            ) from error
         self._key = key
         self._algs = config.auth_algs
         self._check_claims = config.auth_check_claims
@@ -90,16 +90,18 @@ class JWTAuthContextProvider(AuthContextProtocol[AuthContext_co]):
         Raises an AuthContextValidationError if the provded token cannot
         establish a valid authentication and authorization context.
         """
-        claims = dict(self._decode_and_validate_token(token))
-        for claim, attribute in self._map_claims.items():
+        jwt_claims = dict(self._decode_and_validate_token(token))
+        for jtw_claim, context_attribute in self._map_claims.items():
             try:
-                value = claims.pop(claim)
-            except KeyError as exc:
-                raise self.AuthContextValidationError(f"Missing claim {claim}") from exc
-            if attribute is not None:
-                claims[attribute] = value
+                value = jwt_claims.pop(jtw_claim)
+            except KeyError as error:
+                raise self.AuthContextValidationError(
+                    f"Missing claim {jtw_claim}"
+                ) from error
+            if context_attribute is not None:
+                jwt_claims[context_attribute] = value
         try:
-            return self._context_class(**claims)
+            return self._context_class(**jwt_claims)
         except ValidationError as error:
             raise self.AuthContextValidationError(
                 f"Invalid auth context: {error}"
@@ -128,12 +130,14 @@ class JWTAuthContextProvider(AuthContextProtocol[AuthContext_co]):
             KeyError,
             TypeError,
             ValueError,
-        ) as exc:
-            raise self.AuthContextValidationError(f"Not a valid token: {exc}") from exc
-        try:
-            claims = json.loads(jwt_token.claims)
-        except json.JSONDecodeError as exc:
+        ) as error:
             raise self.AuthContextValidationError(
-                f"Claims cannot be decoded: {exc}"
-            ) from exc
-        return claims
+                f"Not a valid token: {error}"
+            ) from error
+        try:
+            jwt_claims = json.loads(jwt_token.claims)
+        except json.JSONDecodeError as error:
+            raise self.AuthContextValidationError(
+                f"Claims cannot be decoded: {error}"
+            ) from error
+        return jwt_claims

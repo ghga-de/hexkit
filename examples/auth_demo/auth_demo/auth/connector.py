@@ -47,11 +47,11 @@ async def get_auth_token(
         return None
     try:
         return await auth_provider.get_context(token)
-    except AuthContextProtocol.AuthContextError as exc:
+    except AuthContextProtocol.AuthContextError as error:
         raise HTTPException(
             status_code=HTTP_403_FORBIDDEN,
             detail="Invalid authentication credentials",
-        ) from exc
+        ) from error
 
 
 def get_require_auth_token(vip_only: bool = False):
@@ -81,11 +81,11 @@ def get_require_auth_token(vip_only: bool = False):
             context = await auth_provider.get_context(token)
             if not context:
                 raise auth_provider.AuthContextError("Not authenticated")
-        except auth_provider.AuthContextError as exc:
+        except auth_provider.AuthContextError as error:
             raise HTTPException(
                 status_code=HTTP_403_FORBIDDEN,
                 detail="Invalid authentication credentials",
-            ) from exc
+            ) from error
         if vip_only and not context.is_vip:
             raise HTTPException(
                 status_code=HTTP_403_FORBIDDEN, detail="Only VIPs are authorized here"
