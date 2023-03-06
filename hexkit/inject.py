@@ -155,13 +155,12 @@ class CMDynamicContainer(dependency_injector.containers.DynamicContainer):
 
         init_future = self.init_resources()
 
-        if init_future:
-            if not inspect.isawaitable(init_future):
-                raise AsyncInitShutdownError(
-                    "Container does not support async initialization of resources."
-                )
-            await init_future
+        if not inspect.isawaitable(init_future):
+            raise AsyncInitShutdownError(
+                "Container does not support async initialization of resources."
+            )
 
+        await init_future
         return self
 
     async def __aexit__(self, exc_type, exc_value, exc_trace):
@@ -169,12 +168,12 @@ class CMDynamicContainer(dependency_injector.containers.DynamicContainer):
 
         shutdown_future = self.shutdown_resources()
 
-        if shutdown_future:
-            if not inspect.isawaitable(shutdown_future):
-                raise AsyncInitShutdownError(
-                    "Container does not support async shutdown of resources."
-                )
-            await shutdown_future
+        if not inspect.isawaitable(shutdown_future):
+            raise AsyncInitShutdownError(
+                "Container does not support async shutdown of resources."
+            )
+
+        await shutdown_future
 
 
 SELF = TypeVar("SELF")
