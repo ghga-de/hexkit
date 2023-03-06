@@ -4,6 +4,7 @@
 .github/workflows/check_config_docs.yaml
 
 scripts/update_config_docs.py
+scripts/license_checker.py
 
 example_data/README.md
 

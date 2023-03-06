@@ -87,7 +87,12 @@ EXCLUDE_ENDINGS = [
 ]
 
 # exclude any files with names that match any of the following regex:
-EXCLUDE_PATTERN = [r".*\.egg-info.*", r".*__cache__.*", r".*\.git.*"]
+EXCLUDE_PATTERN = [
+    r".*\.egg-info.*",
+    r".*__cache__.*",
+    r".*\.git.*",
+    r".*/requirements\.txt$",
+]
 
 # The License header, "{year}" will be replaced by current year:
 COPYRIGHT_TEMPLATE = """Copyright {year} {author}
