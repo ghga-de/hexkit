@@ -102,14 +102,14 @@ class AsyncConstructor(dependency_injector.providers.Resource):
 
             else:
                 raise NotConstructableError(
-                    "Callable attribute `construct` of AsyncContextConstructable class must"
-                    + " return an async context manager."
+                    "Callable attribute `construct` of AsyncContextConstructable class"
+                    + f" {constructable.__name__} must return an async context manager."
                 )
 
         return resource
 
     # This pylint error is inherited from the dependency_injector framework, other
-    # DI providers use the same basic signitature:
+    # DI providers use the same basic signature:
     # pylint: disable=keyword-arg-before-vararg
     def __init__(
         self,
@@ -155,12 +155,13 @@ class CMDynamicContainer(dependency_injector.containers.DynamicContainer):
 
         init_future = self.init_resources()
 
-        if not inspect.isawaitable(init_future):
-            raise AsyncInitShutdownError(
-                "Container does not support async initialization of resources."
-            )
+        if init_future:
+            if not inspect.isawaitable(init_future):
+                raise AsyncInitShutdownError(
+                    "Container does not support async initialization of resources."
+                )
+            await init_future
 
-        await init_future
         return self
 
     async def __aexit__(self, exc_type, exc_value, exc_trace):
@@ -168,12 +169,12 @@ class CMDynamicContainer(dependency_injector.containers.DynamicContainer):
 
         shutdown_future = self.shutdown_resources()
 
-        if not inspect.isawaitable(shutdown_future):
-            raise AsyncInitShutdownError(
-                "Container does not support async shutdown of resources."
-            )
-
-        await shutdown_future
+        if shutdown_future:
+            if not inspect.isawaitable(shutdown_future):
+                raise AsyncInitShutdownError(
+                    "Container does not support async shutdown of resources."
+                )
+            await shutdown_future
 
 
 SELF = TypeVar("SELF")
