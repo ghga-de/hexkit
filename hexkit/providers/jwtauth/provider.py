@@ -99,7 +99,6 @@ class JWTAuthContextProvider(AuthContextProtocol[AuthContext_co]):
             if attribute is not None:
                 claims[attribute] = value
         try:
-            claims["expires"] = "Indemann"
             return self._context_class(**claims)
         except ValidationError as error:
             raise self.AuthContextValidationError(
