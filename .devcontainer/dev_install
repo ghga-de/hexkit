@@ -1,5 +1,5 @@
 #!/bin/bash
-# install service in dev container
+# install hexkit in dev container
 
 cd /workspace
 
