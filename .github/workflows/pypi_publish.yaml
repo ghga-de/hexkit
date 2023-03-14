@@ -9,12 +9,12 @@ jobs:
     name: Publish tagged release on PyPI
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v2.4.2
+      - uses: actions/checkout@v3
 
       - name: Set up Python 3.9
-        uses: actions/setup-python@v3.1.2
+        uses: actions/setup-python@v4
         with:
-          python-version: 3.9
+          python-version: "3.9"
 
       - name: Verify Package Version vs Tag Version
         run: |
@@ -46,11 +46,17 @@ jobs:
       - name: Install the newly build package with all extras
         run: |
           TAR_PATH="$( realpath ./dist/*.tar.gz)"
-          python3 -m \
+          python -m \
             pip install \
             "${TAR_PATH}[all]"
 
-      - name: Run pytest on freshly install package
+      - name: Install testing requirements
+        run: >-
+          python -m
+          pip install
+          -r requirements-dev.txt
+
+      - name: Run pytest on freshly installed package
         run: |
           pytest .
 
