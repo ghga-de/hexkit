@@ -321,7 +321,6 @@ async def test_complex_models(mongodb_fixture: MongoDbFixture):  # noqa: F811
 
     # a complex model:
     class ComplexModel(BaseModel):
-
         id: str
         some_date: datetime
         some_path: Path

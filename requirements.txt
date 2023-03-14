@@ -1,3 +1,4 @@
-# The "." states that pip should look at the setup.py
-# for requirements.
-.
+# requirements for complete installation
+
+# the ".[all]" states that requirements including the "all" extra are taken from setup.cfg
+.[all]

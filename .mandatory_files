@@ -24,5 +24,8 @@ tests/fixtures/__init__.py
 Dockerfile
 config_schema.json
 example_config.yaml
+LICENSE
 README.md
 setup.py
+setup.cfg
+requirements-dev.txt

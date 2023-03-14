@@ -1,0 +1,7 @@
+# requirements for development and testing this service
+
+# common requirements for development and testing
+-r requirements-dev-common.txt
+
+# additional requirements for testing hexkit providers
+.[test-all]

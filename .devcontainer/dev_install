@@ -3,10 +3,16 @@
 
 cd /workspace
 
-# install in edit mode with testing dependencies
-pip install \
-    -e \
-    ".[all,dev]"
+git config --global --add safe.directory /workspace
 
-# install pre-commit hooks to git:
+# upgrade pip
+python -m pip install --upgrade pip
+
+# install with all extras in editable mode
+pip install -r requirements.txt
+
+# install or upgrade dependencies for development and testing
+pip install --upgrade -r requirements-dev.txt
+
+# install pre-commit hooks to git
 pre-commit install

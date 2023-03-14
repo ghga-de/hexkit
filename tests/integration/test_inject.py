@@ -85,7 +85,6 @@ async def test_container_base(provides, constructor, has_context: bool):
         test = constructor(provides, foo)
 
     async with Container() as container:
-
         test_instance = await container.test()
 
         assert test_instance.foo == foo

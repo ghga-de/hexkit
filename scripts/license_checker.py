@@ -58,7 +58,6 @@ EXCLUDE = [
     "LICENSE",  # is checked but not for the license header
     ".pre-commit-config.yaml",
     "docs",
-    "requirements.txt",
     ".vscode",
     ".mypy_cache",
     ".mypy.ini",
@@ -76,11 +75,13 @@ EXCLUDE = [
 EXCLUDE_ENDINGS = [
     "html",
     "ini",
+    "jinja",
     "json",
     "md",
     "pub",
     "pyc",
     "sec",
+    "txt",
     "xml",
     "yaml",
     "yml",

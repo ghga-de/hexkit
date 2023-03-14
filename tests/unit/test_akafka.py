@@ -54,7 +54,6 @@ async def test_kafka_event_publisher():
         config=config,
         kafka_producer_cls=producer_class,
     ) as event_publisher:
-
         # check if producer class was called correctly:
         producer_class.assert_called_once()
         pc_kwargs = producer_class.call_args.kwargs
@@ -167,7 +166,6 @@ async def test_kafka_event_subscriber(
         translator=translator,
         kafka_consumer_cls=consumer_cls,
     ) as event_subscriber:
-
         # check if consumer class was called correctly:
         consumer_cls.assert_called_once()
         cc_kwargs = consumer_cls.call_args.kwargs
@@ -179,7 +177,7 @@ async def test_kafka_event_subscriber(
         assert callable(cc_kwargs["value_deserializer"])
 
         # consume one event:
-        with (pytest.raises(exception) if exception else nullcontext()):  # type: ignore
+        with pytest.raises(exception) if exception else nullcontext():  # type: ignore
             await event_subscriber.run(forever=False)
 
     # check if producer was correctly started and stopped:
