@@ -304,7 +304,7 @@ async def test_invalid_part_number(
 
     upload_id, bucket_id, object_id = await prepare_non_completed_upload(s3_fixture)
 
-    with (pytest.raises(exception) if exception else nullcontext()):  # type: ignore
+    with pytest.raises(exception) if exception else nullcontext():  # type: ignore
         _ = await s3_fixture.storage.get_part_upload_url(
             upload_id=upload_id,
             bucket_id=bucket_id,
@@ -379,7 +379,7 @@ async def test_complete_multipart_upload(
             part_number=part_idx + 1,
         )
 
-    with (pytest.raises(exception) if exception else nullcontext()):  # type: ignore
+    with pytest.raises(exception) if exception else nullcontext():  # type: ignore
         await s3_fixture.storage.complete_multipart_upload(
             upload_id=upload_id,
             bucket_id=bucket_id,

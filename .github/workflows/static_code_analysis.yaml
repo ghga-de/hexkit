@@ -8,17 +8,10 @@ jobs:
     name: Static Code Analysis
     steps:
       - uses: actions/checkout@v3
-      - name: Retrieve main src dir
-        id: main_src_dir
-        run: |
-          echo "MAIN_SRC_DIR=${PWD}/$(./scripts/get_package_name.py)" >> $GITHUB_OUTPUT
-      - name: Set up Python 3.9
-        uses: actions/setup-python@v4
-        with:
-          python-version: 3.9
-      - name: Install Dependencies
-        run: |
-          pip install ".[all]"
+
+      - id: common
+        uses: ghga-de/gh-action-common@v2
+
       - uses: pre-commit/action@v3.0.0
         env:
           SKIP: no-commit-to-branch
@@ -33,13 +26,13 @@ jobs:
           mypy .
       - name: pylint
         run: |
-          pylint "${{ steps.main_src_dir.outputs.MAIN_SRC_DIR }}"
+          pylint "${{ steps.common.outputs.MAIN_SRC_DIR }}"
       - name: flake8
         run: |
           flake8 --config .flake8
       - name: bandit
         run: |
-          bandit -r "${{ steps.main_src_dir.outputs.MAIN_SRC_DIR }}"
+          bandit -r "${{ steps.common.outputs.MAIN_SRC_DIR }}"
       - name: Check license header and file
         run: |
           ./scripts/license_checker.py

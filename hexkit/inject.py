@@ -102,14 +102,14 @@ class AsyncConstructor(dependency_injector.providers.Resource):
 
             else:
                 raise NotConstructableError(
-                    "Callable attribute `construct` of AsyncContextConstructable class must"
-                    + " return an async context manager."
+                    "Callable attribute `construct` of AsyncContextConstructable class"
+                    + f" {constructable.__name__} must return an async context manager."
                 )
 
         return resource
 
     # This pylint error is inherited from the dependency_injector framework, other
-    # DI providers use the same basic signitature:
+    # DI providers use the same basic signature:
     # pylint: disable=keyword-arg-before-vararg
     def __init__(
         self,
