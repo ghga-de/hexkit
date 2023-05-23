@@ -10,6 +10,7 @@
 scripts/script_utils/fastapi_app_location.py
 
 scripts/update_config_docs.py
+scripts/update_openapi_docs.py
 scripts/update_readme.py
 
 example_data/README.md
