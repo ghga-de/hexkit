@@ -2,7 +2,10 @@
 # but are allowed to have different content in the current repository
 
 .github/workflows/check_config_docs.yaml
+.github/workflows/check_openapi_spec.yaml
 .github/workflows/check_readme.yaml
+.github/workflows/cd.yaml
+.github/workflows/dev_cd.yaml
 
 scripts/script_utils/fastapi_app_location.py
 
