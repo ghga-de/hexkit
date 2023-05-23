@@ -3,7 +3,9 @@
 
 .devcontainer/dev_launcher
 
+.github/workflows/cd.yaml
 .github/workflows/dev_cd.yaml
+.github/workflows/check_openapi_spec.yaml
 
 example_data
 
