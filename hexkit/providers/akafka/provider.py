@@ -24,7 +24,7 @@ Require dependencies of the `akafka` extra. See the `setup.cfg`.
 import json
 import logging
 from contextlib import asynccontextmanager
-from typing import Any, Callable, Literal, Protocol, TypeVar
+from typing import Any, Callable, Protocol, TypeVar
 
 from aiokafka import AIOKafkaConsumer, AIOKafkaProducer
 from pydantic import BaseSettings, Field
@@ -33,6 +33,11 @@ from hexkit.base import InboundProviderBase
 from hexkit.custom_types import Ascii, JsonObject
 from hexkit.protocols.eventpub import EventPublisherProtocol
 from hexkit.protocols.eventsub import EventSubscriberProtocol
+
+try:  # workaround for https://github.com/pydantic/pydantic/issues/5821
+    from typing_extensions import Literal
+except ImportError:
+    from typing import Literal  # type: ignore
 
 __all__ = [
     "KafkaConfig",
@@ -252,7 +257,7 @@ class KafkaConsumerCompatible(Protocol):
         ...
 
     def __aiter__(self: KCC) -> KCC:
-        """Returns an asnyc iterator for iterating through events."""  #
+        """Returns an async iterator for iterating through events."""  #
         ...
 
     async def __anext__(self) -> ConsumerEvent:

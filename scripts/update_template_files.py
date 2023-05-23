@@ -78,7 +78,7 @@ def get_file_list(list_name: str) -> list[str]:
 
 
 def get_template_file_content(relative_file_path: str):
-    """Get the content of the template file corresponding ot the given path."""
+    """Get the content of the template file corresponding to the given path."""
     remote_file_url = urllib.parse.urljoin(RAW_TEMPLATE_URL, relative_file_path)
     remote_file_request = urllib.request.Request(remote_file_url)
     try:
@@ -136,7 +136,7 @@ def check_file(relative_file_path: str, diff: bool = False) -> bool:
 def update_file(relative_file_path: str, diff: bool = False) -> bool:
     """Update file at the given relative path.
 
-    Returns True if there are updaes.
+    Returns True if there are updates.
     """
 
     local_file_path = REPO_ROOT_DIR / Path(relative_file_path)

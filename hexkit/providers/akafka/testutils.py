@@ -357,7 +357,7 @@ class KafkaFixture:
         await self.publisher.publish(payload=payload, type_=type_, key=key, topic=topic)
 
     def record_events(self, *, in_topic: Ascii) -> EventRecorder:
-        """Constructs an EventRecorder object that can be used in an asnyc with block to
+        """Constructs an EventRecorder object that can be used in an async with block to
         record events in the specified topic upon __aenter__ and stops the recording
         upon __aexit__.
         """
@@ -368,7 +368,7 @@ class KafkaFixture:
     async def expect_events(
         self, events: Sequence[ExpectedEvent], *, in_topic: Ascii
     ) -> AsyncGenerator[EventRecorder, None]:
-        """Can be used in an asnyc with block to record events in the specified topic
+        """Can be used in an async with block to record events in the specified topic
         (on __aenter__) and check that they match the specified sequence of expected
         events (on __aexit__).
         """

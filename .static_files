@@ -8,6 +8,7 @@
 # your repo by running the script at:
 # ./scripts/update_static_files.py
 
+.devcontainer/dev_install
 .devcontainer/license_header.txt
 .devcontainer/Dockerfile
 
@@ -18,12 +19,17 @@ scripts/license_checker.py
 scripts/get_package_name.py
 scripts/update_config_docs.py
 scripts/update_template_files.py
+scripts/update_openapi_docs.py
+scripts/update_readme.py
 scripts/README.md
 
 .github/workflows/check_config_docs.yaml
 .github/workflows/check_template_files.yaml
 .github/workflows/static_code_analysis.yaml
 .github/workflows/unit_and_int_tests.yaml
+.github/workflows/check_openapi_spec.yaml
+.github/workflows/check_readme.yaml
+.github/workflows/cd.yaml
 
 example_data/README.md
 
@@ -40,3 +46,6 @@ LICENSE
 requirements.txt
 requirements-dev-common.txt
 setup.py
+
+.readme_template.md
+readme_generation.md

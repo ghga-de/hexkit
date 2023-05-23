@@ -1,15 +1,13 @@
 #!/bin/bash
-# install hexkit in dev container
+# install service in dev container
 
 cd /workspace
-
-git config --global --add safe.directory /workspace
 
 # upgrade pip
 python -m pip install --upgrade pip
 
 # install with all extras in editable mode
-pip install -r requirements.txt
+pip install -e .[all]
 
 # install or upgrade dependencies for development and testing
 pip install --upgrade -r requirements-dev.txt

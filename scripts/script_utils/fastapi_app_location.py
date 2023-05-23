@@ -12,7 +12,12 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
+#
 
-"""A Toolkit for Building Microservices using the Hexagonal Architecture"""
+"""Used to define the location of the main FastAPI app object."""
 
-__version__ = "0.9.3"
+# flake8: noqa
+# pylint: skip-file
+
+# Please adapt to package structure:
+from my_microservice.api.main import app

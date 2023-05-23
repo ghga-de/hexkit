@@ -220,6 +220,6 @@ def get_configurator(
     """Initializes a configuration provider.
 
     This helper function is necessary because the __init__ of Providers used by the
-    dependency_injector framework need to always use the same singnature."""
+    dependency_injector framework need to always use the same signature."""
 
     return Configurator[PydanticConfig](pydantic_cls)
