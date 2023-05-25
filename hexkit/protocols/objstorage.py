@@ -77,6 +77,13 @@ class ObjectStorageProtocol(ABC):
         self._validate_bucket_id(bucket_id)
         await self._delete_bucket(bucket_id, delete_content=delete_content)
 
+    async def list_all_object_ids(self, bucket_id: str) -> list[str]:
+        """
+        Retrieve a list of IDs for all objects currently present in the specified bucket
+        """
+        self._validate_bucket_id(bucket_id)
+        return await self._list_all_object_ids(bucket_id=bucket_id)
+
     async def get_object_upload_url(
         self,
         *,
@@ -287,6 +294,16 @@ class ObjectStorageProtocol(ABC):
         specified unique ID. If `delete_content` is set to True, any contained objects
         will be deleted, if False (the default) a BucketNotEmptyError will be raised if
         the bucket is not empty.
+
+        *To be implemented by the provider. Input validation is done outside of this
+        method.*
+        """
+        ...
+
+    @abstractmethod
+    async def _list_all_object_ids(self, *, bucket_id: str) -> list[str]:
+        """
+        Retrieve a list of IDs for all objects currently present in the specified bucket
 
         *To be implemented by the provider. Input validation is done outside of this
         method.*

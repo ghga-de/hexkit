@@ -300,6 +300,21 @@ class S3ObjectStorage(
                 error, bucket_id=bucket_id
             ) from error
 
+    async def _list_all_object_ids(self, *, bucket_id: str) -> list[str]:
+        """
+        Retrieve a list of IDs for all objects currently present in the specified bucket
+        """
+        await self._assert_bucket_exists(bucket_id)
+
+        try:
+            bucket = self._resource.Bucket(bucket_id)
+            content = await asyncio.to_thread(bucket.objects.all)
+            return [object_summary.key for object_summary in content]
+        except botocore.exceptions.ClientError as error:
+            raise self._translate_s3_client_errors(
+                error, bucket_id=bucket_id
+            ) from error
+
     async def _does_object_exist(
         self, *, bucket_id: str, object_id: str, object_md5sum: Optional[str] = None
     ) -> bool:
