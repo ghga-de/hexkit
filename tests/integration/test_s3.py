@@ -104,6 +104,26 @@ async def test_get_object_size(
 
 
 @pytest.mark.asyncio
+async def test_list_all_object_ids(
+    s3_fixture: S3Fixture,  # noqa: F811
+    file_fixture: FileObject,  # noqa: F811
+):
+    """Test if listing all object IDs for a bucket works correctly."""
+
+    file_fixture2 = file_fixture.copy(deep=True)
+    file_fixture2.object_id = "mydefaulttestobject002"
+
+    # add file objects to storage
+    await s3_fixture.populate_file_objects([file_fixture, file_fixture2])
+
+    # retrieve all object ids
+    retrieved_ids = await s3_fixture.storage.list_all_object_ids(
+        bucket_id=file_fixture.bucket_id
+    )
+    assert retrieved_ids == [file_fixture.object_id, file_fixture2.object_id]
+
+
+@pytest.mark.asyncio
 async def test_bucket_existence_checks(s3_fixture: S3Fixture):  # noqa: F811
     """Test if the checks for existence of buckets work correctly."""
 
