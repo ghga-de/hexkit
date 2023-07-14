@@ -27,13 +27,14 @@ from tempfile import NamedTemporaryFile
 from typing import Generator, List
 
 import pytest
-import pytest_asyncio
 import requests
 from pydantic import BaseModel, validator
+from pytest_asyncio.plugin import _ScopeName
 from testcontainers.localstack import LocalStackContainer
 
 from hexkit.protocols.objstorage import ObjectStorageProtocol, PresignedPostURL
 from hexkit.providers.s3.provider import S3Config, S3ObjectStorage
+from hexkit.providers.testing.fixture_factory import produce_fixture
 
 TEST_FILE_DIR = Path(__file__).parent.resolve() / "test_files"
 
@@ -103,8 +104,7 @@ class S3Fixture:
         )
 
 
-@pytest_asyncio.fixture
-def s3_fixture() -> Generator[S3Fixture, None, None]:
+def s3_fixture_function() -> Generator[S3Fixture, None, None]:
     """Pytest fixture for tests depending on the S3ObjectStorage DAO."""
 
     with LocalStackContainer(image="localstack/localstack:0.14.5").with_services(
@@ -114,6 +114,14 @@ def s3_fixture() -> Generator[S3Fixture, None, None]:
 
         storage = S3ObjectStorage(config=config)
         yield S3Fixture(config=config, storage=storage)
+
+
+def get_s3_fixture(scope: _ScopeName = "function"):
+    """Return a scoped s3 fixture"""
+    return produce_fixture(s3_fixture_function, scope)
+
+
+s3_fixture = get_s3_fixture()  # don't break old references to s3_fixture
 
 
 @contextmanager

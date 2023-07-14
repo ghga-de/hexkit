@@ -23,10 +23,11 @@ Please note, only use for testing purposes.
 from dataclasses import dataclass
 from typing import Generator
 
-import pytest_asyncio
+from pytest_asyncio.plugin import _ScopeName
 from testcontainers.mongodb import MongoDbContainer
 
 from hexkit.providers.mongodb.provider import MongoDbConfig, MongoDbDaoFactory
+from hexkit.providers.testing.fixture_factory import produce_fixture
 
 
 @dataclass(frozen=True)
@@ -44,12 +45,22 @@ def config_from_mongodb_container(container: MongoDbContainer) -> MongoDbConfig:
     return MongoDbConfig(db_connection_str=db_connection_str, db_name="test")
 
 
-@pytest_asyncio.fixture
-def mongodb_fixture() -> Generator[MongoDbFixture, None, None]:
-    """Pytest fixture for tests depending on the MongoDbDaoFactory DAO."""
+def mongodb_fixture_function() -> Generator[MongoDbFixture, None, None]:
+    """
+    Pytest fixture for tests depending on the MongoDbDaoFactory DAO.
+    Obtained via get_mongodb_fixture
+    """
 
     with MongoDbContainer(image="mongo:6.0.3") as mongodb:
         config = config_from_mongodb_container(mongodb)
         dao_factory = MongoDbDaoFactory(config=config)
 
         yield MongoDbFixture(config=config, dao_factory=dao_factory)
+
+
+def get_mongodb_fixture(scope: _ScopeName = "function"):
+    """Return a scoped mongodb fixture"""
+    return produce_fixture(mongodb_fixture_function, scope)
+
+
+mongodb_fixture = get_mongodb_fixture()  # don't break old references to mongodb_fixture
