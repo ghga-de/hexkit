@@ -15,4 +15,4 @@
 
 """A Toolkit for Building Microservices using the Hexagonal Architecture"""
 
-__version__ = "0.10.0"
+__version__ = "0.10.1"
