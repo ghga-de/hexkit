@@ -15,6 +15,7 @@
 scripts/script_utils/__init__.py
 scripts/script_utils/cli.py
 
+scripts/__init__.py
 scripts/license_checker.py
 scripts/get_package_name.py
 scripts/update_config_docs.py
