@@ -30,18 +30,31 @@ from hexkit.providers.akafka.testutils import (
 from hexkit.providers.testing.fixtures import kafka_fixture  # noqa: F401
 
 
-@pytest.mark.asyncio
-async def test_delete_topics(kafka_fixture: KafkaFixture):  # noqa: F811
+def test_delete_topics_specific(kafka_fixture: KafkaFixture):  # noqa: F811
     """Make sure the reset function works"""
     admin_client = KafkaAdminClient(
         bootstrap_servers=kafka_fixture.config.kafka_servers
     )
 
     initial_topics = admin_client.list_topics()
+    initial_length = len(initial_topics)
+
+    assert initial_length > 0
+
+    kafka_fixture.delete_topics(initial_topics)
+
+    assert len(admin_client.list_topics()) + 1 == initial_length
+
+
+def test_delete_topics_all(kafka_fixture: KafkaFixture):  # noqa: F811
+    """Test topic deletion without specifying parameters"""
+    admin_client = KafkaAdminClient(
+        bootstrap_servers=kafka_fixture.config.kafka_servers
+    )
 
     assert len(admin_client.list_topics()) > 0
 
-    kafka_fixture.delete_topics(initial_topics)
+    kafka_fixture.delete_topics()
 
     assert len(admin_client.list_topics()) == 0
 

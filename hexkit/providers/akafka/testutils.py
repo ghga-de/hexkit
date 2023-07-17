@@ -366,19 +366,19 @@ class KafkaFixture:
         return EventRecorder(kafka_servers=self.kafka_servers, topic=in_topic)
 
     def delete_topics(self, topics: Optional[Union[str, list[str]]] = None):
-        """Delete given topic(s) from Kafka broker.
-
-        This process deletes the contained messages as the topics will be recreated
-        by the default config.
+        """
+        Delete given topic(s) from Kafka broker. When no topics are specified,
+        all existing topics will be deleted.
         """
 
+        admin_client = KafkaAdminClient(bootstrap_servers=self.kafka_servers)
+        all_topics = admin_client.list_topics()
         if topics is None:
-            topics = []
+            topics = all_topics
         elif isinstance(topics, str):
             topics = [topics]
-        admin_client = KafkaAdminClient(bootstrap_servers=self.kafka_servers)
         try:
-            existing_topics = set(admin_client.list_topics())
+            existing_topics = set(all_topics)
             for topic in topics:
                 if topic in existing_topics:
                     try:
