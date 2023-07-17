@@ -152,7 +152,7 @@ def temp_file_object(
         temp_file.flush()
 
         yield FileObject(
-            file_path=temp_file.name, bucket_id=bucket_id, object_id=object_id
+            file_path=Path(temp_file.name), bucket_id=bucket_id, object_id=object_id
         )
 
 

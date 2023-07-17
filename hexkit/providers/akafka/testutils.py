@@ -23,9 +23,11 @@ import json
 from contextlib import asynccontextmanager
 from dataclasses import dataclass
 from functools import partial
-from typing import AsyncGenerator, Optional, Sequence
+from typing import AsyncGenerator, Optional, Sequence, Union
 
 from aiokafka import AIOKafkaConsumer, TopicPartition
+from kafka import KafkaAdminClient
+from kafka.errors import KafkaError
 from testcontainers.kafka import KafkaContainer
 
 from hexkit.custom_types import Ascii, JsonObject
@@ -362,6 +364,31 @@ class KafkaFixture:
         """
 
         return EventRecorder(kafka_servers=self.kafka_servers, topic=in_topic)
+
+    def delete_topics(self, topics: Optional[Union[str, list[str]]] = None):
+        """Delete given topic(s) from Kafka broker.
+
+        This process deletes the contained messages as the topics will be recreated
+        by the default config.
+        """
+
+        if topics is None:
+            topics = []
+        elif isinstance(topics, str):
+            topics = [topics]
+        admin_client = KafkaAdminClient(bootstrap_servers=self.kafka_servers)
+        try:
+            existing_topics = set(admin_client.list_topics())
+            for topic in topics:
+                if topic in existing_topics:
+                    try:
+                        admin_client.delete_topics([topic])
+                    except KafkaError as error:
+                        raise RuntimeError(
+                            f"Could not delete topic {topic} from Kafka"
+                        ) from error
+        finally:
+            admin_client.close()
 
     @asynccontextmanager
     async def expect_events(

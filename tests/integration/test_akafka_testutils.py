@@ -15,10 +15,10 @@
 #
 
 """Testing of the Kafka testutils."""
-
 from typing import Sequence
 
 import pytest
+from kafka import KafkaAdminClient
 
 from hexkit.providers.akafka import KafkaConfig, KafkaEventPublisher
 from hexkit.providers.akafka.testutils import (
@@ -28,6 +28,22 @@ from hexkit.providers.akafka.testutils import (
     ValidationError,
 )
 from hexkit.providers.testing.fixtures import kafka_fixture  # noqa: F401
+
+
+@pytest.mark.asyncio
+async def test_delete_topics(kafka_fixture: KafkaFixture):  # noqa: F811
+    """Make sure the reset function works"""
+    admin_client = KafkaAdminClient(
+        bootstrap_servers=kafka_fixture.config.kafka_servers
+    )
+
+    initial_topics = admin_client.list_topics()
+
+    assert len(admin_client.list_topics()) > 0
+
+    kafka_fixture.delete_topics(initial_topics)
+
+    assert len(admin_client.list_topics()) == 0
 
 
 @pytest.mark.asyncio
