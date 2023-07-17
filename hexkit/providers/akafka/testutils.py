@@ -26,7 +26,6 @@ from functools import partial
 from typing import AsyncGenerator, Optional, Sequence
 
 from aiokafka import AIOKafkaConsumer, TopicPartition
-from pytest_asyncio.plugin import _ScopeName
 from testcontainers.kafka import KafkaContainer
 
 from hexkit.custom_types import Ascii, JsonObject
@@ -36,7 +35,6 @@ from hexkit.providers.akafka.provider import (
     KafkaEventPublisher,
     get_event_type,
 )
-from hexkit.providers.testing.fixture_factory import produce_fixture
 
 
 @dataclass(frozen=True)
@@ -397,11 +395,3 @@ async def kafka_fixture_function() -> AsyncGenerator[KafkaFixture, None]:
             yield KafkaFixture(
                 config=config, kafka_servers=kafka_servers, publisher=publisher
             )
-
-
-def get_kafka_fixture(scope: _ScopeName = "function"):
-    """Return a scoped kafka fixture"""
-    return produce_fixture(kafka_fixture_function, scope)
-
-
-kafka_fixture = get_kafka_fixture()  # don't break old references to kafka_fixture

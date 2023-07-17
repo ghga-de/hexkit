@@ -23,11 +23,9 @@ Please note, only use for testing purposes.
 from dataclasses import dataclass
 from typing import Generator
 
-from pytest_asyncio.plugin import _ScopeName
 from testcontainers.mongodb import MongoDbContainer
 
 from hexkit.providers.mongodb.provider import MongoDbConfig, MongoDbDaoFactory
-from hexkit.providers.testing.fixture_factory import produce_fixture
 
 
 @dataclass(frozen=True)
@@ -56,11 +54,3 @@ def mongodb_fixture_function() -> Generator[MongoDbFixture, None, None]:
         dao_factory = MongoDbDaoFactory(config=config)
 
         yield MongoDbFixture(config=config, dao_factory=dao_factory)
-
-
-def get_mongodb_fixture(scope: _ScopeName = "function"):
-    """Return a scoped mongodb fixture"""
-    return produce_fixture(mongodb_fixture_function, scope)
-
-
-mongodb_fixture = get_mongodb_fixture()  # don't break old references to mongodb_fixture
