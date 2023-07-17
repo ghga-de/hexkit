@@ -108,8 +108,7 @@ class S3Fixture:
             self.storage, bucket_fixtures=buckets, object_fixtures=[]
         )
 
-        for bucket in buckets:
-            self._buckets.add(bucket)
+        self._buckets.update(buckets)
 
     async def populate_file_objects(self, file_objects: list[FileObject]):
         """Populate the storage with file objects."""
