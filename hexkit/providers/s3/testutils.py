@@ -24,7 +24,7 @@ import os
 from contextlib import contextmanager
 from pathlib import Path
 from tempfile import NamedTemporaryFile
-from typing import Generator, List
+from typing import Generator, List, Optional
 
 import pytest
 import requests
@@ -88,10 +88,18 @@ class S3Fixture:
         self.storage = storage
         self._buckets: set[str] = set()
 
-    async def reset(self):
-        """Remove all buckets"""
-        for bucket in self._buckets:
-            await self.storage.delete_bucket(bucket, delete_content=True)
+    async def empty_buckets(self, buckets_to_exclude: Optional[set[str]] = None):
+        """Clean the test artifacts or files from given bucket"""
+        if buckets_to_exclude is None:
+            buckets_to_exclude = set()
+
+        for bucket in self._buckets - buckets_to_exclude:
+            # Get list of all objects in the bucket
+            object_ids = await self.storage.list_all_object_ids(bucket_id=bucket)
+
+            # Delete all objects
+            for object_id in object_ids:
+                await self.storage.delete_object(bucket_id=bucket, object_id=object_id)
 
     async def populate_buckets(self, buckets: list[str]):
         """Populate the storage with buckets."""
