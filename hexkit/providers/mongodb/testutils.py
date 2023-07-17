@@ -21,7 +21,7 @@ Please note, only use for testing purposes.
 
 
 from dataclasses import dataclass
-from typing import Generator
+from typing import Callable, Generator
 
 from testcontainers.mongodb import MongoDbContainer
 
@@ -34,6 +34,7 @@ class MongoDbFixture:
 
     config: MongoDbConfig
     dao_factory: MongoDbDaoFactory
+    reset: Callable
 
 
 def config_from_mongodb_container(container: MongoDbContainer) -> MongoDbConfig:
@@ -46,11 +47,16 @@ def config_from_mongodb_container(container: MongoDbContainer) -> MongoDbConfig:
 def mongodb_fixture_function() -> Generator[MongoDbFixture, None, None]:
     """
     Pytest fixture for tests depending on the MongoDbDaoFactory DAO.
-    Obtained via get_mongodb_fixture
+    Obtained via get_fixture in hexkit.providers.testing.fixtures.get_fixture
     """
 
     with MongoDbContainer(image="mongo:6.0.3") as mongodb:
         config = config_from_mongodb_container(mongodb)
         dao_factory = MongoDbDaoFactory(config=config)
+        client = mongodb.get_connection_client()
 
-        yield MongoDbFixture(config=config, dao_factory=dao_factory)
+        def reset():
+            for collection_name in client[config.db_name].list_collection_names():
+                client[config.db_name].drop_collection(collection_name)
+
+        yield MongoDbFixture(config=config, dao_factory=dao_factory, reset=reset)
