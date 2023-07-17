@@ -13,7 +13,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 #
-"""Enable requesting test fixtures with chosen scope without a lot of redundant code"""
+"""Enable requesting test fixtures with chosen scope"""
 
 from typing import Callable, Type, Union
 
@@ -31,6 +31,7 @@ __all__ = [
     "s3_fixture",
 ]
 
+
 ProviderFixture = Union[Type[KafkaFixture], Type[MongoDbFixture], Type[S3Fixture]]
 
 fixture_type_to_function: dict[ProviderFixture, Callable] = {
@@ -42,7 +43,6 @@ fixture_type_to_function: dict[ProviderFixture, Callable] = {
 
 def get_fixture(fixture_type: ProviderFixture, scope: _ScopeName = "function"):
     """Produce a test fixture with the desired scope"""
-
     fixture_function = fixture_type_to_function[fixture_type]
     return pytest_asyncio.fixture(scope=scope)(fixture_function)
 

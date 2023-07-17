@@ -21,13 +21,13 @@ from typing import Sequence
 import pytest
 
 from hexkit.providers.akafka import KafkaConfig, KafkaEventPublisher
-from hexkit.providers.akafka.testutils import kafka_fixture  # noqa: F401
 from hexkit.providers.akafka.testutils import (
     ExpectedEvent,
     KafkaFixture,
     RecordedEvent,
     ValidationError,
 )
+from hexkit.providers.testing.fixtures import kafka_fixture  # noqa: F401
 
 
 @pytest.mark.asyncio

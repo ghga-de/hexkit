@@ -24,7 +24,6 @@ from black import nullcontext
 
 from hexkit.protocols.objstorage import ObjectStorageProtocol
 from hexkit.providers.s3.testutils import file_fixture  # noqa: F401
-from hexkit.providers.s3.testutils import s3_fixture  # noqa: F401
 from hexkit.providers.s3.testutils import (
     MEBIBYTE,
     FileObject,
@@ -36,6 +35,7 @@ from hexkit.providers.s3.testutils import (
     upload_part,
     upload_part_of_size,
 )
+from hexkit.providers.testing.fixtures import s3_fixture  # noqa: F401
 
 EXAMPLE_BUCKETS = [
     "mytestbucket100",
