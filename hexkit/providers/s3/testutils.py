@@ -86,6 +86,12 @@ class S3Fixture:
         """Initialize with config."""
         self.config = config
         self.storage = storage
+        self._buckets: set[str] = set()
+
+    async def reset(self):
+        """Remove all buckets"""
+        for bucket in self._buckets:
+            await self.storage.delete_bucket(bucket, delete_content=True)
 
     async def populate_buckets(self, buckets: list[str]):
         """Populate the storage with buckets."""
@@ -93,6 +99,9 @@ class S3Fixture:
         await populate_storage(
             self.storage, bucket_fixtures=buckets, object_fixtures=[]
         )
+
+        for bucket in buckets:
+            self._buckets.add(bucket)
 
     async def populate_file_objects(self, file_objects: list[FileObject]):
         """Populate the storage with file objects."""
