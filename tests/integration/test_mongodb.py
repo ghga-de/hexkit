@@ -54,6 +54,18 @@ class ExampleDto(ExampleCreationDto):
 
 
 @pytest.mark.asyncio
+async def test_empty_collections(mongodb_fixture: MongoDbFixture):  # noqa: F811
+    """Make sure mongo reset function works"""
+    db = mongodb_fixture.client[mongodb_fixture.config.db_name]
+    db.create_collection("test1")
+    db.create_collection("test2")
+    assert len(db.list_collection_names()) == 2
+
+    mongodb_fixture.empty_collections(exclude_collections=["test1"])
+    assert db.list_collection_names() == ["test1"]
+
+
+@pytest.mark.asyncio
 async def test_dao_happy(mongodb_fixture: MongoDbFixture):  # noqa: F811
     """Test the happy path of performing basic CRUD database interactions using
     the MongoDbDaoFactory in a surrograte ID setting."""
