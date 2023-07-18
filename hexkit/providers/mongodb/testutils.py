@@ -62,8 +62,6 @@ class MongoDbFixture:
             raise RuntimeError(
                 f"Could not drop collection(s) of Mongo database {db_name}"
             ) from error
-        for collection_name in self.client[db_name].list_collection_names():
-            self.client[db_name].drop_collection(collection_name)
 
 
 def config_from_mongodb_container(container: MongoDbContainer) -> MongoDbConfig:
