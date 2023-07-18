@@ -21,9 +21,10 @@ Please note, only use for testing purposes.
 
 
 from dataclasses import dataclass
-from typing import Generator
+from typing import Generator, Optional, Union
 
-import pytest_asyncio
+from pymongo import MongoClient
+from pymongo.errors import ExecutionTimeout, OperationFailure
 from testcontainers.mongodb import MongoDbContainer
 
 from hexkit.providers.mongodb.provider import MongoDbConfig, MongoDbDaoFactory
@@ -33,8 +34,34 @@ from hexkit.providers.mongodb.provider import MongoDbConfig, MongoDbDaoFactory
 class MongoDbFixture:
     """Yielded by the `mongodb_fixture` function"""
 
+    client: MongoClient
     config: MongoDbConfig
     dao_factory: MongoDbDaoFactory
+
+    def empty_collections(
+        self,
+        exclude_collections: Optional[Union[str, list[str]]] = None,
+    ):
+        """Drop all mongodb collections in the database.
+
+        You can also specify collection(s) that should be excluded
+        from the operation, i.e. collections that should be kept.
+        """
+        db_name = self.config.db_name
+        if exclude_collections is None:
+            exclude_collections = []
+        if isinstance(exclude_collections, str):
+            exclude_collections = [exclude_collections]
+        excluded_collections = set(exclude_collections)
+        try:
+            collection_names = self.client[db_name].list_collection_names()
+            for collection_name in collection_names:
+                if collection_name not in excluded_collections:
+                    self.client[db_name].drop_collection(collection_name)
+        except (ExecutionTimeout, OperationFailure) as error:
+            raise RuntimeError(
+                f"Could not drop collection(s) of Mongo database {db_name}"
+            ) from error
 
 
 def config_from_mongodb_container(container: MongoDbContainer) -> MongoDbConfig:
@@ -44,12 +71,21 @@ def config_from_mongodb_container(container: MongoDbContainer) -> MongoDbConfig:
     return MongoDbConfig(db_connection_str=db_connection_str, db_name="test")
 
 
-@pytest_asyncio.fixture
-def mongodb_fixture() -> Generator[MongoDbFixture, None, None]:
-    """Pytest fixture for tests depending on the MongoDbDaoFactory DAO."""
+def mongodb_fixture_function() -> Generator[MongoDbFixture, None, None]:
+    """
+    Pytest fixture for tests depending on the MongoDbDaoFactory DAO.
+    Obtained via get_fixture in hexkit.providers.testing.fixtures.get_fixture
+    """
 
     with MongoDbContainer(image="mongo:6.0.3") as mongodb:
         config = config_from_mongodb_container(mongodb)
         dao_factory = MongoDbDaoFactory(config=config)
+        client = mongodb.get_connection_client()
 
-        yield MongoDbFixture(config=config, dao_factory=dao_factory)
+        yield MongoDbFixture(
+            client=client,
+            config=config,
+            dao_factory=dao_factory,
+        )
+
+        client.close()

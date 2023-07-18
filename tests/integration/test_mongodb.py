@@ -30,8 +30,10 @@ from hexkit.protocols.dao import (
     NoHitsFoundError,
     ResourceNotFoundError,
 )
-from hexkit.providers.mongodb.testutils import mongodb_fixture  # noqa: F401
-from hexkit.providers.mongodb.testutils import MongoDbFixture
+from hexkit.providers.testing.fixtures import (  # noqa: F401
+    MongoDbFixture,
+    mongodb_fixture,
+)
 
 
 class ExampleCreationDto(BaseModel):
@@ -49,6 +51,18 @@ class ExampleDto(ExampleCreationDto):
     """Example DTO model."""
 
     id: str
+
+
+@pytest.mark.asyncio
+async def test_empty_collections(mongodb_fixture: MongoDbFixture):  # noqa: F811
+    """Make sure mongo reset function works"""
+    db = mongodb_fixture.client[mongodb_fixture.config.db_name]
+    db.create_collection("test1")
+    db.create_collection("test2")
+    assert len(db.list_collection_names()) == 2
+
+    mongodb_fixture.empty_collections(exclude_collections=["test1"])
+    assert db.list_collection_names() == ["test1"]
 
 
 @pytest.mark.asyncio

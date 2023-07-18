@@ -12,7 +12,6 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
+#
 
-"""A Toolkit for Building Microservices using the Hexagonal Architecture"""
-
-__version__ = "0.10.1"
+"""Scripts and utils used during development or in CI pipelines."""

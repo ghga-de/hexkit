@@ -33,7 +33,7 @@ from pathlib import Path
 try:
     from script_utils.cli import echo_failure, echo_success, run
 except ImportError:
-    echo_failure = echo_success = print  # type: ignore
+    echo_failure = echo_success = print
 
     def run(main_fn):
         """Run main function without cli tools (typer)."""

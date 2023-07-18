@@ -23,14 +23,14 @@ import pytest
 from black import nullcontext
 
 from hexkit.protocols.objstorage import ObjectStorageProtocol
-from hexkit.providers.s3.testutils import file_fixture  # noqa: F401
-from hexkit.providers.s3.testutils import s3_fixture  # noqa: F401
-from hexkit.providers.s3.testutils import (
+from hexkit.providers.testing.fixtures import (  # noqa: F401
     MEBIBYTE,
     FileObject,
     S3Fixture,
+    file_fixture,
     get_initialized_upload,
     prepare_non_completed_upload,
+    s3_fixture,
     temp_file_object,
     typical_workflow,
     upload_part,
@@ -41,6 +41,35 @@ EXAMPLE_BUCKETS = [
     "mytestbucket100",
     "mytestbucket200",
 ]
+
+
+@pytest.mark.asyncio
+async def test_empty_buckets(
+    s3_fixture: S3Fixture, file_fixture: FileObject  # noqa: F811
+):
+    """Make sure the empty_buckets function works"""
+
+    # bucket should not exist in the beginning:
+    bucket_id = file_fixture.bucket_id
+    assert not await s3_fixture.storage.does_bucket_exist(bucket_id=bucket_id)
+
+    # add the corresponding bucket to the storage:
+    await s3_fixture.populate_buckets([bucket_id])
+
+    # now the bucket should exist:
+    assert await s3_fixture.storage.does_bucket_exist(bucket_id=bucket_id)
+
+    await s3_fixture.populate_file_objects(file_objects=[file_fixture])
+
+    # test empty_buckets with and without parameters
+    await s3_fixture.empty_buckets(buckets_to_exclude=[bucket_id])
+    assert await s3_fixture.storage.does_object_exist(
+        bucket_id=bucket_id, object_id=file_fixture.object_id
+    )
+    await s3_fixture.empty_buckets()  # empty all buckets (just one in this case)
+    assert not await s3_fixture.storage.does_object_exist(
+        bucket_id=bucket_id, object_id=file_fixture.object_id
+    )
 
 
 @pytest.mark.asyncio

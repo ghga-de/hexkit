@@ -26,7 +26,7 @@ from hexkit.providers.akafka import (
     KafkaEventPublisher,
     KafkaEventSubscriber,
 )
-from hexkit.providers.akafka.testutils import (  # noqa: F401
+from hexkit.providers.testing.fixtures import (  # noqa: F401
     ExpectedEvent,
     KafkaFixture,
     kafka_fixture,

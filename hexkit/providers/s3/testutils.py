@@ -24,10 +24,9 @@ import os
 from contextlib import contextmanager
 from pathlib import Path
 from tempfile import NamedTemporaryFile
-from typing import Generator, List
+from typing import Generator, List, Optional
 
 import pytest
-import pytest_asyncio
 import requests
 from pydantic import BaseModel, validator
 from testcontainers.localstack import LocalStackContainer
@@ -87,6 +86,23 @@ class S3Fixture:
         """Initialize with config."""
         self.config = config
         self.storage = storage
+        self._buckets: set[str] = set()
+
+    async def empty_buckets(self, buckets_to_exclude: Optional[list[str]] = None):
+        """Clean the test artifacts or files from given bucket"""
+        if buckets_to_exclude is None:
+            buckets_to_exclude = []
+
+        for bucket in self._buckets:
+            if bucket in buckets_to_exclude:
+                continue
+
+            # Get list of all objects in the bucket
+            object_ids = await self.storage.list_all_object_ids(bucket_id=bucket)
+
+            # Delete all objects
+            for object_id in object_ids:
+                await self.storage.delete_object(bucket_id=bucket, object_id=object_id)
 
     async def populate_buckets(self, buckets: list[str]):
         """Populate the storage with buckets."""
@@ -94,6 +110,8 @@ class S3Fixture:
         await populate_storage(
             self.storage, bucket_fixtures=buckets, object_fixtures=[]
         )
+
+        self._buckets.update(buckets)
 
     async def populate_file_objects(self, file_objects: list[FileObject]):
         """Populate the storage with file objects."""
@@ -103,8 +121,7 @@ class S3Fixture:
         )
 
 
-@pytest_asyncio.fixture
-def s3_fixture() -> Generator[S3Fixture, None, None]:
+def s3_fixture_function() -> Generator[S3Fixture, None, None]:
     """Pytest fixture for tests depending on the S3ObjectStorage DAO."""
 
     with LocalStackContainer(image="localstack/localstack:0.14.5").with_services(
@@ -137,7 +154,7 @@ def temp_file_object(
         temp_file.flush()
 
         yield FileObject(
-            file_path=temp_file.name, bucket_id=bucket_id, object_id=object_id
+            file_path=Path(temp_file.name), bucket_id=bucket_id, object_id=object_id
         )
 
 
