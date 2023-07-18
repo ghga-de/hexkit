@@ -62,7 +62,7 @@ async def test_empty_buckets(
     await s3_fixture.populate_file_objects(file_objects=[file_fixture])
 
     # test empty_buckets with and without parameters
-    await s3_fixture.empty_buckets(buckets_to_exclude={bucket_id})
+    await s3_fixture.empty_buckets(buckets_to_exclude=[bucket_id])
     assert await s3_fixture.storage.does_object_exist(
         bucket_id=bucket_id, object_id=file_fixture.object_id
     )
