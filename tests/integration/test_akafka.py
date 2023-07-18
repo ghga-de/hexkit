@@ -26,8 +26,11 @@ from hexkit.providers.akafka import (
     KafkaEventPublisher,
     KafkaEventSubscriber,
 )
-from hexkit.providers.akafka.testutils import ExpectedEvent, KafkaFixture  # noqa: F401
-from hexkit.providers.testing.fixtures import kafka_fixture  # noqa: F401
+from hexkit.providers.testing.fixtures import (  # noqa: F401
+    ExpectedEvent,
+    KafkaFixture,
+    kafka_fixture,
+)
 
 
 @pytest.mark.asyncio

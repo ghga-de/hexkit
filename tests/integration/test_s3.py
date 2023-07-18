@@ -23,19 +23,19 @@ import pytest
 from black import nullcontext
 
 from hexkit.protocols.objstorage import ObjectStorageProtocol
-from hexkit.providers.s3.testutils import file_fixture  # noqa: F401
-from hexkit.providers.s3.testutils import (
+from hexkit.providers.testing.fixtures import (  # noqa: F401
     MEBIBYTE,
     FileObject,
     S3Fixture,
+    file_fixture,
     get_initialized_upload,
     prepare_non_completed_upload,
+    s3_fixture,
     temp_file_object,
     typical_workflow,
     upload_part,
     upload_part_of_size,
 )
-from hexkit.providers.testing.fixtures import s3_fixture  # noqa: F401
 
 EXAMPLE_BUCKETS = [
     "mytestbucket100",

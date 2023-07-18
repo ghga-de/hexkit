@@ -21,13 +21,13 @@ import pytest
 from kafka import KafkaAdminClient
 
 from hexkit.providers.akafka import KafkaConfig, KafkaEventPublisher
-from hexkit.providers.akafka.testutils import (
+from hexkit.providers.testing.fixtures import kafka_fixture  # noqa: F401
+from hexkit.providers.testing.fixtures import (
     ExpectedEvent,
     KafkaFixture,
     RecordedEvent,
     ValidationError,
 )
-from hexkit.providers.testing.fixtures import kafka_fixture  # noqa: F401
 
 
 def test_delete_topics_specific(kafka_fixture: KafkaFixture):  # noqa: F811

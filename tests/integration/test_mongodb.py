@@ -30,8 +30,10 @@ from hexkit.protocols.dao import (
     NoHitsFoundError,
     ResourceNotFoundError,
 )
-from hexkit.providers.mongodb.testutils import MongoDbFixture
-from hexkit.providers.testing.fixtures import mongodb_fixture  # noqa: F401
+from hexkit.providers.testing.fixtures import (  # noqa: F401
+    MongoDbFixture,
+    mongodb_fixture,
+)
 
 
 class ExampleCreationDto(BaseModel):

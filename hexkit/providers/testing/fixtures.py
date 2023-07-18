@@ -20,15 +20,82 @@ from typing import Callable, Type, Union
 import pytest_asyncio
 from pytest_asyncio.plugin import _ScopeName
 
-from hexkit.providers.akafka.testutils import KafkaFixture, kafka_fixture_function
-from hexkit.providers.mongodb.testutils import MongoDbFixture, mongodb_fixture_function
-from hexkit.providers.s3.testutils import S3Fixture, s3_fixture_function
+from hexkit.providers.akafka.testutils import (
+    EventBase,
+    EventRecorder,
+    ExpectedEvent,
+    KafkaFixture,
+    RecordedEvent,
+    ValidationError,
+    kafka_fixture_function,
+)
+from hexkit.providers.mongodb.testutils import (
+    MongoDbFixture,
+    config_from_mongodb_container,
+    mongodb_fixture_function,
+)
+from hexkit.providers.s3.testutils import (
+    MEBIBYTE,
+    TEST_FILE_DIR,
+    TEST_FILE_PATHS,
+    TIMEOUT,
+    FileObject,
+    S3Config,
+    S3Fixture,
+    S3ObjectStorage,
+    calc_md5,
+    check_part_size,
+    config_from_localstack_container,
+    download_and_check_test_file,
+    file_fixture,
+    get_initialized_upload,
+    multipart_upload_file,
+    populate_storage,
+    prepare_non_completed_upload,
+    s3_fixture_function,
+    temp_file_object,
+    typical_workflow,
+    upload_file,
+    upload_part,
+    upload_part_of_size,
+    upload_part_via_url,
+)
 
 __all__ = [
-    "get_fixture",
-    "mongodb_fixture",
-    "kafka_fixture",
-    "s3_fixture",
+    "EventBase",
+    "EventRecorder",
+    "ExpectedEvent",
+    "KafkaFixture",
+    "RecordedEvent",
+    "ValidationError",
+    "kafka_fixture_function",
+    "MongoDbFixture",
+    "config_from_mongodb_container",
+    "mongodb_fixture_function",
+    "MEBIBYTE",
+    "TEST_FILE_DIR",
+    "TEST_FILE_PATHS",
+    "TIMEOUT",
+    "FileObject",
+    "S3Config",
+    "S3Fixture",
+    "S3ObjectStorage",
+    "calc_md5",
+    "check_part_size",
+    "config_from_localstack_container",
+    "download_and_check_test_file",
+    "file_fixture",
+    "get_initialized_upload",
+    "multipart_upload_file",
+    "populate_storage",
+    "prepare_non_completed_upload",
+    "s3_fixture_function",
+    "temp_file_object",
+    "typical_workflow",
+    "upload_file",
+    "upload_part",
+    "upload_part_of_size",
+    "upload_part_via_url",
 ]
 
 
