@@ -88,12 +88,15 @@ class S3Fixture:
         self.storage = storage
         self._buckets: set[str] = set()
 
-    async def empty_buckets(self, buckets_to_exclude: Optional[set[str]] = None):
+    async def empty_buckets(self, buckets_to_exclude: Optional[list[str]] = None):
         """Clean the test artifacts or files from given bucket"""
         if buckets_to_exclude is None:
-            buckets_to_exclude = set()
+            buckets_to_exclude = []
 
-        for bucket in self._buckets - buckets_to_exclude:
+        for bucket in self._buckets:
+            if bucket in buckets_to_exclude:
+                continue
+
             # Get list of all objects in the bucket
             object_ids = await self.storage.list_all_object_ids(bucket_id=bucket)
 
