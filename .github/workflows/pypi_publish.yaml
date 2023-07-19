@@ -67,6 +67,6 @@ jobs:
           repository-url: https://test.pypi.org/legacy/
 
       - name: Publish distribution package to PyPI (production)
-        uses: pypa/gh-action-pypi-publish@release/v1ss
+        uses: pypa/gh-action-pypi-publish@release/v1
         with:
           password: ${{ secrets.PYPI_API_TOKEN }}
