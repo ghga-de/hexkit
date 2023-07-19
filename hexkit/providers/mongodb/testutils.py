@@ -18,13 +18,13 @@
 
 Please note, only use for testing purposes.
 """
-
-
 from dataclasses import dataclass
 from typing import Generator, Optional, Union
 
+import pytest_asyncio
 from pymongo import MongoClient
 from pymongo.errors import ExecutionTimeout, OperationFailure
+from pytest_asyncio.plugin import _ScopeName
 from testcontainers.mongodb import MongoDbContainer
 
 from hexkit.providers.mongodb.provider import MongoDbConfig, MongoDbDaoFactory
@@ -72,9 +72,9 @@ def config_from_mongodb_container(container: MongoDbContainer) -> MongoDbConfig:
 
 
 def mongodb_fixture_function() -> Generator[MongoDbFixture, None, None]:
-    """
-    Pytest fixture for tests depending on the MongoDbDaoFactory DAO.
-    Obtained via get_fixture in hexkit.providers.testing.fixtures.get_fixture
+    """Pytest fixture for tests depending on the MongoDbDaoFactory DAO.
+
+    **Do not call directly** Instead, use get_mongodb_fixture()
     """
 
     with MongoDbContainer(image="mongo:6.0.3") as mongodb:
@@ -89,3 +89,11 @@ def mongodb_fixture_function() -> Generator[MongoDbFixture, None, None]:
         )
 
         client.close()
+
+
+def get_mongodb_fixture(scope: _ScopeName = "function"):
+    """Produce a MongoDb fixture with desired scope. Default is the function scope."""
+    return pytest_asyncio.fixture(mongodb_fixture_function, scope=scope)
+
+
+mongodb_fixture = get_mongodb_fixture()

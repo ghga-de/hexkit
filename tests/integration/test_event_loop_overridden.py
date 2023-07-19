@@ -12,7 +12,24 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
+#
 
-"""A Toolkit for Building Microservices using the Hexagonal Architecture"""
+"""Test module-scope joint fixture with module-scope event loop"""
 
-__version__ = "0.10.2"
+import pytest
+
+from hexkit.providers.testing.utils import get_event_loop
+from tests.fixtures.dummy_joint import (  # noqa: F401
+    JointFixture,
+    joint_fixture,
+    s3_fixture,
+)
+
+# override the default event loop fixture with a module-scope replacement
+event_loop = get_event_loop("module")
+
+
+@pytest.mark.asyncio
+async def test_overridden_event_loop(joint_fixture: JointFixture):  # noqa: F811
+    """Test that running same fixture factory with new event loop is a success"""
+    assert True

@@ -12,7 +12,27 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
+#
+"""Simple joint fixture for testing the event loop fixture override's impact"""
 
-"""A Toolkit for Building Microservices using the Hexagonal Architecture"""
+from dataclasses import dataclass
+from typing import AsyncGenerator
 
-__version__ = "0.10.2"
+import pytest_asyncio
+
+from hexkit.providers.s3.testutils import S3Fixture, get_s3_fixture
+
+
+@dataclass
+class JointFixture:
+    """Simplest joint fixture"""
+
+    s3_fixture: S3Fixture
+
+
+s3_fixture = get_s3_fixture("module")
+
+
+@pytest_asyncio.fixture(scope="module")
+async def joint_fixture(s3_fixture) -> AsyncGenerator[JointFixture, None]:
+    yield JointFixture(s3_fixture=s3_fixture)

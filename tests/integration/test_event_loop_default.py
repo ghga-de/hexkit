@@ -12,7 +12,24 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
+#
+"""Test module-scope joint fixture with default function-scope event loop"""
 
-"""A Toolkit for Building Microservices using the Hexagonal Architecture"""
+import pytest
 
-__version__ = "0.10.2"
+from tests.fixtures.dummy_joint import (  # noqa: F401
+    JointFixture,
+    joint_fixture,
+    s3_fixture,
+)
+
+
+@pytest.mark.xfail(strict=True)
+@pytest.mark.asyncio
+async def test_default_event_loop(joint_fixture: JointFixture):  # noqa: F811
+    """Test that module-scope joint fixture with function-scope event loop breaks.
+
+    We should get an error while trying to use a module-scope joint_fixture with the
+    default event_loop fixture.
+    """
+    assert True

@@ -12,7 +12,25 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
+#
+"""Utilities for testing that aren't associated with any particular tool"""
 
-"""A Toolkit for Building Microservices using the Hexagonal Architecture"""
+import asyncio
 
-__version__ = "0.10.2"
+import pytest_asyncio
+from pytest_asyncio.plugin import _ScopeName
+
+
+def event_loop_fixture():
+    """Event loop fixture for when an event loop is needed beyond function scope.
+
+    **Do not call directly** Instead, use get_event_loop()
+    """
+    loop = asyncio.get_event_loop()
+    yield loop
+    loop.close()
+
+
+def get_event_loop(scope: _ScopeName):
+    """Return an event loop fixture"""
+    return pytest_asyncio.fixture(fixture_function=event_loop_fixture, scope=scope)
