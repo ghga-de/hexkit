@@ -74,7 +74,7 @@ def config_from_mongodb_container(container: MongoDbContainer) -> MongoDbConfig:
 def mongodb_fixture_function() -> Generator[MongoDbFixture, None, None]:
     """
     Pytest fixture for tests depending on the MongoDbDaoFactory DAO.
-    Obtained via get_fixture in hexkit.providers.testing.fixtures.get_fixture
+    **Do not call directly** Instead, use get_mongodb_fixture()
     """
 
     with MongoDbContainer(image="mongo:6.0.3") as mongodb:

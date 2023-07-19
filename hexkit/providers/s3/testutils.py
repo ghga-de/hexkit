@@ -123,7 +123,8 @@ class S3Fixture:
 
 
 def s3_fixture_function() -> Generator[S3Fixture, None, None]:
-    """Pytest fixture for tests depending on the S3ObjectStorage DAO."""
+    """Pytest fixture for tests depending on the S3ObjectStorage DAO.
+    **Do not call directly** Instead, use get_s3_fixture()"""
 
     with LocalStackContainer(image="localstack/localstack:0.14.5").with_services(
         "s3"
