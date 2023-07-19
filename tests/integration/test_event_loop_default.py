@@ -27,6 +27,9 @@ from tests.fixtures.dummy_joint import (  # noqa: F401
 @pytest.mark.xfail(strict=True)
 @pytest.mark.asyncio
 async def test_default_event_loop(joint_fixture: JointFixture):  # noqa: F811
-    """We should get an error while trying to use a module-scope joint_fixture with the
-    default event_loop fixture"""
+    """Test that module-scope joint fixture with function-scope event loop breaks.
+
+    We should get an error while trying to use a module-scope joint_fixture with the
+    default event_loop fixture.
+    """
     assert True

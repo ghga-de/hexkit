@@ -410,7 +410,9 @@ class KafkaFixture:
 
 async def kafka_fixture_function() -> AsyncGenerator[KafkaFixture, None]:
     """Pytest fixture for tests depending on the Kafka-base providers.
-    **Do not call directly** Instead, use get_kafka_fixture()"""
+
+    **Do not call directly** Instead, use get_kafka_fixture()
+    """
 
     with KafkaContainer(image="confluentinc/cp-kafka:5.4.9-1-deb8") as kafka:
         kafka_servers = [kafka.get_bootstrap_server()]

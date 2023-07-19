@@ -72,8 +72,8 @@ def config_from_mongodb_container(container: MongoDbContainer) -> MongoDbConfig:
 
 
 def mongodb_fixture_function() -> Generator[MongoDbFixture, None, None]:
-    """
-    Pytest fixture for tests depending on the MongoDbDaoFactory DAO.
+    """Pytest fixture for tests depending on the MongoDbDaoFactory DAO.
+
     **Do not call directly** Instead, use get_mongodb_fixture()
     """
 
