@@ -23,7 +23,7 @@ import pytest
 from black import nullcontext
 
 from hexkit.protocols.objstorage import ObjectStorageProtocol
-from hexkit.providers.testing.fixtures import (  # noqa: F401
+from hexkit.providers.s3.testutils import (  # noqa: F401
     MEBIBYTE,
     FileObject,
     S3Fixture,

@@ -30,7 +30,7 @@ from hexkit.protocols.dao import (
     NoHitsFoundError,
     ResourceNotFoundError,
 )
-from hexkit.providers.testing.fixtures import (  # noqa: F401
+from hexkit.providers.mongodb.testutils import (  # noqa: F401
     MongoDbFixture,
     mongodb_fixture,
 )
