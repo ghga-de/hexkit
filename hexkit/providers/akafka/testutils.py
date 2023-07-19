@@ -428,3 +428,6 @@ async def kafka_fixture_function() -> AsyncGenerator[KafkaFixture, None]:
 def get_kafka_fixture(scope: _ScopeName = "function"):
     """Produce a kafka fixture with desired scope. Default is the function scope."""
     return pytest_asyncio.fixture(kafka_fixture_function, scope=scope)
+
+
+kafka_fixture = get_kafka_fixture()

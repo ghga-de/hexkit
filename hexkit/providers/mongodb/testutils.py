@@ -94,3 +94,6 @@ def mongodb_fixture_function() -> Generator[MongoDbFixture, None, None]:
 def get_mongodb_fixture(scope: _ScopeName = "function"):
     """Produce a MongoDb fixture with desired scope. Default is the function scope."""
     return pytest_asyncio.fixture(mongodb_fixture_function, scope=scope)
+
+
+mongodb_fixture = get_mongodb_fixture()

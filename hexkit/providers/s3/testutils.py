@@ -139,6 +139,9 @@ def get_s3_fixture(scope: _ScopeName = "function"):
     return pytest_asyncio.fixture(s3_fixture_function, scope=scope)
 
 
+s3_fixture = get_s3_fixture()
+
+
 @contextmanager
 def temp_file_object(
     bucket_id: str = "mydefaulttestbucket001",
