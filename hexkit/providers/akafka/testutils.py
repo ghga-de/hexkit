@@ -18,16 +18,17 @@
 
 Please note, only use for testing purposes.
 """
-
 import json
 from contextlib import asynccontextmanager
 from dataclasses import dataclass
 from functools import partial
 from typing import AsyncGenerator, Optional, Sequence, Union
 
+import pytest_asyncio
 from aiokafka import AIOKafkaConsumer, TopicPartition
 from kafka import KafkaAdminClient
 from kafka.errors import KafkaError
+from pytest_asyncio.plugin import _ScopeName
 from testcontainers.kafka import KafkaContainer
 
 from hexkit.custom_types import Ascii, JsonObject
@@ -422,3 +423,8 @@ async def kafka_fixture_function() -> AsyncGenerator[KafkaFixture, None]:
             yield KafkaFixture(
                 config=config, kafka_servers=kafka_servers, publisher=publisher
             )
+
+
+def get_kafka_fixture(scope: _ScopeName = "function"):
+    """Produce a kafka fixture with desired scope. Default is the function scope."""
+    return pytest_asyncio.fixture(kafka_fixture_function, scope=scope)
