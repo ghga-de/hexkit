@@ -24,9 +24,9 @@ from typing import Generator, Optional, Union
 import pytest
 from pymongo import MongoClient
 from pymongo.errors import ExecutionTimeout, OperationFailure
-from pytest import _ScopeName
 from testcontainers.mongodb import MongoDbContainer
 
+from hexkit.custom_types import PytestScope
 from hexkit.providers.mongodb.provider import MongoDbConfig, MongoDbDaoFactory
 
 
@@ -91,7 +91,7 @@ def mongodb_fixture_function() -> Generator[MongoDbFixture, None, None]:
         client.close()
 
 
-def get_mongodb_fixture(scope: _ScopeName = "function"):
+def get_mongodb_fixture(scope: PytestScope = "function"):
     """Produce a MongoDb fixture with desired scope. Default is the function scope."""
     return pytest.fixture(mongodb_fixture_function, scope=scope)
 

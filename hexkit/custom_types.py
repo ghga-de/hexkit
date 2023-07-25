@@ -17,7 +17,7 @@
 """Module collecting custom types."""
 
 from collections.abc import Mapping, Sequence
-from typing import Any, Union
+from typing import Any, Literal, Union
 
 # This is intended to type objects that could be a potential output of `json.loads`.
 # (Scalar types as well as arrays are excluded from the above assumption.)
@@ -74,3 +74,7 @@ AsyncConstructable = Any
 # ```
 # Thus using a type alias for now:
 AsyncContextConstructable = Any
+
+
+# The possible scopes for pytest fixtures
+PytestScope = Literal["session", "package", "module", "class", "function"]

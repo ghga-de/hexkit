@@ -28,10 +28,9 @@ import pytest_asyncio
 from aiokafka import AIOKafkaConsumer, TopicPartition
 from kafka import KafkaAdminClient
 from kafka.errors import KafkaError
-from pytest import _ScopeName
 from testcontainers.kafka import KafkaContainer
 
-from hexkit.custom_types import Ascii, JsonObject
+from hexkit.custom_types import Ascii, JsonObject, PytestScope
 from hexkit.providers.akafka.provider import (
     ConsumerEvent,
     KafkaConfig,
@@ -428,7 +427,7 @@ async def kafka_fixture_function() -> AsyncGenerator[KafkaFixture, None]:
             )
 
 
-def get_kafka_fixture(scope: _ScopeName = "function"):
+def get_kafka_fixture(scope: PytestScope = "function"):
     """Produce a kafka fixture with desired scope. Default is the function scope."""
     return pytest_asyncio.fixture(kafka_fixture_function, scope=scope)
 
