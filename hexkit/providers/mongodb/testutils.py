@@ -24,7 +24,7 @@ from typing import Generator, Optional, Union
 import pytest
 from pymongo import MongoClient
 from pymongo.errors import ExecutionTimeout, OperationFailure
-from pytest_asyncio.plugin import _ScopeName
+from pytest import _ScopeName
 from testcontainers.mongodb import MongoDbContainer
 
 from hexkit.providers.mongodb.provider import MongoDbConfig, MongoDbDaoFactory

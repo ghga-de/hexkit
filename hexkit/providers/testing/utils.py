@@ -17,8 +17,8 @@
 
 import asyncio
 
-import pytest_asyncio
-from pytest_asyncio.plugin import _ScopeName
+import pytest
+from pytest import _ScopeName
 
 
 def event_loop_fixture():
@@ -33,4 +33,4 @@ def event_loop_fixture():
 
 def get_event_loop(scope: _ScopeName):
     """Return an event loop fixture"""
-    return pytest_asyncio.fixture(fixture_function=event_loop_fixture, scope=scope)
+    return pytest.fixture(fixture_function=event_loop_fixture, scope=scope)

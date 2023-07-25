@@ -28,7 +28,7 @@ import pytest_asyncio
 from aiokafka import AIOKafkaConsumer, TopicPartition
 from kafka import KafkaAdminClient
 from kafka.errors import KafkaError
-from pytest_asyncio.plugin import _ScopeName
+from pytest import _ScopeName
 from testcontainers.kafka import KafkaContainer
 
 from hexkit.custom_types import Ascii, JsonObject

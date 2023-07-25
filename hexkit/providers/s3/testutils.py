@@ -28,7 +28,7 @@ from typing import Generator, List, Optional
 import pytest
 import requests
 from pydantic import BaseModel, validator
-from pytest_asyncio.plugin import _ScopeName
+from pytest import _ScopeName
 from testcontainers.localstack import LocalStackContainer
 
 from hexkit.protocols.objstorage import ObjectStorageProtocol, PresignedPostURL
