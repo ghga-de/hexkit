@@ -208,7 +208,7 @@ async def test_expect_events_happy(
         ],
     ],
 )
-async def test_expect_events_missmatch(
+async def test_expect_events_mismatch(
     events_to_publish: Sequence[RecordedEvent],
     kafka_fixture: KafkaFixture,  # noqa: F811
 ):

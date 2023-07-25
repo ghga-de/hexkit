@@ -349,7 +349,7 @@ async def test_invalid_part_number(
     exception: Optional[Exception],
     s3_fixture: S3Fixture,  # noqa: F811
 ):
-    """Check that invalid part numbers are cached correcly."""
+    """Check that invalid part numbers are cached correctly."""
 
     upload_id, bucket_id, object_id = await prepare_non_completed_upload(s3_fixture)
 
@@ -379,7 +379,7 @@ async def test_invalid_part_number(
             None,
             2,
             ObjectStorageProtocol.MultiPartUploadConfirmError,
-        ),  # Missmatch with anticipated parts
+        ),  # Mismatch with anticipated parts
         (
             [10 * MEBIBYTE, 5 * MEBIBYTE, 1 * MEBIBYTE],
             None,
@@ -397,7 +397,7 @@ async def test_invalid_part_number(
             10 * MEBIBYTE,
             None,
             ObjectStorageProtocol.MultiPartUploadConfirmError,
-        ),  # missmatch anticipated part size
+        ),  # mismatch anticipated part size
         (
             [10 * MEBIBYTE, 10 * MEBIBYTE, 11 * MEBIBYTE],
             10 * MEBIBYTE,
@@ -502,7 +502,7 @@ async def test_handling_multiple_coexisting_uploads(
 ):
     """
     Test that the invalid state of multiple uploads coexisting for the same object
-    is correctly handeled.
+    is correctly handled.
     """
 
     # initialize an upload:

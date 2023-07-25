@@ -28,10 +28,9 @@ import pytest_asyncio
 from aiokafka import AIOKafkaConsumer, TopicPartition
 from kafka import KafkaAdminClient
 from kafka.errors import KafkaError
-from pytest_asyncio.plugin import _ScopeName
 from testcontainers.kafka import KafkaContainer
 
-from hexkit.custom_types import Ascii, JsonObject
+from hexkit.custom_types import Ascii, JsonObject, PytestScope
 from hexkit.providers.akafka.provider import (
     ConsumerEvent,
     KafkaConfig,
@@ -97,7 +96,7 @@ def check_recorded_events(
     recorded_events: Sequence[RecordedEvent], expected_events: Sequence[ExpectedEvent]
 ):
     """Check a sequence of recorded events against a sequence of expected events.
-    Raises ValidationError in case of missmatches."""
+    Raises ValidationError in case of mismatches."""
 
     get_detailed_error = partial(
         ValidationError,
@@ -112,7 +111,7 @@ def check_recorded_events(
             details=f"expected {n_expected_events} events but recorded {n_recorded_events}"
         )
 
-    def get_field_missmatch_error(field, index):
+    def get_field_mismatch_error(field, index):
         return get_detailed_error(
             details=f"the {field} of the recorded event no. {index+1}"
             " does not match the expectations"
@@ -122,16 +121,16 @@ def check_recorded_events(
         zip(recorded_events, expected_events)
     ):
         if recorded_event.payload != expected_event.payload:
-            raise get_field_missmatch_error(field="payload", index=index)
+            raise get_field_mismatch_error(field="payload", index=index)
         if recorded_event.type_ != expected_event.type_:
-            raise get_field_missmatch_error(field="type", index=index)
+            raise get_field_mismatch_error(field="type", index=index)
         if expected_event.key is not None and recorded_event.key != expected_event.key:
-            raise get_field_missmatch_error(field="key", index=index)
+            raise get_field_mismatch_error(field="key", index=index)
 
 
 class EventRecorder:
     """Instances of this class can look at at specific topic and check for expected
-    events occuring with a specified event key."""
+    events occurring with a specified event key."""
 
     class NotStartedError(RuntimeError):
         """Raised when the recording has not been started yet but is required for the
@@ -164,7 +163,7 @@ class EventRecorder:
         self._recorded_events: Optional[Sequence[RecordedEvent]] = None
 
     def _assert_recording_stopped(self) -> None:
-        """Assert that the recording has been stopped. Raises an InProgessError or a
+        """Assert that the recording has been stopped. Raises an InProgressError or a
         NotStartedError otherwise."""
 
         if self._recorded_events is None:
@@ -428,7 +427,7 @@ async def kafka_fixture_function() -> AsyncGenerator[KafkaFixture, None]:
             )
 
 
-def get_kafka_fixture(scope: _ScopeName = "function"):
+def get_kafka_fixture(scope: PytestScope = "function"):
     """Produce a kafka fixture with desired scope. Default is the function scope."""
     return pytest_asyncio.fixture(kafka_fixture_function, scope=scope)
 

@@ -26,12 +26,11 @@ from tempfile import NamedTemporaryFile
 from typing import Generator, List, Optional
 
 import pytest
-import pytest_asyncio
 import requests
 from pydantic import BaseModel, validator
-from pytest_asyncio.plugin import _ScopeName
 from testcontainers.localstack import LocalStackContainer
 
+from hexkit.custom_types import PytestScope
 from hexkit.protocols.objstorage import ObjectStorageProtocol, PresignedPostURL
 from hexkit.providers.s3.provider import S3Config, S3ObjectStorage
 
@@ -137,9 +136,9 @@ def s3_fixture_function() -> Generator[S3Fixture, None, None]:
         yield S3Fixture(config=config, storage=storage)
 
 
-def get_s3_fixture(scope: _ScopeName = "function"):
+def get_s3_fixture(scope: PytestScope = "function"):
     """Produce an S3 fixture with desired scope. Default is the function scope."""
-    return pytest_asyncio.fixture(s3_fixture_function, scope=scope)
+    return pytest.fixture(s3_fixture_function, scope=scope)
 
 
 s3_fixture = get_s3_fixture()

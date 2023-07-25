@@ -17,8 +17,9 @@
 
 import asyncio
 
-import pytest_asyncio
-from pytest_asyncio.plugin import _ScopeName
+import pytest
+
+from hexkit.custom_types import PytestScope
 
 
 def event_loop_fixture():
@@ -31,6 +32,6 @@ def event_loop_fixture():
     loop.close()
 
 
-def get_event_loop(scope: _ScopeName):
+def get_event_loop(scope: PytestScope = "function"):
     """Return an event loop fixture"""
-    return pytest_asyncio.fixture(fixture_function=event_loop_fixture, scope=scope)
+    return pytest.fixture(fixture_function=event_loop_fixture, scope=scope)
