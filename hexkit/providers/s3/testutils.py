@@ -26,7 +26,6 @@ from tempfile import NamedTemporaryFile
 from typing import Generator, List, Optional
 
 import pytest
-import pytest_asyncio
 import requests
 from pydantic import BaseModel, validator
 from pytest_asyncio.plugin import _ScopeName
@@ -139,7 +138,7 @@ def s3_fixture_function() -> Generator[S3Fixture, None, None]:
 
 def get_s3_fixture(scope: _ScopeName = "function"):
     """Produce an S3 fixture with desired scope. Default is the function scope."""
-    return pytest_asyncio.fixture(s3_fixture_function, scope=scope)
+    return pytest.fixture(s3_fixture_function, scope=scope)
 
 
 s3_fixture = get_s3_fixture()
