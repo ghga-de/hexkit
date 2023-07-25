@@ -141,7 +141,7 @@ class KafkaEventPublisher(EventPublisherProtocol):
             config:
                 Config parameters needed for connecting to Apache Kafka.
             kafka_producer_cls:
-                Overwrite the used Kafka Producer class. Only intented for unit testing.
+                Overwrite the used Kafka Producer class. Only intended for unit testing.
         """
         client_id = generate_client_id(
             service_name=config.service_name, instance_id=config.service_instance_id
@@ -288,7 +288,7 @@ class KafkaEventSubscriber(InboundProviderBase):
                 type annotation) and an application-specific port
                 (according to the triple hexagonal architecture).
             kafka_consumer_cls:
-                Overwrite the used Kafka consumer class. Only intented for unit testing.
+                Overwrite the used Kafka consumer class. Only intended for unit testing.
         """
 
         client_id = generate_client_id(
@@ -361,7 +361,7 @@ class KafkaEventSubscriber(InboundProviderBase):
                 )
             except Exception:
                 logging.error(
-                    "A fatal error occured while processing the event: %s",
+                    "A fatal error occurred while processing the event: %s",
                     event_label,
                 )
                 raise

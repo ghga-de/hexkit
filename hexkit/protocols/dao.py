@@ -417,7 +417,7 @@ class DaoFactoryProtocol(ABC):
         )
 
         if id_generator is None:
-            # instanciate the default ID generator:
+            # instantiate the default ID generator:
             id_generator = uuid4_id_generator()
 
         return await self._get_dao(
