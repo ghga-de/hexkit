@@ -54,6 +54,35 @@ class ExampleDto(ExampleCreationDto):
 
 
 @pytest.mark.asyncio
+async def test_dao_find_all_with_id(mongodb_fixture: MongoDbFixture):  # noqa: F811
+    """Test using the id field as part of the mapping in find_all()"""
+
+    dao = await mongodb_fixture.dao_factory.get_dao(
+        name="example",
+        dto_model=ExampleDto,
+        dto_creation_model=ExampleCreationDto,
+        id_field="id",
+    )
+
+    # insert an example resource:
+    resource_to_create = ExampleCreationDto(field_a="test1", field_b=27, field_c=True)
+    resource_inserted = await dao.insert(resource_to_create)
+
+    assert isinstance(resource_inserted, ExampleDto)
+    assert resource_inserted.dict(exclude={"id"}) == resource_to_create.dict()
+
+    # retrieve the resource with find_all
+    resources_read = [
+        x async for x in dao.find_all(mapping={"id": resource_inserted.id})
+    ]
+    assert len(resources_read) == 1
+
+    # make sure the previous check wasn't a false positive
+    no_results = [x async for x in dao.find_all(mapping={"id": "noresults"})]
+    assert len(no_results) == 0
+
+
+@pytest.mark.asyncio
 async def test_empty_collections(mongodb_fixture: MongoDbFixture):  # noqa: F811
     """Make sure mongo reset function works"""
     db = mongodb_fixture.client[mongodb_fixture.config.db_name]

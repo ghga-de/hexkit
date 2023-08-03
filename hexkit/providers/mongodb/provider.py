@@ -226,6 +226,10 @@ class MongoDbDaoBase(ABC, Generic[Dto]):
 
         self._validate_find_mapping(mapping)
 
+        if self._id_field in mapping:
+            mapping = dict(mapping)
+            mapping["_id"] = mapping.pop(self._id_field)
+
         cursor = self._collection.find(filter=mapping, session=self._session)
 
         async for document in cursor:
