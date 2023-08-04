@@ -76,10 +76,15 @@ async def test_dao_find_all_with_id(mongodb_fixture: MongoDbFixture):  # noqa: F
         x async for x in dao.find_all(mapping={"id": resource_inserted.id})
     ]
     assert len(resources_read) == 1
+    assert resources_read[0].id == resource_inserted.id
 
     # make sure the previous check wasn't a false positive
     no_results = [x async for x in dao.find_all(mapping={"id": "noresults"})]
     assert len(no_results) == 0
+
+    # find_one calls find_all, so double check that it works there too
+    result = await dao.find_one(mapping={"id": resource_inserted.id})
+    assert result == resource_inserted
 
 
 @pytest.mark.asyncio
