@@ -82,6 +82,24 @@ async def test_dao_find_all_with_id(mongodb_fixture: MongoDbFixture):  # noqa: F
     no_results = [x async for x in dao.find_all(mapping={"id": "noresults"})]
     assert len(no_results) == 0
 
+    # make sure other fields beside ID aren't getting ignored
+    no_results_multifield = [
+        x
+        async for x in dao.find_all(
+            mapping={"id": resource_inserted.id, "field_b": 134293487}
+        )
+    ]
+    assert len(no_results_multifield) == 0
+
+    multifield_found = [
+        x
+        async for x in dao.find_all(
+            mapping={"id": resource_inserted.id, "field_b": resource_inserted.field_b}
+        )
+    ]
+    assert len(multifield_found) == 1
+    assert multifield_found[0] == resource_inserted
+
     # find_one calls find_all, so double check that it works there too
     result = await dao.find_one(mapping={"id": resource_inserted.id})
     assert result == resource_inserted
