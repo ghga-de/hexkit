@@ -106,6 +106,26 @@ async def test_dao_find_all_with_id(mongodb_fixture: MongoDbFixture):  # noqa: F
 
 
 @pytest.mark.asyncio
+async def test_dao_find_all_without_collection(
+    mongodb_fixture: MongoDbFixture,  # noqa: F811
+):
+    """Test calling find_all() when there is no collection."""
+
+    dao = await mongodb_fixture.dao_factory.get_dao(
+        name="does-not-exist-at-all",
+        dto_model=ExampleDto,
+        id_field="id",
+    )
+
+    found = dao.find_all(mapping={})
+    assert found is not None
+
+    # retrieve the resource with find_all
+    resources_read = [x async for x in found]
+    assert len(resources_read) == 0
+
+
+@pytest.mark.asyncio
 async def test_empty_collections(mongodb_fixture: MongoDbFixture):  # noqa: F811
     """Make sure mongo reset function works"""
     db = mongodb_fixture.client[mongodb_fixture.config.db_name]
