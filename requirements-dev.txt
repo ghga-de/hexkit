@@ -4,4 +4,5 @@
 -r requirements-dev-common.txt
 
 # additional requirements for testing hexkit providers
-.[test-all]
+
+testcontainers[kafka,mongo]==3.4.1
