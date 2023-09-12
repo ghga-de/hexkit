@@ -1,8 +1,8 @@
 # requirements for development and testing this service
 
 # common requirements for development and testing
--r requirements-dev-common.txt
+-r requirements-dev-common.in
 
 # additional requirements for testing hexkit providers
 
-testcontainers[kafka,mongo]==3.4.1
+pip-tools>=7.3.0 # once added to the
