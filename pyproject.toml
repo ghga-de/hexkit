@@ -6,7 +6,6 @@ build-backend = "setuptools.build_meta"
 name = "hexkit"
 version = "0.10.3"
 description = "A Toolkit for Building Microservices using the Hexagonal Architecture"
-url = "https://github.com/ghga-de/hexkit"
 readme = "README.md"
 authors = [
     { name = "German Human Genome Phenome Archive (GHGA)", email = "contact@ghga.de" },
@@ -34,4 +33,13 @@ dependencies = [
 akafka = ["aiokafka~=0.8.0", "jsonschema >=4.17.3, <5"]
 s3 = ["boto3 >=1.26.50, <2", "botocore >=1.29.50, <2"]
 mongodb = ["motor >=3.1.1, <4"]
-all = ["hexkit[akafka,s3,mongodb]"]
+
+test-akafka = ["hexkit[akafka]", "testcontainers[kafka] >=3.4.1, <4"]
+test-s3 = ["hexkit[s3]", "testcontainers >=3.4.1, <4"]
+test-mongodb = ["hexkit[mongodb]", "testcontainers[mongo] >=3.4.1, <4"]
+test = ["hexkit[test-akafka,test-s3,test-mongodb]"]
+
+all = ["hexkit[akafka,s3,mongodb,test]"]
+
+[project.urls]
+Repository = "https://github.com/ghga-de/hexkit"
