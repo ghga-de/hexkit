@@ -1,3 +1,5 @@
+#!/usr/bin/env python3
+
 # Copyright 2021 - 2023 Universität Tübingen, DKFZ, EMBL, and Universität zu Köln
 # for the German Human Genome-Phenome Archive (GHGA)
 #
@@ -18,12 +20,23 @@
 'requirements-dev.txt'.
 """
 
+import os
 import subprocess
 from copy import deepcopy
 from pathlib import Path
-from tempfile import TemporaryFile
+from tempfile import TemporaryDirectory
 
-import typer
+import tomli
+import tomli_w
+from script_utils import cli
+
+REPO_ROOT_DIR = Path(__file__).parent.parent.resolve()
+
+PYPROJECT_TOML_PATH = REPO_ROOT_DIR / "pyproject.toml"
+DEV_COMMON_DEPS_PATH = REPO_ROOT_DIR / "requirements-dev-common.in"
+DEV_DEPS_PATH = REPO_ROOT_DIR / "requirements-dev.in"
+OUTPUT_LOCK_PATH = REPO_ROOT_DIR / "requirements.txt"
+OUTPUT_DEV_LOCK_PATH = REPO_ROOT_DIR / "requirements-dev.txt"
 
 
 def exclude_from_dependency_list(*, package_name: str, dependencies: list) -> list:
@@ -81,16 +94,18 @@ def compile_lock_file(sources: list[Path], output: Path) -> None:
         "--annotate",
         "--all-extras",
         "--output-file",
-        str(output.absolute),
-    ] + [str(source.absolute) for source in sources]
+        str(output.absolute()),
+    ] + [str(source.absolute()) for source in sources]
 
     with subprocess.Popen(
         args=command,
         stdout=subprocess.PIPE,
         stderr=subprocess.STDOUT,
     ) as process:
+        process.communicate()
         if process.wait() != 0:
-            log = process.stdout.read().decode("utf-8")
+            stdout = process.stdout
+            log = stdout.read().decode("utf-8") if stdout else "no log awailable."
             raise RuntimeError(f"Failed to compile lock file:\n{log}")
 
 
@@ -106,8 +121,29 @@ def main():
     'requirements-dev.in' is considered.
     """
 
-    ...
+    with open(PYPROJECT_TOML_PATH, "rb") as pyproject_toml:
+        pyproject = tomli.load(pyproject_toml)
+
+    modified_pyproject = remove_self_dependencies(pyproject)
+
+    with TemporaryDirectory() as temp_dir:
+        os.chdir(temp_dir)
+
+        modified_pyproject_path = Path(temp_dir) / "pyproject.toml"
+        with open(modified_pyproject_path, "wb") as modified_pyproject_toml:
+            tomli_w.dump(modified_pyproject, modified_pyproject_toml)
+
+        compile_lock_file(sources=[modified_pyproject_path], output=OUTPUT_LOCK_PATH)
+        compile_lock_file(
+            sources=[modified_pyproject_path, DEV_COMMON_DEPS_PATH],
+            output=OUTPUT_DEV_LOCK_PATH,
+        )
+
+    cli.echo_success(
+        f"Successfully updated lock files at '{OUTPUT_LOCK_PATH}' and"
+        + f" '{OUTPUT_DEV_LOCK_PATH}'."
+    )
 
 
 if __name__ == "__main__":
-    typer.run(main)
+    cli.run(main)

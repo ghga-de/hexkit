@@ -5,4 +5,7 @@
 
 # additional requirements for testing hexkit providers
 
-pip-tools>=7.3.0 # once added to the
+# should be added upstream to the template common deps:
+pip-tools>=7.3.0
+tomli==2.0.1
+tomli_w==1.0.0
