@@ -24,6 +24,7 @@ Require dependencies of the `akafka` extra. See the `setup.cfg`.
 import json
 import logging
 from contextlib import asynccontextmanager
+import ssl
 from typing import Any, Callable, Protocol, TypeVar
 
 from aiokafka import AIOKafkaConsumer, AIOKafkaProducer
@@ -69,6 +70,16 @@ class KafkaConfig(BaseSettings):
         ...,
         examples=[["localhost:9092"]],
         description="A list of connection strings to connect to Kafka bootstrap servers.",
+    )
+    security_protocol: str = Field(
+        "PLAINTEXT",
+        description="Protocol used to communicate with brokers. "
+        + "Valid values are: PLAINTEXT, SSL."
+    )
+    ssl_context: ssl.SSLContext = Field(
+        None,
+        description="pre-configured SSLContext for wrapping socket connections. "
+        + "Directly passed into asyncio’s create_connection(). Default: None"
     )
 
 
@@ -149,6 +160,8 @@ class KafkaEventPublisher(EventPublisherProtocol):
 
         producer = kafka_producer_cls(
             bootstrap_servers=",".join(config.kafka_servers),
+            security_protocol=config.security_protocol,
+            ssl_context=config.ssl_context,
             client_id=client_id,
             key_serializer=lambda key: key.encode("ascii"),
             value_serializer=lambda event_value: json.dumps(event_value).encode(
@@ -297,6 +310,8 @@ class KafkaEventSubscriber(InboundProviderBase):
         consumer = kafka_consumer_cls(
             *topics,
             bootstrap_servers=",".join(config.kafka_servers),
+            security_protocol=config.security_protocol,
+            ssl_context=config.ssl_context,
             client_id=client_id,
             group_id=config.service_name,
             auto_offset_reset="earliest",
