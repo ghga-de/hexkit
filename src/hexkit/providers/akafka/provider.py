@@ -25,11 +25,12 @@ import json
 import logging
 from contextlib import asynccontextmanager
 import ssl
-from typing import Any, Callable, Protocol, TypeVar
+from typing import Any, Callable, Protocol, TypeVar, Optional
 
 from aiokafka import AIOKafkaConsumer, AIOKafkaProducer
 from pydantic import Field
 from pydantic_settings import BaseSettings
+from aiokafka.helpers import create_ssl_context
 
 from hexkit.base import InboundProviderBase
 from hexkit.custom_types import Ascii, JsonObject
@@ -71,15 +72,40 @@ class KafkaConfig(BaseSettings):
         examples=[["localhost:9092"]],
         description="A list of connection strings to connect to Kafka bootstrap servers.",
     )
-    security_protocol: str = Field(
+    security_protocol: Literal["PLAINTEXT", "SSL"] = Field(
         "PLAINTEXT",
         description="Protocol used to communicate with brokers. "
-        + "Valid values are: PLAINTEXT, SSL."
+        + "Valid values are: PLAINTEXT, SSL.",
     )
-    ssl_context: ssl.SSLContext = Field(
+    ssl_cafile: str = Field(
         None,
-        description="pre-configured SSLContext for wrapping socket connections. "
-        + "Directly passed into asyncio’s create_connection(). Default: None"
+        description="""Certificate Authority file path containing certificates
+            used to sign broker certificates. If CA not specified (by either
+            cafile, capath, cadata) default system CA will be used if found by
+            OpenSSL. For more information see
+            :meth:`~ssl.SSLContext.load_verify_locations`.
+            Default: :data:`None`""",
+    )
+    ssl_certfile: str = Field(
+        None,
+        description="""optional filename of file in PEM format containing
+            the client certificate, as well as any CA certificates needed to
+            establish the certificate's authenticity. For more information see
+            :meth:`~ssl.SSLContext.load_cert_chain`.
+            Default: :data:`None`.""",
+    )
+    ssl_keyfile: str = Field(
+        None,
+        description=""""optional filename containing the client private key.
+            For more information see :meth:`~ssl.SSLContext.load_cert_chain`.
+            Default: :data:`None`.""",
+    )
+    ssl_password: str = Field(
+        None,
+        description="""optional password to be used when loading the
+            certificate chain. For more information see
+            :meth:`~ssl.SSLContext.load_cert_chain`.
+            Default: :data:`None`.""",
     )
 
 
@@ -93,6 +119,21 @@ def generate_client_id(*, service_name: str, instance_id: str) -> str:
     the service name and the client suffix.
     """
     return f"{service_name}.{instance_id}"
+
+
+def generate_ssl_context(config: KafkaConfig) -> Optional[ssl.SSLContext]:
+    """
+    Generate ssl_context for connecting to Kafka broker via an encrypted SSL connection
+    """
+    if config.security_protocol == "SSL":
+        return create_ssl_context(
+            cafile=config.ssl_cafile,  # CA used to sign certificate.
+            # `CARoot` of JKS store container
+            certfile=config.ssl_certfile,  # Signed certificate
+            keyfile=config.ssl_keyfile,  # Private Key file of `certfile` certificate
+            password=config.ssl_password,
+        )
+    return None
 
 
 class KafkaProducerCompatible(Protocol):
@@ -161,7 +202,7 @@ class KafkaEventPublisher(EventPublisherProtocol):
         producer = kafka_producer_cls(
             bootstrap_servers=",".join(config.kafka_servers),
             security_protocol=config.security_protocol,
-            ssl_context=config.ssl_context,
+            ssl_context=generate_ssl_context(config),
             client_id=client_id,
             key_serializer=lambda key: key.encode("ascii"),
             value_serializer=lambda event_value: json.dumps(event_value).encode(
@@ -311,7 +352,7 @@ class KafkaEventSubscriber(InboundProviderBase):
             *topics,
             bootstrap_servers=",".join(config.kafka_servers),
             security_protocol=config.security_protocol,
-            ssl_context=config.ssl_context,
+            ssl_context=generate_ssl_context(config),
             client_id=client_id,
             group_id=config.service_name,
             auto_offset_reset="earliest",
