@@ -1,0 +1,62 @@
+exclude = [
+    ".git",
+    ".devcontainer",
+    "__pycache__",
+    "build",
+    "dist",
+]
+
+ignore = [
+    "E", # pycodestyle errors
+    "W", # pycodestyle warnings - pycodestyle covered by black
+    "PLW", # pylint warnings
+    "RUF001", # ambiguous unicode character strings
+    "RUF010", # explicit conversion to string or repr: !s or !r
+    "RUF012", # mutable class variables need typing.ClassVar annotation
+    "N818", # Errors need to have Error suffix
+    "B008", # function call in arg defaults,
+    "PLR2004", # magic numbers should be constants
+    "D205", # blank-line-after-summary
+    "D400", # first doc line ends in period
+    "D401", # non-imperative-mood
+    "D107", # missing docstring in __init__
+]
+
+line-length = 88
+
+select = [
+    "C90", # McCabe Complexity
+    "F", # pyflakes codes
+    "I", # isort
+    "S", # flake8-bandit
+    "B", # flake8-bugbear
+    "N", # pep8-naming
+    "UP", # pyupgrade
+    "PL", # pylint
+    "RUF", # ruff
+    "SIM", # flake8-simplify
+    "D", # pydocstyle
+]
+
+fixable = [
+    "UP", # e.g. List -> list
+    "I", # sort imports
+    "D", # pydocstyle
+]
+
+src = ["src", "tests", "examples", "scripts"]
+
+target-version = "py39"
+
+[mccabe]
+max-complexity = 10
+
+[per-file-ignores]
+"scripts/*" = ["PL", "S", "SIM", "D"]
+"tests/*" = ["S", "SIM", "PLR"]
+".devcontainer/*" = ["S", "SIM", "D"]
+"examples/*" = ["S", "D"]
+"__init__.py" = ["D"]
+
+[pydocstyle]
+convention = "pep257"

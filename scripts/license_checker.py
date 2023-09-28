@@ -26,7 +26,7 @@ import re
 import sys
 from datetime import date
 from pathlib import Path
-from typing import List, Optional, Tuple, Union
+from typing import Optional, Union
 
 # root directory of the package:
 ROOT_DIR = Path(__file__).parent.parent.resolve()
@@ -53,6 +53,8 @@ EXCLUDE = [
     ".flake8",
     ".gitignore",
     ".pylintrc",
+    ".ruff.toml",
+    ".ruff_cache",
     "example_config.yaml",
     "config_schema.json",
     "LICENSE",  # is checked but not for the license header
@@ -74,6 +76,7 @@ EXCLUDE = [
 # exclude file by file ending from license header check:
 EXCLUDE_ENDINGS = [
     "html",
+    "in",
     "ini",
     "jinja",
     "json",
@@ -81,6 +84,7 @@ EXCLUDE_ENDINGS = [
     "pub",
     "pyc",
     "sec",
+    "toml",
     "txt",
     "xml",
     "yaml",
@@ -163,10 +167,10 @@ class UnexpectedBinaryFileError(RuntimeError):
 
 def get_target_files(
     target_dir: Path,
-    exclude: List[str] = EXCLUDE,
-    exclude_endings: List[str] = EXCLUDE_ENDINGS,
-    exclude_pattern: List[str] = EXCLUDE_PATTERN,
-) -> List[Path]:
+    exclude: list[str] = EXCLUDE,
+    exclude_endings: list[str] = EXCLUDE_ENDINGS,
+    exclude_pattern: list[str] = EXCLUDE_PATTERN,
+) -> list[Path]:
     """Get target files that are not match the exclude conditions.
     Args:
         target_dir (pathlib.Path): The target dir to search.
@@ -200,7 +204,7 @@ def get_target_files(
     return target_files
 
 
-def normalized_line(line: str, chars_to_trim: List[str] = COMMENT_CHARS) -> str:
+def normalized_line(line: str, chars_to_trim: list[str] = COMMENT_CHARS) -> str:
     norm_line = line.strip()
 
     for char in chars_to_trim:
@@ -209,11 +213,11 @@ def normalized_line(line: str, chars_to_trim: List[str] = COMMENT_CHARS) -> str:
     return norm_line.strip("\n").strip("\t").strip()
 
 
-def normalized_text(text: str, chars_to_trim: List[str] = COMMENT_CHARS) -> str:
+def normalized_text(text: str, chars_to_trim: list[str] = COMMENT_CHARS) -> str:
     "Normalize a license header text."
     lines = text.split("\n")
 
-    norm_lines: List[str] = []
+    norm_lines: list[str] = []
 
     for line in lines:
         stripped_line = line.strip()
@@ -239,7 +243,7 @@ def format_copyright_template(copyright_template: str, author: str) -> str:
     return normalized_text(copyright_template.replace("{author}", author))
 
 
-def is_commented_line(line: str, comment_chars: List[str] = COMMENT_CHARS) -> bool:
+def is_commented_line(line: str, comment_chars: list[str] = COMMENT_CHARS) -> bool:
     """Checks whether a line is a comment."""
     line_stripped = line.strip()
     for comment_char in comment_chars:
@@ -254,12 +258,12 @@ def is_empty_line(line: str) -> bool:
     return line.strip("\n").strip("\t").strip() == ""
 
 
-def get_header(file_path: Path, comment_chars: List[str] = COMMENT_CHARS):
+def get_header(file_path: Path, comment_chars: list[str] = COMMENT_CHARS):
     """Extracts the header from a file and normalizes it."""
-    header_lines: List[str] = []
+    header_lines: list[str] = []
 
     try:
-        with open(file_path, "r") as file:
+        with open(file_path) as file:
             for line in file:
                 if is_commented_line(
                     line, comment_chars=comment_chars
@@ -307,7 +311,7 @@ def check_copyright_notice(
     global_copyright: GlobalCopyrightNotice,
     copyright_template: str = COPYRIGHT_TEMPLATE,
     author: str = AUTHOR,
-    comment_chars: List[str] = COMMENT_CHARS,
+    comment_chars: list[str] = COMMENT_CHARS,
     min_year: int = MIN_YEAR,
 ) -> bool:
     """Checks the specified copyright text against a template.
@@ -372,12 +376,12 @@ def check_file_headers(
     global_copyright: GlobalCopyrightNotice,
     copyright_template: str = COPYRIGHT_TEMPLATE,
     author: str = AUTHOR,
-    exclude: List[str] = EXCLUDE,
-    exclude_endings: List[str] = EXCLUDE_ENDINGS,
-    exclude_pattern: List[str] = EXCLUDE_PATTERN,
-    comment_chars: List[str] = COMMENT_CHARS,
+    exclude: list[str] = EXCLUDE,
+    exclude_endings: list[str] = EXCLUDE_ENDINGS,
+    exclude_pattern: list[str] = EXCLUDE_PATTERN,
+    comment_chars: list[str] = COMMENT_CHARS,
     min_year: int = MIN_YEAR,
-) -> Tuple[List[Path], List[Path]]:
+) -> tuple[list[Path], list[Path]]:
     """Check files for presence of a license header and verify that
     the copyright notice is up to date (correct year).
 
@@ -414,8 +418,8 @@ def check_file_headers(
     )
 
     # check if license header present in file:
-    passed_files: List[Path] = []
-    failed_files: List[Path] = []
+    passed_files: list[Path] = []
+    failed_files: list[Path] = []
 
     for target_file in target_files:
         try:
@@ -443,7 +447,7 @@ def check_license_file(
     global_copyright: GlobalCopyrightNotice,
     copyright_template: str = COPYRIGHT_TEMPLATE,
     author: str = AUTHOR,
-    comment_chars: List[str] = COMMENT_CHARS,
+    comment_chars: list[str] = COMMENT_CHARS,
     min_year: int = MIN_YEAR,
 ) -> bool:
     """Currently only checks if the copyright notice in the
@@ -470,7 +474,7 @@ def check_license_file(
         print(f'Could not find license file "{str(license_file)}".')
         return False
 
-    with open(license_file, "r") as file_:
+    with open(license_file) as file_:
         license_text = normalized_text(file_.read())
 
     # Extract the copyright notice:
@@ -522,7 +526,7 @@ def run():
     global_copyright = GlobalCopyrightNotice()
 
     # get global copyright from .devcontainer/license_header.txt file:
-    with open(GLOBAL_COPYRIGHT_FILE_PATH, "r") as global_copyright_file:
+    with open(GLOBAL_COPYRIGHT_FILE_PATH) as global_copyright_file:
         global_copyright.text = normalized_text(global_copyright_file.read())
 
     if args.no_license_file_check:

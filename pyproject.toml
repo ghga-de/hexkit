@@ -1,0 +1,48 @@
+[build-system]
+requires = ["setuptools>=67.7.2"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "hexkit"
+version = "0.10.3"
+description = "A Toolkit for Building Microservices using the Hexagonal Architecture"
+readme = "README.md"
+authors = [
+    { name = "German Human Genome Phenome Archive (GHGA)", email = "contact@ghga.de" },
+]
+requires-python = ">=3.9"
+license = { text = "Apache 2.0" }
+classifiers = [
+    "Development Status :: 1 - Planning",
+    "Operating System :: POSIX :: Linux",
+    "Programming Language :: Python :: 3.9",
+    "Programming Language :: Python :: 3.10",
+    "Programming Language :: Python :: 3.11",
+    "License :: OSI Approved :: Apache Software License",
+    "Topic :: Internet :: WWW/HTTP :: HTTP Servers",
+    "Topic :: Software Development :: Libraries",
+    "Intended Audience :: Developers",
+]
+dependencies = [
+    "pydantic >1.10.6, <2",
+    "PyYAML >=6.0, <7",
+    "dependency-injector >=4.41.0, <5",
+]
+
+[project.optional-dependencies]
+akafka = ["aiokafka~=0.8.0", "jsonschema >=4.17.3, <5"]
+s3 = ["boto3 >=1.26.50, <2", "botocore >=1.29.50, <2"]
+mongodb = ["motor >=3.1.1, <4"]
+
+test-akafka = ["hexkit[akafka]", "testcontainers[kafka] >=3.4.1, <4"]
+test-s3 = ["hexkit[s3]", "testcontainers >=3.4.1, <4"]
+test-mongodb = ["hexkit[mongodb]", "testcontainers[mongo] >=3.4.1, <4"]
+test = ["hexkit[test-akafka,test-s3,test-mongodb]"]
+
+all = ["hexkit[akafka,s3,mongodb,test]"]
+
+[project.urls]
+Repository = "https://github.com/ghga-de/hexkit"
+
+[tool.setuptools.packages.find]
+where = ["src"]

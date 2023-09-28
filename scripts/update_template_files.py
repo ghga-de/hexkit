@@ -58,7 +58,7 @@ class ValidationError(RuntimeError):
 def get_file_list(list_name: str) -> list[str]:
     """Return a list of all file names specified in a given list file."""
     list_path = REPO_ROOT_DIR / list_name
-    with open(list_path, "r", encoding="utf8") as list_file:
+    with open(list_path, encoding="utf8") as list_file:
         file_list = [
             clean_line
             for clean_line in (
@@ -127,7 +127,7 @@ def check_file(relative_file_path: str, diff: bool = False) -> bool:
             print(f"  - {local_file_path}: cannot check, remote is missing")
             return True
 
-        with open(local_file_path, "r", encoding="utf8") as file:
+        with open(local_file_path, encoding="utf8") as file:
             return diff_content(local_file_path, file.read(), template_file_content)
 
     return False
@@ -153,7 +153,7 @@ def update_file(relative_file_path: str, diff: bool = False) -> bool:
             return True
 
         if diff and local_file_path.exists():
-            with open(local_file_path, "r", encoding="utf8") as file:
+            with open(local_file_path, encoding="utf8") as file:
                 if file.read() == template_file_content:
                     return False
 
