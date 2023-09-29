@@ -19,6 +19,7 @@ from collections.abc import Sequence
 
 import pytest
 from kafka import KafkaAdminClient
+from kafka.admin.new_topic import NewTopic
 
 from hexkit.providers.akafka import KafkaConfig, KafkaEventPublisher
 from hexkit.providers.akafka.testutils import (
@@ -35,18 +36,23 @@ def test_delete_topics_specific(kafka_fixture: KafkaFixture):  # noqa: F811
     admin_client = KafkaAdminClient(
         bootstrap_servers=kafka_fixture.config.kafka_servers
     )
+    new_topics = [
+        NewTopic(name="test", num_partitions=1, replication_factor=1),
+        NewTopic(name="test2", num_partitions=1, replication_factor=1),
+    ]
+    admin_client.create_topics(new_topics)
 
-    # get the topics created by default (confluent.support.metrics)
     initial_topics = admin_client.list_topics()
-    initial_length = len(initial_topics)
 
-    assert initial_length > 0
+    assert "test" in initial_topics
 
     # delete that topic
-    kafka_fixture.delete_topics(initial_topics)
+    kafka_fixture.delete_topics("test")
 
     # make sure it got deleted
-    assert len(admin_client.list_topics()) + 1 == initial_length
+    final_topics = admin_client.list_topics()
+    assert "test" not in final_topics
+    assert "test2" in final_topics
 
 
 def test_delete_topics_all(kafka_fixture: KafkaFixture):  # noqa: F811
@@ -55,12 +61,21 @@ def test_delete_topics_all(kafka_fixture: KafkaFixture):  # noqa: F811
         bootstrap_servers=kafka_fixture.config.kafka_servers
     )
 
-    assert len(admin_client.list_topics()) > 0
+    new_topics = [
+        NewTopic(name="test", num_partitions=1, replication_factor=1),
+        NewTopic(name="test2", num_partitions=1, replication_factor=1),
+    ]
+    admin_client.create_topics(new_topics)
+    initial_topics = admin_client.list_topics()
+    assert "test" in initial_topics
+    assert "test2" in initial_topics
 
     # delete all topics by not specifying any
     kafka_fixture.delete_topics()
 
-    assert len(admin_client.list_topics()) == 0
+    final_topics = admin_client.list_topics()
+    assert "test" not in final_topics
+    assert "test2" not in final_topics
 
 
 @pytest.mark.asyncio
