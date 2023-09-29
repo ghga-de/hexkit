@@ -17,10 +17,10 @@
 """Translators that target the event publishing protocol."""
 
 from pydantic import BaseSettings
-from stream_calc.ports.result_emitter import CalcResultEmitterPort
 
 from hexkit.custom_types import JsonObject
 from hexkit.protocols.eventpub import EventPublisherProtocol
+from stream_calc.ports.result_emitter import CalcResultEmitterPort
 
 
 class EventResultEmitterConfig(BaseSettings):
@@ -39,7 +39,7 @@ class EventResultEmitter(CalcResultEmitterPort):
         self,
         *,
         config: EventResultEmitterConfig,
-        event_publisher: EventPublisherProtocol
+        event_publisher: EventPublisherProtocol,
     ) -> None:
         """Configure with provider for the the EventPublisherProto"""
 

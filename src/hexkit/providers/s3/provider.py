@@ -19,6 +19,8 @@
 Utilities for testing are located in `./testutils.py`.
 """
 
+# ruff: noqa: PLR0913
+
 import asyncio
 from functools import lru_cache
 from pathlib import Path
@@ -107,7 +109,6 @@ def read_aws_config_ini(aws_config_ini: Path) -> botocore.config.Config:
     https://boto3.amazonaws.com/v1/documentation/api/latest/guide/configuration.html#using-a-configuration-file)
     and returns an botocore.config.Config object.
     """
-
     config_profile = botocore.configloader.load_config(config_filename=aws_config_ini)
     return botocore.config.Config(**config_profile)
 
@@ -115,9 +116,7 @@ def read_aws_config_ini(aws_config_ini: Path) -> botocore.config.Config:
 class S3ObjectStorage(
     ObjectStorageProtocol
 ):  # pylint: disable=too-many-instance-attributes
-    """
-    S3-based provider implementing the ObjectStorageProtocol.
-    """
+    """S3-based provider implementing the ObjectStorageProtocol."""
 
     def __init__(  # pylint: disable=too-many-arguments
         self,
@@ -133,7 +132,6 @@ class S3ObjectStorage(
         Args:
             config (S3Config): Config parameters specified using the S3Config model.
         """
-
         self._config = config
 
         self.endpoint_url = config.s3_endpoint_url
@@ -173,11 +171,10 @@ class S3ObjectStorage(
     @staticmethod
     def _format_s3_error_code(error_code: str):
         """Format a message to describe an S3 error code."""
-
         return f"S3 error with code: '{error_code}'"
 
     @classmethod
-    def _translate_s3_client_errors(  # noqa: C901
+    def _translate_s3_client_errors(
         cls,
         source_exception: botocore.exceptions.ClientError,
         *,
@@ -189,7 +186,6 @@ class S3ObjectStorage(
         Translates S3 client errors based on their error codes into exceptions from the
         ObjectStorageProtocol modules
         """
-
         error_code = source_exception.response["Error"]["Code"]
         exception: Exception
 
@@ -208,27 +204,22 @@ class S3ObjectStorage(
             exception = cls.ObjectAlreadyExistsError(
                 bucket_id=bucket_id, object_id=object_id
             )
-        elif error_code == "ObjectAlreadyInActiveTierError":
-            exception = cls.ObjectAlreadyExistsError(
-                bucket_id=bucket_id, object_id=object_id
-            )
         elif error_code == "NoSuchUpload":
             if upload_id is None or bucket_id is None or object_id is None:
                 raise ValueError()
             exception = cls.MultiPartUploadNotFoundError(
                 upload_id=upload_id, bucket_id=bucket_id, object_id=object_id
             )
+        # exact match not found, match by keyword:
+        elif "Bucket" in error_code:
+            exception = cls.BucketError(cls._format_s3_error_code(error_code))
+        elif "Object" in error_code or "Key" in error_code:
+            exception = cls.ObjectError(cls._format_s3_error_code(error_code))
         else:
-            # exact match not found, match by keyword:
-            if "Bucket" in error_code:
-                exception = cls.BucketError(cls._format_s3_error_code(error_code))
-            elif "Object" in error_code or "Key" in error_code:
-                exception = cls.ObjectError(cls._format_s3_error_code(error_code))
-            else:
-                # if nothing matches, return a generic error:
-                exception = cls.ObjectStorageProtocolError(
-                    cls._format_s3_error_code(error_code)
-                )
+            # if nothing matches, return a generic error:
+            exception = cls.ObjectStorageProtocolError(
+                cls._format_s3_error_code(error_code)
+            )
 
         return exception
 
@@ -236,7 +227,6 @@ class S3ObjectStorage(
         """Check whether a bucket with the specified ID (`bucket_id`) exists.
         Return `True` if it exists and `False` otherwise.
         """
-
         try:
             bucket_list = await asyncio.to_thread(self._client.list_buckets)
         except botocore.exceptions.ClientError as error:
@@ -250,7 +240,6 @@ class S3ObjectStorage(
         """Checks if the bucket with specified ID (`bucket_id`) exists and throws an
         BucketNotFoundError otherwise.
         """
-
         if not await self.does_bucket_exist(bucket_id):
             raise self.BucketNotFoundError(bucket_id=bucket_id)
 
@@ -258,7 +247,6 @@ class S3ObjectStorage(
         """Checks if the bucket with specified ID (`bucket_id`) exists. If so, it throws
         an BucketAlreadyExistsError.
         """
-
         if await self.does_bucket_exist(bucket_id):
             raise self.BucketAlreadyExistsError(bucket_id=bucket_id)
 
@@ -267,7 +255,6 @@ class S3ObjectStorage(
         Create a bucket (= a structure that can hold multiple file objects) with the
         specified unique ID.
         """
-
         await self._assert_bucket_not_exists(bucket_id)
 
         try:
@@ -286,7 +273,6 @@ class S3ObjectStorage(
         will be deleted, if False (the default) a BucketNotEmptyError will be raised if
         the bucket is not empty.
         """
-
         await self._assert_bucket_exists(bucket_id)
 
         try:
@@ -301,9 +287,7 @@ class S3ObjectStorage(
             ) from error
 
     async def _list_all_object_ids(self, *, bucket_id: str) -> list[str]:
-        """
-        Retrieve a list of IDs for all objects currently present in the specified bucket
-        """
+        """Retrieve a list of IDs for all objects currently present in the specified bucket"""
         await self._assert_bucket_exists(bucket_id)
 
         try:
@@ -323,7 +307,6 @@ class S3ObjectStorage(
         may be provided to check the objects content.
         Return `True` if checks succeed and `False` otherwise.
         """
-
         if object_md5sum is not None:
             raise NotImplementedError("Md5 checking is not yet implemented.")
 
@@ -343,7 +326,6 @@ class S3ObjectStorage(
         the specified ID (`bucket_id`) and throws an ObjectNotFoundError otherwise.
         If the bucket does not exist it throws a BucketNotFoundError.
         """
-
         # first check if bucket exists:
         await self._assert_bucket_exists(bucket_id)
 
@@ -357,7 +339,6 @@ class S3ObjectStorage(
         the specified ID (`bucket_id`). If so, it throws an ObjectAlreadyExistsError.
         If the bucket does not exist it throws a BucketNotFoundError.
         """
-
         # first check if bucket exists:
         await self._assert_bucket_exists(bucket_id)
 
@@ -379,7 +360,6 @@ class S3ObjectStorage(
         You may also specify a custom expiry duration in seconds (`expires_after`) and
         a maximum size (bytes) for uploads (`max_upload_size`).
         """
-
         await self._assert_object_not_exists(bucket_id=bucket_id, object_id=object_id)
 
         conditions = (
@@ -416,7 +396,6 @@ class S3ObjectStorage(
 
         (S3 allows multiple ongoing multi-part uploads.)
         """
-
         try:
             uploads_info = await asyncio.to_thread(
                 self._client.list_multipart_uploads,
@@ -434,7 +413,6 @@ class S3ObjectStorage(
 
     async def _assert_no_multipart_upload(self, *, bucket_id: str, object_id: str):
         """Ensure that there are no active multi-part uploads for the given object."""
-
         upload_ids = await self._list_multipart_upload_for_object(
             bucket_id=bucket_id, object_id=object_id
         )
@@ -457,7 +435,6 @@ class S3ObjectStorage(
         By default, also verifies that this upload is the only upload active for
         that file. Otherwise, raises MultipleActiveUploadsError.
         """
-
         upload_ids = await self._list_multipart_upload_for_object(
             bucket_id=bucket_id, object_id=object_id
         )
@@ -477,7 +454,6 @@ class S3ObjectStorage(
 
     async def _init_multipart_upload(self, *, bucket_id: str, object_id: str) -> str:
         """Initiates a mulipart upload procedure. Returns the upload ID."""
-
         await self._assert_no_multipart_upload(bucket_id=bucket_id, object_id=object_id)
 
         try:
@@ -507,7 +483,6 @@ class S3ObjectStorage(
         Please note: the part number must be a non-zero, positive integer and parts
         should be uploaded in sequence.
         """
-
         if not 0 < part_number <= self.MAX_FILE_PART_NUMBER:
             raise ValueError(
                 "The part number must be a non-zero positive integer"
@@ -546,7 +521,6 @@ class S3ObjectStorage(
         object_id: str,
     ) -> dict:
         """Get information on parts uploaded as part of the specified multi-part upload."""
-
         await self._assert_multipart_upload_exists(
             upload_id=upload_id, bucket_id=bucket_id, object_id=object_id
         )
@@ -585,7 +559,6 @@ class S3ObjectStorage(
         anticipated_part_size: Optional[int] = None,
     ) -> None:
         """Check size and quantity of parts"""
-
         # check the part quantity:
         parts = parts_info.get("Parts")
         if parts is None or len(parts) == 0:
@@ -666,7 +639,6 @@ class S3ObjectStorage(
         """Abort a multipart upload with the specified ID. All uploaded content is
         deleted.
         """
-
         await self._assert_multipart_upload_exists(
             upload_id=upload_id,
             bucket_id=bucket_id,
@@ -729,7 +701,6 @@ class S3ObjectStorage(
         This ensures that exactly the specified number of parts exist and that all parts
         (except the last one) have the specified size.
         """
-
         parts_info = await self._get_parts_info(
             upload_id=upload_id,
             bucket_id=bucket_id,
@@ -775,7 +746,6 @@ class S3ObjectStorage(
         the specified ID (`object_id`) from bucket with the specified id (`bucket_id`).
         You may also specify a custom expiry duration in seconds (`expires_after`).
         """
-
         await self._assert_object_exists(bucket_id=bucket_id, object_id=object_id)
 
         try:
@@ -793,10 +763,7 @@ class S3ObjectStorage(
         return presigned_url
 
     async def _get_object_size(self, *, bucket_id: str, object_id: str) -> int:
-        """
-        Returns the size of an object in bytes.
-        """
-
+        """Returns the size of an object in bytes."""
         await self._assert_object_exists(bucket_id=bucket_id, object_id=object_id)
 
         object_metadata = await self._get_object_metadata(
@@ -814,9 +781,7 @@ class S3ObjectStorage(
     async def _get_object_metadata(
         self, *, bucket_id: str, object_id: str
     ) -> dict[str, Any]:
-        """
-        Returns object metadata without downloading the actual object.
-        """
+        """Returns object metadata without downloading the actual object."""
         try:
             metadata = await asyncio.to_thread(
                 self._client.head_object,
@@ -871,7 +836,6 @@ class S3ObjectStorage(
         """Delete an object with the specified id (`object_id`) in the bucket with the
         specified id (`bucket_id`).
         """
-
         await self._assert_object_exists(bucket_id=bucket_id, object_id=object_id)
 
         try:

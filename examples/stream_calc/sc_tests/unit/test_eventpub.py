@@ -17,12 +17,12 @@
 """Testing the `translators.eventpub` module."""
 
 import pytest
+
+from hexkit.providers.testing.eventpub import InMemEventPublisher
 from stream_calc.translators.eventpub import (
     EventResultEmitter,
     EventResultEmitterConfig,
 )
-
-from hexkit.providers.testing.eventpub import InMemEventPublisher
 
 
 @pytest.mark.asyncio

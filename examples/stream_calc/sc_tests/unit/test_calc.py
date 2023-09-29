@@ -20,6 +20,7 @@ from typing import Union
 from unittest.mock import AsyncMock
 
 import pytest
+
 from stream_calc.core.calc import StreamCalculator
 
 

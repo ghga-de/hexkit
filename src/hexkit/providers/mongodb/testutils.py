@@ -18,8 +18,9 @@
 
 Please note, only use for testing purposes.
 """
+from collections.abc import Generator
 from dataclasses import dataclass
-from typing import Generator, Optional, Union
+from typing import Optional, Union
 
 import pytest
 from pymongo import MongoClient
@@ -66,7 +67,6 @@ class MongoDbFixture:
 
 def config_from_mongodb_container(container: MongoDbContainer) -> MongoDbConfig:
     """Prepares a MongoDbConfig from an instance of a MongoDbContainer container."""
-
     db_connection_str = container.get_connection_url()
     return MongoDbConfig(db_connection_str=db_connection_str, db_name="test")
 
@@ -76,7 +76,6 @@ def mongodb_fixture_function() -> Generator[MongoDbFixture, None, None]:
 
     **Do not call directly** Instead, use get_mongodb_fixture()
     """
-
     with MongoDbContainer(image="mongo:6.0.3") as mongodb:
         config = config_from_mongodb_container(mongodb)
         dao_factory = MongoDbDaoFactory(config=config)

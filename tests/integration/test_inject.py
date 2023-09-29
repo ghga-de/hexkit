@@ -44,7 +44,6 @@ async def test_context_constructor_with_decl_container():
     Test the context constructor together with the `DeclarativeContainer` from the
     `dependency_injector` framework.
     """
-
     foo = "bar"
 
     class Container(dependency_injector.containers.DeclarativeContainer):
@@ -75,10 +74,7 @@ async def test_context_constructor_with_decl_container():
     ],
 )
 async def test_container_base(provides, constructor, has_context: bool):
-    """
-    Test the ContainerBase and its contextual setup and teardown functionality.
-    """
-
+    """Test the ContainerBase and its contextual setup and teardown functionality."""
     foo = "bar"
 
     class Container(ContainerBase):
@@ -99,7 +95,8 @@ async def test_container_base(provides, constructor, has_context: bool):
 @pytest.mark.asyncio
 async def test_container_base_sync_resouce():
     """Make sure that using a non async Resource with the ContainerBase results in an
-    exception."""
+    exception.
+    """
 
     class Container(ContainerBase):
         test = dependency_injector.providers.Resource(ValidSyncResource, "bar")
@@ -138,24 +135,26 @@ async def test_configurator(load_config: bool):
 
     class SyncConfigConsumer:
         """A class that consumes an entire ExampleConfig instance (and not just
-        individual parameters)."""
+        individual parameters).
+        """
 
         def __init__(self, *, config: ExampleConfig):
             """Takes an ExampleConfig instance and checks their values against the
-            expectation."""
-
+            expectation.
+            """
             self.config = config
 
     class AsyncConfigConsumer(SyncConfigConsumer):
         """A class that consumes an entire ExampleConfig instance (and not just
-        individual parameters). Is constucted using an async context manager."""
+        individual parameters). Is constucted using an async context manager.
+        """
 
         @classmethod
         @asynccontextmanager
         async def construct(cls, *, config: ExampleConfig):
             """A constructor with setup and teardown logic.
-            Just there so that we can use the container as an async context manager."""
-
+            Just there so that we can use the container as an async context manager.
+            """
             yield cls(config=config)
 
     class Container(ContainerBase):

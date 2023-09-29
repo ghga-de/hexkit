@@ -16,6 +16,7 @@
 
 """Protocol for interacting with S3-like Object Storages."""
 
+# ruff: noqa: PLR0913
 
 import re
 from abc import ABC, abstractmethod
@@ -28,16 +29,15 @@ DEFAULT_URL_EXPIRATION_PERIOD = 24 * 60 * 60  # default expiration time 24 hours
 
 class PresignedPostURL(NamedTuple):
     """Container for presigned POST URLs along with additional metadata fields that
-    should be attached as body data when sending the POST request."""
+    should be attached as body data when sending the POST request.
+    """
 
     url: str
     fields: dict[str, str]
 
 
 class ObjectStorageProtocol(ABC):
-    """
-    Protocol for interacting with S3-like Object Storages.
-    """
+    """Protocol for interacting with S3-like Object Storages."""
 
     # constants for multipart uploads:
     # (shall not be changed by provider implementations)
@@ -51,7 +51,6 @@ class ObjectStorageProtocol(ABC):
         """Check whether a bucket with the specified ID (`bucket_id`) exists.
         Returns `True` if it exists and `False` otherwise.
         """
-
         self._validate_bucket_id(bucket_id)
         return await self._does_bucket_exist(bucket_id)
 
@@ -60,7 +59,6 @@ class ObjectStorageProtocol(ABC):
         Create a bucket (= a structure that can hold multiple file objects) with the
         specified unique ID.
         """
-
         self._validate_bucket_id(bucket_id)
         await self._create_bucket(bucket_id)
 
@@ -73,14 +71,11 @@ class ObjectStorageProtocol(ABC):
         will be deleted, if False (the default) a BucketNotEmptyError will be raised if
         the bucket is not empty.
         """
-
         self._validate_bucket_id(bucket_id)
         await self._delete_bucket(bucket_id, delete_content=delete_content)
 
     async def list_all_object_ids(self, bucket_id: str) -> list[str]:
-        """
-        Retrieve a list of IDs for all objects currently present in the specified bucket
-        """
+        """Retrieve a list of IDs for all objects currently present in the specified bucket"""
         self._validate_bucket_id(bucket_id)
         return await self._list_all_object_ids(bucket_id=bucket_id)
 
@@ -97,7 +92,6 @@ class ObjectStorageProtocol(ABC):
         You may also specify a custom expiry duration in seconds (`expires_after`) and
         a maximum size (bytes) for uploads (`max_upload_size`).
         """
-
         self._validate_bucket_id(bucket_id)
         self._validate_object_id(object_id)
         return await self._get_object_upload_url(
@@ -114,7 +108,6 @@ class ObjectStorageProtocol(ABC):
         object_id: str,
     ) -> str:
         """Initiates a multipart upload procedure. Returns the upload ID."""
-
         self._validate_bucket_id(bucket_id)
         self._validate_object_id(object_id)
         return await self._init_multipart_upload(
@@ -136,7 +129,6 @@ class ObjectStorageProtocol(ABC):
         Please note: the part number must be a non-zero, positive integer and parts
         should be uploaded in sequence.
         """
-
         self._validate_bucket_id(bucket_id)
         self._validate_object_id(object_id)
         return await self._get_part_upload_url(
@@ -157,7 +149,6 @@ class ObjectStorageProtocol(ABC):
         """Cancel a multipart upload with the specified ID. All uploaded content is
         deleted.
         """
-
         self._validate_bucket_id(bucket_id)
         self._validate_object_id(object_id)
         await self._abort_multipart_upload(
@@ -180,7 +171,6 @@ class ObjectStorageProtocol(ABC):
         This ensures that exactly the specified number of parts exist and that all parts
         (except the last one) have the specified size.
         """
-
         self._validate_bucket_id(bucket_id)
         self._validate_object_id(object_id)
         await self._complete_multipart_upload(
@@ -198,7 +188,6 @@ class ObjectStorageProtocol(ABC):
         the specified ID (`object_id`) from bucket with the specified id (`bucket_id`).
         You may also specify a custom expiry duration in seconds (`expires_after`).
         """
-
         self._validate_bucket_id(bucket_id)
         self._validate_object_id(object_id)
         return await self._get_object_download_url(
@@ -213,7 +202,6 @@ class ObjectStorageProtocol(ABC):
         may be provided to check the objects content.
         Returns `True` if checks succeed and `False` otherwise.
         """
-
         self._validate_bucket_id(bucket_id)
         self._validate_object_id(object_id)
         return await self._does_object_exist(
@@ -221,10 +209,7 @@ class ObjectStorageProtocol(ABC):
         )
 
     async def get_object_size(self, *, bucket_id: str, object_id: str) -> int:
-        """
-        Returns the size of an object in bytes.
-        """
-
+        """Returns the size of an object in bytes."""
         self._validate_bucket_id(bucket_id)
         self._validate_object_id(object_id)
         return await self._get_object_size(bucket_id=bucket_id, object_id=object_id)
@@ -240,7 +225,6 @@ class ObjectStorageProtocol(ABC):
         """Copy an object from one bucket (`source_bucket_id` and `source_object_id`) to
         another bucket (`dest_bucket_id` and `dest_object_id`).
         """
-
         self._validate_bucket_id(source_bucket_id)
         self._validate_object_id(source_object_id)
         self._validate_bucket_id(dest_bucket_id)
@@ -256,7 +240,6 @@ class ObjectStorageProtocol(ABC):
         """Delete an object with the specified id (`object_id`) in the bucket with the
         specified id (`bucket_id`).
         """
-
         self._validate_bucket_id(bucket_id)
         self._validate_object_id(object_id)
         await self._delete_object(bucket_id=bucket_id, object_id=object_id)
@@ -601,7 +584,8 @@ class ObjectStorageProtocol(ABC):
 
     class MultiPartUploadAlreadyExistsError(MultiPartUploadError):
         """Thrown when trying to create a multipart upload for an object for which another
-        upload is already active."""
+        upload is already active.
+        """
 
         def __init__(self, bucket_id: str, object_id: str):
             message = (

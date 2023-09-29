@@ -15,7 +15,10 @@
 #
 
 """Protocol for creating Data Access Objects to perform CRUD (plus find) interactions
-with the database."""
+with the database.
+"""
+
+# ruff: noqa: PLR0913
 
 import typing
 from abc import ABC, abstractmethod
@@ -72,7 +75,8 @@ class InvalidFindMappingError(FindError):
 
 class MultipleHitsFoundError(FindError):
     """Raised when a DAO find operation did result in multiple hits while only a
-    single hit was expected."""
+    single hit was expected.
+    """
 
     def __init__(self, *, mapping: Mapping[str, str]):
         message = (
@@ -84,7 +88,8 @@ class MultipleHitsFoundError(FindError):
 
 class NoHitsFoundError(FindError):
     """Raised when a DAO find operation did result in no hits while a
-    single hit was expected."""
+    single hit was expected.
+    """
 
     def __init__(self, *, mapping: Mapping[str, str]):
         message = (
@@ -259,7 +264,6 @@ async def uuid4_id_generator() -> AsyncGenerator[str, None]:
     This is an AsyncGenerator to be compliant with the id_generator requirements of the
     DaoFactoryProtocol.
     """
-
     while True:
         yield str(uuid4())
 
@@ -274,7 +278,8 @@ class DaoFactoryProtocol(ABC):
 
     class CreationModelInvalidError(ValueError):
         """Raised when the DtoCreationModel was invalid in relation to the main
-        DTO model."""
+        DTO model.
+        """
 
     class IndexFieldsInvalidError(ValueError):
         """Raised when providing an invalid list of fields to index."""
@@ -282,8 +287,8 @@ class DaoFactoryProtocol(ABC):
     @classmethod
     def _validate_dto_model_id(cls, *, dto_model: type[Dto], id_field: str) -> None:
         """Checks whether the dto_model contains the expected id_field.
-        Raises IdFieldNotFoundError otherwise."""
-
+        Raises IdFieldNotFoundError otherwise.
+        """
         if id_field not in dto_model.schema()["properties"]:
             raise cls.IdFieldNotFoundError()
 
@@ -296,8 +301,8 @@ class DaoFactoryProtocol(ABC):
         id_field: str,
     ) -> None:
         """Checks that the dto_creation_model has the same fields as the dto_model
-        except missing the ID. Raises CreationModelInvalidError otherwise."""
-
+        except missing the ID. Raises CreationModelInvalidError otherwise.
+        """
         if dto_creation_model is None:
             return
 
@@ -318,8 +323,8 @@ class DaoFactoryProtocol(ABC):
         fields_to_index: Optional[Collection[str]],
     ) -> None:
         """Checks that all provided fields are present in the dto_model.
-        Raises IndexFieldsInvalidError otherwise."""
-
+        Raises IndexFieldsInvalidError otherwise.
+        """
         if fields_to_index is None:
             return
 
@@ -403,7 +408,6 @@ class DaoFactoryProtocol(ABC):
             self.IdFieldNotFoundError:
                 Raised when the dto_model did not contain the expected id_field.
         """
-
         self._validate_dto_model_id(dto_model=dto_model, id_field=id_field)
 
         self._validate_dto_creation_model(
@@ -470,5 +474,6 @@ class DaoFactoryProtocol(ABC):
         id_generator: AsyncGenerator[str, None],
     ) -> Union[DaoSurrogateId[Dto, DtoCreation], DaoNaturalId[Dto]]:
         """*To be implemented by the provider. Input validation is done outside of this
-        method.*"""
+        method.*
+        """
         ...

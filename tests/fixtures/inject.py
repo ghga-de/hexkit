@@ -24,9 +24,7 @@ import dependency_injector.resources
 
 
 class ValidResource(dependency_injector.resources.AsyncResource):
-    """
-    An example of an AsyncResource as defined by the `dependency_injector` framework.
-    """
+    """An example of an AsyncResource as defined by the `dependency_injector` framework."""
 
     class Resource:
         """Returned upon executing the `init` method."""
@@ -41,13 +39,12 @@ class ValidResource(dependency_injector.resources.AsyncResource):
         return self.Resource(foo=foo)
 
     async def shutdown(self, resource: Resource) -> None:  # type: ignore
+        """Cleanup async resource"""
         resource.in_context = False
 
 
 class ValidSyncResource(dependency_injector.resources.Resource):
-    """
-    An example of an ordinary Resource as defined by the `dependency_injector` framework.
-    """
+    """An example of an ordinary Resource as defined by the `dependency_injector` framework."""
 
     class Resource:
         """Returned upon executing the `init` method."""
@@ -62,6 +59,7 @@ class ValidSyncResource(dependency_injector.resources.Resource):
         return self.Resource(foo=foo)
 
     def shutdown(self, resource: Resource) -> None:  # type: ignore
+        """Cleanup async resource"""
         resource.in_context = False
 
 

@@ -19,6 +19,6 @@ and associated utilities.
 """
 
 # shortcuts:
-from hexkit.providers.s3.provider import S3Config, S3ObjectStorage  # noqa: F401
+from hexkit.providers.s3.provider import S3Config, S3ObjectStorage
 
 __all__ = ["S3Config", "S3ObjectStorage"]

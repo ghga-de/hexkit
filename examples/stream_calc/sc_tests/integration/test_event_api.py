@@ -27,11 +27,11 @@ from typing import NamedTuple
 
 import pytest
 from kafka import KafkaConsumer, KafkaProducer
-from stream_calc.config import Config
-from stream_calc.main import main
 from testcontainers.kafka import KafkaContainer
 
 from hexkit.custom_types import JsonObject
+from stream_calc.config import Config
+from stream_calc.main import main
 
 DEFAULT_CONFIG = Config()
 

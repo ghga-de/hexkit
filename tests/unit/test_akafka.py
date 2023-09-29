@@ -177,7 +177,7 @@ async def test_kafka_event_subscriber(
         assert callable(cc_kwargs["value_deserializer"])
 
         # consume one event:
-        with pytest.raises(exception) if exception else nullcontext():  # type: ignore
+        with pytest.raises(exception) if exception else nullcontext():
             await event_subscriber.run(forever=False)
 
     # check if producer was correctly started and stopped:

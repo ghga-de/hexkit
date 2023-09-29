@@ -19,10 +19,11 @@
 Please note, only use for testing purposes.
 """
 import json
+from collections.abc import AsyncGenerator, Sequence
 from contextlib import asynccontextmanager
 from dataclasses import dataclass
 from functools import partial
-from typing import AsyncGenerator, Optional, Sequence, Union
+from typing import Optional, Union
 
 import pytest_asyncio
 from aiokafka import AIOKafkaConsumer, TopicPartition
@@ -75,8 +76,8 @@ class ValidationError(RuntimeError):
         details: str,
     ):
         """Initialize the error with information on the recorded and
-        expected_events."""
-
+        expected_events.
+        """
         event_log = (
             " Events recorded: "
             + ", ".join([str(event) for event in recorded_events])
@@ -96,8 +97,8 @@ def check_recorded_events(
     recorded_events: Sequence[RecordedEvent], expected_events: Sequence[ExpectedEvent]
 ):
     """Check a sequence of recorded events against a sequence of expected events.
-    Raises ValidationError in case of mismatches."""
-
+    Raises ValidationError in case of mismatches.
+    """
     get_detailed_error = partial(
         ValidationError,
         recorded_events=recorded_events,
@@ -130,18 +131,21 @@ def check_recorded_events(
 
 class EventRecorder:
     """Instances of this class can look at at specific topic and check for expected
-    events occurring with a specified event key."""
+    events occurring with a specified event key.
+    """
 
     class NotStartedError(RuntimeError):
         """Raised when the recording has not been started yet but is required for the
-        requested action."""
+        requested action.
+        """
 
         def __init__(self):
             super().__init__("Event recording has not been started yet.")
 
     class InProgressError(RuntimeError):
         """Raised when the recording is still in progress but need to be stopped for
-        the rested action."""
+        the rested action.
+        """
 
         def __init__(self):
             super().__init__(
@@ -155,7 +159,6 @@ class EventRecorder:
         topic: Ascii,
     ):
         """Initialize with connection details."""
-
         self._kafka_servers = kafka_servers
         self._topic = topic
 
@@ -164,8 +167,8 @@ class EventRecorder:
 
     def _assert_recording_stopped(self) -> None:
         """Assert that the recording has been stopped. Raises an InProgressError or a
-        NotStartedError otherwise."""
-
+        NotStartedError otherwise.
+        """
         if self._recorded_events is None:
             if self._starting_offsets is None:
                 raise self.NotStartedError()
@@ -174,7 +177,6 @@ class EventRecorder:
     @property
     def recorded_events(self) -> Sequence[RecordedEvent]:
         """The recorded events. Only available after the recording has been stopped."""
-
         self._assert_recording_stopped()
         return self._recorded_events  # type: ignore
 
@@ -183,8 +185,8 @@ class EventRecorder:
     ) -> dict[str, int]:
         """Returns a dictionary where the keys are partition IDs and the values are the
         current offsets in the corresponding partitions for the provided consumer.
-        The provided consumer instance must have been started."""
-
+        The provided consumer instance must have been started.
+        """
         topic_partitions = [
             topic_partition
             for topic_partition in consumer.assignment()
@@ -209,7 +211,6 @@ class EventRecorder:
                 have been started.
 
         """
-
         if self._starting_offsets is None:
             raise self.NotStartedError()
 
@@ -221,7 +222,6 @@ class EventRecorder:
 
     def _get_consumer(self) -> AIOKafkaConsumer:
         """Get an AIOKafkaConsumer."""
-
         return AIOKafkaConsumer(
             self._topic,
             bootstrap_servers=",".join(self._kafka_servers),
@@ -239,7 +239,6 @@ class EventRecorder:
         since the starting offset. Thereby, sum over all partitions. This does not
         change the offset. The provided consumer instance must have been started.
         """
-
         if self._starting_offsets is None:
             raise self.NotStartedError()
 
@@ -260,16 +259,16 @@ class EventRecorder:
     @staticmethod
     async def _consume_event(*, consumer: AIOKafkaConsumer) -> ConsumerEvent:
         """Consume a single event from a consumer instance and return it. The provided
-        consumer instance must have been started."""
-
+        consumer instance must have been started.
+        """
         return await consumer.__anext__()
 
     async def _get_events_since_start(
         self, *, consumer: AIOKafkaConsumer
     ) -> list[RecordedEvent]:
         """Consume events since the starting offset. The provided consumer instance must
-        have been started."""
-
+        have been started.
+        """
         event_count = await self._count_events_since_start(consumer=consumer)
 
         # consume all the available events (but no more, as this would lead to infinite
@@ -290,7 +289,6 @@ class EventRecorder:
 
     async def start_recording(self) -> None:
         """Start looking for the expected events from now on."""
-
         if self._starting_offsets is not None:
             raise RuntimeError(
                 "Recording has already been started. Cannot restart. Please define a"
@@ -307,7 +305,6 @@ class EventRecorder:
 
     async def stop_recording(self) -> None:
         """Stop recording and collect the recorded events"""
-
         if self._starting_offsets is None:
             raise self.NotStartedError()
 
@@ -323,14 +320,13 @@ class EventRecorder:
 
     async def __aenter__(self) -> "EventRecorder":
         """Start recording when entering the context block."""
-
         await self.start_recording()
         return self
 
     async def __aexit__(self, error_type, error_val, error_tb):
         """Stop recording and check the recorded events agains the expectation when
-        exiting the context block."""
-
+        exiting the context block.
+        """
         await self.stop_recording()
 
 
@@ -345,7 +341,6 @@ class KafkaFixture:
         publisher: KafkaEventPublisher,
     ):
         """Initialize with connection details and a ready-to-use publisher."""
-
         self.config = config
         self.kafka_servers = kafka_servers
         self.publisher = publisher
@@ -354,7 +349,6 @@ class KafkaFixture:
         self, *, payload: JsonObject, type_: Ascii, topic: Ascii, key: Ascii = "test"
     ) -> None:
         """A convenience method to publish a test event."""
-
         await self.publisher.publish(payload=payload, type_=type_, key=key, topic=topic)
 
     def record_events(self, *, in_topic: Ascii) -> EventRecorder:
@@ -362,7 +356,6 @@ class KafkaFixture:
         record events in the specified topic upon __aenter__ and stops the recording
         upon __aexit__.
         """
-
         return EventRecorder(kafka_servers=self.kafka_servers, topic=in_topic)
 
     def delete_topics(self, topics: Optional[Union[str, list[str]]] = None):
@@ -370,7 +363,6 @@ class KafkaFixture:
         Delete given topic(s) from Kafka broker. When no topics are specified,
         all existing topics will be deleted.
         """
-
         admin_client = KafkaAdminClient(bootstrap_servers=self.kafka_servers)
         all_topics = admin_client.list_topics()
         if topics is None:
@@ -398,7 +390,6 @@ class KafkaFixture:
         (on __aenter__) and check that they match the specified sequence of expected
         events (on __aexit__).
         """
-
         async with self.record_events(in_topic=in_topic) as event_recorder:
             yield event_recorder
 
@@ -412,7 +403,6 @@ async def kafka_fixture_function() -> AsyncGenerator[KafkaFixture, None]:
 
     **Do not call directly** Instead, use get_kafka_fixture()
     """
-
     with KafkaContainer(image="confluentinc/cp-kafka:5.4.9-1-deb8") as kafka:
         kafka_servers = [kafka.get_bootstrap_server()]
         config = KafkaConfig(

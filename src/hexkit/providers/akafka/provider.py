@@ -107,7 +107,6 @@ class KafkaProducerCompatible(Protocol):
             value_serializer:
                 Function to serialize the values into bytes.
         """
-
         ...
 
     async def start(self):
@@ -184,7 +183,6 @@ class KafkaEventPublisher(EventPublisherProtocol):
             key (str): The event type. ASCII characters only.
             topic (str): The event type. ASCII characters only.
         """
-
         event_headers = [("type", type_.encode("ascii"))]
 
         await self._producer.send_and_wait(
@@ -217,7 +215,7 @@ KCC = TypeVar("KCC")
 class KafkaConsumerCompatible(Protocol):
     """A python duck type protocol describing an AIOKafkaConsumer or equivalent."""
 
-    def __init__(
+    def __init__(  # noqa: PLR0913
         self,
         *topics: Ascii,
         bootstrap_servers: str,
@@ -245,7 +243,6 @@ class KafkaConsumerCompatible(Protocol):
             value_serializer:
                 Function to deserialize the values into strings.
         """
-
         ...
 
     async def start(self) -> None:
@@ -290,7 +287,6 @@ class KafkaEventSubscriber(InboundProviderBase):
             kafka_consumer_cls:
                 Overwrite the used Kafka consumer class. Only intended for unit testing.
         """
-
         client_id = generate_client_id(
             service_name=config.service_name, instance_id=config.service_instance_id
         )
@@ -328,7 +324,6 @@ class KafkaEventSubscriber(InboundProviderBase):
                 type annotation) and an application-specific port
                 (according to the triple hexagonal architecture).
         """
-
         self._consumer = consumer
         self._translator = translator
         self._types_whitelist = translator.types_of_interest
@@ -376,7 +371,6 @@ class KafkaEventSubscriber(InboundProviderBase):
         However, you can set `forever` to `False` to make it return after handling one
         event.
         """
-
         if forever:
             async for event in self._consumer:
                 await self._consume_event(event)

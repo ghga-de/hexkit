@@ -19,7 +19,10 @@ They correspond to the `EventPublisherProtocol` and `EventSubscriberProtocol`,
 respectively.
 """
 
-from .provider import KafkaEventPublisher  # noqa: F401
-from .provider import KafkaConfig, KafkaEventSubscriber
+from .provider import (
+    KafkaConfig,
+    KafkaEventPublisher,
+    KafkaEventSubscriber,
+)
 
 __all__ = ["KafkaEventPublisher", "KafkaEventSubscriber", "KafkaConfig"]

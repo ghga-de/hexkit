@@ -17,7 +17,7 @@
 
 import os
 from pathlib import Path
-from typing import Any, Callable, Dict, Final, Optional
+from typing import Any, Callable, Final, Optional
 
 import yaml
 from pydantic import BaseSettings
@@ -77,7 +77,7 @@ def get_default_config_yaml(prefix: str) -> Optional[Path]:
 
 def yaml_settings_factory(
     config_yaml: Optional[Path] = None,
-) -> Callable[[BaseSettings], Dict[str, Any]]:
+) -> Callable[[BaseSettings], dict[str, Any]]:
     """
     A factory of source methods for pydantic's BaseSettings Config that load
     settings from a yaml file.
@@ -89,12 +89,12 @@ def yaml_settings_factory(
 
     def yaml_settings(  # pylint: disable=unused-argument
         settings: BaseSettings,
-    ) -> Dict[str, Any]:
-        """source method for loading pydantic BaseSettings from a yaml file"""
+    ) -> dict[str, Any]:
+        """Source method for loading pydantic BaseSettings from a yaml file"""
         if config_yaml is None:
             return {}
 
-        with open(config_yaml, "r", encoding="utf8") as yaml_file:
+        with open(config_yaml, encoding="utf8") as yaml_file:
             return yaml.safe_load(yaml_file)
 
     return yaml_settings
@@ -136,7 +136,6 @@ def config_from_yaml(
             settings (BaseSettings):
                 A pydantic BaseSettings class to be modified.
         """
-
         # check if settings inherits from pydantic BaseSettings:
         if not issubclass(settings, BaseSettings):
             raise TypeError(
@@ -153,13 +152,11 @@ def config_from_yaml(
                 config_yaml (str, optional):
                     Path to a config yaml. Overwrites the default location.
             """
-
             # get default path if config_yaml not specified:
             if config_yaml is None:
                 config_yaml = get_default_config_yaml(prefix)
-            else:
-                if not config_yaml.is_file():
-                    raise ConfigYamlDoesNotExist(path=config_yaml)
+            elif not config_yaml.is_file():
+                raise ConfigYamlDoesNotExist(path=config_yaml)
 
             class ModSettings(settings):
                 """Modifies the orginal Settings class provided by the user"""
@@ -181,7 +178,7 @@ def config_from_yaml(
                         env_settings,
                         file_secret_settings,
                     ):
-                        """add custom yaml source"""
+                        """Add custom yaml source"""
                         return (
                             init_settings,
                             env_settings,

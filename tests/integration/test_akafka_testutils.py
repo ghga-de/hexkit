@@ -15,18 +15,18 @@
 #
 
 """Testing of the Kafka testutils."""
-from typing import Sequence
+from collections.abc import Sequence
 
 import pytest
 from kafka import KafkaAdminClient
 
 from hexkit.providers.akafka import KafkaConfig, KafkaEventPublisher
-from hexkit.providers.akafka.testutils import kafka_fixture  # noqa: F401
 from hexkit.providers.akafka.testutils import (
     ExpectedEvent,
     KafkaFixture,
     RecordedEvent,
     ValidationError,
+    kafka_fixture,  # noqa: F401
 )
 
 
@@ -83,7 +83,6 @@ async def test_event_recorder(
     kafka_fixture: KafkaFixture,  # noqa: F811
 ):
     """Test event recording using the EventRecorder class."""
-
     topic = "test_topic"
 
     config = KafkaConfig(
@@ -112,7 +111,6 @@ async def test_expect_events_happy(
     """Test successful validation of recorded events with the expect_events method of
     the KafkaFixture.
     """
-
     expected_events = [
         ExpectedEvent(
             payload={"test_content": "Hello"}, type_="test_hello", key="test_key"
@@ -219,7 +217,6 @@ async def test_expect_events_mismatch(
     the methods `start_recording` and `stop_and_check` so that we can nicely locate
     where the ValidationError is thrown.
     """
-
     expected_events = [
         ExpectedEvent(
             payload={"test_content": "Hello"}, type_="test_hello", key="test_key"

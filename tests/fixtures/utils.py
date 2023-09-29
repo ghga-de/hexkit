@@ -31,5 +31,5 @@ TEST_FILE_PATHS = [
 
 def read_yaml(path: Path) -> dict:
     """Read yaml file and return content as dict."""
-    with open(path, "r", encoding="UTF-8") as file:
+    with open(path, encoding="UTF-8") as file:
         return yaml.safe_load(file)

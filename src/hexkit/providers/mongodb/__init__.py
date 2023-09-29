@@ -18,6 +18,6 @@
 and associated utilities.
 """
 
-from .provider import MongoDbConfig, MongoDbDaoFactory  # noqa: F401
+from .provider import MongoDbConfig, MongoDbDaoFactory
 
 __all__ = ["MongoDbConfig", "MongoDbDaoFactory"]

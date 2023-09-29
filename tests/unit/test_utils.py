@@ -52,7 +52,7 @@ def test_calc_part_size(
     preferred_part_size: int, file_size: int, expected_part_size: int
 ):
     """Test code to dynamically adapt part size"""
-    with pytest.raises(ValueError) if file_size > 5 * TiB else nullcontext():  # type: ignore
+    with pytest.raises(ValueError) if file_size > 5 * TiB else nullcontext():
         adapted_part_size = calc_part_size(
             preferred_part_size=preferred_part_size, file_size=file_size
         )
@@ -88,13 +88,11 @@ class ExampleModel(BaseModel):
 @pytest.mark.parametrize("fields", ({"param_a"}, {"param_a", "param_b"}))
 def test_validate_fields_in_model_happy(fields: Collection[str]):
     """Test validate_fields_in_model with valid parameters."""
-
     validate_fields_in_model(model=ExampleModel, fields=fields)
 
 
 @pytest.mark.parametrize("fields", ({"param_c"}, {"param_a", "param_c"}))
 def test_validate_fields_in_model_error(fields: Collection[str]):
     """Test validate_fields_in_model with invalid parameters."""
-
     with pytest.raises(FieldNotInModelError):
         validate_fields_in_model(model=ExampleModel, fields=fields)
