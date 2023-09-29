@@ -113,7 +113,9 @@ class MongoDbDaoBase(ABC, Generic[Dto]):
         Raises:
             ResourceNotFoundError: when resource with the specified id_ was not found
         """
-        document = await self._collection.find_one({"_id": id_}, session=self._session)
+        document = await self._collection.find_one(  # type: ignore[attr-defined]
+            {"_id": id_}, session=self._session
+        )
 
         if document is None:
             raise ResourceNotFoundError(id_=id_)
@@ -133,7 +135,7 @@ class MongoDbDaoBase(ABC, Generic[Dto]):
                 when resource with the id specified in the dto was not found
         """
         document = self._dto_to_document(dto)
-        result = await self._collection.replace_one(
+        result = await self._collection.replace_one(  # type: ignore[attr-defined]
             {"_id": document["_id"]}, document, session=self._session
         )
 
@@ -152,7 +154,9 @@ class MongoDbDaoBase(ABC, Generic[Dto]):
         Raises:
             ResourceNotFoundError: when resource with the specified id_ was not found
         """
-        result = await self._collection.delete_one({"_id": id_}, session=self._session)
+        result = await self._collection.delete_one(  # type: ignore[attr-defined]
+            {"_id": id_}, session=self._session
+        )
 
         if result.deleted_count == 0:
             raise ResourceNotFoundError(id_=id_)
@@ -226,7 +230,9 @@ class MongoDbDaoBase(ABC, Generic[Dto]):
             mapping = dict(mapping)
             mapping["_id"] = mapping.pop(self._id_field)
 
-        cursor = self._collection.find(filter=mapping, session=self._session)
+        cursor = self._collection.find(  # type: ignore[attr-defined]
+            filter=mapping, session=self._session
+        )
 
         async for document in cursor:
             yield self._document_to_dto(document)
@@ -262,9 +268,9 @@ class MongoDbDaoSurrogateId(MongoDbDaoBase[Dto], Generic[Dto, DtoCreation_contra
         dto_model: type[Dto],
         dto_creation_model: type[DtoCreation_contra],
         id_field: str,
-        collection: AsyncIOMotorCollection,
+        collection: AsyncIOMotorCollection,  # type: ignore[valid-type]
         id_generator: AsyncGenerator[str, None],
-        session: Optional[AsyncIOMotorClientSession] = None,
+        session: Optional[AsyncIOMotorClientSession] = None,  # type: ignore[valid-type]
     ):
         """Initialize the DAO.
 
@@ -317,7 +323,9 @@ class MongoDbDaoSurrogateId(MongoDbDaoBase[Dto], Generic[Dto, DtoCreation_contra
         full_dto = self._dto_model(**data)
 
         document = self._dto_to_document(full_dto)
-        await self._collection.insert_one(document, session=self._session)
+        await self._collection.insert_one(  # type: ignore[attr-defined]
+            document, session=self._session
+        )
 
         return full_dto
 
@@ -351,7 +359,9 @@ class MongoDbDaoNaturalId(MongoDbDaoBase[Dto]):
                 when a resource with the ID specified in the dto does already exist.
         """
         document = self._dto_to_document(dto)
-        await self._collection.insert_one(document, session=self._session)
+        await self._collection.insert_one(  # type: ignore[attr-defined]
+            document, session=self._session
+        )
 
     async def upsert(self, dto: Dto) -> None:
         """Update the provided resource if it already exists, create it otherwise.
@@ -362,7 +372,7 @@ class MongoDbDaoNaturalId(MongoDbDaoBase[Dto]):
                 resource ID.
         """
         document = self._dto_to_document(dto)
-        await self._collection.replace_one(
+        await self._collection.replace_one(  # type: ignore[attr-defined]
             {"_id": document["_id"]}, document, session=self._session, upsert=True
         )
 

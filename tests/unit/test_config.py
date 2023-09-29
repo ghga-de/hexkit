@@ -51,7 +51,7 @@ def test_config_from_env():
         config = config_constructor()
 
     # compare to expected content:
-    expected = BasicConfig(**env_var_fixture.env_vars)
+    expected = BasicConfig(**env_var_fixture.env_vars)  # type: ignore
     assert config.dict() == expected
 
 

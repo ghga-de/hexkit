@@ -73,6 +73,11 @@ class FakeDaoFactory(DaoFactoryProtocol):
         """*To be implemented by the provider. Input validation is done outside of this
         method.*
         """
+        ...
+
+        """*To be implemented by the provider. Input validation is done outside of this
+        method.*"""
+
         raise NotImplementedError()
 
 
