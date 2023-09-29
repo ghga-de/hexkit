@@ -66,14 +66,14 @@ class FileObject(BaseModel):
 
     # pylint: disable=no-self-argument
     @validator("content", always=True)
-    def read_content(self, _, values):
+    def read_content(cls, _, values):  # noqa: N805
         """Read in the file content."""
         with open(values["file_path"], "rb") as file:
             return file.read()
 
     # pylint: disable=no-self-argument
     @validator("md5", always=True)
-    def calc_md5_from_content(self, _, values):
+    def calc_md5_from_content(cls, _, values):  # noqa: N805
         """Calculate md5 based on the content."""
         return calc_md5(values["content"])
 
