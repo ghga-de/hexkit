@@ -19,10 +19,12 @@ Dockerfile
 config_schema.json
 example_config.yaml
 LICENSE
+pyproject.toml
 README.md
-setup.py
-setup.cfg
+requirements-dev.in
 requirements-dev.txt
+requirements.txt
 
 .description.md
 .design.md
+.pre-commit-config.yaml

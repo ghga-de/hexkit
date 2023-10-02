@@ -23,6 +23,8 @@ scripts/update_config_docs.py
 scripts/update_template_files.py
 scripts/update_openapi_docs.py
 scripts/update_readme.py
+scripts/update_lock.py
+scripts/update_hook_revs.py
 scripts/README.md
 
 .github/workflows/check_config_docs.yaml
@@ -36,18 +38,14 @@ scripts/README.md
 example_data/README.md
 
 .editorconfig
-.flake8
 .gitattributes
 .gitignore
-.pre-commit-config.yaml
-.pylintrc
 .mypy.ini
+.ruff.toml
 pytest.ini
 
 LICENSE
-requirements.txt
-requirements-dev-common.txt
-setup.py
+requirements-dev-common.in
 
 .readme_template.md
 readme_generation.md

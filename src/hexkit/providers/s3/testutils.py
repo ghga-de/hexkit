@@ -18,16 +18,20 @@
 
 Please note, only use for testing purposes.
 """
+
+# ruff: noqa: PLR0913
+
 import hashlib
 import os
+from collections.abc import Generator
 from contextlib import contextmanager
 from pathlib import Path
 from tempfile import NamedTemporaryFile
-from typing import Generator, List, Optional
+from typing import Optional
 
 import pytest
 import requests
-from pydantic import BaseModel, validator
+from pydantic import BaseModel, SecretStr, validator
 from testcontainers.localstack import LocalStackContainer
 
 from hexkit.custom_types import PytestScope
@@ -47,11 +51,8 @@ TIMEOUT = 30
 
 
 def calc_md5(content: bytes) -> str:
-    """
-    Calc the md5 checksum for the specified bytes.
-    """
-
-    return hashlib.md5(content).hexdigest()  # nosec
+    """Calc the md5 checksum for the specified bytes."""
+    return hashlib.md5(content, usedforsecurity=False).hexdigest()  # nosec
 
 
 class FileObject(BaseModel):
@@ -65,17 +66,15 @@ class FileObject(BaseModel):
 
     # pylint: disable=no-self-argument
     @validator("content", always=True)
-    def read_content(cls, _, values):
+    def read_content(cls, _, values):  # noqa: N805
         """Read in the file content."""
-
         with open(values["file_path"], "rb") as file:
             return file.read()
 
     # pylint: disable=no-self-argument
     @validator("md5", always=True)
-    def calc_md5_from_content(cls, _, values):
+    def calc_md5_from_content(cls, _, values):  # noqa: N805
         """Calculate md5 based on the content."""
-
         return calc_md5(values["content"])
 
 
@@ -106,7 +105,6 @@ class S3Fixture:
 
     async def populate_buckets(self, buckets: list[str]):
         """Populate the storage with buckets."""
-
         await populate_storage(
             self.storage, bucket_fixtures=buckets, object_fixtures=[]
         )
@@ -115,7 +113,6 @@ class S3Fixture:
 
     async def populate_file_objects(self, file_objects: list[FileObject]):
         """Populate the storage with file objects."""
-
         await populate_storage(
             self.storage, bucket_fixtures=[], object_fixtures=file_objects
         )
@@ -126,7 +123,6 @@ def s3_fixture_function() -> Generator[S3Fixture, None, None]:
 
     **Do not call directly** Instead, use get_s3_fixture()
     """
-
     with LocalStackContainer(image="localstack/localstack:0.14.5").with_services(
         "s3"
     ) as localstack:
@@ -151,7 +147,6 @@ def temp_file_object(
     size: int = 5 * MEBIBYTE,
 ) -> Generator[FileObject, None, None]:
     """Generates a file object with the specified size in bytes."""
-
     chunk_size = 1024
     chunk = b"\0" * chunk_size
     current_size = 0
@@ -172,14 +167,12 @@ def temp_file_object(
 @pytest.fixture
 def file_fixture():
     """A fixture that provides a temporary file."""
-
     with temp_file_object() as temp_file:
         yield temp_file
 
 
 def upload_file(presigned_url: PresignedPostURL, file_path: Path, file_md5: str):
     """Uploads the test file to the specified URL"""
-
     with open(file_path, "rb") as test_file:
         files = {"file": (str(file_path), test_file)}
         headers = {"ContentMD5": file_md5}
@@ -195,8 +188,8 @@ def upload_file(presigned_url: PresignedPostURL, file_path: Path, file_md5: str)
 
 def check_part_size(file_path: Path, anticipated_size: int) -> None:
     """Check if the anticipated part size can be used to upload the specified file
-    using the maximum number of file parts. Raises an exception otherwise."""
-
+    using the maximum number of file parts. Raises an exception otherwise.
+    """
     file_size = os.path.getsize(file_path)
     if file_size / anticipated_size > ObjectStorageProtocol.MAX_FILE_PART_NUMBER:
         raise RuntimeError(
@@ -217,7 +210,6 @@ async def upload_part(
     part_number: int = 1,
 ):
     """Upload the specified content as part to an initialized multipart upload."""
-
     upload_url = await storage_dao.get_part_upload_url(
         upload_id=upload_id,
         bucket_id=bucket_id,
@@ -241,7 +233,6 @@ async def upload_part_of_size(
     Generate a bytes object of the specified size and uploads the part to an initialized
     multipart upload.
     """
-
     content = b"\0" * size
     await upload_part(
         storage_dao=storage_dao,
@@ -255,7 +246,6 @@ async def upload_part_of_size(
 
 def upload_part_via_url(*, url: str, size: int):
     """Upload a file part of given size using the given URL."""
-
     content = b"\0" * size
     response = requests.put(url, data=content, timeout=TIMEOUT)
     response.raise_for_status()
@@ -269,7 +259,6 @@ async def multipart_upload_file(
     part_size: int = ObjectStorageProtocol.DEFAULT_PART_SIZE,
 ) -> None:
     """Uploads the test file to the specified URL"""
-
     check_part_size(file_path=file_path, anticipated_size=part_size)
 
     print(f" - initiate multipart upload for test object {object_id}")
@@ -306,24 +295,22 @@ async def multipart_upload_file(
 
 def download_and_check_test_file(presigned_url: str, expected_md5: str):
     """Download the test file from the specified URL and check its integrity (md5)."""
-
     response = requests.get(presigned_url, timeout=TIMEOUT)
     response.raise_for_status()
 
     observed_md5 = calc_md5(response.content)
 
-    assert (  # nosec
+    assert (  # noqa: S101
         observed_md5 == expected_md5
     ), "downloaded file has unexpected md5 checksum"
 
 
 async def populate_storage(
     storage: ObjectStorageProtocol,
-    bucket_fixtures: List[str],
-    object_fixtures: List[FileObject],
+    bucket_fixtures: list[str],
+    object_fixtures: list[FileObject],
 ):
     """Populate Storage with object and bucket fixtures"""
-
     for bucket_fixture in bucket_fixtures:
         await storage.create_bucket(bucket_fixture)
 
@@ -344,18 +331,16 @@ async def populate_storage(
 
 def config_from_localstack_container(container: LocalStackContainer) -> S3Config:
     """Prepares a S3Config from an instance of a localstack test container."""
-
     s3_endpoint_url = container.get_url()
-    return S3Config(  # nosec
+    return S3Config(  # type: ignore[call-arg]
         s3_endpoint_url=s3_endpoint_url,
         s3_access_key_id="test",
-        s3_secret_access_key="test",
+        s3_secret_access_key=SecretStr("test"),
     )
 
 
 async def get_initialized_upload(s3_fixture_: S3Fixture):
     """Initialize a new empty multipart upload."""
-
     bucket_id = "mybucketwithupload001"
     object_id = "myobjecttobeuploaded001"
 
@@ -370,7 +355,6 @@ async def get_initialized_upload(s3_fixture_: S3Fixture):
 
 async def prepare_non_completed_upload(s3_fixture_: S3Fixture):
     """Prepare an upload that has not been marked as completed, yet."""
-
     upload_id, bucket_id, object_id = await get_initialized_upload(s3_fixture_)
 
     with temp_file_object() as file:
@@ -399,17 +383,14 @@ async def typical_workflow(
     use_multipart_upload: bool = True,
     part_size: int = ObjectStorageProtocol.DEFAULT_PART_SIZE,
 ):
-    """
-    Run a typical workflow of basic object operations using a S3 service.
-    """
-
+    """Run a typical workflow of basic object operations using a S3 service."""
     print("Run a workflow for testing basic object operations using a S3 service:")
 
     print(f" - create new bucket {bucket1_id}")
     await storage_client.create_bucket(bucket1_id)
 
     print(" - confirm bucket creation")
-    assert await storage_client.does_bucket_exist(bucket1_id)  # nosec
+    assert await storage_client.does_bucket_exist(bucket1_id)  # noqa: S101
 
     if use_multipart_upload:
         await multipart_upload_file(
@@ -429,7 +410,7 @@ async def typical_workflow(
         )
 
     print(" - confirm object upload")
-    assert await storage_client.does_object_exist(  # nosec
+    assert await storage_client.does_object_exist(  # noqa: S101
         bucket_id=bucket1_id, object_id=object_id
     )
 
@@ -452,10 +433,10 @@ async def typical_workflow(
     await storage_client.delete_object(bucket_id=bucket1_id, object_id=object_id)
 
     print(" - confirm move")
-    assert not await storage_client.does_object_exist(  # nosec
+    assert not await storage_client.does_object_exist(  # noqa: S101
         bucket_id=bucket1_id, object_id=object_id
     )
-    assert await storage_client.does_object_exist(  # nosec
+    assert await storage_client.does_object_exist(  # noqa: S101
         bucket_id=bucket2_id, object_id=object_id
     )
 
@@ -463,7 +444,7 @@ async def typical_workflow(
     await storage_client.delete_bucket(bucket1_id)
 
     print(" - confirm bucket deletion")
-    assert not await storage_client.does_bucket_exist(bucket1_id)  # nosec
+    assert not await storage_client.does_bucket_exist(bucket1_id)  # noqa: S101
 
     print(f" - download object from bucket {bucket2_id}")
     download_url2 = await storage_client.get_object_download_url(

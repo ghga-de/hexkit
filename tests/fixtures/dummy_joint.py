@@ -15,8 +15,8 @@
 #
 """Simple joint fixture for testing the event loop fixture override's impact"""
 
+from collections.abc import AsyncGenerator
 from dataclasses import dataclass
-from typing import AsyncGenerator
 
 import pytest_asyncio
 
@@ -35,4 +35,5 @@ s3_fixture = get_s3_fixture("module")
 
 @pytest_asyncio.fixture(scope="module")
 async def joint_fixture(s3_fixture) -> AsyncGenerator[JointFixture, None]:
+    """Simple joint fixture only wrapping S3 fixture"""
     yield JointFixture(s3_fixture=s3_fixture)

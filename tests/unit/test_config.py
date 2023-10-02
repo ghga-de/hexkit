@@ -26,8 +26,8 @@ from tests.fixtures.config import BasicConfig, config_yamls, env_var_sets
 
 def test_config_from_yaml():
     """Test that config yaml correctly overwrites
-    default parameters"""
-
+    default parameters
+    """
     config_yaml = config_yamls["basic"]
 
     # update config class with content of config yaml
@@ -41,7 +41,8 @@ def test_config_from_yaml():
 
 def test_config_from_env():
     """Test that env vars correctly overwrites
-    default parameters"""
+    default parameters
+    """
     env_var_fixture = env_var_sets["basic_complete"]
     with env_var_fixture:
         # update config class with content of config yaml and
@@ -50,14 +51,14 @@ def test_config_from_env():
         config = config_constructor()
 
     # compare to expected content:
-    expected = BasicConfig(**env_var_fixture.env_vars)
+    expected = BasicConfig(**env_var_fixture.env_vars)  # type: ignore
     assert config.dict() == expected
 
 
 def test_config_from_yaml_and_env():
     """Test that config yaml and env vars correctly overwrites
-    default parameters"""
-
+    default parameters
+    """
     config_yaml = config_yamls["basic"]
     env_var_fixture = env_var_sets["basic_partly"]
 
@@ -76,7 +77,6 @@ def test_config_from_yaml_and_env():
 @pytest.mark.parametrize("cwd", [True, False])
 def test_config_from_default_yaml(cwd: bool):
     """Test that default config yaml from home is correctly read"""
-
     base_dir = Path(os.getcwd()) if cwd else Path.home()
     prefix = "test_prefix"
 
@@ -99,8 +99,8 @@ def test_config_from_default_yaml(cwd: bool):
 
 def test_config_from_default_yaml_via_env():
     """Test that default config yaml specified via an environment variable is correctly
-    read"""
-
+    read
+    """
     prefix = "test_prefix"
 
     # set env var:

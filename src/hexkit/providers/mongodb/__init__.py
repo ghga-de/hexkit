@@ -14,12 +14,10 @@
 # limitations under the License.
 #
 
-"""Apache Kafka-specific event publisher and subscriber provider.
-They correspond to the `EventPublisherProtocol` and `EventSubscriberProtocol`,
-respectively.
+"""Subpackage containing a MongoDB-based provider implementing the DaoFactoryProtocol
+and associated utilities.
 """
 
-from .provider import KafkaEventPublisher  # noqa: F401
-from .provider import KafkaConfig, KafkaEventSubscriber
+from .provider import MongoDbConfig, MongoDbDaoFactory
 
-__all__ = ["KafkaEventPublisher", "KafkaEventSubscriber", "KafkaConfig"]
+__all__ = ["MongoDbConfig", "MongoDbDaoFactory"]

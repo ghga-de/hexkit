@@ -53,12 +53,10 @@ class InMemEventStore:
 
     def post(self, topic: str, event: Event) -> None:
         """Queue a new event to a topic."""
-
         self.topics[topic].append(event)
 
     def get(self, topic) -> Event:
         """Get the next element in the queue corresponding to the specified topic."""
-
         try:
             return self.topics[topic].popleft()
         except IndexError as error:
@@ -73,9 +71,7 @@ class InMemEventPublisher(EventPublisherProtocol):
     """
 
     def __init__(self, event_store: Optional[InMemEventStore] = None):
-        """
-        Initialize with existing event_store or let it create a new one.
-        """
+        """Initialize with existing event_store or let it create a new one."""
         self.event_store = event_store if event_store else InMemEventStore()
 
     async def _publish_validated(

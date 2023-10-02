@@ -28,7 +28,6 @@ from hexkit.providers.testing.eventpub import (
 @pytest.mark.asyncio
 async def test_in_mem_publisher():
     """Test the InMemEventPublisher testing utilities."""
-
     type_ = "test_type"
     key = "test_key"
     topic = "test_topic"

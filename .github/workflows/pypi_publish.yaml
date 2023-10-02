@@ -18,7 +18,7 @@ jobs:
 
       - name: Verify Package Version vs Tag Version
         run: |
-          PKG_VER="$(python setup.py -V)"
+          PKG_VER="$(grep -oP 'version = "\K[^"]+' pyproject.toml)"
           TAG_VER="${GITHUB_REF##*/}"
           echo "Package version is $PKG_VER" >&2
           echo "Tag version is $TAG_VER" >&2

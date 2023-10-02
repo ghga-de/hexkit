@@ -71,12 +71,8 @@ class FakeDaoFactory(DaoFactoryProtocol):
         id_generator: AsyncGenerator[str, None],
     ) -> Union[DaoSurrogateId[Dto, DtoCreation], DaoNaturalId[Dto]]:
         """*To be implemented by the provider. Input validation is done outside of this
-        method.*"""
-        ...
-
-        """*To be implemented by the provider. Input validation is done outside of this
-        method.*"""
-
+        method.*
+        """
         raise NotImplementedError()
 
 
@@ -89,7 +85,8 @@ class ExampleCreationDto(BaseModel):
 
 class ExampleInvalidCreationDto(ExampleCreationDto):
     """Example for a DTO creation model that is invalid because it contains a
-    parameter that the main DTO model is missing."""
+    parameter that the main DTO model is missing.
+    """
 
     unexpected_param: str
 
@@ -103,7 +100,6 @@ class ExampleDto(ExampleCreationDto):
 @pytest.mark.asyncio
 async def test_get_dto_valid():
     """Use the get_dao method of the DaoFactory with valid parameters."""
-
     dao_factory = FakeDaoFactory()
 
     with pytest.raises(NotImplementedError):
@@ -119,8 +115,8 @@ async def test_get_dto_valid():
 @pytest.mark.asyncio
 async def test_get_dto_invalid_id():
     """Use the get_dao method of the DaoFactory with an invalid ID that is not found in
-    the provided DTO model."""
-
+    the provided DTO model.
+    """
     dao_factory = FakeDaoFactory()
 
     with pytest.raises(DaoFactoryProtocol.IdFieldNotFoundError):
@@ -136,7 +132,6 @@ async def test_get_dto_invalid_id():
 )
 async def test_get_dto_invalid_creation_model(dto_creation_model: type[BaseModel]):
     """Use the get_dao method of the DaoFactory with an invalid creation model."""
-
     dao_factory = FakeDaoFactory()
 
     with pytest.raises(DaoFactoryProtocol.CreationModelInvalidError):
@@ -151,7 +146,6 @@ async def test_get_dto_invalid_creation_model(dto_creation_model: type[BaseModel
 @pytest.mark.asyncio
 async def test_get_dto_invalid_fields_to_index():
     """Use the get_dao method of the DaoFactory with an invalid list of fields to index."""
-
     dao_factory = FakeDaoFactory()
 
     with pytest.raises(DaoFactoryProtocol.IndexFieldsInvalidError):

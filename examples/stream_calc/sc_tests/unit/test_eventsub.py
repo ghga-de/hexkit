@@ -19,12 +19,12 @@
 from unittest.mock import AsyncMock
 
 import pytest
+
+from hexkit.custom_types import JsonObject
 from stream_calc.translators.eventsub import (
     EventProblemReceiver,
     EventProblemReceiverConfig,
 )
-
-from hexkit.custom_types import JsonObject
 
 
 @pytest.mark.asyncio

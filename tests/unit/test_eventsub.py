@@ -59,7 +59,7 @@ async def test_ascii_val(type_, topic, exception):
     event_submitter = FakeSubscriber()
 
     # publish event using the provider:
-    with pytest.raises(exception) if exception else nullcontext():  # type: ignore
+    with pytest.raises(exception) if exception else nullcontext():
         await event_submitter.consume(
             payload=payload,
             type_=type_,

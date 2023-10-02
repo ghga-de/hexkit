@@ -20,7 +20,7 @@ import os
 import re
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Any, Dict
+from typing import Any
 
 from pydantic import BaseModel, BaseSettings
 
@@ -37,7 +37,7 @@ class ConfigYamlFixture(BaseModel):
     """Container for config yaml fixtures"""
 
     path: Path
-    content: Dict[str, Any]
+    content: dict[str, Any]
 
 
 def read_config_yaml(name: str):
@@ -61,14 +61,16 @@ class EnvVarFixture:
     """Container for env var set. This class can be used
     as context manager so that the env vars are available
     within a with block but, after leaving the with block,
-    the original enviroment is restored."""
+    the original enviroment is restored.
+    """
 
-    env_vars: Dict[str, str]
+    env_vars: dict[str, str]
     prefix: str = DEFAULT_CONFIG_PREFIX
 
     def __enter__(self):
-        """makes a backup of the environment and set the
-        env_vars"""
+        """Makes a backup of the environment and set the
+        env_vars
+        """
         # pylint: disable=attribute-defined-outside-init
         self.env_backup = copy.deepcopy(os.environ)
 
@@ -76,11 +78,12 @@ class EnvVarFixture:
             os.environ[f"{self.prefix}_{name}"] = value
 
     def __exit__(self, exc_type, exc_val, exc_tb):
-        """restores the original environment"""
-        os.environ = self.env_backup
+        """Restores the original environment"""
+        os.environ.clear()
+        os.environ = self.env_backup  # noqa: B003
 
 
-def read_env_var_sets() -> Dict[str, EnvVarFixture]:
+def read_env_var_sets() -> dict[str, EnvVarFixture]:
     """Read env vars sets and return a list of EnvVarFixtures."""
     env_var_dict = utils.read_yaml(BASE_DIR / "config_env_var_sets.yaml")
 

@@ -13,11 +13,10 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-"""
-Test S3 storage DAO
-"""
+"""Test S3 storage DAO"""
 
-from typing import ContextManager, Optional
+from contextlib import AbstractContextManager
+from typing import Optional
 
 import pytest
 from black import nullcontext
@@ -48,7 +47,6 @@ async def test_empty_buckets(
     s3_fixture: S3Fixture, file_fixture: FileObject  # noqa: F811
 ):
     """Make sure the empty_buckets function works"""
-
     # bucket should not exist in the beginning:
     bucket_id = file_fixture.bucket_id
     assert not await s3_fixture.storage.does_bucket_exist(bucket_id=bucket_id)
@@ -78,10 +76,7 @@ async def test_typical_workflow(
     use_multipart_upload: bool,
     s3_fixture: S3Fixture,  # noqa: F811
 ):
-    """
-    Tests all methods of the ObjectStorageS3 DAO implementation in one long workflow.
-    """
-
+    """Tests all methods of the ObjectStorageS3 DAO implementation in one long workflow."""
     with temp_file_object(size=20 * MEBIBYTE) as file:
         await typical_workflow(
             storage_client=s3_fixture.storage,
@@ -100,7 +95,6 @@ async def test_object_existence_checks(
     file_fixture: FileObject,  # noqa: F811
 ):
     """Test if the checks for existence of objects work correctly."""
-
     # object should not exist in the beginning:
     assert not await s3_fixture.storage.does_object_exist(
         bucket_id=file_fixture.bucket_id, object_id=file_fixture.object_id
@@ -121,7 +115,6 @@ async def test_get_object_size(
     file_fixture: FileObject,  # noqa: F811
 ):
     """Test if the get_object_size method returns the correct size."""
-
     expected_size = len(file_fixture.content)
 
     await s3_fixture.populate_file_objects([file_fixture])
@@ -138,7 +131,6 @@ async def test_list_all_object_ids(
     file_fixture: FileObject,  # noqa: F811
 ):
     """Test if listing all object IDs for a bucket works correctly."""
-
     file_fixture2 = file_fixture.copy(deep=True)
     file_fixture2.object_id = "mydefaulttestobject002"
 
@@ -155,7 +147,6 @@ async def test_list_all_object_ids(
 @pytest.mark.asyncio
 async def test_bucket_existence_checks(s3_fixture: S3Fixture):  # noqa: F811
     """Test if the checks for existence of buckets work correctly."""
-
     bucket_id = EXAMPLE_BUCKETS[0]
 
     # bucket should not exist in the beginning:
@@ -176,7 +167,6 @@ async def test_object_and_bucket_collisions(
     Tests whether overwriting (re-creation, re-upload, or copy to existing object)
     fails with the expected error.
     """
-
     await s3_fixture.populate_file_objects([file_fixture])
 
     with pytest.raises(ObjectStorageProtocol.BucketAlreadyExistsError):
@@ -207,7 +197,6 @@ async def test_handling_non_existing_file_and_bucket(
     Tests whether interacting with a non-existing bucket/file object fails with the
     expected result.
     """
-
     non_existing_bucket_id = "mynonexistingbucket001"
     non_existing_object_id = "mynonexistingobject001"
     existing_bucket_id = file_fixture.bucket_id
@@ -278,10 +267,9 @@ async def test_delete_non_empty_bucket(
     file_fixture: FileObject,  # noqa: F811
 ):
     """Test deleting an non-empty bucket."""
-
     await s3_fixture.populate_file_objects([file_fixture])
 
-    with nullcontext() if delete_content else pytest.raises(  # type: ignore
+    with nullcontext() if delete_content else pytest.raises(
         ObjectStorageProtocol.BucketNotEmptyError
     ):
         await s3_fixture.storage.delete_bucket(
@@ -309,7 +297,6 @@ async def test_using_non_existing_upload(
     Makes sure that using a non existing upload_id-bucket_id-object_id combination
     throws the right error.
     """
-
     # prepare a non-completed upload:
     real_upload_id, real_bucket_id, real_object_id = await prepare_non_completed_upload(
         s3_fixture
@@ -319,8 +306,8 @@ async def test_using_non_existing_upload(
     bucket_id = real_bucket_id if bucket_id_correct else "wrong-bucket"
     object_id = real_object_id if object_id_correct else "wrong-object"
 
-    def get_exception_context() -> ContextManager:
-        return pytest.raises(exception) if exception else nullcontext()  # type: ignore
+    def get_exception_context() -> AbstractContextManager:
+        return pytest.raises(exception) if exception else nullcontext()
 
     # call relevant methods from the provider:
     with pytest.raises(exception):
@@ -350,7 +337,6 @@ async def test_invalid_part_number(
     s3_fixture: S3Fixture,  # noqa: F811
 ):
     """Check that invalid part numbers are cached correctly."""
-
     upload_id, bucket_id, object_id = await prepare_non_completed_upload(s3_fixture)
 
     with pytest.raises(exception) if exception else nullcontext():  # type: ignore
@@ -413,10 +399,7 @@ async def test_complete_multipart_upload(
     exception: Optional[Exception],
     s3_fixture: S3Fixture,  # noqa: F811
 ):
-    """
-    Test the complete_multipart_upload method.
-    """
-
+    """Test the complete_multipart_upload method."""
     upload_id, bucket_id, object_id = await get_initialized_upload(s3_fixture)
     for part_idx, part_size in enumerate(part_sizes):
         await upload_part_of_size(
@@ -444,10 +427,7 @@ async def test_abort_multipart_upload(
     empty_upload: bool,
     s3_fixture: S3Fixture,  # noqa: F811
 ):
-    """
-    Test the abort_multipart_upload method.
-    """
-
+    """Test the abort_multipart_upload method."""
     upload_id, bucket_id, object_id = await get_initialized_upload(s3_fixture)
 
     async def upload_part_shortcut(part_number):
@@ -482,10 +462,7 @@ async def test_abort_multipart_upload(
 
 @pytest.mark.asyncio
 async def test_multiple_active_uploads(s3_fixture: S3Fixture):  # noqa: F811
-    """
-    Test that multiple active uploads for the same object are not possible.
-    """
-
+    """Test that multiple active uploads for the same object are not possible."""
     # initialize an upload:
     _, bucket_id, object_id = await get_initialized_upload(s3_fixture)
 
@@ -504,7 +481,6 @@ async def test_handling_multiple_coexisting_uploads(
     Test that the invalid state of multiple uploads coexisting for the same object
     is correctly handled.
     """
-
     # initialize an upload:
     upload1_id, bucket_id, object_id = await get_initialized_upload(s3_fixture)
 
@@ -560,7 +536,6 @@ async def test_handling_multiple_subsequent_uploads(
         2. initiate an upload, upload some parts, complete it, then start another
           upload, uploads some parts, complete it (`abort_first` set to False)
     """
-
     # perform first upload:
     upload1_id, bucket_id, object_id = await get_initialized_upload(s3_fixture)
 

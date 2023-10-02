@@ -15,4 +15,6 @@
 
 """A Toolkit for Building Microservices using the Hexagonal Architecture"""
 
-__version__ = "0.10.2"
+from importlib.metadata import version
+
+__version__ = version(__package__)

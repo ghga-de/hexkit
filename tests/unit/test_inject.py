@@ -56,11 +56,8 @@ from tests.fixtures.inject import (
 async def test_assert_constructable(
     constructable: type[AsyncContextConstructable], does_raises: bool
 ):
-    """
-    Test that assert_constructable can distinguish between
-    """
-
-    with pytest.raises(NotConstructableError) if does_raises else nullcontext():  # type: ignore
+    """Test that assert_constructable can distinguish between"""
+    with pytest.raises(NotConstructableError) if does_raises else nullcontext():
         assert_async_constructable(constructable)
 
 
@@ -85,8 +82,7 @@ async def test_context_constructor_init(
     Test the initialization of a context constructor with valid and invalid
     constructables.
     """
-
-    with pytest.raises(exception) if exception else nullcontext():  # type: ignore
+    with pytest.raises(exception) if exception else nullcontext():
         test = AsyncConstructor(constructable)
 
     if not exception:
@@ -108,12 +104,11 @@ async def test_context_constructor_setup_teardown(
     has_context: bool,
 ):
     """Test whether init and shutdown correctly works with a context constructor."""
-
     foo = "bar"
 
     test = AsyncConstructor(constructable, foo)
 
-    with pytest.raises(exception) if exception else nullcontext():  # type: ignore
+    with pytest.raises(exception) if exception else nullcontext():
         resource = await test.async_()
         assert isinstance(resource, constructable)
         test_instance = await test.init()  # type: ignore
@@ -139,8 +134,8 @@ async def test_context_constructor_setup_teardown(
 )
 def test_get_constructor(provides: type, args, kwargs, constructor_cls: type):
     """Tests whether the `get_constructor` function chooses the correct constructor
-    classes for the given `provides` classes."""
-
+    classes for the given `provides` classes.
+    """
     constructor = get_constructor(provides, *args, **kwargs)
 
     assert isinstance(constructor, constructor_cls)

@@ -17,10 +17,10 @@
 """Translators that target the event publishing protocol."""
 
 from pydantic import BaseSettings
-from stream_calc.ports.problem_receiver import ArithProblemHandlerPort
 
 from hexkit.custom_types import Ascii, JsonObject
 from hexkit.protocols.eventsub import EventSubscriberProtocol
+from stream_calc.ports.problem_receiver import ArithProblemHandlerPort
 
 
 class EventProblemReceiverConfig(BaseSettings):

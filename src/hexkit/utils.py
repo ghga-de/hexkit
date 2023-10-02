@@ -62,7 +62,6 @@ def calc_part_size(*, file_size: int, preferred_part_size: Optional[int] = None)
     Raises:
         ValueError if file size exceeds the maximum of 5 TiB
     """
-
     if preferred_part_size is None:
         preferred_part_size = 8 * 1024**2
 
@@ -91,7 +90,8 @@ def calc_part_size(*, file_size: int, preferred_part_size: Optional[int] = None)
 
 def check_ascii(*str_values: str):
     """Checks that the provided `str_values` are ASCII compatible,
-    raises an exception otherwise."""
+    raises an exception otherwise.
+    """
     for str_value in str_values:
         if not str_value.isascii():
             raise NonAsciiStrError(str_value=str_value)
@@ -103,8 +103,8 @@ def validate_fields_in_model(
     fields: Collection[str],
 ) -> None:
     """Checks that all provided fields are present in the dto_model.
-    Raises IndexFieldsInvalidError otherwise."""
-
+    Raises IndexFieldsInvalidError otherwise.
+    """
     fields_set = set(fields)
     existing_fields_set = set(model.schema()["properties"])
 

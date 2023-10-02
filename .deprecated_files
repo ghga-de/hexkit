@@ -14,3 +14,9 @@ scripts/check_mandatory_and_static_files.py
 scripts/update_static_files.py
 
 docs
+
+setup.py
+setup.cfg
+
+.pylintrc
+.flake8

@@ -55,7 +55,8 @@ class NotConstructableError(TypeError):
 
 class AsyncInitShutdownError(TypeError):
     """Thrown when a container has sync `init_resource` or `shutdown_resource` methods
-    but coroutines are needed."""
+    but coroutines are needed.
+    """
 
 
 def assert_async_constructable(
@@ -68,7 +69,6 @@ def assert_async_constructable(
     not check whether `construct` really returns an awaitable or an async context
     manager.
     """
-
     if not callable(getattr(constructable, "construct", None)):
         raise NotConstructableError(
             "Async(Context)Constructable class must have a callable `construct` attribute."
@@ -77,7 +77,8 @@ def assert_async_constructable(
 
 class AsyncConstructor(dependency_injector.providers.Resource):
     """Maps an Async(Context)Constructable onto the Resource class from the
-    `dependency_injector` framework."""
+    `dependency_injector` framework.
+    """
 
     @staticmethod
     def constructable_to_resource(
@@ -87,7 +88,6 @@ class AsyncConstructor(dependency_injector.providers.Resource):
         Converts an Async(Context)Constructable to an async generator that is compatible
         with the Resource definition of the `dependency_injector` framework.
         """
-
         assert_async_constructable(constructable)
 
         async def resource(*args: Any, **kwargs: Any) -> AsyncIterator[Any]:
@@ -120,7 +120,6 @@ class AsyncConstructor(dependency_injector.providers.Resource):
         **kwargs: dependency_injector.providers.Injection,
     ):
         """Initialize `dependency_injector`'s Resource with an AbstractAsyncContextManager."""
-
         if provides is None:
             super().__init__()
         else:
@@ -130,8 +129,8 @@ class AsyncConstructor(dependency_injector.providers.Resource):
 
 def get_constructor(provides: type, *args, **kwargs):
     """Automatically selects and applies the right constructor for the class given to
-    `provides`."""
-
+    `provides`.
+    """
     constructor_cls: type
 
     try:
@@ -148,11 +147,11 @@ def get_constructor(provides: type, *args, **kwargs):
 
 class CMDynamicContainer(dependency_injector.containers.DynamicContainer):
     """Adds a async context manager interface to the DynamicContainer base class from
-    the `dependency_injector` framework."""
+    the `dependency_injector` framework.
+    """
 
     async def __aenter__(self):
         """Init/setup resources."""
-
         init_future = self.init_resources()
 
         if not inspect.isawaitable(init_future):
@@ -165,7 +164,6 @@ class CMDynamicContainer(dependency_injector.containers.DynamicContainer):
 
     async def __aexit__(self, exc_type, exc_value, exc_trace):
         """Shutdown/teardown resources"""
-
         shutdown_future = self.shutdown_resources()
 
         if not inspect.isawaitable(shutdown_future):
@@ -206,11 +204,11 @@ PydanticConfig = TypeVar("PydanticConfig", bound=BaseSettings)
 
 class Configurator(dependency_injector.providers.Factory, Generic[PydanticConfig]):
     """A configuration constructor that holds configuration parameters using a pydantic
-    model."""
+    model.
+    """
 
     def load_config(self, config: PydanticConfig):
         """Loading config parameters form an pydantic config instance."""
-
         self.override(dependency_injector.providers.Callable(lambda: config))
 
 
@@ -220,6 +218,6 @@ def get_configurator(
     """Initializes a configuration provider.
 
     This helper function is necessary because the __init__ of Providers used by the
-    dependency_injector framework need to always use the same signature."""
-
+    dependency_injector framework need to always use the same signature.
+    """
     return Configurator[PydanticConfig](pydantic_cls)

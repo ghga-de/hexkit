@@ -44,6 +44,8 @@ class ExampleCreationDto(BaseModel):
     field_c: bool
 
     class Config:
+        """Additional config options for model"""
+
         frozen = True
 
 
@@ -56,7 +58,6 @@ class ExampleDto(ExampleCreationDto):
 @pytest.mark.asyncio
 async def test_dao_find_all_with_id(mongodb_fixture: MongoDbFixture):  # noqa: F811
     """Test using the id field as part of the mapping in find_all()"""
-
     dao = await mongodb_fixture.dao_factory.get_dao(
         name="example",
         dto_model=ExampleDto,
@@ -110,7 +111,6 @@ async def test_dao_find_all_without_collection(
     mongodb_fixture: MongoDbFixture,  # noqa: F811
 ):
     """Test calling find_all() when there is no collection."""
-
     dao = await mongodb_fixture.dao_factory.get_dao(
         name="does-not-exist-at-all",
         dto_model=ExampleDto,
@@ -140,8 +140,8 @@ async def test_empty_collections(mongodb_fixture: MongoDbFixture):  # noqa: F811
 @pytest.mark.asyncio
 async def test_dao_happy(mongodb_fixture: MongoDbFixture):  # noqa: F811
     """Test the happy path of performing basic CRUD database interactions using
-    the MongoDbDaoFactory in a surrograte ID setting."""
-
+    the MongoDbDaoFactory in a surrograte ID setting.
+    """
     dao = await mongodb_fixture.dao_factory.get_dao(
         name="example",
         dto_model=ExampleDto,
@@ -205,7 +205,6 @@ async def test_dao_insert_natural_id_happy(
     mongodb_fixture: MongoDbFixture,  # noqa: F811
 ):
     """Tests the happy path of inserting a new resource in a natural ID setting."""
-
     dao = await mongodb_fixture.dao_factory.get_dao(
         name="example",
         dto_model=ExampleDto,
@@ -225,8 +224,8 @@ async def test_dao_upsert_natural_id_happy(
     mongodb_fixture: MongoDbFixture,  # noqa: F811
 ):
     """Tests the happy path of upserting new and existing resources in a natural ID
-    setting."""
-
+    setting.
+    """
     dao = await mongodb_fixture.dao_factory.get_dao(
         name="example",
         dto_model=ExampleDto,
@@ -254,7 +253,6 @@ async def test_dao_get_not_found(
     mongodb_fixture: MongoDbFixture,  # noqa: F811
 ):
     """Tests getting a non existing resource via its ID."""
-
     dao = await mongodb_fixture.dao_factory.get_dao(
         name="example",
         dto_model=ExampleDto,
@@ -270,7 +268,6 @@ async def test_dao_update_not_found(
     mongodb_fixture: MongoDbFixture,  # noqa: F811
 ):
     """Tests updating a non existing resource."""
-
     dao = await mongodb_fixture.dao_factory.get_dao(
         name="example",
         dto_model=ExampleDto,
@@ -290,7 +287,6 @@ async def test_dao_delete_not_found(
     mongodb_fixture: MongoDbFixture,  # noqa: F811
 ):
     """Tests deleting a non existing resource via its ID."""
-
     dao = await mongodb_fixture.dao_factory.get_dao(
         name="example",
         dto_model=ExampleDto,
@@ -306,7 +302,6 @@ async def test_dao_find_invalid_mapping(
     mongodb_fixture: MongoDbFixture,  # noqa: F811
 ):
     """Tests find_one and find_all methods with an invalid mapping."""
-
     dao = await mongodb_fixture.dao_factory.get_dao(
         name="example",
         dto_model=ExampleDto,
@@ -326,7 +321,6 @@ async def test_dao_find_no_hits(
     mongodb_fixture: MongoDbFixture,  # noqa: F811
 ):
     """Tests find_one and find_all methods with a mapping that results in no hits."""
-
     dao = await mongodb_fixture.dao_factory.get_dao(
         name="example",
         dto_model=ExampleDto,
@@ -346,7 +340,6 @@ async def test_dao_find_one_with_multiple_hits(
     mongodb_fixture: MongoDbFixture,  # noqa: F811
 ):
     """Tests find_one with a mapping that results in multiple hits."""
-
     dao = await mongodb_fixture.dao_factory.get_dao(
         name="example",
         dto_model=ExampleDto,
@@ -375,8 +368,8 @@ async def test_custom_id_generator(
         prefix: str, count_offset: int = 1
     ) -> AsyncGenerator[str, None]:
         """A generator that yields IDs by counting upwards und prefixing that counts
-        with a predefined string."""
-
+        with a predefined string.
+        """
         for count in itertools.count(start=count_offset):
             yield f"{prefix}-{count}"
 
