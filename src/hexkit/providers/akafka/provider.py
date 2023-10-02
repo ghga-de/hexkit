@@ -23,9 +23,9 @@ Require dependencies of the `akafka` extra. See the `setup.cfg`.
 
 import json
 import logging
-from contextlib import asynccontextmanager
 import ssl
-from typing import Any, Callable, Protocol, TypeVar, Optional
+from contextlib import asynccontextmanager
+from typing import Any, Callable, Optional, Protocol, TypeVar
 
 from aiokafka import AIOKafkaConsumer, AIOKafkaProducer
 from pydantic import Field
@@ -125,15 +125,16 @@ def generate_ssl_context(config: KafkaConfig) -> Optional[ssl.SSLContext]:
     """
     Generate ssl_context for connecting to Kafka broker via an encrypted SSL connection
     """
-    if config.security_protocol == "SSL":
-        return create_ssl_context(
-            cafile=config.ssl_cafile,  # CA used to sign certificate.
-            # `CARoot` of JKS store container
-            certfile=config.ssl_certfile,  # Signed certificate
-            keyfile=config.ssl_keyfile,  # Private Key file of `certfile` certificate
+    return (
+        create_ssl_context(
+            cafile=config.ssl_cafile,
+            certfile=config.ssl_certfile,
+            keyfile=config.ssl_keyfile,
             password=config.ssl_password,
         )
-    return None
+        if config.security_protocol == "SSL"
+        else None
+    )
 
 
 class KafkaProducerCompatible(Protocol):
@@ -143,6 +144,8 @@ class KafkaProducerCompatible(Protocol):
         self,
         *,
         bootstrap_servers: str,
+        security_protocol: str,
+        ssl_context: Optional[ssl.SSLContext],
         client_id: str,
         key_serializer: Callable[[Any], bytes],
         value_serializer: Callable[[Any], bytes],
@@ -274,6 +277,8 @@ class KafkaConsumerCompatible(Protocol):
         self,
         *topics: Ascii,
         bootstrap_servers: str,
+        security_protocol: str,
+        ssl_context: Optional[ssl.SSLContext],
         client_id: str,
         group_id: str,
         auto_offset_reset: Literal["earliest"],
