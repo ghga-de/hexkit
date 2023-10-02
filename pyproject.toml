@@ -39,7 +39,7 @@ test-s3 = ["hexkit[s3]", "testcontainers >=3.4.1, <4"]
 test-mongodb = ["hexkit[mongodb]", "testcontainers[mongo] >=3.4.1, <4"]
 test = ["hexkit[test-akafka,test-s3,test-mongodb]"]
 
-all = ["hexkit[akafka,s3,mongodb,test]"]
+all = ["hexkit[test]"]
 
 [project.urls]
 Repository = "https://github.com/ghga-de/hexkit"
