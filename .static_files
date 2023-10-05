@@ -25,6 +25,7 @@ scripts/update_openapi_docs.py
 scripts/update_readme.py
 scripts/update_lock.py
 scripts/update_hook_revs.py
+scripts/list_outdated_dependencies.py
 scripts/README.md
 
 .github/workflows/check_config_docs.yaml

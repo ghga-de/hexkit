@@ -13,6 +13,7 @@ repos:
         name: "ensure hooks are up to date"
         language: python
         additional_dependencies:
+          - "packaging"
           - "typer"
         fail_fast: true
         always_run: true

@@ -21,29 +21,22 @@ import sys
 from functools import partial
 from pathlib import Path
 
-from script_utils import cli
+from packaging.requirements import Requirement
+
+from script_utils import cli, lock_deps
 
 REPO_ROOT_DIR = Path(__file__).parent.parent.resolve()
 PRE_COMMIT_CFG_PATH = REPO_ROOT_DIR / ".pre-commit-config.yaml"
 LOCK_FILE_PATH = REPO_ROOT_DIR / "requirements-dev.txt"
 
 
-def inspect_lock() -> dict[str, str]:
-    """Inspect the lock file to get the resolved dependencies"""
-    dependency_pattern = re.compile(r"([^=\s]+)==([^\s]*?)\s")
-    dependencies = {}
+def make_dependency_dict(requirements: list[Requirement]) -> dict[str, str]:
+    """Accept a list of Requirement objects and convert to dict"""
+    processed = {
+        req.name: str(req.specifier).removeprefix("==") for req in requirements
+    }
 
-    # Get the set of dependencies from the requirements-dev.txt lock file
-    with open(LOCK_FILE_PATH, encoding="utf-8") as lock_file:
-        lines = lock_file.readlines()
-
-    for line in lines:
-        match = re.match(dependency_pattern, line)
-        if match:
-            package, version = match.groups()
-            dependencies[package] = version
-
-    return dependencies
+    return processed
 
 
 def get_repl_value(match, dependencies: dict[str, str], outdated_hooks: list[str]):
@@ -121,9 +114,10 @@ def main(check: bool = False):
     outdated. If running without `--check`, update `.pre-commit-config.yaml` as needed.
     """
 
-    dependencies = inspect_lock()
+    dependencies: list[Requirement] = lock_deps.get_lock_file_deps(LOCK_FILE_PATH)
+    dependency_dict: dict[str, str] = make_dependency_dict(dependencies)
     config = get_config()
-    new_config, outdated_hooks = process_config(dependencies, config)
+    new_config, outdated_hooks = process_config(dependency_dict, config)
 
     if config != new_config:
         if check:
