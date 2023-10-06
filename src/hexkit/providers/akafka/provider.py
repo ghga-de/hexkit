@@ -122,9 +122,7 @@ def generate_client_id(*, service_name: str, instance_id: str) -> str:
 
 
 def generate_ssl_context(config: KafkaConfig) -> Optional[ssl.SSLContext]:
-    """
-    Generate ssl_context for connecting to Kafka broker via an encrypted SSL connection
-    """
+    """Generate ssl_context for connecting to Kafka broker via an encrypted SSL connection"""
     return (
         create_ssl_context(
             cafile=config.ssl_cafile,
