@@ -138,7 +138,7 @@ def generate_ssl_context(config: KafkaConfig) -> Optional[ssl.SSLContext]:
 class KafkaProducerCompatible(Protocol):
     """A python duck type protocol describing an AIOKafkaProducer or equivalent."""
 
-    def __init__(
+    def __init__(  # noqa: PLR0913
         self,
         *,
         bootstrap_servers: str,

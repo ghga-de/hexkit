@@ -405,7 +405,7 @@ async def kafka_fixture_function() -> AsyncGenerator[KafkaFixture, None]:
     """
     with KafkaContainer(image="confluentinc/cp-kafka:5.4.9-1-deb8") as kafka:
         kafka_servers = [kafka.get_bootstrap_server()]
-        config = KafkaConfig(
+        config = KafkaConfig(  # type: ignore
             service_name="test_publisher",
             service_instance_id="001",
             kafka_servers=kafka_servers,
