@@ -33,7 +33,7 @@ from hexkit.custom_types import JsonObject
 from stream_calc.config import Config
 from stream_calc.main import main
 
-DEFAULT_CONFIG = Config()
+DEFAULT_CONFIG = Config()  # type: ignore
 
 
 class Event(NamedTuple):
@@ -207,7 +207,7 @@ async def test_receive_calc_publish(cases: list[Case] = deepcopy(CASES)):
 
         # run the stream_calc app:
         # (for each problem separately to avoid running forever)
-        config = Config(kafka_servers=[kafka_server])
+        config = Config(kafka_servers=[kafka_server])  # type: ignore
         for _ in cases:
             await main(config=config, run_forever=False)
 

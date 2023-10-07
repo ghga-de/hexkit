@@ -100,7 +100,7 @@ async def test_event_recorder(
     """Test event recording using the EventRecorder class."""
     topic = "test_topic"
 
-    config = KafkaConfig(
+    config = KafkaConfig(  # type: ignore
         service_name="test_publisher",
         service_instance_id="1",
         kafka_servers=kafka_fixture.kafka_servers,
@@ -142,7 +142,7 @@ async def test_expect_events_happy(
     ]
     topic = "test_topic"
 
-    config = KafkaConfig(
+    config = KafkaConfig(  # type: ignore
         service_name="test_publisher",
         service_instance_id="1",
         kafka_servers=kafka_fixture.kafka_servers,
@@ -240,7 +240,7 @@ async def test_expect_events_mismatch(
     ]
     topic = "test_topic"
 
-    config = KafkaConfig(
+    config = KafkaConfig(  # type: ignore
         service_name="test_publisher",
         service_instance_id="1",
         kafka_servers=kafka_fixture.kafka_servers,

@@ -41,7 +41,7 @@ async def test_kafka_event_publisher(kafka_fixture: KafkaFixture):  # noqa: F811
     key = "test_key"
     topic = "test_topic"
 
-    config = KafkaConfig(
+    config = KafkaConfig(  # type: ignore
         service_name="test_publisher",
         service_instance_id="1",
         kafka_servers=kafka_fixture.kafka_servers,
@@ -79,7 +79,7 @@ async def test_kafka_event_subscriber(kafka_fixture: KafkaFixture):  # noqa: F81
     )
 
     # setup the provider:
-    config = KafkaConfig(
+    config = KafkaConfig(  # type: ignore
         service_name="event_subscriber",
         service_instance_id="1",
         kafka_servers=kafka_fixture.kafka_servers,
