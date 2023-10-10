@@ -20,7 +20,11 @@ from pathlib import Path
 from typing import Any, Callable, Final, Optional
 
 import yaml
-from pydantic_settings import BaseSettings, PydanticBaseSettingsSource
+from pydantic_settings import (
+    BaseSettings,
+    PydanticBaseSettingsSource,
+    SettingsConfigDict,
+)
 
 # Default config prefix:
 DEFAULT_CONFIG_PREFIX: Final = "ghga_services"
@@ -159,7 +163,7 @@ def config_from_yaml(
             class ModSettings(settings):
                 """Modifies the orginal Settings class provided by the user"""
 
-                model_config = {"frozen": True, "env_prefix": f"{prefix}_"}
+                model_config = SettingsConfigDict(frozen=True, env_prefix=f"{prefix}_")
 
                 @classmethod
                 def settings_customise_sources(  # noqa: PLR0913

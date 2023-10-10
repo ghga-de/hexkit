@@ -22,7 +22,7 @@ from datetime import datetime
 from pathlib import Path
 
 import pytest
-from pydantic import BaseModel
+from pydantic import BaseModel, ConfigDict
 
 from hexkit.protocols.dao import (
     InvalidFindMappingError,
@@ -39,14 +39,11 @@ from hexkit.providers.mongodb.testutils import (  # noqa: F401
 class ExampleCreationDto(BaseModel):
     """Example DTO creation model."""
 
+    model_config = ConfigDict(frozen=True)
+
     field_a: str
     field_b: int
     field_c: bool
-
-    class Config:
-        """Additional config options for model"""
-
-        frozen = True
 
 
 class ExampleDto(ExampleCreationDto):
@@ -404,13 +401,11 @@ async def test_complex_models(mongodb_fixture: MongoDbFixture):  # noqa: F811
 
     # a complex model:
     class ComplexModel(BaseModel):
+        model_config = ConfigDict(frozen=True)
         id: str
         some_date: datetime
         some_path: Path
         some_nested_data: ExampleDto
-
-        class Config:
-            frozen = True
 
     dao = await mongodb_fixture.dao_factory.get_dao(
         name="example",
