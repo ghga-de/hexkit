@@ -94,7 +94,7 @@ class MongoDbDaoBase(ABC, Generic[Dto]):
         """Converts a DTO into a representation that is compatible documents for a
         MongoDB Database.
         """
-        document = json.loads(dto.json())
+        document = json.loads(dto.model_dump_json())
         document["_id"] = document.pop(self._id_field)
 
         return document

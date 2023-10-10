@@ -163,7 +163,7 @@ async def test_dao_happy(mongodb_fixture: MongoDbFixture):  # noqa: F811
     assert resource_read == resource_inserted
 
     # update the resource:
-    resource_update = resource_inserted.copy(update={"field_c": False})
+    resource_update = resource_inserted.model_copy(update={"field_c": False})
     await dao.update(resource_update)
 
     # read the updated resource again:
@@ -241,7 +241,7 @@ async def test_dao_upsert_natural_id_happy(
     assert resource == resource_observed
 
     # update the resource:
-    resource_update = resource.copy(update={"field_c": False})
+    resource_update = resource.model_copy(update={"field_c": False})
     await dao.upsert(resource_update)
 
     # check the updated resource:
