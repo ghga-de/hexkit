@@ -1,0 +1,5 @@
+[paths]
+source =
+  src
+  /workspace/src
+  **/lib/python*/site-packages
