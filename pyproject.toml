@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "hexkit"
-version = "0.10.3"
+version = "0.11.0"
 description = "A Toolkit for Building Microservices using the Hexagonal Architecture"
 readme = "README.md"
 authors = [
