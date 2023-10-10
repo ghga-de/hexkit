@@ -118,11 +118,11 @@ def test_config_from_default_yaml_via_env():
 
 def test_error_on_invalid_base_class():
     """Check that an exception is thrown if the class passed to the
-    config decorator does not inherit from pydantic.BaseSettings
+    config decorator does not inherit from pydantic_settings.BaseSettings
     """
 
     class WrongClass:
-        """Not inheriting from pydantic.BaseSettings"""
+        """Not inheriting from pydantic_settings.BaseSettings"""
 
     with pytest.raises(TypeError):
         config_from_yaml()(WrongClass)()

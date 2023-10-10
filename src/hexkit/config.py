@@ -137,7 +137,7 @@ def config_from_yaml(
         # check if settings inherits from pydantic BaseSettings:
         if not issubclass(settings, BaseSettings):
             raise TypeError(
-                "The specified settings class is not a subclass of pydantic.BaseSettings"
+                "The specified settings class is not a subclass of pydantic_settings.BaseSettings"
             )
 
         def constructor_wrapper(
