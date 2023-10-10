@@ -16,7 +16,7 @@
 
 """Translators that target the event publishing protocol."""
 
-from pydantic import BaseSettings
+from pydantic_settings import BaseSettings
 
 from hexkit.custom_types import JsonObject
 from hexkit.protocols.eventpub import EventPublisherProtocol

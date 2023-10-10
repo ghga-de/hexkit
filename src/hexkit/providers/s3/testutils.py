@@ -31,7 +31,7 @@ from typing import Optional
 
 import pytest
 import requests
-from pydantic import BaseModel, SecretStr, validator
+from pydantic import BaseModel, SecretStr, computed_field
 from testcontainers.localstack import LocalStackContainer
 
 from hexkit.custom_types import PytestScope
@@ -61,21 +61,21 @@ class FileObject(BaseModel):
     file_path: Path
     bucket_id: str
     object_id: str
-    content: bytes = b"will be overwritten"
-    md5: str = "will be overwritten"
 
-    # pylint: disable=no-self-argument
-    @validator("content", always=True)
-    def read_content(cls, _, values):  # noqa: N805
-        """Read in the file content."""
-        with open(values["file_path"], "rb") as file:
+    @computed_field  # type: ignore [misc]
+    @property
+    def content(self) -> bytes:
+        """Extract the content from the file at the provided path"""
+        if not self.file_path:
+            return b"will be overwritten"
+        with open(self.file_path, "rb") as file:
             return file.read()
 
-    # pylint: disable=no-self-argument
-    @validator("md5", always=True)
-    def calc_md5_from_content(cls, _, values):  # noqa: N805
-        """Calculate md5 based on the content."""
-        return calc_md5(values["content"])
+    @computed_field  # type: ignore [misc]
+    @property
+    def md5(self) -> str:
+        """Calculate the md5 hash of the content"""
+        return calc_md5(self.content)
 
 
 class S3Fixture:

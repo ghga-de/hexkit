@@ -131,7 +131,7 @@ async def test_list_all_object_ids(
     file_fixture: FileObject,  # noqa: F811
 ):
     """Test if listing all object IDs for a bucket works correctly."""
-    file_fixture2 = file_fixture.copy(deep=True)
+    file_fixture2 = file_fixture.model_copy(deep=True)
     file_fixture2.object_id = "mydefaulttestobject002"
 
     # add file objects to storage

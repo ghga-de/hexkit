@@ -27,7 +27,8 @@ from contextlib import asynccontextmanager
 from typing import Any, Callable, Protocol, TypeVar
 
 from aiokafka import AIOKafkaConsumer, AIOKafkaProducer
-from pydantic import BaseSettings, Field
+from pydantic import Field
+from pydantic_settings import BaseSettings
 
 from hexkit.base import InboundProviderBase
 from hexkit.custom_types import Ascii, JsonObject
@@ -52,12 +53,12 @@ class KafkaConfig(BaseSettings):
 
     service_name: str = Field(
         ...,
-        example="my-cool-special-service",
+        examples=["my-cool-special-service"],
         description="The name of the (micro-)service from which messages are published.",
     )
     service_instance_id: str = Field(
         ...,
-        example="germany-bw-instance-001",
+        examples=["germany-bw-instance-001"],
         description=(
             "A string that uniquely identifies this instance across all instances of"
             + " this service. A globally unique Kafka client ID will be created by"
@@ -66,7 +67,7 @@ class KafkaConfig(BaseSettings):
     )
     kafka_servers: list[str] = Field(
         ...,
-        example=["localhost:9092"],
+        examples=[["localhost:9092"]],
         description="A list of connection strings to connect to Kafka bootstrap servers.",
     )
 

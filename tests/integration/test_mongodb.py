@@ -70,7 +70,9 @@ async def test_dao_find_all_with_id(mongodb_fixture: MongoDbFixture):  # noqa: F
     resource_inserted = await dao.insert(resource_to_create)
 
     assert isinstance(resource_inserted, ExampleDto)
-    assert resource_inserted.dict(exclude={"id"}) == resource_to_create.dict()
+    assert (
+        resource_inserted.model_dump(exclude={"id"}) == resource_to_create.model_dump()
+    )
 
     # retrieve the resource with find_all
     resources_read = [
@@ -154,7 +156,9 @@ async def test_dao_happy(mongodb_fixture: MongoDbFixture):  # noqa: F811
     resource_inserted = await dao.insert(resource_to_create)
 
     assert isinstance(resource_inserted, ExampleDto)
-    assert resource_inserted.dict(exclude={"id"}) == resource_to_create.dict()
+    assert (
+        resource_inserted.model_dump(exclude={"id"}) == resource_to_create.model_dump()
+    )
 
     # read the newly inserted resource:
     resource_read = await dao.get_by_id(resource_inserted.id)

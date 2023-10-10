@@ -22,7 +22,8 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
 
-from pydantic import BaseModel, BaseSettings
+from pydantic import BaseModel
+from pydantic_settings import BaseSettings
 
 from hexkit.config import DEFAULT_CONFIG_PREFIX
 
