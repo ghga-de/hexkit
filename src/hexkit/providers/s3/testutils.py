@@ -67,7 +67,7 @@ class FileObject(BaseModel):
     def content(self) -> bytes:
         """Extract the content from the file at the provided path"""
         if not self.file_path:
-            return b"will be overwritten"
+            raise ValueError("`FileObject.file_path` must not be empty.")
         with open(self.file_path, "rb") as file:
             return file.read()
 

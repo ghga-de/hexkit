@@ -107,8 +107,8 @@ def config_from_yaml(
 ) -> Callable:
     """A factory that returns decorator functions which extends a
     pydantic BaseSettings class to read in parameters from a config yaml.
-    It replaces (or adds) a config settings to the BaseSettings class that configures
-    the priorities for parameter sources as follows (highest Priority first):
+    It replaces (or adds) config settings to the BaseSettings class that configures
+    the priorities for parameter sources as follows (highest priority first):
         - parameters passed using **kwargs
         - environment variables
         - file secrets

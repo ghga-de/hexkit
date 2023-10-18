@@ -91,7 +91,7 @@ class MongoDbDaoBase(ABC, Generic[Dto]):
         return self._dto_model(**document)
 
     def _dto_to_document(self, dto: Dto) -> dict[str, Any]:
-        """Converts a DTO into a representation that is compatible documents for a
+        """Converts a DTO into a representation that is a compatible document for a
         MongoDB Database.
         """
         document = json.loads(dto.model_dump_json())
