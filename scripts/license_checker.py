@@ -15,10 +15,8 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-# pylint: skip-file
-
 """This script checks that the license and license headers
-exists and that they are up to date.
+exist and that they are up to date.
 """
 
 import argparse
@@ -48,6 +46,7 @@ EXCLUDE = [
     "sdist",
     "wheels",
     "pip-wheel-metadata",
+    ".coveragerc",
     ".git",
     ".github",
     ".flake8",
@@ -237,7 +236,7 @@ def normalized_text(text: str, chars_to_trim: list[str] = COMMENT_CHARS) -> str:
 
 
 def format_copyright_template(copyright_template: str, author: str) -> str:
-    """Formats license header by inserting the specified author for every occurence of
+    """Formats license header by inserting the specified author for every occurrence of
     "{author}" in the header template.
     """
     return normalized_text(copyright_template.replace("{author}", author))
@@ -330,7 +329,7 @@ def check_copyright_notice(
     author (str, optional):
         The author that shall be included in the license header.
         It will replace any appearance of "{author}" in the license
-        header. This defaults to an auther info for GHGA.
+        header. This defaults to an author info for GHGA.
 
     """
     # If the global_copyright is already set, check if the current copyright is

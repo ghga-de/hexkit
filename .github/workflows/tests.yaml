@@ -1,11 +1,11 @@
-name: Unit and Integration Tests
+name: Tests
 
 on: push
 
 jobs:
-  unit_and_int_tests:
+  tests:
     runs-on: ubuntu-latest
-    name: Unit and Integration Tests
+    name: Tests
 
     steps:
       - uses: actions/checkout@v3
@@ -13,12 +13,14 @@ jobs:
       - id: common
         uses: ghga-de/gh-action-common@v3
 
-      - name: Run pytest
+      - id: pytest
         run: |
           export ${{ steps.common.outputs.CONFIG_YAML_ENV_VAR_NAME }}="${{ steps.common.outputs.CONFIG_YAML }}"
+
           pytest \
-            --cov="${{ steps.common.outputs.MAIN_SRC_DIR }}" \
-            --cov-report=xml
+            --cov="${{ steps.common.outputs.PACKAGE_NAME }}" \
+            --cov-report=xml \
+            tests
 
       - id: coveralls
         name: Upload coverage to coveralls

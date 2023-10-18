@@ -23,15 +23,12 @@
 import os
 import re
 import subprocess
-from copy import deepcopy
 from pathlib import Path
 from tempfile import TemporaryDirectory
 
-import stringcase
-import tomli
 import tomli_w
 
-from script_utils import cli
+from script_utils import cli, deps
 
 REPO_ROOT_DIR = Path(__file__).parent.parent.resolve()
 
@@ -39,49 +36,6 @@ PYPROJECT_TOML_PATH = REPO_ROOT_DIR / "pyproject.toml"
 DEV_DEPS_PATH = REPO_ROOT_DIR / "requirements-dev.in"
 OUTPUT_LOCK_PATH = REPO_ROOT_DIR / "requirements.txt"
 OUTPUT_DEV_LOCK_PATH = REPO_ROOT_DIR / "requirements-dev.txt"
-
-
-def exclude_from_dependency_list(*, package_name: str, dependencies: list) -> list:
-    """Exclude the specified package from the provided dependency list."""
-
-    return [
-        dependency
-        for dependency in dependencies
-        if not dependency.startswith(package_name)
-    ]
-
-
-def remove_self_dependencies(pyproject: dict) -> dict:
-    """Filter out self dependencies (dependencies of the package on it self) from the
-    dependencies and optional-dependencies in the provided pyproject metadata."""
-
-    if "project" not in pyproject:
-        return pyproject
-
-    modified_pyproject = deepcopy(pyproject)
-
-    project_metadata = modified_pyproject["project"]
-
-    package_name = stringcase.spinalcase(project_metadata.get("name"))
-
-    if not package_name:
-        raise ValueError("The provided project metadata does not contain a name.")
-
-    if "dependencies" in project_metadata:
-        project_metadata["dependencies"] = exclude_from_dependency_list(
-            package_name=package_name, dependencies=project_metadata["dependencies"]
-        )
-
-    if "optional-dependencies" in project_metadata:
-        for group in project_metadata["optional-dependencies"]:
-            project_metadata["optional-dependencies"][
-                group
-            ] = exclude_from_dependency_list(
-                package_name=package_name,
-                dependencies=project_metadata["optional-dependencies"][group],
-            )
-
-    return modified_pyproject
 
 
 def fix_temp_dir_comments(file_path: Path):
@@ -203,10 +157,7 @@ def main(upgrade: bool = False, check: bool = False):
     if check:
         ensure_lock_files_exist()
 
-    with open(PYPROJECT_TOML_PATH, "rb") as pyproject_toml:
-        pyproject = tomli.load(pyproject_toml)
-
-    modified_pyproject = remove_self_dependencies(pyproject)
+    modified_pyproject = deps.get_modified_pyproject(PYPROJECT_TOML_PATH)
 
     extras = (
         "optional-dependencies" in modified_pyproject["project"]

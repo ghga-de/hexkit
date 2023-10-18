@@ -21,7 +21,7 @@ from contextlib import asynccontextmanager
 import dependency_injector.containers
 import dependency_injector.providers
 import pytest
-from pydantic import BaseSettings
+from pydantic_settings import BaseSettings
 
 from hexkit.inject import (
     AsyncConstructor,
@@ -172,5 +172,5 @@ async def test_configurator(load_config: bool):
         async_config_consumer = await container.async_config_consumer()
 
         # Check the consumed values:
-        assert sync_config_consumer.config.dict() == expected_config.dict()
-        assert async_config_consumer.config.dict() == expected_config.dict()
+        assert sync_config_consumer.config.model_dump() == expected_config.model_dump()
+        assert async_config_consumer.config.model_dump() == expected_config.model_dump()

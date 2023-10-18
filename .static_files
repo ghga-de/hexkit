@@ -25,18 +25,20 @@ scripts/update_openapi_docs.py
 scripts/update_readme.py
 scripts/update_lock.py
 scripts/update_hook_revs.py
+scripts/list_outdated_dependencies.py
 scripts/README.md
 
 .github/workflows/check_config_docs.yaml
 .github/workflows/check_template_files.yaml
 .github/workflows/static_code_analysis.yaml
-.github/workflows/unit_and_int_tests.yaml
+.github/workflows/tests.yaml
 .github/workflows/check_openapi_spec.yaml
 .github/workflows/check_readme.yaml
 .github/workflows/cd.yaml
 
 example_data/README.md
 
+.coveragerc
 .editorconfig
 .gitattributes
 .gitignore

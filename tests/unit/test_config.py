@@ -32,11 +32,11 @@ def test_config_from_yaml():
 
     # update config class with content of config yaml
     config_constructor = config_from_yaml()(BasicConfig)
-    config = config_constructor(config_yaml=config_yaml.path)
+    config: BasicConfig = config_constructor(config_yaml=config_yaml.path)
 
     # compare to expected content:
     expected = BasicConfig(**config_yaml.content)
-    assert config.dict() == expected
+    assert config.model_dump() == expected.model_dump()
 
 
 def test_config_from_env():
@@ -48,11 +48,11 @@ def test_config_from_env():
         # update config class with content of config yaml and
         # from the env vars
         config_constructor = config_from_yaml()(BasicConfig)
-        config = config_constructor()
+        config: BasicConfig = config_constructor()
 
     # compare to expected content:
-    expected = BasicConfig(**env_var_fixture.env_vars)  # type: ignore
-    assert config.dict() == expected
+    expected = BasicConfig(**env_var_fixture.env_vars)  # type: ignore [arg-type]
+    assert config.model_dump() == expected.model_dump()
 
 
 def test_config_from_yaml_and_env():
@@ -66,12 +66,12 @@ def test_config_from_yaml_and_env():
         # update config class with content of config yaml and
         # from the env vars
         config_constructor = config_from_yaml()(BasicConfig)
-        config = config_constructor(config_yaml=config_yaml.path)
+        config: BasicConfig = config_constructor(config_yaml=config_yaml.path)
 
     # compare to expected content:
     overwrite_params = {**config_yaml.content, **env_var_fixture.env_vars}
     expected = BasicConfig(**overwrite_params)
-    assert config.dict() == expected
+    assert config.model_dump() == expected.model_dump()
 
 
 @pytest.mark.parametrize("cwd", [True, False])
@@ -87,14 +87,14 @@ def test_config_from_default_yaml(cwd: bool):
 
     # update config class with content of config yaml
     config_constructor = config_from_yaml(prefix=prefix)(BasicConfig)
-    config = config_constructor()
+    config: BasicConfig = config_constructor()
 
     # cleanup default config yaml:
     os.remove(default_yaml_path)
 
     # compare to expected content:
     expected = BasicConfig(**config_yaml.content)
-    assert config.dict() == expected
+    assert config.model_dump() == expected.model_dump()
 
 
 def test_config_from_default_yaml_via_env():
@@ -109,20 +109,20 @@ def test_config_from_default_yaml_via_env():
 
     # update config class with content of config yaml
     config_constructor = config_from_yaml(prefix=prefix)(BasicConfig)
-    config = config_constructor()
+    config: BasicConfig = config_constructor()
 
     # compare to expected content:
     expected = BasicConfig(**config_yaml.content)
-    assert config.dict() == expected
+    assert config.model_dump() == expected.model_dump()
 
 
 def test_error_on_invalid_base_class():
     """Check that an exception is thrown if the class passed to the
-    config decorator does not inherit from pydantic.BaseSettings
+    config decorator does not inherit from pydantic_settings.BaseSettings
     """
 
     class WrongClass:
-        """Not inheriting from pydantic.BaseSettings"""
+        """Not inheriting from pydantic_settings.BaseSettings"""
 
     with pytest.raises(TypeError):
         config_from_yaml()(WrongClass)()

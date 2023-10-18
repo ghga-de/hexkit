@@ -33,7 +33,7 @@ from typing import Any, Callable, Generic, Optional, TypeVar, Union
 
 import dependency_injector.containers
 import dependency_injector.providers
-from pydantic import BaseSettings
+from pydantic_settings import BaseSettings
 
 from hexkit.custom_types import AsyncConstructable, AsyncContextConstructable
 

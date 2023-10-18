@@ -13,6 +13,7 @@ repos:
         name: "ensure hooks are up to date"
         language: python
         additional_dependencies:
+          - "packaging"
           - "typer"
         fail_fast: true
         always_run: true
@@ -50,7 +51,7 @@ repos:
       - id: debug-statements
       - id: debug-statements
   - repo: https://github.com/astral-sh/ruff-pre-commit
-    rev: v0.0.291
+    rev: v0.0.292
     hooks:
       - id: ruff
         args: [--fix, --exit-non-zero-on-fix]

@@ -22,7 +22,7 @@ from datetime import datetime
 from pathlib import Path
 
 import pytest
-from pydantic import BaseModel
+from pydantic import BaseModel, ConfigDict
 
 from hexkit.protocols.dao import (
     InvalidFindMappingError,
@@ -39,14 +39,11 @@ from hexkit.providers.mongodb.testutils import (  # noqa: F401
 class ExampleCreationDto(BaseModel):
     """Example DTO creation model."""
 
+    model_config = ConfigDict(frozen=True)
+
     field_a: str
     field_b: int
     field_c: bool
-
-    class Config:
-        """Additional config options for model"""
-
-        frozen = True
 
 
 class ExampleDto(ExampleCreationDto):
@@ -70,7 +67,9 @@ async def test_dao_find_all_with_id(mongodb_fixture: MongoDbFixture):  # noqa: F
     resource_inserted = await dao.insert(resource_to_create)
 
     assert isinstance(resource_inserted, ExampleDto)
-    assert resource_inserted.dict(exclude={"id"}) == resource_to_create.dict()
+    assert (
+        resource_inserted.model_dump(exclude={"id"}) == resource_to_create.model_dump()
+    )
 
     # retrieve the resource with find_all
     resources_read = [
@@ -154,7 +153,9 @@ async def test_dao_happy(mongodb_fixture: MongoDbFixture):  # noqa: F811
     resource_inserted = await dao.insert(resource_to_create)
 
     assert isinstance(resource_inserted, ExampleDto)
-    assert resource_inserted.dict(exclude={"id"}) == resource_to_create.dict()
+    assert (
+        resource_inserted.model_dump(exclude={"id"}) == resource_to_create.model_dump()
+    )
 
     # read the newly inserted resource:
     resource_read = await dao.get_by_id(resource_inserted.id)
@@ -162,7 +163,7 @@ async def test_dao_happy(mongodb_fixture: MongoDbFixture):  # noqa: F811
     assert resource_read == resource_inserted
 
     # update the resource:
-    resource_update = resource_inserted.copy(update={"field_c": False})
+    resource_update = resource_inserted.model_copy(update={"field_c": False})
     await dao.update(resource_update)
 
     # read the updated resource again:
@@ -240,7 +241,7 @@ async def test_dao_upsert_natural_id_happy(
     assert resource == resource_observed
 
     # update the resource:
-    resource_update = resource.copy(update={"field_c": False})
+    resource_update = resource.model_copy(update={"field_c": False})
     await dao.upsert(resource_update)
 
     # check the updated resource:
@@ -400,13 +401,11 @@ async def test_complex_models(mongodb_fixture: MongoDbFixture):  # noqa: F811
 
     # a complex model:
     class ComplexModel(BaseModel):
+        model_config = ConfigDict(frozen=True)
         id: str
         some_date: datetime
         some_path: Path
         some_nested_data: ExampleDto
-
-        class Config:
-            frozen = True
 
     dao = await mongodb_fixture.dao_factory.get_dao(
         name="example",

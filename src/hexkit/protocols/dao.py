@@ -289,7 +289,7 @@ class DaoFactoryProtocol(ABC):
         """Checks whether the dto_model contains the expected id_field.
         Raises IdFieldNotFoundError otherwise.
         """
-        if id_field not in dto_model.schema()["properties"]:
+        if id_field not in dto_model.model_json_schema()["properties"]:
             raise cls.IdFieldNotFoundError()
 
     @classmethod
@@ -306,11 +306,11 @@ class DaoFactoryProtocol(ABC):
         if dto_creation_model is None:
             return
 
-        expected_properties = copy(dto_model.schema()["properties"])
+        expected_properties = copy(dto_model.model_json_schema()["properties"])
         # (the schema method returns an attribute of the class, making a copy to not
         # alter the class)
         del expected_properties[id_field]
-        observed_properties = dto_creation_model.schema()["properties"]
+        observed_properties = dto_creation_model.model_json_schema()["properties"]
 
         if observed_properties != expected_properties:
             raise cls.CreationModelInvalidError()

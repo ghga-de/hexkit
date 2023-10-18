@@ -106,7 +106,7 @@ def validate_fields_in_model(
     Raises IndexFieldsInvalidError otherwise.
     """
     fields_set = set(fields)
-    existing_fields_set = set(model.schema()["properties"])
+    existing_fields_set = set(model.model_json_schema()["properties"])
 
     if not fields_set.issubset(existing_fields_set):
         unexpected_fields = fields_set.difference(existing_fields_set)

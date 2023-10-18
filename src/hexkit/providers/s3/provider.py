@@ -32,7 +32,8 @@ import botocore.config
 import botocore.configloader
 import botocore.exceptions
 from boto3.s3.transfer import TransferConfig
-from pydantic import BaseSettings, Field, SecretStr
+from pydantic import Field, SecretStr
+from pydantic_settings import BaseSettings
 
 from hexkit.protocols.objstorage import ObjectStorageProtocol, PresignedPostURL
 from hexkit.utils import calc_part_size
@@ -64,11 +65,11 @@ class S3Config(BaseSettings):
     """
 
     s3_endpoint_url: str = Field(
-        ..., example="http://localhost:4566", description="URL to the S3 API."
+        ..., examples=["http://localhost:4566"], description="URL to the S3 API."
     )
     s3_access_key_id: str = Field(
         ...,
-        example="my-access-key-id",
+        examples=["my-access-key-id"],
         description=(
             "Part of credentials for login into the S3 service. See:"
             + " https://boto3.amazonaws.com/v1/documentation/api/latest/guide/credentials.html"
@@ -76,7 +77,7 @@ class S3Config(BaseSettings):
     )
     s3_secret_access_key: SecretStr = Field(
         ...,
-        example="my-secret-access-key",
+        examples=["my-secret-access-key"],
         description=(
             "Part of credentials for login into the S3 service. See:"
             + " https://boto3.amazonaws.com/v1/documentation/api/latest/guide/credentials.html"
@@ -84,7 +85,7 @@ class S3Config(BaseSettings):
     )
     s3_session_token: Optional[SecretStr] = Field(
         None,
-        example="my-session-token",
+        examples=["my-session-token"],
         description=(
             "Part of credentials for login into the S3 service. See:"
             + " https://boto3.amazonaws.com/v1/documentation/api/latest/guide/credentials.html"
@@ -92,7 +93,7 @@ class S3Config(BaseSettings):
     )
     aws_config_ini: Optional[Path] = Field(
         None,
-        example="~/.aws/config",
+        examples=["~/.aws/config"],
         description=(
             "Path to a config file for specifying more advanced S3 parameters."
             + " This should follow the format described here:"

@@ -20,7 +20,11 @@ from pathlib import Path
 from typing import Any, Callable, Final, Optional
 
 import yaml
-from pydantic import BaseSettings
+from pydantic_settings import (
+    BaseSettings,
+    PydanticBaseSettingsSource,
+    SettingsConfigDict,
+)
 
 # Default config prefix:
 DEFAULT_CONFIG_PREFIX: Final = "ghga_services"
@@ -77,7 +81,7 @@ def get_default_config_yaml(prefix: str) -> Optional[Path]:
 
 def yaml_settings_factory(
     config_yaml: Optional[Path] = None,
-) -> Callable[[BaseSettings], dict[str, Any]]:
+) -> Callable[[], dict[str, Any]]:
     """
     A factory of source methods for pydantic's BaseSettings Config that load
     settings from a yaml file.
@@ -87,9 +91,7 @@ def yaml_settings_factory(
             Path to the yaml file to read from.
     """
 
-    def yaml_settings(  # pylint: disable=unused-argument
-        settings: BaseSettings,
-    ) -> dict[str, Any]:
+    def yaml_settings() -> dict[str, Any]:
         """Source method for loading pydantic BaseSettings from a yaml file"""
         if config_yaml is None:
             return {}
@@ -105,8 +107,8 @@ def config_from_yaml(
 ) -> Callable:
     """A factory that returns decorator functions which extends a
     pydantic BaseSettings class to read in parameters from a config yaml.
-    It replaces (or adds) a Config subclass to the BaseSettings class that configures
-    the priorities for parameter sources as follows (highest Priority first):
+    It replaces (or adds) config settings to the BaseSettings class that configures
+    the priorities for parameter sources as follows (highest priority first):
         - parameters passed using **kwargs
         - environment variables
         - file secrets
@@ -139,7 +141,7 @@ def config_from_yaml(
         # check if settings inherits from pydantic BaseSettings:
         if not issubclass(settings, BaseSettings):
             raise TypeError(
-                "The specified settings class is not a subclass of pydantic.BaseSettings"
+                "The specified settings class is not a subclass of pydantic_settings.BaseSettings"
             )
 
         def constructor_wrapper(
@@ -161,30 +163,24 @@ def config_from_yaml(
             class ModSettings(settings):
                 """Modifies the orginal Settings class provided by the user"""
 
-                # pylint: disable=too-few-public-methods
-                class Config:
-                    """pydantic Config subclass"""
+                model_config = SettingsConfigDict(frozen=True, env_prefix=f"{prefix}_")
 
-                    frozen = True
-
-                    # add this prefix to all variable names to
-                    # define them as environment variables:
-                    env_prefix = f"{prefix}_"
-
-                    @classmethod
-                    def customise_sources(
-                        cls,
+                @classmethod
+                def settings_customise_sources(  # noqa: PLR0913
+                    cls,
+                    settings_cls: type[BaseSettings],
+                    init_settings: PydanticBaseSettingsSource,
+                    env_settings: PydanticBaseSettingsSource,
+                    dotenv_settings: PydanticBaseSettingsSource,
+                    file_secret_settings: PydanticBaseSettingsSource,
+                ):
+                    """Add custom yaml source"""
+                    return (
                         init_settings,
                         env_settings,
                         file_secret_settings,
-                    ):
-                        """Add custom yaml source"""
-                        return (
-                            init_settings,
-                            env_settings,
-                            file_secret_settings,
-                            yaml_settings_factory(config_yaml),
-                        )
+                        yaml_settings_factory(config_yaml),
+                    )
 
             # construct settings class:
             return ModSettings(**kwargs)
