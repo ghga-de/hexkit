@@ -6,9 +6,7 @@
 # may differ from that of the template repository.
 
 .devcontainer/dev_launcher
-.devcontainer/devcontainer.json
 .devcontainer/docker-compose.yml
-.devcontainer/Dockerfile
 
 tests/__init__.py
 tests/fixtures/__init__.py

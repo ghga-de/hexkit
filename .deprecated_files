@@ -21,3 +21,4 @@ setup.cfg
 
 .pylintrc
 .flake8
+.editorconfig
