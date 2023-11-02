@@ -1,0 +1,1 @@
+include src/hexkit/providers/s3/test_files/*.yaml
