@@ -28,9 +28,9 @@ from contextlib import asynccontextmanager
 from typing import Any, Callable, Optional, Protocol, TypeVar
 
 from aiokafka import AIOKafkaConsumer, AIOKafkaProducer
+from aiokafka.helpers import create_ssl_context
 from pydantic import Field
 from pydantic_settings import BaseSettings
-from aiokafka.helpers import create_ssl_context
 
 from hexkit.base import InboundProviderBase
 from hexkit.custom_types import Ascii, JsonObject
@@ -78,7 +78,7 @@ class KafkaConfig(BaseSettings):
         + "Valid values are: PLAINTEXT, SSL.",
     )
     ssl_cafile: str = Field(
-        None,
+        "",
         description="""Certificate Authority file path containing certificates
             used to sign broker certificates. If CA not specified (by either
             cafile, capath, cadata) default system CA will be used if found by
@@ -87,7 +87,7 @@ class KafkaConfig(BaseSettings):
             Default: :data:`None`""",
     )
     ssl_certfile: str = Field(
-        None,
+        "",
         description="""optional filename of file in PEM format containing
             the client certificate, as well as any CA certificates needed to
             establish the certificate's authenticity. For more information see
@@ -95,13 +95,13 @@ class KafkaConfig(BaseSettings):
             Default: :data:`None`.""",
     )
     ssl_keyfile: str = Field(
-        None,
+        "",
         description=""""optional filename containing the client private key.
             For more information see :meth:`~ssl.SSLContext.load_cert_chain`.
             Default: :data:`None`.""",
     )
     ssl_password: str = Field(
-        None,
+        "",
         description="""optional password to be used when loading the
             certificate chain. For more information see
             :meth:`~ssl.SSLContext.load_cert_chain`.
