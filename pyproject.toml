@@ -47,6 +47,3 @@ Repository = "https://github.com/ghga-de/hexkit"
 
 [tool.setuptools.packages.find]
 where = ["src"]
-
-[tool.setuptools.package-data]
-"hexkit.providers.s3.test_files" = ["*.yaml"]
