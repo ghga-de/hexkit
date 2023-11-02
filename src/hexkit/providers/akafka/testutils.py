@@ -19,16 +19,20 @@
 Please note, only use for testing purposes.
 """
 import json
+import os
 from collections.abc import AsyncGenerator, Sequence
 from contextlib import asynccontextmanager
 from dataclasses import dataclass
 from functools import partial
+from pathlib import Path
 from typing import Optional, Union
 
+import jks
 import pytest_asyncio
 from aiokafka import AIOKafkaConsumer, TopicPartition
 from kafka import KafkaAdminClient
 from kafka.errors import KafkaError
+from OpenSSL import crypto
 from testcontainers.kafka import KafkaContainer
 
 from hexkit.custom_types import Ascii, JsonObject, PytestScope
@@ -398,14 +402,102 @@ class KafkaFixture:
         )
 
 
+def generate_ssl_certificates():
+    """Generate ssl keys"""
+    key = crypto.PKey()
+    key.generate_key(crypto.TYPE_RSA, 2048)
+
+    # generate a self signed certificate
+    cert = crypto.X509()
+    cert.get_subject().CN = "my.server.example.com"
+    cert.set_serial_number(473289472)
+    cert.gmtime_adj_notBefore(0)
+    cert.gmtime_adj_notAfter(365 * 24 * 60 * 60)
+    cert.set_issuer(cert.get_subject())
+    cert.set_pubkey(key)
+    cert.sign(key, "sha256")
+
+    # dumping the key and cert to ASN1
+    dumped_cert = crypto.dump_certificate(crypto.FILETYPE_ASN1, cert)
+    dumped_key = crypto.dump_privatekey(crypto.FILETYPE_ASN1, key)
+
+    # creating a private key entry
+    pke = jks.PrivateKeyEntry.new(
+        "self signed cert", [dumped_cert], dumped_key, "rsa_raw"
+    )
+
+    # if we want the private key entry to have a unique password, we can encrypt it beforehand
+    # if it is not ecrypted when saved, it will be encrypted with the same password as the keystore
+    # pke.encrypt('my_private_key_password')
+
+    # os.mkdir("ssl")
+    ssl_dir = Path("/tmp/ssl")  # noqa: S108
+    Path(ssl_dir).mkdir(exist_ok=True)
+    cert_path = os.path.abspath(f"{ssl_dir}/kafka-server-cert.crt")
+    key_path = os.path.abspath(f"{ssl_dir}/kafka-server-private.key")
+    jks_path = os.path.abspath(f"{ssl_dir}/kafka-server.keystore.jks")
+    cred_path = os.path.abspath(f"{ssl_dir}/password.txt")
+    keystore_password = "password"  # noqa: S105
+
+    with open(cert_path, "w") as f:
+        f.write(crypto.dump_certificate(crypto.FILETYPE_PEM, cert).decode("utf-8"))
+
+    with open(key_path, "w") as f:
+        f.write(crypto.dump_privatekey(crypto.FILETYPE_PEM, key).decode("utf-8"))
+
+    with open(cred_path, "w") as f:
+        f.write(keystore_password)
+
+    # creating a jks keystore with the private key, and saving it
+    keystore = jks.KeyStore.new("jks", [pke])
+    keystore.save(jks_path, keystore_password)
+
+    return {
+        "ssl_dir": ssl_dir,
+        "ssl_certfile": cert_path,
+        "ssl_keyfile": key_path,
+        "ssl_cafile": cert_path,
+        "ssl_password": cred_path,
+        "keystore_location": jks_path,
+    }
+
+
+class KafkaSSLContainer(KafkaContainer):
+    """KafkaSSLContainer"""
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.ssl_config = generate_ssl_certificates()
+
+        self.with_volume_mapping(str(self.ssl_config["ssl_dir"]), "/etc/kafka/secrets")
+
+        self.with_env("KAFKA_LISTENERS", "SSL://0.0.0.0:9093,BROKER://0.0.0.0:9092")
+        self.with_env(
+            "KAFKA_LISTENER_SECURITY_PROTOCOL_MAP", "SSL:SSL,BROKER:PLAINTEXT"
+        )
+        self.with_env("KAFKA_SECURITY_PROTOCOL", "SSL")
+
+        self.with_env("KAFKA_SSL_KEYSTORE_FILENAME", "kafka-server.keystore.jks")
+        self.with_env("KAFKA_SSL_KEYSTORE_CREDENTIALS", "password.txt")
+        self.with_env("KAFKA_SSL_KEY_CREDENTIALS", "password.txt")
+
+        self.with_env("KAFKA_SSL_TRUSTSTORE_FILENAME", "kafka-server.keystore.jks")
+        self.with_env("KAFKA_SSL_TRUSTSTORE_CREDENTIALS", "password.txt")
+
+        self.with_env("KAFKA_SSL_ENDPOINT_IDENTIFICATION_ALGORITHM", " ")
+        self.with_env("KAFKA_SSL_CLIENT_AUTH", "required")
+
+        self.with_env("KAFKA_INTER_BROKER_LISTENER_NAME", "SSL")
+
+
 async def kafka_fixture_function() -> AsyncGenerator[KafkaFixture, None]:
     """Pytest fixture for tests depending on the Kafka-base providers.
 
     **Do not call directly** Instead, use get_kafka_fixture()
     """
-    with KafkaContainer(image="confluentinc/cp-kafka:5.4.9-1-deb8") as kafka:
+    with KafkaSSLContainer(image="confluentinc/cp-kafka:5.4.9-1-deb8") as kafka:
         kafka_servers = [kafka.get_bootstrap_server()]
-        config = KafkaConfig(
+        config = KafkaConfig(  # type: ignore
             service_name="test_publisher",
             service_instance_id="001",
             kafka_servers=kafka_servers,

@@ -70,6 +70,41 @@ class KafkaConfig(BaseSettings):
         examples=[["localhost:9092"]],
         description="A list of connection strings to connect to Kafka bootstrap servers.",
     )
+    security_protocol: Literal["PLAINTEXT", "SSL"] = Field(
+        "PLAINTEXT",
+        description="Protocol used to communicate with brokers. "
+        + "Valid values are: PLAINTEXT, SSL.",
+    )
+    ssl_cafile: str = Field(
+        "",
+        description="""Certificate Authority file path containing certificates
+            used to sign broker certificates. If CA not specified (by either
+            cafile, capath, cadata) default system CA will be used if found by
+            OpenSSL. For more information see
+            :meth:`~ssl.SSLContext.load_verify_locations`.
+            Default: :data:`None`""",
+    )
+    ssl_certfile: str = Field(
+        "",
+        description="""optional filename of file in PEM format containing
+            the client certificate, as well as any CA certificates needed to
+            establish the certificate's authenticity. For more information see
+            :meth:`~ssl.SSLContext.load_cert_chain`.
+            Default: :data:`None`.""",
+    )
+    ssl_keyfile: str = Field(
+        "",
+        description=""""optional filename containing the client private key.
+            For more information see :meth:`~ssl.SSLContext.load_cert_chain`.
+            Default: :data:`None`.""",
+    )
+    ssl_password: str = Field(
+        "",
+        description="""optional password to be used when loading the
+            certificate chain. For more information see
+            :meth:`~ssl.SSLContext.load_cert_chain`.
+            Default: :data:`None`.""",
+    )
 
 
 class EventTypeNotFoundError(RuntimeError):
