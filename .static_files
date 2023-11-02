@@ -11,6 +11,7 @@
 .devcontainer/dev_install
 .devcontainer/license_header.txt
 .devcontainer/Dockerfile
+.devcontainer/devcontainer.json
 
 scripts/script_utils/__init__.py
 scripts/script_utils/cli.py
@@ -39,7 +40,6 @@ scripts/README.md
 example_data/README.md
 
 .coveragerc
-.editorconfig
 .gitattributes
 .gitignore
 .mypy.ini

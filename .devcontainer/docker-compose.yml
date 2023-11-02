@@ -1,7 +1,7 @@
 version: "3"
 
 services:
-  hexkit:
+  app:
     build:
       context: .
       dockerfile: ./Dockerfile
