@@ -5,7 +5,7 @@
 .github/workflows/check_openapi_spec.yaml
 .github/workflows/check_readme.yaml
 .github/workflows/cd.yaml
-.github/workflows/dev_cd.yaml
+.github/workflows/tests.yaml
 
 scripts/script_utils/fastapi_app_location.py
 

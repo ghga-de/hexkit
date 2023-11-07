@@ -79,33 +79,21 @@ class KafkaConfig(BaseSettings):
     )
     ssl_cafile: str = Field(
         "",
-        description="""Certificate Authority file path containing certificates
-            used to sign broker certificates. If CA not specified (by either
-            cafile, capath, cadata) default system CA will be used if found by
-            OpenSSL. For more information see
-            :meth:`~ssl.SSLContext.load_verify_locations`.
-            Default: :data:`None`""",
+        description="Certificate Authority file path containing certificates"
+        + " used to sign broker certificates. If a CA not specified, the default"
+        + " system CA will be used if found by OpenSSL.",
     )
     ssl_certfile: str = Field(
         "",
-        description="""optional filename of file in PEM format containing
-            the client certificate, as well as any CA certificates needed to
-            establish the certificate's authenticity. For more information see
-            :meth:`~ssl.SSLContext.load_cert_chain`.
-            Default: :data:`None`.""",
+        description="Optional filename of client certificate, as well as any"
+        + " CA certificates needed to establish the certificate's authenticity.",
     )
     ssl_keyfile: str = Field(
-        "",
-        description=""""optional filename containing the client private key.
-            For more information see :meth:`~ssl.SSLContext.load_cert_chain`.
-            Default: :data:`None`.""",
+        "", description="Optional filename containing the client private key."
     )
     ssl_password: str = Field(
         "",
-        description="""optional password to be used when loading the
-            certificate chain. For more information see
-            :meth:`~ssl.SSLContext.load_cert_chain`.
-            Default: :data:`None`.""",
+        description="Optional password to be used for the client private key.",
     )
 
 
@@ -122,7 +110,7 @@ def generate_client_id(*, service_name: str, instance_id: str) -> str:
 
 
 def generate_ssl_context(config: KafkaConfig) -> Optional[ssl.SSLContext]:
-    """Generate ssl_context for connecting to Kafka broker via an encrypted SSL connection"""
+    """Generate SSL context for an encrypted SSL connection to Kafka broker."""
     return (
         create_ssl_context(
             cafile=config.ssl_cafile,

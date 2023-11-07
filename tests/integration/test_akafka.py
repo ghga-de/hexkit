@@ -16,9 +16,12 @@
 
 """Testing Apache Kafka based providers."""
 
+from pathlib import Path
 from unittest.mock import AsyncMock
 
 import pytest
+from kafka import KafkaAdminClient
+from kafka.errors import KafkaError
 
 from hexkit.custom_types import JsonObject
 from hexkit.providers.akafka import (
@@ -62,13 +65,13 @@ async def test_kafka_event_publisher(kafka_fixture: KafkaFixture):  # noqa: F811
 
 @pytest.mark.asyncio
 async def test_kafka_event_subscriber(kafka_fixture: KafkaFixture):  # noqa: F811
-    """Test the KafkaEventSubscriber with mocked KafkaEventSubscriber."""
+    """Test the KafkaEventSubscriber with mocked EventSubscriber."""
     payload = {"test_content": "Hello World"}
     type_ = "test_type"
     key = "test_key"
     topic = "test_topic"
 
-    # create protocol-compatiple translator mock:
+    # create protocol-compatible translator mock:
     translator = AsyncMock()
     translator.topics_of_interest = [topic]
     translator.types_of_interest = [type_]
@@ -92,6 +95,78 @@ async def test_kafka_event_subscriber(kafka_fixture: KafkaFixture):  # noqa: F81
         await event_subscriber.run(forever=False)
 
     # check if the translator was called correctly:
+    translator.consume.assert_awaited_once_with(
+        payload=payload, type_=type_, topic=topic
+    )
+
+
+def find_kafka_secrets_dir() -> Path:
+    """Get the directory with Kafka secrets."""
+    current_dir = Path(__file__)
+    while current_dir != current_dir.parent:
+        current_dir = current_dir.parent
+        secrets_dir = current_dir / ".devcontainer" / "kafka_secrets"
+        if secrets_dir.is_dir():
+            for filename in "ca.crt", "client.crt", "client.key", "pwd.txt":
+                assert (secrets_dir / filename).exists(), (
+                    f"No {filename} in Kafka secrets directory."
+                    " Please re-run the create_secrets.sh script."
+                )
+                return secrets_dir
+    assert False, "Kafka secrets directory not found."
+
+
+@pytest.mark.asyncio
+async def test_kafka_ssl():
+    """Test connecting to Kafka via SSL.
+
+    This test uses the broker configured with the needed secrets via docker-compose
+    instead of a test container.
+    """
+    payload: JsonObject = {"test_content": "Be aware... Connect with care"}
+    type_ = "test_type"
+    key = "test_key"
+    topic = "test_topic"
+
+    admin_client = KafkaAdminClient(bootstrap_servers=["kafka:9092"])
+    try:
+        admin_client.delete_topics([topic])
+    except KafkaError:
+        pass
+
+    secrets_dir = find_kafka_secrets_dir()
+    password = open(secrets_dir / "pwd.txt").read().strip()
+    assert password
+
+    config = KafkaConfig(
+        service_name="test_ssl",
+        service_instance_id="1",
+        kafka_servers=["kafka:19092"],  # SSL port
+        security_protocol="SSL",
+        ssl_cafile=str(secrets_dir / "ca.crt"),
+        ssl_certfile=str(secrets_dir / "client.crt"),
+        ssl_keyfile=str(secrets_dir / "client.key"),
+        ssl_password=password,
+    )
+
+    async with KafkaEventPublisher.construct(config=config) as event_publisher:
+        await event_publisher.publish(
+            payload=payload,
+            type_=type_,
+            key=key,
+            topic=topic,
+        )
+
+    translator = AsyncMock()
+    translator.topics_of_interest = [topic]
+    translator.types_of_interest = [type_]
+
+    async with KafkaEventSubscriber.construct(
+        config=config,
+        translator=translator,
+    ) as event_subscriber:
+        await event_subscriber.run(forever=False)
+
     translator.consume.assert_awaited_once_with(
         payload=payload, type_=type_, topic=topic
     )
