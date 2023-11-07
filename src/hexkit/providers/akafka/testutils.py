@@ -19,21 +19,16 @@
 Please note, only use for testing purposes.
 """
 import json
-import os
 from collections.abc import AsyncGenerator, Sequence
 from contextlib import asynccontextmanager
 from dataclasses import dataclass
 from functools import partial
-from pathlib import Path
 from typing import Optional, Union
 
-import jks
 import pytest_asyncio
 from aiokafka import AIOKafkaConsumer, TopicPartition
-from cryptography import x509
 from kafka import KafkaAdminClient
 from kafka.errors import KafkaError
-from OpenSSL import crypto
 from testcontainers.kafka import KafkaContainer
 
 from hexkit.custom_types import Ascii, JsonObject, PytestScope
@@ -403,136 +398,12 @@ class KafkaFixture:
         )
 
 
-def generate_ssl_certificates():  # noqa: PLR0915
-    """Generate ssl keys"""
-    ca_key = crypto.PKey()
-    ca_key.generate_key(crypto.TYPE_RSA, 2048)
-
-    # generate a self signed certificate
-    ca_cert = crypto.X509()
-    ca_cert.get_subject().CN = "GHGA Test Certificate Authority"
-    ca_cert.set_serial_number(x509.random_serial_number())
-    ca_cert.gmtime_adj_notBefore(0)
-    ca_cert.gmtime_adj_notAfter(365 * 24 * 60 * 60)
-    ca_cert.set_issuer(ca_cert.get_subject())
-    ca_cert.set_pubkey(ca_key)
-    ca_cert.sign(ca_key, "sha256")
-
-    server_key = crypto.PKey()
-    server_key.generate_key(crypto.TYPE_RSA, 2048)
-
-    # generate a self signed certificate
-    server_cert = crypto.X509()
-    server_cert.get_subject().CN = "Broker 1"
-    server_cert.set_serial_number(x509.random_serial_number())
-    server_cert.gmtime_adj_notBefore(0)
-    server_cert.gmtime_adj_notAfter(365 * 24 * 60 * 60)
-    server_cert.set_issuer(ca_cert.get_subject())
-    server_cert.set_pubkey(server_key)
-    server_cert.sign(ca_key, "sha256")
-
-    # dumping the ca key and cert to ASN1
-    dumped_ca_cert = crypto.dump_certificate(crypto.FILETYPE_ASN1, ca_cert)
-    dumped_ca_key = crypto.dump_privatekey(crypto.FILETYPE_ASN1, ca_key)
-    # dumping the server key and cert to ASN1
-    dumped_server_cert = crypto.dump_certificate(crypto.FILETYPE_ASN1, server_cert)
-    dumped_server_key = crypto.dump_privatekey(crypto.FILETYPE_ASN1, server_key)
-
-    # creating a private key entry
-    ca_pke = jks.PrivateKeyEntry.new(
-        "self signed cert", [dumped_ca_cert], dumped_ca_key, "rsa_raw"
-    )
-
-    # creating a private key entry
-    server_pke = jks.PrivateKeyEntry.new(
-        "self signed cert", [dumped_server_cert], dumped_server_key, "rsa_raw"
-    )
-    # if we want the private key entry to have a unique password, we can encrypt it beforehand
-    # if it is not ecrypted when saved, it will be encrypted with the same password as the keystore
-    # pke.encrypt("")
-
-    # os.mkdir("ssl")
-    ssl_dir = Path("/workspace/.ssl")
-    Path(ssl_dir).mkdir(exist_ok=True)
-    ca_cert_path = os.path.abspath(f"{ssl_dir}/ca-cert.crt")
-    ca_key_path = os.path.abspath(f"{ssl_dir}/ca-private.key")
-    ca_jks_path = os.path.abspath(f"{ssl_dir}/ca.truststore.jks")
-    server_cert_path = os.path.abspath(f"{ssl_dir}/server-cert.crt")
-    server_key_path = os.path.abspath(f"{ssl_dir}/server-private.key")
-    server_jks_path = os.path.abspath(f"{ssl_dir}/server.keystore.jks")
-    cred_path = os.path.abspath(f"{ssl_dir}/password.txt")
-    keystore_password = "password"  # noqa: S105
-
-    with open(ca_cert_path, "w") as f:
-        f.write(crypto.dump_certificate(crypto.FILETYPE_PEM, ca_cert).decode("utf-8"))
-
-    with open(ca_key_path, "w") as f:
-        f.write(crypto.dump_privatekey(crypto.FILETYPE_PEM, ca_key).decode("utf-8"))
-    with open(server_cert_path, "w") as f:
-        f.write(
-            crypto.dump_certificate(crypto.FILETYPE_PEM, server_cert).decode("utf-8")
-        )
-
-    with open(server_key_path, "w") as f:
-        f.write(crypto.dump_privatekey(crypto.FILETYPE_PEM, server_key).decode("utf-8"))
-
-    with open(cred_path, "w") as f:
-        f.write(keystore_password)
-
-    # creating a jks keystore with the private key, and saving it
-    ca_keystore = jks.KeyStore.new("jks", [ca_pke])
-    ca_keystore.save(ca_jks_path, keystore_password)
-
-    # creating a jks keystore with the private key, and saving it
-    server_keystore = jks.KeyStore.new("jks", [server_pke])
-    server_keystore.save(server_jks_path, keystore_password)
-
-    return {
-        "ssl_dir": ssl_dir,
-        "ssl_certfile": ca_cert_path,
-        "ssl_keyfile": ca_key_path,
-        "ssl_cafile": ca_cert_path,
-        "ssl_password": cred_path,
-        "keystore_location": ca_jks_path,
-    }
-
-
-class KafkaSSLContainer(KafkaContainer):
-    """KafkaSSLContainer"""
-
-    def __init__(self, *args, **kwargs):
-        super().__init__(*args, **kwargs)
-        self.ssl_config = generate_ssl_certificates()
-
-        self.with_volume_mapping(
-            "/Users/w620-admin/workspace/ghga/hexkit/.ssl", "/etc/kafka/secrets"
-        )
-
-        self.with_env("KAFKA_LISTENERS", "SSL://0.0.0.0:9093,BROKER://0.0.0.0:9092")
-        self.with_env(
-            "KAFKA_LISTENER_SECURITY_PROTOCOL_MAP", "SSL:SSL,BROKER:PLAINTEXT"
-        )
-        self.with_env("KAFKA_SECURITY_PROTOCOL", "SSL")
-
-        self.with_env("KAFKA_SSL_KEYSTORE_FILENAME", "server.keystore.jks")
-        self.with_env("KAFKA_SSL_KEYSTORE_CREDENTIALS", "password.txt")
-        self.with_env("KAFKA_SSL_KEY_CREDENTIALS", "password.txt")
-
-        self.with_env("KAFKA_SSL_TRUSTSTORE_FILENAME", "ca.truststore.jks")
-        self.with_env("KAFKA_SSL_TRUSTSTORE_CREDENTIALS", "password.txt")
-
-        self.with_env("KAFKA_SSL_ENDPOINT_IDENTIFICATION_ALGORITHM", " ")
-        self.with_env("KAFKA_SSL_CLIENT_AUTH", "requested")
-
-        self.with_env("KAFKA_INTER_BROKER_LISTENER_NAME", "SSL")
-
-
 async def kafka_fixture_function() -> AsyncGenerator[KafkaFixture, None]:
     """Pytest fixture for tests depending on the Kafka-base providers.
 
     **Do not call directly** Instead, use get_kafka_fixture()
     """
-    with KafkaSSLContainer(image="confluentinc/cp-kafka:5.4.9-1-deb8") as kafka:
+    with KafkaContainer(image="confluentinc/cp-kafka:5.4.9-1-deb8") as kafka:
         kafka_servers = [kafka.get_bootstrap_server()]
         config = KafkaConfig(  # type: ignore
             service_name="test_publisher",

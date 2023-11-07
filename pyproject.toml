@@ -28,8 +28,6 @@ dependencies = [
     "pydantic_settings >=2, <3",
     "PyYAML >=6.0, <7",
     "dependency-injector >=4.41.0, <5",
-    "pyjks >=20, <21",
-    "pyOpenSSL >=23.3.0, <24"
 ]
 
 [project.optional-dependencies]

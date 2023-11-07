@@ -83,13 +83,7 @@ async def test_kafka_event_subscriber(kafka_fixture: KafkaFixture):  # noqa: F81
         service_name="event_subscriber",
         service_instance_id="1",
         kafka_servers=kafka_fixture.kafka_servers,
-        security_protocol="SSL",
-        ssl_cafile="/workspace/.ssl/ca-cert.crt"
-        # # ssl_certfile="/workspace/.ssl/kafka-server-cert.crt",
-        # # ssl_keyfile="/workspace/.ssl/kafka-server-private.key",
-        # ssl_password="password",
     )
-
     async with KafkaEventSubscriber.construct(
         config=config,
         translator=translator,
