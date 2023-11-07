@@ -56,6 +56,9 @@ services:
       KAFKA_TRANSACTION_STATE_LOG_REPLICATION_FACTOR: 1
     volumes:
       - ./kafka_secrets:/etc/kafka/secrets
+    ports:
+      - 9092:9092
+      - 19092:19092
 
   kafka-ui:
     image: provectuslabs/kafka-ui
