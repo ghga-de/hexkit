@@ -10,7 +10,7 @@ jobs:
     steps:
       - uses: actions/checkout@v3
 
-      - name: Create env files
+      - name: Create Kafka secrets
         run: |
           .devcontainer/kafka_secrets/create_secrets.sh
 
@@ -20,14 +20,6 @@ jobs:
 
       - id: common
         uses: ghga-de/gh-action-common@v3
-
-      - name: Create Kafka secrets
-        run: |
-          .devcontainer/kafka_secrets/create_secrets.sh
-
-      - name: Set up containers
-        run: |
-          docker-compose -f .devcontainer/docker-compose.yml up -d
 
       - id: pytest
         run: |
