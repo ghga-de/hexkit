@@ -29,15 +29,14 @@ rm -f *.crt *.csr *.key *.srl *.jks *.p12
 pw=testpw
 echo $pw > pwd.txt
 
-# generate CA key
+echo "Generate a CA key..."
 openssl req -new -x509 -keyout ca.key -out ca.crt -days 9999 \
   -subj '/CN=ca.test.ghga.dev/OU=TEST/O=GHGA' \
   -passin pass:$pw -passout pass:$pw
 
-for component in kafka client
+for component in broker client
 do
   echo "Create keystore for Kafka $component..."
-  # create keystore
   keytool -genkey -noprompt -alias $component \
     -dname "CN=localhost, OU=TEST, O=GHGA" \
     -keystore $component.keystore.jks \
@@ -69,4 +68,4 @@ keytool -importkeystore -srckeystore client.keystore.jks -srcalias client \
 openssl pkcs12 -in client.keystore.p12 -nocerts -out client.key \
   -passin pass:$pw -passout pass:$pw
 
-rm -f kafka.crt kafka.key ca.key *.csr *.p12 *.srl
+rm -f broker.crt broker.key ca.key *.csr *.p12 *.srl
