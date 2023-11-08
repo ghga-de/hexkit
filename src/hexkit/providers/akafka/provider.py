@@ -72,26 +72,26 @@ class KafkaConfig(BaseSettings):
         examples=[["localhost:9092"]],
         description="A list of connection strings to connect to Kafka bootstrap servers.",
     )
-    security_protocol: Literal["PLAINTEXT", "SSL"] = Field(
+    kafka_security_protocol: Literal["PLAINTEXT", "SSL"] = Field(
         "PLAINTEXT",
         description="Protocol used to communicate with brokers. "
         + "Valid values are: PLAINTEXT, SSL.",
     )
-    ssl_cafile: str = Field(
+    kafka_ssl_cafile: str = Field(
         "",
         description="Certificate Authority file path containing certificates"
         + " used to sign broker certificates. If a CA not specified, the default"
         + " system CA will be used if found by OpenSSL.",
     )
-    ssl_certfile: str = Field(
+    kafka_ssl_certfile: str = Field(
         "",
         description="Optional filename of client certificate, as well as any"
         + " CA certificates needed to establish the certificate's authenticity.",
     )
-    ssl_keyfile: str = Field(
+    kafka_ssl_keyfile: str = Field(
         "", description="Optional filename containing the client private key."
     )
-    ssl_password: str = Field(
+    kafka_ssl_password: str = Field(
         "",
         description="Optional password to be used for the client private key.",
     )
@@ -113,12 +113,12 @@ def generate_ssl_context(config: KafkaConfig) -> Optional[ssl.SSLContext]:
     """Generate SSL context for an encrypted SSL connection to Kafka broker."""
     return (
         create_ssl_context(
-            cafile=config.ssl_cafile,
-            certfile=config.ssl_certfile,
-            keyfile=config.ssl_keyfile,
-            password=config.ssl_password,
+            cafile=config.kafka_ssl_cafile,
+            certfile=config.kafka_ssl_certfile,
+            keyfile=config.kafka_ssl_keyfile,
+            password=config.kafka_ssl_password,
         )
-        if config.security_protocol == "SSL"
+        if config.kafka_security_protocol == "SSL"
         else None
     )
 
@@ -190,7 +190,7 @@ class KafkaEventPublisher(EventPublisherProtocol):
 
         producer = kafka_producer_cls(
             bootstrap_servers=",".join(config.kafka_servers),
-            security_protocol=config.security_protocol,
+            security_protocol=config.kafka_security_protocol,
             ssl_context=generate_ssl_context(config),
             client_id=client_id,
             key_serializer=lambda key: key.encode("ascii"),
@@ -342,7 +342,7 @@ class KafkaEventSubscriber(InboundProviderBase):
         consumer = kafka_consumer_cls(
             *topics,
             bootstrap_servers=",".join(config.kafka_servers),
-            security_protocol=config.security_protocol,
+            security_protocol=config.kafka_security_protocol,
             ssl_context=generate_ssl_context(config),
             client_id=client_id,
             group_id=config.service_name,

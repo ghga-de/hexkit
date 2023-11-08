@@ -148,7 +148,7 @@ async def test_kafka_event_subscriber(
     consumer_cls = Mock()
     consumer_cls.return_value = consumer
 
-    # create protocol-compatiple translator mock:
+    # create protocol-compatible translator mock:
     translator = AsyncMock()
     if processing_failure and exception:
         translator.consume.side_effect = exception()

@@ -142,11 +142,11 @@ async def test_kafka_ssl():
         service_name="test_ssl",
         service_instance_id="1",
         kafka_servers=["localhost:19092"],  # SSL port
-        security_protocol="SSL",
-        ssl_cafile=str(secrets_dir / "ca.crt"),
-        ssl_certfile=str(secrets_dir / "client.crt"),
-        ssl_keyfile=str(secrets_dir / "client.key"),
-        ssl_password=password,
+        kafka_security_protocol="SSL",
+        kafka_ssl_cafile=str(secrets_dir / "ca.crt"),
+        kafka_ssl_certfile=str(secrets_dir / "client.crt"),
+        kafka_ssl_keyfile=str(secrets_dir / "client.key"),
+        kafka_ssl_password=password,
     )
 
     async with KafkaEventPublisher.construct(config=config) as event_publisher:
