@@ -61,7 +61,7 @@ class ExpectedEvent(EventBase):
 
 @dataclass(frozen=True)
 class RecordedEvent(EventBase):
-    """Used by the EventyRecorder class to describe events recorded in a specific topic."""
+    """Used by the EventRecorder class to describe events recorded in a specific topic."""
 
     key: Ascii
 

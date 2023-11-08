@@ -39,7 +39,7 @@ do
   echo "Create keystore for Kafka $component..."
   # create keystore
   keytool -genkey -noprompt -alias $component \
-    -dname "CN=$component, OU=TEST, O=GHGA" \
+    -dname "CN=localhost, OU=TEST, O=GHGA" \
     -keystore $component.keystore.jks \
     -keyalg RSA -storepass $pw -keypass $pw
 

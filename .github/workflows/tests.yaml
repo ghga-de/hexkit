@@ -18,9 +18,9 @@ jobs:
           .devcontainer/kafka_secrets/create_secrets.sh
 
       - id: containers
-        name: Set up containers
+        name: Set up Kafka containers
         run: |
-          docker-compose -f .devcontainer/docker-compose.yml up -d
+          docker-compose -f .devcontainer/docker-compose.yml up kafka zookeeper -d
 
       - id: common
         name: Run all common steps

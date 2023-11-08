@@ -128,7 +128,7 @@ async def test_kafka_ssl():
     key = "test_key"
     topic = "test_topic"
 
-    admin_client = KafkaAdminClient(bootstrap_servers=["kafka:9092"])
+    admin_client = KafkaAdminClient(bootstrap_servers=["localhost:9092"])
     try:
         admin_client.delete_topics([topic])
     except KafkaError:
@@ -141,7 +141,7 @@ async def test_kafka_ssl():
     config = KafkaConfig(
         service_name="test_ssl",
         service_instance_id="1",
-        kafka_servers=["kafka:19092"],  # SSL port
+        kafka_servers=["localhost:19092"],  # SSL port
         security_protocol="SSL",
         ssl_cafile=str(secrets_dir / "ca.crt"),
         ssl_certfile=str(secrets_dir / "client.crt"),

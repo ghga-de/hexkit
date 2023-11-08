@@ -12,6 +12,9 @@ services:
 
     init: true
     privileged: true
+    # Since we want to be able to run the tests outside the devcontainer,
+    # we must test with the same network when running inside.
+    network_mode: "host"
 
     volumes:
       - ..:/workspace:cached
@@ -24,7 +27,6 @@ services:
 
   zookeeper:
     image: confluentinc/cp-zookeeper:7.5.1
-    # used ports: 2181
     environment:
       ZOOKEEPER_SERVER_ID: 1
       ZOOKEEPER_CLIENT_PORT: 2181
@@ -35,11 +37,10 @@ services:
     restart: always
     depends_on:
       - zookeeper
-    # used ports: 9092, 19092
     environment:
       KAFKA_BROKER_ID: 1
       KAFKA_ZOOKEEPER_CONNECT: zookeeper:2181
-      KAFKA_ADVERTISED_LISTENERS: PLAINTEXT://kafka:9092,SSL://kafka:19092
+      KAFKA_ADVERTISED_LISTENERS: PLAINTEXT://localhost:9092,SSL://localhost:19092
       KAFKA_INTER_BROKER_LISTENER_NAME: PLAINTEXT
       KAFKA_DELETE_TOPIC_ENABLE: "true"
       KAFKA_SSL_KEYSTORE_FILENAME: kafka.keystore.jks
