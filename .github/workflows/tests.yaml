@@ -20,7 +20,7 @@ jobs:
       - id: containers
         name: Set up Kafka containers
         run: |
-          docker-compose -f .devcontainer/docker-compose.yml up kafka zookeeper -d
+          docker-compose -f .devcontainer/docker-compose.yml up -d kafka zookeeper
 
       - id: common
         name: Run all common steps
