@@ -30,6 +30,7 @@ from kafka import KafkaConsumer, KafkaProducer
 from testcontainers.kafka import KafkaContainer
 
 from hexkit.custom_types import JsonObject
+from hexkit.providers.akafka.containers import DEFAULT_IMAGE as KAFKA_IMAGE
 from stream_calc.config import Config
 from stream_calc.main import main
 
@@ -200,7 +201,7 @@ async def test_receive_calc_publish(cases: list[Case] = deepcopy(CASES)):
     the results.
     """
 
-    with KafkaContainer() as kafka:
+    with KafkaContainer(image=KAFKA_IMAGE) as kafka:
         kafka_server = kafka.get_bootstrap_server()
 
         submit_test_problems(cases, kafka_server=kafka_server)

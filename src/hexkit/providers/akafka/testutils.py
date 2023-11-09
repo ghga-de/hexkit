@@ -32,6 +32,7 @@ from kafka.errors import KafkaError
 from testcontainers.kafka import KafkaContainer
 
 from hexkit.custom_types import Ascii, JsonObject, PytestScope
+from hexkit.providers.akafka.containers import DEFAULT_IMAGE as KAFKA_IMAGE
 from hexkit.providers.akafka.provider import (
     ConsumerEvent,
     KafkaConfig,
@@ -324,7 +325,7 @@ class EventRecorder:
         return self
 
     async def __aexit__(self, error_type, error_val, error_tb):
-        """Stop recording and check the recorded events agains the expectation when
+        """Stop recording and check the recorded events against the expectation when
         exiting the context block.
         """
         await self.stop_recording()
@@ -403,7 +404,7 @@ async def kafka_fixture_function() -> AsyncGenerator[KafkaFixture, None]:
 
     **Do not call directly** Instead, use get_kafka_fixture()
     """
-    with KafkaContainer(image="confluentinc/cp-kafka:5.4.9-1-deb8") as kafka:
+    with KafkaContainer(image=KAFKA_IMAGE) as kafka:
         kafka_servers = [kafka.get_bootstrap_server()]
         config = KafkaConfig(  # type: ignore
             service_name="test_publisher",
