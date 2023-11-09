@@ -1,13 +1,10 @@
 # Optional list of files which are actually static in the template
 # but are allowed to have different content in the current repository
 
-.devcontainer/devcontainer.json
-
 .github/workflows/check_config_docs.yaml
 .github/workflows/check_openapi_spec.yaml
 .github/workflows/check_readme.yaml
 .github/workflows/cd.yaml
-.github/workflows/tests.yaml
 
 scripts/script_utils/fastapi_app_location.py
 

@@ -16,12 +16,12 @@
 
 """Testing Apache Kafka based providers."""
 
+from os import environ
 from pathlib import Path
+from socket import getfqdn
 from unittest.mock import AsyncMock
 
 import pytest
-from kafka import KafkaAdminClient
-from kafka.errors import KafkaError
 
 from hexkit.custom_types import JsonObject
 from hexkit.providers.akafka import (
@@ -29,11 +29,14 @@ from hexkit.providers.akafka import (
     KafkaEventPublisher,
     KafkaEventSubscriber,
 )
+from hexkit.providers.akafka.containers import KafkaSSLContainer
 from hexkit.providers.akafka.testutils import (  # noqa: F401
     ExpectedEvent,
     KafkaFixture,
     kafka_fixture,
 )
+
+from ..fixtures.kafka_secrets import KafkaSecrets
 
 
 @pytest.mark.asyncio
@@ -100,73 +103,63 @@ async def test_kafka_event_subscriber(kafka_fixture: KafkaFixture):  # noqa: F81
     )
 
 
-def find_kafka_secrets_dir() -> Path:
-    """Get the directory with Kafka secrets."""
-    current_dir = Path(__file__)
-    while current_dir != current_dir.parent:
-        current_dir = current_dir.parent
-        secrets_dir = current_dir / ".devcontainer" / "kafka_secrets"
-        if secrets_dir.is_dir():
-            for filename in "ca.crt", "client.crt", "client.key", "pwd.txt":
-                assert (secrets_dir / filename).exists(), (
-                    f"No {filename} in Kafka secrets directory."
-                    " Please re-run the create_secrets.sh script."
-                )
-                return secrets_dir
-    assert False, "Kafka secrets directory not found."
-
-
 @pytest.mark.asyncio
-async def test_kafka_ssl():
-    """Test connecting to Kafka via SSL.
+async def test_kafka_ssl(tmp_path: Path):
+    """Test connecting to Kafka via SSL (TLS)."""
+    hostname = environ.get("TC_HOST") or getfqdn()
 
-    This test uses the broker configured with the needed secrets via docker-compose
-    instead of a test container.
-    """
+    secrets = KafkaSecrets(hostname=hostname)
+
+    path = tmp_path / ".ssl"
+    path.mkdir()
+
+    (path / "ca.crt").open("w").write(secrets.ca_cert)
+    (path / "client.crt").open("w").write(secrets.client_cert)
+    (path / "client.key").open("w").write(secrets.client_key)
+
     payload: JsonObject = {"test_content": "Be aware... Connect with care"}
     type_ = "test_type"
     key = "test_key"
     topic = "test_topic"
 
-    admin_client = KafkaAdminClient(bootstrap_servers=["localhost:9092"])
-    try:
-        admin_client.delete_topics([topic])
-    except KafkaError:
-        pass
+    with KafkaSSLContainer(
+        cert=secrets.broker_cert,
+        key=secrets.broker_key,
+        password=secrets.broker_pwd,
+        trusted=secrets.ca_cert,
+        client_auth="required",
+    ) as kafka:
+        kafka_servers = [kafka.get_bootstrap_server()]
 
-    secrets_dir = find_kafka_secrets_dir()
-    password = open(secrets_dir / "pwd.txt").read().strip()
-    assert password
-
-    config = KafkaConfig(
-        service_name="test_ssl",
-        service_instance_id="1",
-        kafka_servers=["localhost:19092"],  # SSL port
-        kafka_security_protocol="SSL",
-        kafka_ssl_cafile=str(secrets_dir / "ca.crt"),
-        kafka_ssl_certfile=str(secrets_dir / "client.crt"),
-        kafka_ssl_keyfile=str(secrets_dir / "client.key"),
-        kafka_ssl_password=password,
-    )
-
-    async with KafkaEventPublisher.construct(config=config) as event_publisher:
-        await event_publisher.publish(
-            payload=payload,
-            type_=type_,
-            key=key,
-            topic=topic,
+        config = KafkaConfig(
+            service_name="test_ssl",
+            service_instance_id="1",
+            kafka_servers=kafka_servers,
+            kafka_security_protocol="SSL",
+            kafka_ssl_cafile=str(path / "ca.crt"),
+            kafka_ssl_certfile=str(path / "client.crt"),
+            kafka_ssl_keyfile=str(path / "client.key"),
+            kafka_ssl_password=secrets.client_pwd,
         )
 
-    translator = AsyncMock()
-    translator.topics_of_interest = [topic]
-    translator.types_of_interest = [type_]
+        async with KafkaEventPublisher.construct(config=config) as event_publisher:
+            await event_publisher.publish(
+                payload=payload,
+                type_=type_,
+                key=key,
+                topic=topic,
+            )
 
-    async with KafkaEventSubscriber.construct(
-        config=config,
-        translator=translator,
-    ) as event_subscriber:
-        await event_subscriber.run(forever=False)
+        translator = AsyncMock()
+        translator.topics_of_interest = [topic]
+        translator.types_of_interest = [type_]
 
-    translator.consume.assert_awaited_once_with(
-        payload=payload, type_=type_, topic=topic
-    )
+        async with KafkaEventSubscriber.construct(
+            config=config,
+            translator=translator,
+        ) as event_subscriber:
+            await event_subscriber.run(forever=False)
+
+        translator.consume.assert_awaited_once_with(
+            payload=payload, type_=type_, topic=topic
+        )

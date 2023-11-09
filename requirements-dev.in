@@ -4,3 +4,4 @@
 -r requirements-dev-common.in
 
 # additional requirements can be listed her
+cryptography >= 41

@@ -59,7 +59,6 @@
 	},
 	// Use 'forwardPorts' to make a list of ports inside the container available locally.
 	// "forwardPorts": [5000, 5432],
-	"initializeCommand": ".devcontainer/kafka_secrets/create_secrets.sh",
 	// Use 'postCreateCommand' to run commands after the container is created.
 	"postCreateCommand": "dev_install",
 	// Comment out connect as root instead. More info: https://aka.ms/vscode-remote/containers/non-root.

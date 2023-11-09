@@ -8,26 +8,12 @@ jobs:
     name: Tests
 
     steps:
-      - id: checkout
-        name: Check out repository
-        uses: actions/checkout@v3
-
-      - id: secrets
-        name: Create Kafka secrets
-        run: |
-          .devcontainer/kafka_secrets/create_secrets.sh
-
-      - id: containers
-        name: Set up Kafka containers
-        run: |
-          docker-compose -f .devcontainer/docker-compose.yml up -d kafka zookeeper
+      - uses: actions/checkout@v3
 
       - id: common
-        name: Run all common steps
         uses: ghga-de/gh-action-common@v3
 
       - id: pytest
-        name: Run all tests
         run: |
           export ${{ steps.common.outputs.CONFIG_YAML_ENV_VAR_NAME }}="${{ steps.common.outputs.CONFIG_YAML }}"
 
