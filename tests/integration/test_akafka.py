@@ -18,7 +18,6 @@
 
 from os import environ
 from pathlib import Path
-from socket import getfqdn
 from unittest.mock import AsyncMock
 
 import pytest
@@ -106,7 +105,7 @@ async def test_kafka_event_subscriber(kafka_fixture: KafkaFixture):  # noqa: F81
 @pytest.mark.asyncio
 async def test_kafka_ssl(tmp_path: Path):
     """Test connecting to Kafka via SSL (TLS)."""
-    hostname = environ.get("TC_HOST") or getfqdn()
+    hostname = environ.get("TC_HOST") or "localhost"
 
     secrets = KafkaSecrets(hostname=hostname)
 
