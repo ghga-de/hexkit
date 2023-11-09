@@ -127,7 +127,7 @@ class KafkaSSLContainer(DockerContainer):
 
     @wait_container_is_ready(
         UnrecognizedBrokerVersion, NoBrokersAvailable, KafkaError, ValueError
-    )  # type: ignore
+    )  # pyright: ignore
     def _connect(self) -> None:
         bootstrap_server = self.get_bootstrap_server()
         try:
