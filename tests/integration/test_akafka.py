@@ -28,7 +28,7 @@ from hexkit.providers.akafka import (
     KafkaEventPublisher,
     KafkaEventSubscriber,
 )
-from hexkit.providers.akafka.containers import KafkaSSLContainer
+from hexkit.providers.akafka.testcontainer import KafkaSSLContainer
 from hexkit.providers.akafka.testutils import (  # noqa: F401
     ExpectedEvent,
     KafkaFixture,

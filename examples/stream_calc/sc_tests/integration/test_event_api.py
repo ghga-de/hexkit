@@ -30,7 +30,7 @@ from kafka import KafkaConsumer, KafkaProducer
 from testcontainers.kafka import KafkaContainer
 
 from hexkit.custom_types import JsonObject
-from hexkit.providers.akafka.containers import DEFAULT_IMAGE as KAFKA_IMAGE
+from hexkit.providers.akafka.testcontainer import DEFAULT_IMAGE as KAFKA_IMAGE
 from stream_calc.config import Config
 from stream_calc.main import main
 

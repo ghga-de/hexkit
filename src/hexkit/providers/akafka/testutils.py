@@ -32,13 +32,13 @@ from kafka.errors import KafkaError
 from testcontainers.kafka import KafkaContainer
 
 from hexkit.custom_types import Ascii, JsonObject, PytestScope
-from hexkit.providers.akafka.containers import DEFAULT_IMAGE as KAFKA_IMAGE
 from hexkit.providers.akafka.provider import (
     ConsumerEvent,
     KafkaConfig,
     KafkaEventPublisher,
     get_event_type,
 )
+from hexkit.providers.akafka.testcontainer import DEFAULT_IMAGE as KAFKA_IMAGE
 
 
 @dataclass(frozen=True)
