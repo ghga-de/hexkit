@@ -148,11 +148,6 @@ class KafkaSSLContainer(DockerContainer):
         host = self.get_container_host_ip()
         port = self.get_exposed_port(self.port)
         listeners = f"{protocol}://{host}:{port},BROKER://127.0.0.1:{self.broker_port}"
-        # In the following script, first start the ZooKeeper and then launch the
-        # Kafka broker. The configuration in the Docker image checks for the
-        # existence of key and trust store files which we do not need, since we
-        # pass the certificates and keys directly to the broker. Therefore, we
-        # deactivate these checks in the "configure" script before running it.
         script = f"""
         #!/bin/bash
         c=/etc/confluent/docker
@@ -164,6 +159,7 @@ class KafkaSSLContainer(DockerContainer):
         echo "dataDir=/var/lib/zookeeper/data" >> $p
         echo "dataLogDir=/var/lib/zookeeper/log" >> $p
         zookeeper-server-start $p &
+        # workaround for https://github.com/confluentinc/kafka-images/issues/244
         sed -i -E '/^if .*LISTENERS.*SSL:/,/^fi/d' $c/configure
         $c/configure && $c/launch
         """
