@@ -45,7 +45,7 @@ async def test_kafka_event_publisher():
     producer_class = Mock(return_value=producer)
 
     # publish event using the provider:
-    config = KafkaConfig(
+    config = KafkaConfig(  # type: ignore
         service_name="test_publisher",
         service_instance_id="1",
         kafka_servers=["my-fake-kafka-server"],
@@ -148,7 +148,7 @@ async def test_kafka_event_subscriber(
     consumer_cls = Mock()
     consumer_cls.return_value = consumer
 
-    # create protocol-compatiple translator mock:
+    # create protocol-compatible translator mock:
     translator = AsyncMock()
     if processing_failure and exception:
         translator.consume.side_effect = exception()
@@ -156,7 +156,7 @@ async def test_kafka_event_subscriber(
     translator.types_of_interest = types_of_interest
 
     # setup the provider:
-    config = KafkaConfig(
+    config = KafkaConfig(  # type: ignore
         service_name=service_name,
         service_instance_id="1",
         kafka_servers=["my-fake-kafka-server"],

@@ -38,6 +38,7 @@ from hexkit.providers.akafka.provider import (
     KafkaEventPublisher,
     get_event_type,
 )
+from hexkit.providers.akafka.testcontainer import DEFAULT_IMAGE as KAFKA_IMAGE
 
 
 @dataclass(frozen=True)
@@ -61,7 +62,7 @@ class ExpectedEvent(EventBase):
 
 @dataclass(frozen=True)
 class RecordedEvent(EventBase):
-    """Used by the EventyRecorder class to describe events recorded in a specific topic."""
+    """Used by the EventRecorder class to describe events recorded in a specific topic."""
 
     key: Ascii
 
@@ -324,7 +325,7 @@ class EventRecorder:
         return self
 
     async def __aexit__(self, error_type, error_val, error_tb):
-        """Stop recording and check the recorded events agains the expectation when
+        """Stop recording and check the recorded events against the expectation when
         exiting the context block.
         """
         await self.stop_recording()
@@ -403,9 +404,9 @@ async def kafka_fixture_function() -> AsyncGenerator[KafkaFixture, None]:
 
     **Do not call directly** Instead, use get_kafka_fixture()
     """
-    with KafkaContainer(image="confluentinc/cp-kafka:5.4.9-1-deb8") as kafka:
+    with KafkaContainer(image=KAFKA_IMAGE) as kafka:
         kafka_servers = [kafka.get_bootstrap_server()]
-        config = KafkaConfig(
+        config = KafkaConfig(  # type: ignore
             service_name="test_publisher",
             service_instance_id="001",
             kafka_servers=kafka_servers,

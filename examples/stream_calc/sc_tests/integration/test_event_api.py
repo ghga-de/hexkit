@@ -30,10 +30,11 @@ from kafka import KafkaConsumer, KafkaProducer
 from testcontainers.kafka import KafkaContainer
 
 from hexkit.custom_types import JsonObject
+from hexkit.providers.akafka.testcontainer import DEFAULT_IMAGE as KAFKA_IMAGE
 from stream_calc.config import Config
 from stream_calc.main import main
 
-DEFAULT_CONFIG = Config()
+DEFAULT_CONFIG = Config()  # type: ignore
 
 
 class Event(NamedTuple):
@@ -200,14 +201,14 @@ async def test_receive_calc_publish(cases: list[Case] = deepcopy(CASES)):
     the results.
     """
 
-    with KafkaContainer() as kafka:
+    with KafkaContainer(image=KAFKA_IMAGE) as kafka:
         kafka_server = kafka.get_bootstrap_server()
 
         submit_test_problems(cases, kafka_server=kafka_server)
 
         # run the stream_calc app:
         # (for each problem separately to avoid running forever)
-        config = Config(kafka_servers=[kafka_server])
+        config = Config(kafka_servers=[kafka_server])  # type: ignore
         for _ in cases:
             await main(config=config, run_forever=False)
 

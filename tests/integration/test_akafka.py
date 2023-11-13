@@ -16,6 +16,8 @@
 
 """Testing Apache Kafka based providers."""
 
+from os import environ
+from pathlib import Path
 from unittest.mock import AsyncMock
 
 import pytest
@@ -26,11 +28,14 @@ from hexkit.providers.akafka import (
     KafkaEventPublisher,
     KafkaEventSubscriber,
 )
+from hexkit.providers.akafka.testcontainer import KafkaSSLContainer
 from hexkit.providers.akafka.testutils import (  # noqa: F401
     ExpectedEvent,
     KafkaFixture,
     kafka_fixture,
 )
+
+from ..fixtures.kafka_secrets import KafkaSecrets
 
 
 @pytest.mark.asyncio
@@ -41,7 +46,7 @@ async def test_kafka_event_publisher(kafka_fixture: KafkaFixture):  # noqa: F811
     key = "test_key"
     topic = "test_topic"
 
-    config = KafkaConfig(
+    config = KafkaConfig(  # type: ignore
         service_name="test_publisher",
         service_instance_id="1",
         kafka_servers=kafka_fixture.kafka_servers,
@@ -62,13 +67,13 @@ async def test_kafka_event_publisher(kafka_fixture: KafkaFixture):  # noqa: F811
 
 @pytest.mark.asyncio
 async def test_kafka_event_subscriber(kafka_fixture: KafkaFixture):  # noqa: F811
-    """Test the KafkaEventSubscriber with mocked KafkaEventSubscriber."""
+    """Test the KafkaEventSubscriber with mocked EventSubscriber."""
     payload = {"test_content": "Hello World"}
     type_ = "test_type"
     key = "test_key"
     topic = "test_topic"
 
-    # create protocol-compatiple translator mock:
+    # create protocol-compatible translator mock:
     translator = AsyncMock()
     translator.topics_of_interest = [topic]
     translator.types_of_interest = [type_]
@@ -79,7 +84,7 @@ async def test_kafka_event_subscriber(kafka_fixture: KafkaFixture):  # noqa: F81
     )
 
     # setup the provider:
-    config = KafkaConfig(
+    config = KafkaConfig(  # type: ignore
         service_name="event_subscriber",
         service_instance_id="1",
         kafka_servers=kafka_fixture.kafka_servers,
@@ -95,3 +100,65 @@ async def test_kafka_event_subscriber(kafka_fixture: KafkaFixture):  # noqa: F81
     translator.consume.assert_awaited_once_with(
         payload=payload, type_=type_, topic=topic
     )
+
+
+@pytest.mark.asyncio
+async def test_kafka_ssl(tmp_path: Path):
+    """Test connecting to Kafka via SSL (TLS)."""
+    hostname = environ.get("TC_HOST") or "localhost"
+
+    secrets = KafkaSecrets(hostname=hostname)
+
+    path = tmp_path / ".ssl"
+    path.mkdir()
+
+    (path / "ca.crt").open("w").write(secrets.ca_cert)
+    (path / "client.crt").open("w").write(secrets.client_cert)
+    (path / "client.key").open("w").write(secrets.client_key)
+
+    payload: JsonObject = {"test_content": "Be aware... Connect with care"}
+    type_ = "test_type"
+    key = "test_key"
+    topic = "test_topic"
+
+    with KafkaSSLContainer(
+        cert=secrets.broker_cert,
+        key=secrets.broker_key,
+        password=secrets.broker_pwd,
+        trusted=secrets.ca_cert,
+        client_auth="required",
+    ) as kafka:
+        kafka_servers = [kafka.get_bootstrap_server()]
+
+        config = KafkaConfig(
+            service_name="test_ssl",
+            service_instance_id="1",
+            kafka_servers=kafka_servers,
+            kafka_security_protocol="SSL",
+            kafka_ssl_cafile=str(path / "ca.crt"),
+            kafka_ssl_certfile=str(path / "client.crt"),
+            kafka_ssl_keyfile=str(path / "client.key"),
+            kafka_ssl_password=secrets.client_pwd,
+        )
+
+        async with KafkaEventPublisher.construct(config=config) as event_publisher:
+            await event_publisher.publish(
+                payload=payload,
+                type_=type_,
+                key=key,
+                topic=topic,
+            )
+
+        translator = AsyncMock()
+        translator.topics_of_interest = [topic]
+        translator.types_of_interest = [type_]
+
+        async with KafkaEventSubscriber.construct(
+            config=config,
+            translator=translator,
+        ) as event_subscriber:
+            await event_subscriber.run(forever=False)
+
+        translator.consume.assert_awaited_once_with(
+            payload=payload, type_=type_, topic=topic
+        )

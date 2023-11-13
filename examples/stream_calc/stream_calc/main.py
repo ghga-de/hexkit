@@ -38,7 +38,9 @@ def get_container(config: Config) -> Container:
     return container
 
 
-async def main(*, config: Config = Config(), run_forever: bool = True) -> None:
+async def main(
+    *, config: Config = Config(), run_forever: bool = True  # type: ignore
+) -> None:
     """
     Coroutine to run the stream calculator.
 

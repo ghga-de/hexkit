@@ -133,6 +133,12 @@ dmypy.json
 # ignore VS Code settings:
 .vscode/
 
+# key stores
+*.key
+*.rnd
+.keystore
+.ssl/
+
 # desktop settings and thumbnails
 .DS_Store
 desktop.ini

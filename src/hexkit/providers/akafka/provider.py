@@ -23,10 +23,12 @@ Require dependencies of the `akafka` extra. See the `setup.cfg`.
 
 import json
 import logging
+import ssl
 from contextlib import asynccontextmanager
-from typing import Any, Callable, Protocol, TypeVar
+from typing import Any, Callable, Optional, Protocol, TypeVar
 
 from aiokafka import AIOKafkaConsumer, AIOKafkaProducer
+from aiokafka.helpers import create_ssl_context
 from pydantic import Field
 from pydantic_settings import BaseSettings
 
@@ -70,6 +72,29 @@ class KafkaConfig(BaseSettings):
         examples=[["localhost:9092"]],
         description="A list of connection strings to connect to Kafka bootstrap servers.",
     )
+    kafka_security_protocol: Literal["PLAINTEXT", "SSL"] = Field(
+        "PLAINTEXT",
+        description="Protocol used to communicate with brokers. "
+        + "Valid values are: PLAINTEXT, SSL.",
+    )
+    kafka_ssl_cafile: str = Field(
+        "",
+        description="Certificate Authority file path containing certificates"
+        + " used to sign broker certificates. If a CA not specified, the default"
+        + " system CA will be used if found by OpenSSL.",
+    )
+    kafka_ssl_certfile: str = Field(
+        "",
+        description="Optional filename of client certificate, as well as any"
+        + " CA certificates needed to establish the certificate's authenticity.",
+    )
+    kafka_ssl_keyfile: str = Field(
+        "", description="Optional filename containing the client private key."
+    )
+    kafka_ssl_password: str = Field(
+        "",
+        description="Optional password to be used for the client private key.",
+    )
 
 
 class EventTypeNotFoundError(RuntimeError):
@@ -84,13 +109,29 @@ def generate_client_id(*, service_name: str, instance_id: str) -> str:
     return f"{service_name}.{instance_id}"
 
 
+def generate_ssl_context(config: KafkaConfig) -> Optional[ssl.SSLContext]:
+    """Generate SSL context for an encrypted SSL connection to Kafka broker."""
+    return (
+        create_ssl_context(
+            cafile=config.kafka_ssl_cafile,
+            certfile=config.kafka_ssl_certfile,
+            keyfile=config.kafka_ssl_keyfile,
+            password=config.kafka_ssl_password,
+        )
+        if config.kafka_security_protocol == "SSL"
+        else None
+    )
+
+
 class KafkaProducerCompatible(Protocol):
     """A python duck type protocol describing an AIOKafkaProducer or equivalent."""
 
-    def __init__(
+    def __init__(  # noqa: PLR0913
         self,
         *,
         bootstrap_servers: str,
+        security_protocol: str,
+        ssl_context: Optional[ssl.SSLContext],
         client_id: str,
         key_serializer: Callable[[Any], bytes],
         value_serializer: Callable[[Any], bytes],
@@ -149,6 +190,8 @@ class KafkaEventPublisher(EventPublisherProtocol):
 
         producer = kafka_producer_cls(
             bootstrap_servers=",".join(config.kafka_servers),
+            security_protocol=config.kafka_security_protocol,
+            ssl_context=generate_ssl_context(config),
             client_id=client_id,
             key_serializer=lambda key: key.encode("ascii"),
             value_serializer=lambda event_value: json.dumps(event_value).encode(
@@ -220,6 +263,8 @@ class KafkaConsumerCompatible(Protocol):
         self,
         *topics: Ascii,
         bootstrap_servers: str,
+        security_protocol: str,
+        ssl_context: Optional[ssl.SSLContext],
         client_id: str,
         group_id: str,
         auto_offset_reset: Literal["earliest"],
@@ -297,6 +342,8 @@ class KafkaEventSubscriber(InboundProviderBase):
         consumer = kafka_consumer_cls(
             *topics,
             bootstrap_servers=",".join(config.kafka_servers),
+            security_protocol=config.kafka_security_protocol,
+            ssl_context=generate_ssl_context(config),
             client_id=client_id,
             group_id=config.service_name,
             auto_offset_reset="earliest",
