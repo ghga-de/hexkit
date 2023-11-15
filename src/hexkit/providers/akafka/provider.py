@@ -108,7 +108,7 @@ class KafkaConfig(BaseSettings):
         description="Format string for the log messages.",
     )
     kafka_log_level: int = Field(
-        logging.INFO,
+        logging.ERROR,
         examples=[logging.INFO, logging.WARNING, logging.CRITICAL],
         description="Threshold level for logging. Only logs of this level and higher "
         + "will be captured.",
