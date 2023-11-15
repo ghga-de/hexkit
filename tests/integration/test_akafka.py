@@ -130,7 +130,7 @@ async def test_kafka_ssl(tmp_path: Path):
     ) as kafka:
         kafka_servers = [kafka.get_bootstrap_server()]
 
-        config = KafkaConfig(
+        config = KafkaConfig(  # type: ignore [call-arg]
             service_name="test_ssl",
             service_instance_id="1",
             kafka_servers=kafka_servers,
