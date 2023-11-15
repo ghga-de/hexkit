@@ -27,7 +27,7 @@ JsonObject = Mapping[
 
 
 # A type indicating that a string should be ascii-compatible.
-# Technically it is an alias for `str` so it only serves documention purposes.
+# Technically it is an alias for `str` so it only serves documentation purposes.
 Ascii = str
 
 

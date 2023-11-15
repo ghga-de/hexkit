@@ -25,7 +25,8 @@ import json
 import logging
 import ssl
 from contextlib import asynccontextmanager
-from typing import Any, Callable, Optional, Protocol, TypeVar
+from pathlib import Path
+from typing import Any, Callable, Literal, Optional, Protocol, TypeVar
 
 from aiokafka import AIOKafkaConsumer, AIOKafkaProducer
 from aiokafka.helpers import create_ssl_context
@@ -36,11 +37,6 @@ from hexkit.base import InboundProviderBase
 from hexkit.custom_types import Ascii, JsonObject
 from hexkit.protocols.eventpub import EventPublisherProtocol
 from hexkit.protocols.eventsub import EventSubscriberProtocol
-
-try:  # workaround for https://github.com/pydantic/pydantic/issues/5821
-    from typing_extensions import Literal
-except ImportError:
-    from typing import Literal  # type: ignore
 
 __all__ = [
     "KafkaConfig",
@@ -95,6 +91,58 @@ class KafkaConfig(BaseSettings):
         "",
         description="Optional password to be used for the client private key.",
     )
+    kafka_log_output_filename: Optional[str] = Field(
+        "",
+        examples=["kafka.log"],
+        description="Name of file used to capture log output. Leave blank to write "
+        + "to standard output.",
+    )
+    kafka_log_output_mode: str = Field(
+        "a",
+        examples=["w", "a"],
+        description="Mode to use for logging to file, such as 'w', 'a', etc. "
+        + "Has no effect if `kafka_log_output_filename` is empty.",
+    )
+    kafka_log_format: str = Field(
+        "%(asctime)s - %(name)s - %(levelname)s - %(message)s",
+        description="Format string for the log messages.",
+    )
+    kafka_log_level: int = Field(
+        logging.INFO,
+        examples=[logging.INFO, logging.WARNING, logging.CRITICAL],
+        description="Threshold level for logging. Only logs of this level and higher "
+        + "will be captured.",
+    )
+
+
+def get_configured_logger(*, config: KafkaConfig, name: str) -> logging.Logger:
+    """Produce a Kafka-specific logger according to KafkaConfig."""
+    logger = logging.getLogger(name=name)
+
+    # logger objects are singletons, so don't repeat configuration.
+    configured = getattr(logger, "configured", False)
+    if configured:
+        return logger
+
+    logger.setLevel(config.kafka_log_level)
+
+    formatter = logging.Formatter(fmt=config.kafka_log_format)
+    if config.kafka_log_output_filename:
+        output_filename = Path(config.kafka_log_output_filename)
+        file_handler = logging.FileHandler(
+            filename=output_filename,
+            mode=config.kafka_log_output_mode,
+            encoding="utf-8",
+        )
+        file_handler.setFormatter(fmt=formatter)
+        logger.addHandler(file_handler)
+    else:
+        stream_handler = logging.StreamHandler()
+        stream_handler.setFormatter(fmt=formatter)
+        logger.addHandler(stream_handler)
+
+    setattr(logger, "configured", True)  # noqa: B010
+    return logger
 
 
 class EventTypeNotFoundError(RuntimeError):
@@ -198,9 +246,12 @@ class KafkaEventPublisher(EventPublisherProtocol):
                 "ascii"
             ),
         )
+
+        log = get_configured_logger(config=config, name=client_id)
+
         try:
             await producer.start()
-            yield cls(producer=producer)
+            yield cls(producer=producer, log=log)
         finally:
             await producer.stop()
 
@@ -208,6 +259,7 @@ class KafkaEventPublisher(EventPublisherProtocol):
         self,
         *,
         producer: KafkaProducerCompatible,
+        log: logging.Logger,
     ):
         """Please do not call directly! Should be called by the `construct` method.
         Args:
@@ -215,6 +267,7 @@ class KafkaEventPublisher(EventPublisherProtocol):
                 hands over a started AIOKafkaProducer.
         """
         self._producer = producer
+        self._log = log
 
     async def _publish_validated(
         self, *, payload: JsonObject, type_: Ascii, key: Ascii, topic: Ascii
@@ -232,6 +285,7 @@ class KafkaEventPublisher(EventPublisherProtocol):
         await self._producer.send_and_wait(
             topic, key=key, value=payload, headers=event_headers
         )
+        self._log.info("published event type: '%s'", event_headers[0][1])
 
 
 class ConsumerEvent(Protocol):
@@ -352,16 +406,23 @@ class KafkaEventSubscriber(InboundProviderBase):
                 event_value.decode("ascii")
             ),
         )
+
+        log = get_configured_logger(config=config, name=client_id)
+
         try:
             await consumer.start()
-            yield cls(consumer=consumer, translator=translator)
+            yield cls(consumer=consumer, translator=translator, log=log)
         finally:
             await consumer.stop()
 
     # pylint: disable=too-many-arguments
     # (some arguments are only used for testing)
     def __init__(
-        self, *, consumer: KafkaConsumerCompatible, translator: EventSubscriberProtocol
+        self,
+        *,
+        consumer: KafkaConsumerCompatible,
+        translator: EventSubscriberProtocol,
+        log: logging.Logger,
     ):
         """Please do not call directly! Should be called by the `construct` method.
         Args:
@@ -375,6 +436,7 @@ class KafkaEventSubscriber(InboundProviderBase):
         self._consumer = consumer
         self._translator = translator
         self._types_whitelist = translator.types_of_interest
+        self._log = log
 
     @staticmethod
     def _get_event_label(event: ConsumerEvent) -> str:
@@ -391,11 +453,11 @@ class KafkaEventSubscriber(InboundProviderBase):
         try:
             type_ = get_event_type(event)
         except EventTypeNotFoundError:
-            logging.warning("Ignored an event without type: %s", event_label)
+            self._log.warning("Ignored an event without type: '%s'", event_label)
             return
 
         if type_ in self._types_whitelist:
-            logging.info('Consuming event of type "%s": %s', type_, event_label)
+            self._log.info("Consuming event of type '%s': %s", type_, event_label)
 
             try:
                 # blocks until event processing is completed:
@@ -403,14 +465,14 @@ class KafkaEventSubscriber(InboundProviderBase):
                     payload=event.value, type_=type_, topic=event.topic
                 )
             except Exception:
-                logging.error(
+                self._log.error(
                     "A fatal error occurred while processing the event: %s",
                     event_label,
                 )
                 raise
 
         else:
-            logging.info("Ignored event of type %s: %s", type_, event_label)
+            self._log.info("Ignored event of type '%s': %s", type_, event_label)
 
     async def run(self, forever: bool = True) -> None:
         """
