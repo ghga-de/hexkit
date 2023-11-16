@@ -25,7 +25,6 @@ import json
 import logging
 import ssl
 from contextlib import asynccontextmanager
-from pathlib import Path
 from typing import Any, Callable, Literal, Optional, Protocol, TypeVar
 
 from aiokafka import AIOKafkaConsumer, AIOKafkaProducer
@@ -91,58 +90,6 @@ class KafkaConfig(BaseSettings):
         "",
         description="Optional password to be used for the client private key.",
     )
-    kafka_log_output_filename: Optional[str] = Field(
-        "",
-        examples=["kafka.log"],
-        description="Name of file used to capture log output. Leave blank to write "
-        + "to standard output.",
-    )
-    kafka_log_output_mode: str = Field(
-        "a",
-        examples=["w", "a"],
-        description="Mode to use for logging to file, such as 'w', 'a', etc. "
-        + "Has no effect if `kafka_log_output_filename` is empty.",
-    )
-    kafka_log_format: str = Field(
-        "%(asctime)s - %(name)s - %(levelname)s - %(message)s",
-        description="Format string for the log messages.",
-    )
-    kafka_log_level: int = Field(
-        logging.ERROR,
-        examples=[logging.INFO, logging.WARNING, logging.CRITICAL],
-        description="Threshold level for logging. Only logs of this level and higher "
-        + "will be captured.",
-    )
-
-
-def get_configured_logger(*, config: KafkaConfig, name: str) -> logging.Logger:
-    """Produce a Kafka-specific logger according to KafkaConfig."""
-    logger = logging.getLogger(name=name)
-
-    # logger objects are singletons, so don't repeat configuration.
-    configured = getattr(logger, "configured", False)
-    if configured:
-        return logger
-
-    logger.setLevel(config.kafka_log_level)
-
-    formatter = logging.Formatter(fmt=config.kafka_log_format)
-    if config.kafka_log_output_filename:
-        output_filename = Path(config.kafka_log_output_filename)
-        file_handler = logging.FileHandler(
-            filename=output_filename,
-            mode=config.kafka_log_output_mode,
-            encoding="utf-8",
-        )
-        file_handler.setFormatter(fmt=formatter)
-        logger.addHandler(file_handler)
-    else:
-        stream_handler = logging.StreamHandler()
-        stream_handler.setFormatter(fmt=formatter)
-        logger.addHandler(stream_handler)
-
-    setattr(logger, "configured", True)  # noqa: B010
-    return logger
 
 
 class EventTypeNotFoundError(RuntimeError):
@@ -247,7 +194,11 @@ class KafkaEventPublisher(EventPublisherProtocol):
             ),
         )
 
-        log = get_configured_logger(config=config, name=client_id)
+        logging.basicConfig(
+            format="%(asctime)s - %(name)s - %(levelname)s - %(message)s",
+        )
+        log = logging.getLogger(client_id)
+        log.setLevel(logging.INFO)
 
         try:
             await producer.start()
@@ -407,7 +358,11 @@ class KafkaEventSubscriber(InboundProviderBase):
             ),
         )
 
-        log = get_configured_logger(config=config, name=client_id)
+        logging.basicConfig(
+            format="%(asctime)s - %(name)s - %(levelname)s - %(message)s",
+        )
+        log = logging.getLogger(client_id)
+        log.setLevel(logging.INFO)
 
         try:
             await consumer.start()
