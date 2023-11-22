@@ -30,12 +30,13 @@ scripts/list_outdated_dependencies.py
 scripts/README.md
 
 .github/workflows/check_config_docs.yaml
-.github/workflows/check_template_files.yaml
-.github/workflows/static_code_analysis.yaml
-.github/workflows/tests.yaml
 .github/workflows/check_openapi_spec.yaml
 .github/workflows/check_readme.yaml
-.github/workflows/cd.yaml
+.github/workflows/check_template_files.yaml
+.github/workflows/ci_release.yaml
+.github/workflows/ci_workflow_dispatch.yaml
+.github/workflows/static_code_analysis.yaml
+.github/workflows/tests.yaml
 
 example_data/README.md
 
