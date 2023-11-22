@@ -111,7 +111,7 @@ class MongoDbDaoBase(ABC, Generic[Dto]):
         Raises:
             ResourceNotFoundError: when resource with the specified id_ was not found
         """
-        document = await self._collection.find_one(  # type: ignore
+        document = await self._collection.find_one(
             {"_id": id_},
             session=self._session,
         )
@@ -406,7 +406,7 @@ class MongoDbDaoFactory(DaoFactoryProtocol):
         self._config = config
 
         # get a database-specific client:
-        self._client = AsyncIOMotorClient(
+        self._client = AsyncIOMotorClient(  # type: ignore
             self._config.db_connection_str.get_secret_value()
         )
         self._db = self._client[self._config.db_name]
