@@ -46,8 +46,6 @@ __all__ = [
     "Configurator",
 ]
 
-# pylint: disable=c-extension-no-member
-
 
 class NotConstructableError(TypeError):
     """Thrown when an AsyncContextConstructable was expected but not obtained."""
@@ -108,9 +106,6 @@ class AsyncConstructor(dependency_injector.providers.Resource):
 
         return resource
 
-    # This pylint error is inherited from the dependency_injector framework, other
-    # DI providers use the same basic signature:
-    # pylint: disable=keyword-arg-before-vararg
     def __init__(
         self,
         provides: Optional[

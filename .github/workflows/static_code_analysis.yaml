@@ -16,10 +16,9 @@ jobs:
         env:
           SKIP: no-commit-to-branch
       - name: ruff
-        uses: chartboost/ruff-action@v1
-      - name: black
         run: |
-          black --check .
+          ruff check --output-format=github .
+          ruff format --check .
       - name: mypy
         run: |
           mypy .

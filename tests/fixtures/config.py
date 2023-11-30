@@ -72,7 +72,6 @@ class EnvVarFixture:
         """Makes a backup of the environment and set the
         env_vars
         """
-        # pylint: disable=attribute-defined-outside-init
         self.env_backup = copy.deepcopy(os.environ)
 
         for name, value in self.env_vars.items():

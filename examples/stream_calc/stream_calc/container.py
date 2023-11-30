@@ -21,7 +21,6 @@
 
 """Module hosting the dependency injection container."""
 
-# pylint: disable=wrong-import-order
 from hexkit.inject import ContainerBase, get_configurator, get_constructor
 from hexkit.providers.akafka import KafkaEventPublisher, KafkaEventSubscriber
 from stream_calc.config import Config

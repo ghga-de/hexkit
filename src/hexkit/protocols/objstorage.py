@@ -155,7 +155,6 @@ class ObjectStorageProtocol(ABC):
             upload_id=upload_id, bucket_id=bucket_id, object_id=object_id
         )
 
-    # pylint: disable=too-many-arguments
     async def complete_multipart_upload(
         self,
         *,
@@ -367,7 +366,6 @@ class ObjectStorageProtocol(ABC):
         """
         ...
 
-    # pylint: disable=too-many-arguments
     @abstractmethod
     async def _complete_multipart_upload(
         self,

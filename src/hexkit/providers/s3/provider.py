@@ -97,7 +97,6 @@ class S3Config(BaseSettings):
         description=(
             "Path to a config file for specifying more advanced S3 parameters."
             + " This should follow the format described here:"
-            # pylint: disable=line-too-long
             + " https://boto3.amazonaws.com/v1/documentation/api/latest/guide/configuration.html#using-a-configuration-file"
         ),
     )
@@ -114,12 +113,10 @@ def read_aws_config_ini(aws_config_ini: Path) -> botocore.config.Config:
     return botocore.config.Config(**config_profile)
 
 
-class S3ObjectStorage(
-    ObjectStorageProtocol
-):  # pylint: disable=too-many-instance-attributes
+class S3ObjectStorage(ObjectStorageProtocol):
     """S3-based provider implementing the ObjectStorageProtocol."""
 
-    def __init__(  # pylint: disable=too-many-arguments
+    def __init__(
         self,
         *,
         config: S3Config,
@@ -548,7 +545,6 @@ class S3ObjectStorage(
                 object_id=object_id,
             ) from error
 
-    # pylint: disable=too-many-arguments
     async def _check_uploaded_parts(
         self,
         *,
@@ -629,7 +625,6 @@ class S3ObjectStorage(
                     + f" first part which had only {first_part_size}.",
                 )
 
-    # pylint: disable=too-many-arguments
     async def _abort_multipart_upload(
         self,
         *,
@@ -686,7 +681,6 @@ class S3ObjectStorage(
                 upload_id=upload_id, bucket_id=bucket_id, object_id=object_id
             )
 
-    # pylint: disable=too-many-arguments
     async def _complete_multipart_upload(
         self,
         *,

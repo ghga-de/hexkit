@@ -358,8 +358,6 @@ class KafkaEventSubscriber(InboundProviderBase):
         finally:
             await consumer.stop()
 
-    # pylint: disable=too-many-arguments
-    # (some arguments are only used for testing)
     def __init__(
         self, *, consumer: KafkaConsumerCompatible, translator: EventSubscriberProtocol
     ):

@@ -13,8 +13,6 @@ mypy-extensions>=1.0.0
 
 ruff>=0.0.290
 
-black>=23.1.0
-
 click>=8.1.0
 typer>=0.7.0
 
