@@ -16,14 +16,11 @@
 
 """Config parameters."""
 
-from hexkit.providers.akafka import KafkaConfig
+from typing import Literal
+
+from hexkit.providers.akafka.provider import KafkaConfig
 from stream_calc.translators.eventpub import EventResultEmitterConfig
 from stream_calc.translators.eventsub import EventProblemReceiverConfig
-
-try:  # workaround for https://github.com/pydantic/pydantic/issues/5821
-    from typing_extensions import Literal
-except ImportError:
-    from typing import Literal  # type: ignore
 
 LOGLEVEL = Literal["DEBUG", "INFO", "WARNING", "ERROR", "CRITICAL"]
 
