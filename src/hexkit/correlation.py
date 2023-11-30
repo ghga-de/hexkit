@@ -1,0 +1,106 @@
+# Copyright 2021 - 2023 Universität Tübingen, DKFZ, EMBL, and Universität zu Köln
+# for the German Human Genome-Phenome Archive (GHGA)
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#     http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+#
+
+"""Utilities related to correlation IDs"""
+
+import logging
+from contextlib import asynccontextmanager
+from contextvars import ContextVar
+from uuid import UUID, uuid4
+
+from hexkit.utils import set_context_var
+
+log = logging.getLogger()
+
+correlation_id_var: ContextVar[str] = ContextVar("correlation_id", default="")
+
+__all__ = [
+    "set_correlation_id",
+    "get_correlation_id",
+    "new_correlation_id",
+    "validate_correlation_id",
+    "CorrelationIdContextError",
+    "MissingCorrelationIdError",
+    "InvalidCorrelationIdError",
+]
+
+
+class CorrelationIdContextError(RuntimeError):
+    """Raised when the correlation ID ContextVar is unexpectedly not set."""
+
+
+class InvalidCorrelationIdError(RuntimeError):
+    """Raised when a correlation ID fails validation."""
+
+    def __init__(self, *, correlation_id: str):
+        message = f"Invalid correlation ID found: '{correlation_id}'"
+        super().__init__(message)
+
+
+class MissingCorrelationIdError(RuntimeError):
+    """Raised when a correlation ID is not supplied."""
+
+
+def new_correlation_id() -> str:
+    """Generates a new correlation ID."""
+    return str(uuid4())
+
+
+def validate_correlation_id(correlation_id: str):
+    """Raises an error if the correlation ID is invalid.
+
+    Raises:
+        InvalidCorrelationIdError: If the correlation ID is invalid.
+    """
+    try:
+        UUID(correlation_id)
+    except ValueError as err:
+        raise InvalidCorrelationIdError(correlation_id=correlation_id) from err
+
+
+@asynccontextmanager
+async def set_correlation_id(correlation_id: str):
+    """Set the correlation ID for the life of the context.
+
+    Raises:
+        InvalidCorrelationIdError: when the correlation ID is set but invalid.
+        MissingCorrelationIdError: when the correlation ID arg is empty.
+    """
+    if not correlation_id:
+        raise MissingCorrelationIdError()
+
+    validate_correlation_id(correlation_id)
+
+    async with set_context_var(correlation_id_var, correlation_id):
+        log.info("Set context correlation ID to %s", correlation_id)
+        yield
+
+
+def get_correlation_id() -> str:
+    """Get the correlation ID.
+
+    This should only be called when the correlation ID ContextVar is expected to be set.
+
+    Raises:
+        CorrelationIdContextError: when the correlation ID ContextVar is not set.
+        InvalidCorrelationIdError: when the correlation ID is set but invalid.
+    """
+    if not (correlation_id := correlation_id_var.get()):
+        raise CorrelationIdContextError()
+
+    validate_correlation_id(correlation_id)
+
+    return correlation_id

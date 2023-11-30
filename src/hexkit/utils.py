@@ -16,7 +16,9 @@
 """General utilities that don't require heavy dependencies."""
 
 from collections.abc import Collection
-from typing import Optional
+from contextlib import asynccontextmanager
+from contextvars import ContextVar
+from typing import Any, Optional
 
 from pydantic import BaseModel
 
@@ -111,3 +113,14 @@ def validate_fields_in_model(
     if not fields_set.issubset(existing_fields_set):
         unexpected_fields = fields_set.difference(existing_fields_set)
         raise FieldNotInModelError(model=model, unexpected_field=unexpected_fields)
+
+
+@asynccontextmanager
+async def set_context_var(context_var: ContextVar, value: Any):
+    """An async context manager to simplify the use of ContextVars.
+
+    The value will be reset upon exiting the context.
+    """
+    token = context_var.set(value)
+    yield
+    context_var.reset(token)
