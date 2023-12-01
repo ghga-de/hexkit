@@ -33,7 +33,6 @@ __all__ = [
     "new_correlation_id",
     "validate_correlation_id",
     "CorrelationIdContextError",
-    "MissingCorrelationIdError",
     "InvalidCorrelationIdError",
 ]
 
@@ -50,10 +49,6 @@ class InvalidCorrelationIdError(RuntimeError):
         super().__init__(message)
 
 
-class MissingCorrelationIdError(RuntimeError):
-    """Raised when a correlation ID is not supplied."""
-
-
 def new_correlation_id() -> str:
     """Generates a new correlation ID."""
     return str(uuid4())
@@ -63,7 +58,7 @@ def validate_correlation_id(correlation_id: str):
     """Raises an error if the correlation ID is invalid.
 
     Raises:
-        InvalidCorrelationIdError: If the correlation ID is invalid.
+        InvalidCorrelationIdError: If the correlation ID is empty or invalid.
     """
     try:
         UUID(correlation_id)
@@ -76,12 +71,8 @@ async def set_correlation_id(correlation_id: str):
     """Set the correlation ID for the life of the context.
 
     Raises:
-        InvalidCorrelationIdError: when the correlation ID is set but invalid.
-        MissingCorrelationIdError: when the correlation ID arg is empty.
+        InvalidCorrelationIdError: when the correlation ID is empty or invalid.
     """
-    if not correlation_id:
-        raise MissingCorrelationIdError()
-
     validate_correlation_id(correlation_id)
 
     async with set_context_var(correlation_id_var, correlation_id):
@@ -96,7 +87,7 @@ def get_correlation_id() -> str:
 
     Raises:
         CorrelationIdContextError: when the correlation ID ContextVar is not set.
-        InvalidCorrelationIdError: when the correlation ID is set but invalid.
+        InvalidCorrelationIdError: when the correlation ID is invalid.
     """
     if not (correlation_id := correlation_id_var.get()):
         raise CorrelationIdContextError()

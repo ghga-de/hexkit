@@ -25,7 +25,6 @@ import pytest
 from hexkit.correlation import (
     CorrelationIdContextError,
     InvalidCorrelationIdError,
-    MissingCorrelationIdError,
     correlation_id_var,
     get_correlation_id,
     new_correlation_id,
@@ -86,7 +85,7 @@ async def test_correlation_id_validation(correlation_id: str, exception):
     "correlation_id,exception",
     [
         ("12345", InvalidCorrelationIdError),
-        ("", MissingCorrelationIdError),
+        ("", InvalidCorrelationIdError),
         (new_correlation_id(), None),
     ],
 )
