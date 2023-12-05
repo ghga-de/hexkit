@@ -20,6 +20,8 @@ ignore = [
     "D400", # first doc line ends in period
     "D401", # non-imperative-mood
     "D107", # missing docstring in __init__
+    "D206", # indent-with-spaces (ignored for formatter)
+    "D300", # triple-single-quotes (ignored for formatter)
 ]
 
 line-length = 88

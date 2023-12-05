@@ -15,11 +15,10 @@
 
 """Test S3 storage DAO"""
 
-from contextlib import AbstractContextManager
+from contextlib import AbstractContextManager, nullcontext
 from typing import Optional
 
 import pytest
-from black import nullcontext
 
 from hexkit.protocols.objstorage import ObjectStorageProtocol
 from hexkit.providers.s3.testutils import (  # noqa: F401
@@ -44,7 +43,8 @@ EXAMPLE_BUCKETS = [
 
 @pytest.mark.asyncio
 async def test_empty_buckets(
-    s3_fixture: S3Fixture, file_fixture: FileObject  # noqa: F811
+    s3_fixture: S3Fixture,  # noqa: F811
+    file_fixture: FileObject,  # noqa: F811
 ):
     """Make sure the empty_buckets function works"""
     # bucket should not exist in the beginning:
@@ -161,7 +161,8 @@ async def test_bucket_existence_checks(s3_fixture: S3Fixture):  # noqa: F811
 
 @pytest.mark.asyncio
 async def test_object_and_bucket_collisions(
-    s3_fixture: S3Fixture, file_fixture: FileObject  # noqa: F811
+    s3_fixture: S3Fixture,  # noqa: F811
+    file_fixture: FileObject,  # noqa: F811
 ):
     """
     Tests whether overwriting (re-creation, re-upload, or copy to existing object)
@@ -191,7 +192,8 @@ async def test_object_and_bucket_collisions(
 
 @pytest.mark.asyncio
 async def test_handling_non_existing_file_and_bucket(
-    s3_fixture: S3Fixture, file_fixture: FileObject  # noqa: F811
+    s3_fixture: S3Fixture,  # noqa: F811
+    file_fixture: FileObject,  # noqa: F811
 ):
     """
     Tests whether interacting with a non-existing bucket/file object fails with the
@@ -526,7 +528,8 @@ async def test_handling_multiple_coexisting_uploads(
 @pytest.mark.asyncio
 @pytest.mark.parametrize("abort_first", (True, False))
 async def test_handling_multiple_subsequent_uploads(
-    abort_first: bool, s3_fixture: S3Fixture  # noqa: F811
+    abort_first: bool,
+    s3_fixture: S3Fixture,  # noqa: F811
 ):
     """
     Ensure that multiple subsequent uploads that target the same object are handled

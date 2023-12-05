@@ -25,7 +25,7 @@ import json
 import logging
 import ssl
 from contextlib import asynccontextmanager
-from typing import Any, Callable, Optional, Protocol, TypeVar
+from typing import Any, Callable, Literal, Optional, Protocol, TypeVar
 
 from aiokafka import AIOKafkaConsumer, AIOKafkaProducer
 from aiokafka.helpers import create_ssl_context
@@ -36,11 +36,6 @@ from hexkit.base import InboundProviderBase
 from hexkit.custom_types import Ascii, JsonObject
 from hexkit.protocols.eventpub import EventPublisherProtocol
 from hexkit.protocols.eventsub import EventSubscriberProtocol
-
-try:  # workaround for https://github.com/pydantic/pydantic/issues/5821
-    from typing_extensions import Literal
-except ImportError:
-    from typing import Literal  # type: ignore
 
 __all__ = [
     "KafkaConfig",
@@ -358,8 +353,6 @@ class KafkaEventSubscriber(InboundProviderBase):
         finally:
             await consumer.stop()
 
-    # pylint: disable=too-many-arguments
-    # (some arguments are only used for testing)
     def __init__(
         self, *, consumer: KafkaConsumerCompatible, translator: EventSubscriberProtocol
     ):

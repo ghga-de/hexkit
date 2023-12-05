@@ -25,12 +25,16 @@
 				],
 				"python.testing.unittestEnabled": false,
 				"python.testing.pytestEnabled": true,
+				"editor.codeActionsOnSave": {
+					"source.organizeImports": true
+				},
 				"editor.formatOnSave": true,
 				"editor.renderWhitespace": "all",
 				"editor.rulers": [
 					88
 				],
-				"editor.defaultFormatter": "ms-python.black-formatter",
+				"ruff.organizeImports": true,
+				"editor.defaultFormatter": "charliermarsh.ruff",
 				"licenser.license": "Custom",
 				"licenser.customHeaderFile": "/workspace/.devcontainer/license_header.txt"
 			},
@@ -52,7 +56,6 @@
 				"visualstudioexptteam.vscodeintellicode",
 				"ymotongpoo.licenser",
 				"charliermarsh.ruff",
-				"ms-python.black-formatter",
 				"ms-python.mypy-type-checker"
 			]
 		}

@@ -428,7 +428,7 @@ class MongoDbDaoFactory(DaoFactoryProtocol):
         ...
 
     @overload
-    async def _get_dao(  # pylint: disable=arguments-differ
+    async def _get_dao(
         self,
         *,
         name: str,

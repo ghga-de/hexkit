@@ -200,7 +200,6 @@ def check_part_size(file_path: Path, anticipated_size: int) -> None:
         )
 
 
-# pylint: disable=too-many-arguments
 async def upload_part(
     storage_dao: ObjectStorageProtocol,
     upload_id: str,
@@ -220,7 +219,6 @@ async def upload_part(
     response.raise_for_status()
 
 
-# pylint: disable=too-many-arguments
 async def upload_part_of_size(
     storage_dao: ObjectStorageProtocol,
     upload_id: str,
@@ -372,7 +370,6 @@ async def prepare_non_completed_upload(s3_fixture_: S3Fixture):
 # This workflow is defined as a seperate function so that it can also be used
 # outside of the `tests` package e.g. to test the compliance of an S3-compatible
 # object storage implementation:
-# pylint: disable=too-many-arguments
 async def typical_workflow(
     storage_client: ObjectStorageProtocol,
     test_file_path: Path,

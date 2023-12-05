@@ -68,7 +68,7 @@ class EventProblemReceiver(EventSubscriberProtocol):
         type_: Ascii,
         # This implementation does NOT use the `topic` information that is provided as
         # part of the EventSubscriberProtocol:
-        topic: Ascii,  # pylint: disable=unused-argument
+        topic: Ascii,
     ) -> None:
         """
         Receive and process an event with already validated topic and type.
