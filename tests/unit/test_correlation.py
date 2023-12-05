@@ -17,8 +17,10 @@
 
 import asyncio
 import random
+from collections import namedtuple
 from contextlib import nullcontext
 from contextvars import ContextVar
+from unittest.mock import AsyncMock, Mock
 
 import pytest
 
@@ -30,12 +32,23 @@ from hexkit.correlation import (
     set_correlation_id,
     validate_correlation_id,
 )
+from hexkit.custom_types import Ascii, JsonObject
+from hexkit.protocols.eventsub import EventSubscriberProtocol
+from hexkit.providers.akafka.provider import KafkaConfig, KafkaEventSubscriber
+from hexkit.providers.akafka.testutils import (
+    KafkaFixture,
+    get_kafka_fixture,
+)
+from hexkit.providers.testing.utils import get_event_loop
 from hexkit.utils import set_context_var
 
 # Set seed to avoid non-deterministic outcomes with random.random()
 random.seed(17)
 
 VALID_CORRELATION_ID = "7041eb31-7333-4b57-97d7-90f5562c3383"
+
+event_loop = get_event_loop("module")
+kafka_fixture = get_kafka_fixture("module")
 
 
 async def set_id_sleep_resume(correlation_id: str):
@@ -143,3 +156,134 @@ async def test_context_var_setter():
 
     # Ensure the set value is removed/cleaned up by the function
     assert test_var.get() == default
+
+
+@pytest.mark.parametrize(
+    "correlation_id,generate_correlation_id,expected_exception",
+    [
+        (VALID_CORRELATION_ID, False, None),
+        (VALID_CORRELATION_ID, True, None),
+        ("invalid", False, InvalidCorrelationIdError),
+        ("invalid", True, InvalidCorrelationIdError),
+        ("", False, CorrelationIdContextError),
+        ("", True, None),
+    ],
+    ids=[
+        "happy_case",
+        "valid_id_with_generate_flag",
+        "invalid_id_without_generate_flag",
+        "invalid_id_with_generate_flag",
+        "no_id_without_generate_flag",
+        "no_id_with_generate_flag",
+    ],
+)
+@pytest.mark.asyncio
+async def test_correlation_publishing(
+    kafka_fixture: KafkaFixture,
+    correlation_id: str,
+    generate_correlation_id: bool,
+    expected_exception,
+):
+    """Test situations with event publishing using the correlation ID."""
+    # TODO: capture and examine events
+    async with set_context_var(correlation_id_var, correlation_id):
+        with pytest.raises(expected_exception) if expected_exception else nullcontext():
+            await kafka_fixture.publish_event(
+                payload={},
+                type_="test_type",
+                topic="test_topic",
+                key="test_key",
+            )
+
+
+@pytest.mark.parametrize(
+    "expected_correlation_id,cid_in_header",
+    [
+        (VALID_CORRELATION_ID, True),
+        (VALID_CORRELATION_ID, False),
+        ("invalid", True),
+        ("invalid", False),
+        ("", True),
+        ("", False),
+    ],
+)
+@pytest.mark.asyncio
+async def test_correlation_consuming(
+    expected_correlation_id: str,
+    cid_in_header: bool,
+):
+    """Verify the logic in the Kafka consumer provider that retrieves and sets the
+    correlation ID.
+    """
+    service_name = "event_subscriber"
+    topic = "test_topic"
+    type_ = "test_type"
+    payload: JsonObject = {"test": "Hello World!"}
+    headers: list[tuple[str, bytes]] = [("type", b"test_type")]
+
+    # include the correlation ID header if the test case calls for it
+    if cid_in_header:
+        headers.append(
+            ("correlation_id", bytes(expected_correlation_id, encoding="ascii"))
+        )
+
+    # establish a mock event object:
+    Event = namedtuple(
+        "Event",
+        ["topic", "key", "value", "headers", "partition", "offset"],
+    )
+    event = Event(
+        key="test_key",
+        headers=headers,
+        value=payload,
+        topic=topic,
+        partition=1,
+        offset=0,
+    )
+
+    # create kafka consumer mock to inject the event object:
+    consumer = AsyncMock()
+    consumer.__anext__.return_value = event
+    consumer_cls = Mock()
+    consumer_cls.return_value = consumer
+
+    # create protocol-compatible translator mock:
+    config = KafkaConfig(  # type: ignore
+        service_name=service_name,
+        service_instance_id="1",
+        kafka_servers=["my-fake-kafka-server"],
+    )
+
+    class TestTranslator(EventSubscriberProtocol):
+        """Throwaway class used to confirm that the `KafkaEventSubscriber` class gets and
+        sets the correlation ID properly before passing the event data to the translator.
+        """
+
+        def __init__(
+            self,
+            config: KafkaConfig,
+        ):
+            """Initialize with config parameters."""
+            self._config = config
+            self.topics_of_interest = [topic]
+            self.types_of_interest = [type_]
+
+        async def _consume_validated(
+            self, *, payload: JsonObject, type_: Ascii, topic: Ascii
+        ) -> None:
+            # Make sure the IDs match
+            if not cid_in_header:
+                assert False, "Translator called but event should have been ignored"
+            assert get_correlation_id() == expected_correlation_id
+
+    # Instantiate and run the consumer
+    test_translator = TestTranslator(config=config)
+    async with KafkaEventSubscriber.construct(
+        config=config, translator=test_translator, kafka_consumer_cls=consumer_cls
+    ) as kafka_event_subscriber:
+        await kafka_event_subscriber.run(forever=False)
+
+    # with pytest.raises(AssertionError) if not cid_in_header else nullcontext():
+    #     consumer.start.assert_awaited_once()
+    # consumer.stop.assert_awaited_once()
+    # check if the translator was called correctly:
