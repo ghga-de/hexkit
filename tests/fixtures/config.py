@@ -15,7 +15,6 @@
 
 """Config fixtures"""
 
-import copy
 import os
 import re
 from dataclasses import dataclass
@@ -62,25 +61,22 @@ class EnvVarFixture:
     """Container for env var set. This class can be used
     as context manager so that the env vars are available
     within a with block but, after leaving the with block,
-    the original enviroment is restored.
+    the original environment is restored.
     """
 
     env_vars: dict[str, str]
     prefix: str = DEFAULT_CONFIG_PREFIX
 
     def __enter__(self):
-        """Makes a backup of the environment and set the
-        env_vars
-        """
-        self.env_backup = copy.deepcopy(os.environ)
-
+        """Make a backup of the environment and set the env_vars."""
+        self.env_backup = os.environ.copy()
         for name, value in self.env_vars.items():
             os.environ[f"{self.prefix}_{name}"] = value
 
     def __exit__(self, exc_type, exc_val, exc_tb):
-        """Restores the original environment"""
+        """Restore the original environment"""
         os.environ.clear()
-        os.environ = self.env_backup  # noqa: B003
+        os.environ.update(self.env_backup)
 
 
 def read_env_var_sets() -> dict[str, EnvVarFixture]:
