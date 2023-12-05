@@ -169,7 +169,7 @@ async def test_context_var_setter():
         ("", True, None),
     ],
     ids=[
-        "happy_case",
+        "valid_id_without_generate_flag",
         "valid_id_with_generate_flag",
         "invalid_id_without_generate_flag",
         "invalid_id_with_generate_flag",
@@ -185,7 +185,10 @@ async def test_correlation_publishing(
     expected_exception,
 ):
     """Test situations with event publishing using the correlation ID."""
-    # TODO: capture and examine events
+    # Update configuration of publishing provider (KafkaEventPublisher).
+    kafka_fixture.publisher._generate_correlation_id = generate_correlation_id
+    assert kafka_fixture.publisher._generate_correlation_id == generate_correlation_id
+
     async with set_context_var(correlation_id_var, correlation_id):
         with pytest.raises(expected_exception) if expected_exception else nullcontext():
             await kafka_fixture.publish_event(
@@ -197,23 +200,26 @@ async def test_correlation_publishing(
 
 
 @pytest.mark.parametrize(
-    "expected_correlation_id,cid_in_header",
+    "expected_correlation_id,cid_in_header,exception",
     [
-        (VALID_CORRELATION_ID, True),
-        (VALID_CORRELATION_ID, False),
-        ("invalid", True),
-        ("invalid", False),
-        ("", True),
-        ("", False),
+        (VALID_CORRELATION_ID, True, None),
+        (VALID_CORRELATION_ID, False, None),
+        ("invalid", True, InvalidCorrelationIdError),
+        ("invalid", False, None),
+        ("", True, InvalidCorrelationIdError),
+        ("", False, None),
     ],
 )
 @pytest.mark.asyncio
 async def test_correlation_consuming(
     expected_correlation_id: str,
     cid_in_header: bool,
+    exception,
 ):
     """Verify the logic in the Kafka consumer provider that retrieves and sets the
     correlation ID.
+    Uses a mock because event consumption with bad data can only be tested by
+    bypassing the publisher validation.
     """
     service_name = "event_subscriber"
     topic = "test_topic"
@@ -255,7 +261,7 @@ async def test_correlation_consuming(
     )
 
     class TestTranslator(EventSubscriberProtocol):
-        """Throwaway class used to confirm that the `KafkaEventSubscriber` class gets and
+        """Test class used to confirm that the `KafkaEventSubscriber` class gets and
         sets the correlation ID properly before passing the event data to the translator.
         """
 
@@ -281,9 +287,5 @@ async def test_correlation_consuming(
     async with KafkaEventSubscriber.construct(
         config=config, translator=test_translator, kafka_consumer_cls=consumer_cls
     ) as kafka_event_subscriber:
-        await kafka_event_subscriber.run(forever=False)
-
-    # with pytest.raises(AssertionError) if not cid_in_header else nullcontext():
-    #     consumer.start.assert_awaited_once()
-    # consumer.stop.assert_awaited_once()
-    # check if the translator was called correctly:
+        with pytest.raises(exception) if exception else nullcontext():
+            await kafka_event_subscriber.run(forever=False)
