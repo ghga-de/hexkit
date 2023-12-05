@@ -27,22 +27,32 @@ from hexkit.correlation import (
     InvalidCorrelationIdError,
     correlation_id_var,
     get_correlation_id,
-    new_correlation_id,
     set_correlation_id,
     validate_correlation_id,
 )
 from hexkit.utils import set_context_var
 
+# Set seed to avoid non-deterministic outcomes with random.random()
+random.seed(17)
 
-async def set_id_sleep_resume(correlation_id: str, use_context_manager: bool):
+VALID_CORRELATION_ID = "7041eb31-7333-4b57-97d7-90f5562c3383"
+
+
+async def set_id_sleep_resume(correlation_id: str):
     """An async task to set the correlation ID ContextVar and yield control temporarily
     back to the event loop before resuming.
+    Test with a sleep time of 0-2s and a random combination of context
+    manager/directly setting ContextVar.
     """
+    use_context_manager = random.choice((True, False))
     if use_context_manager:
         async with set_context_var(correlation_id_var, correlation_id):
             await asyncio.sleep(random.random() * 2)  # Yield control to the event loop
             # Check if the correlation ID is still the same
             assert correlation_id_var.get() == correlation_id, "Correlation ID changed"
+
+        # make sure value is reset after exiting context manager
+        assert correlation_id_var.get() == ""
     else:
         token = correlation_id_var.set(correlation_id)  # Set correlation ID for task
         await asyncio.sleep(random.random() * 2)  # Yield control to the event loop
@@ -55,14 +65,8 @@ async def set_id_sleep_resume(correlation_id: str, use_context_manager: bool):
 async def test_correlation_id_isolation():
     """Make sure correlation IDs are isolated to the respective async task and that
     there's no interference from task switching.
-
-    Test with a sleep time of 0-2s and a random combination of context
-    manager/directly setting ContextVar.
     """
-    tasks = [
-        set_id_sleep_resume(f"test_{n}", random.choice((True, False)))
-        for n in range(100)
-    ]
+    tasks = [set_id_sleep_resume(f"test_{n}") for n in range(100)]
     await asyncio.gather(*tasks)
 
 
@@ -71,7 +75,7 @@ async def test_correlation_id_isolation():
     [
         ("BAD_ID", InvalidCorrelationIdError),
         ("", InvalidCorrelationIdError),
-        (new_correlation_id(), None),
+        (VALID_CORRELATION_ID, None),
     ],
 )
 @pytest.mark.asyncio
@@ -86,7 +90,7 @@ async def test_correlation_id_validation(correlation_id: str, exception):
     [
         ("12345", InvalidCorrelationIdError),
         ("", InvalidCorrelationIdError),
-        (new_correlation_id(), None),
+        (VALID_CORRELATION_ID, None),
     ],
 )
 @pytest.mark.asyncio
@@ -104,7 +108,7 @@ async def test_set_correlation_id(correlation_id: str, exception):
     [
         ("12345", InvalidCorrelationIdError),
         ("", CorrelationIdContextError),
-        (new_correlation_id(), None),
+        (VALID_CORRELATION_ID, None),
     ],
 )
 @pytest.mark.asyncio
@@ -132,7 +136,7 @@ async def test_context_var_setter():
     async with set_context_var(test_var, outer_value):
         assert test_var.get() == outer_value
 
-        # Ensure the value that is reset is actually the previous token, not just default
+        # Ensure the value that is reset is actually the previous value, not just default
         async with set_context_var(test_var, inner_value):
             assert test_var.get() == inner_value
         assert test_var.get() == outer_value
