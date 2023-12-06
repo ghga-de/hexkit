@@ -23,11 +23,18 @@ from unittest.mock import AsyncMock, Mock
 
 import pytest
 
+from hexkit.correlation import set_correlation_id
 from hexkit.custom_types import JsonObject
-from hexkit.providers.akafka import (
+from hexkit.providers.akafka.provider import (
     KafkaConfig,
     KafkaEventPublisher,
     KafkaEventSubscriber,
+)
+
+VALID_CORRELATION_ID = "7041eb31-7333-4b57-97d7-90f5562c3383"
+CORRELATION_ID_HEADER = (
+    "correlation_id",
+    bytes(VALID_CORRELATION_ID, encoding="ascii"),
 )
 
 
@@ -38,7 +45,10 @@ async def test_kafka_event_publisher():
     key = "test_key"
     topic = "test_topic"
     payload = {"test_content": "Hello World"}
-    expected_headers = [("type", b"test_type")]
+    expected_headers = [
+        ("type", b"test_type"),
+        CORRELATION_ID_HEADER,
+    ]
 
     # create kafka producer mock
     producer = AsyncMock()
@@ -64,12 +74,13 @@ async def test_kafka_event_publisher():
         producer.start.assert_awaited_once()
 
         # publish one event:
-        await event_publisher.publish(
-            payload=payload,
-            type_=type_,
-            key=key,
-            topic=topic,
-        )
+        async with set_correlation_id(VALID_CORRELATION_ID):
+            await event_publisher.publish(
+                payload=payload,
+                type_=type_,
+                key=key,
+                topic=topic,
+            )
 
     # check if producer was correctly used:
     producer.send_and_wait.assert_awaited_once_with(
@@ -87,28 +98,37 @@ async def test_kafka_event_publisher():
     [
         (
             "test_type",
-            [("type", b"test_type")],
+            [
+                ("type", b"test_type"),
+                CORRELATION_ID_HEADER,
+            ],
             True,
             False,
             None,
         ),
         (
             "uninteresting_type",
-            [("type", b"uninteresting_type")],
+            [
+                ("type", b"uninteresting_type"),
+                CORRELATION_ID_HEADER,
+            ],
             False,
             False,
             None,
         ),
         (
             "test_type",
-            [],  # type header missing => event should be ignored
+            [CORRELATION_ID_HEADER],  # type header missing => event should be ignored
             False,
             False,
             None,
         ),
         (
             "test_type",
-            [("type", b"test_type")],
+            [
+                ("type", b"test_type"),
+                CORRELATION_ID_HEADER,
+            ],
             True,
             True,  # Simulate processing failure
             RuntimeError,
