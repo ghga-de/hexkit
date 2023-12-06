@@ -197,6 +197,7 @@ async def test_correlation_publishing(
                 topic="test_topic",
                 key="test_key",
             )
+    kafka_fixture.delete_topics()
 
 
 @pytest.mark.parametrize(
