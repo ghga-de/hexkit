@@ -35,6 +35,11 @@ from stream_calc.config import Config
 from stream_calc.main import main
 
 DEFAULT_CONFIG = Config()
+VALID_CORRELATION_ID = "7041eb31-7333-4b57-97d7-90f5562c3383"
+CORRELATION_ID_HEADER = (
+    "correlation_id",
+    bytes(VALID_CORRELATION_ID, encoding="ascii"),
+)
 
 
 class Event(NamedTuple):
@@ -136,7 +141,10 @@ def submit_test_problems(
             topic=topic,
             value=case.problem.payload,
             key="test_examples",
-            headers=[("type", case.problem.type_.encode("ascii"))],
+            headers=[
+                ("type", case.problem.type_.encode("ascii")),
+                CORRELATION_ID_HEADER,
+            ],
         )
 
     producer.flush()
