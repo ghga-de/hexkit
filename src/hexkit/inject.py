@@ -58,7 +58,7 @@ class AsyncInitShutdownError(TypeError):
 
 
 def assert_async_constructable(
-    constructable: Union[type[AsyncContextConstructable], type[AsyncConstructable]]
+    constructable: Union[type[AsyncContextConstructable], type[AsyncConstructable]],
 ):
     """
     Make sure that the provided object has a callable attribute `construct`.
