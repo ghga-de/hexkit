@@ -407,7 +407,7 @@ async def kafka_fixture_function() -> AsyncGenerator[KafkaFixture, None]:
     """
     with KafkaContainer(image=KAFKA_IMAGE) as kafka:
         kafka_servers = [kafka.get_bootstrap_server()]
-        config = KafkaConfig(  # type: ignore
+        config = KafkaConfig(
             service_name="test_publisher",
             service_instance_id="001",
             kafka_servers=kafka_servers,

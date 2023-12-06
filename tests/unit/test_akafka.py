@@ -55,7 +55,7 @@ async def test_kafka_event_publisher():
     producer_class = Mock(return_value=producer)
 
     # publish event using the provider:
-    config = KafkaConfig(  # type: ignore
+    config = KafkaConfig(
         service_name="test_publisher",
         service_instance_id="1",
         kafka_servers=["my-fake-kafka-server"],
@@ -176,7 +176,7 @@ async def test_kafka_event_subscriber(
     translator.types_of_interest = types_of_interest
 
     # setup the provider:
-    config = KafkaConfig(  # type: ignore
+    config = KafkaConfig(
         service_name=service_name,
         service_instance_id="1",
         kafka_servers=["my-fake-kafka-server"],

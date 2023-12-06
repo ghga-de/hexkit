@@ -254,7 +254,7 @@ async def test_correlation_consuming(
     consumer_cls.return_value = consumer
 
     # create protocol-compatible translator mock:
-    config = KafkaConfig(  # type: ignore
+    config = KafkaConfig(
         service_name=service_name,
         service_instance_id="1",
         kafka_servers=["my-fake-kafka-server"],
