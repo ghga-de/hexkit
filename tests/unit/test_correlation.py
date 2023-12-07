@@ -37,18 +37,14 @@ from hexkit.protocols.eventsub import EventSubscriberProtocol
 from hexkit.providers.akafka.provider import KafkaConfig, KafkaEventSubscriber
 from hexkit.providers.akafka.testutils import (
     KafkaFixture,
-    get_kafka_fixture,
+    kafka_fixture,  # noqa: F401
 )
-from hexkit.providers.testing.utils import get_event_loop
 from hexkit.utils import set_context_var
 
 # Set seed to avoid non-deterministic outcomes with random.random()
 random.seed(17)
 
 VALID_CORRELATION_ID = "7041eb31-7333-4b57-97d7-90f5562c3383"
-
-event_loop = get_event_loop("module")
-kafka_fixture = get_kafka_fixture("module")
 
 
 async def set_id_sleep_resume(correlation_id: str):
@@ -179,7 +175,7 @@ async def test_context_var_setter():
 )
 @pytest.mark.asyncio
 async def test_correlation_publishing(
-    kafka_fixture: KafkaFixture,
+    kafka_fixture: KafkaFixture,  # noqa: F811
     correlation_id: str,
     generate_correlation_id: bool,
     expected_exception,
@@ -197,7 +193,6 @@ async def test_correlation_publishing(
                 topic="test_topic",
                 key="test_key",
             )
-    kafka_fixture.delete_topics()
 
 
 @pytest.mark.parametrize(
