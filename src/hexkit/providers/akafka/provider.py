@@ -82,7 +82,7 @@ class KafkaConfig(BaseSettings):
     kafka_ssl_cafile: str = Field(
         default="",
         description="Certificate Authority file path containing certificates"
-        + " used to sign broker certificates. If a CA not specified, the default"
+        + " used to sign broker certificates. If a CA is not specified, the default"
         + " system CA will be used if found by OpenSSL.",
     )
     kafka_ssl_certfile: str = Field(
@@ -102,8 +102,8 @@ class KafkaConfig(BaseSettings):
         examples=[True, False],
         description=(
             "A flag, which, if False, will result in an error when trying to publish an"
-            + "event without a valid correlation ID set for the context. If True, the a"
-            + "newly correlation ID will be generated and used in the event header."
+            + " event without a valid correlation ID set for the context. If True, the a"
+            + " newly correlation ID will be generated and used in the event header."
         ),
     )
 
@@ -214,13 +214,11 @@ class KafkaEventPublisher(EventPublisherProtocol):
             ),
         )
 
-        generate_correlation_id = config.generate_correlation_id
-
         try:
             await producer.start()
             yield cls(
                 producer=producer,
-                generate_correlation_id=generate_correlation_id,
+                generate_correlation_id=config.generate_correlation_id,
             )
         finally:
             await producer.stop()
@@ -291,7 +289,7 @@ def headers_as_dict(event: ConsumerEvent) -> dict[str, str]:
 
 
 def get_header_value(header_name: str, headers: dict[str, str]) -> str:
-    """Extract the given header out of a ConsumerEvent."""
+    """Extract the given value from the dict headers and raise an error if not found."""
     try:
         return headers[header_name]
     except KeyError as err:
