@@ -257,11 +257,11 @@ class KafkaEventPublisher(EventPublisherProtocol):
         try:
             correlation_id = get_correlation_id()
         except CorrelationIdContextError:
-            if self._generate_correlation_id:
-                correlation_id = new_correlation_id()
-                logging.info("Generated new correlation id: %s", correlation_id)
-            else:
+            if not self._generate_correlation_id:
                 raise
+
+            correlation_id = new_correlation_id()
+            logging.info("Generated new correlation id: %s", correlation_id)
 
         validate_correlation_id(correlation_id)
 
