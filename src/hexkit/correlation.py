@@ -23,7 +23,7 @@ from uuid import UUID, uuid4
 
 from hexkit.utils import set_context_var
 
-log = logging.getLogger()
+log = logging.getLogger(__name__)
 
 correlation_id_var: ContextVar[str] = ContextVar("correlation_id", default="")
 
