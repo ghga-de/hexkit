@@ -40,7 +40,7 @@ def get_container(config: Config) -> Container:
 
 async def main(
     *,
-    config: Config = Config(),  # type: ignore [call-arg]
+    config: Config = Config(),
     run_forever: bool = True,
 ) -> None:
     """

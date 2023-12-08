@@ -34,7 +34,12 @@ from hexkit.providers.akafka.testcontainer import DEFAULT_IMAGE as KAFKA_IMAGE
 from stream_calc.config import Config
 from stream_calc.main import main
 
-DEFAULT_CONFIG = Config()  # type: ignore
+DEFAULT_CONFIG = Config()
+VALID_CORRELATION_ID = "7041eb31-7333-4b57-97d7-90f5562c3383"
+CORRELATION_ID_HEADER = (
+    "correlation_id",
+    bytes(VALID_CORRELATION_ID, encoding="ascii"),
+)
 
 
 class Event(NamedTuple):
@@ -136,7 +141,10 @@ def submit_test_problems(
             topic=topic,
             value=case.problem.payload,
             key="test_examples",
-            headers=[("type", case.problem.type_.encode("ascii"))],
+            headers=[
+                ("type", case.problem.type_.encode("ascii")),
+                CORRELATION_ID_HEADER,
+            ],
         )
 
     producer.flush()
@@ -208,7 +216,7 @@ async def test_receive_calc_publish(cases: list[Case] = deepcopy(CASES)):
 
         # run the stream_calc app:
         # (for each problem separately to avoid running forever)
-        config = Config(kafka_servers=[kafka_server])  # type: ignore
+        config = Config(kafka_servers=[kafka_server])
         for _ in cases:
             await main(config=config, run_forever=False)
 

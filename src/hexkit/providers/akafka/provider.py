@@ -33,6 +33,13 @@ from pydantic import Field
 from pydantic_settings import BaseSettings
 
 from hexkit.base import InboundProviderBase
+from hexkit.correlation import (
+    CorrelationIdContextError,
+    get_correlation_id,
+    new_correlation_id,
+    set_correlation_id,
+    validate_correlation_id,
+)
 from hexkit.custom_types import Ascii, JsonObject
 from hexkit.protocols.eventpub import EventPublisherProtocol
 from hexkit.protocols.eventsub import EventSubscriberProtocol
@@ -68,32 +75,45 @@ class KafkaConfig(BaseSettings):
         description="A list of connection strings to connect to Kafka bootstrap servers.",
     )
     kafka_security_protocol: Literal["PLAINTEXT", "SSL"] = Field(
-        "PLAINTEXT",
+        default="PLAINTEXT",
         description="Protocol used to communicate with brokers. "
         + "Valid values are: PLAINTEXT, SSL.",
     )
     kafka_ssl_cafile: str = Field(
-        "",
+        default="",
         description="Certificate Authority file path containing certificates"
-        + " used to sign broker certificates. If a CA not specified, the default"
+        + " used to sign broker certificates. If a CA is not specified, the default"
         + " system CA will be used if found by OpenSSL.",
     )
     kafka_ssl_certfile: str = Field(
-        "",
+        default="",
         description="Optional filename of client certificate, as well as any"
         + " CA certificates needed to establish the certificate's authenticity.",
     )
     kafka_ssl_keyfile: str = Field(
-        "", description="Optional filename containing the client private key."
+        default="", description="Optional filename containing the client private key."
     )
     kafka_ssl_password: str = Field(
-        "",
+        default="",
         description="Optional password to be used for the client private key.",
+    )
+    generate_correlation_id: bool = Field(
+        default=True,
+        examples=[True, False],
+        description=(
+            "A flag, which, if False, will result in an error when trying to publish an"
+            + " event without a valid correlation ID set for the context. If True, the a"
+            + " newly correlation ID will be generated and used in the event header."
+        ),
     )
 
 
-class EventTypeNotFoundError(RuntimeError):
-    """Thrown when no `type` was set in the headers of an event."""
+class EventHeaderNotFoundError(RuntimeError):
+    """Thrown when a given detail was not set in the headers of an event."""
+
+    def __init__(self, *, header_name):
+        message = f"No '{header_name}' was set in event header."
+        super().__init__(message)
 
 
 def generate_client_id(*, service_name: str, instance_id: str) -> str:
@@ -193,9 +213,13 @@ class KafkaEventPublisher(EventPublisherProtocol):
                 "ascii"
             ),
         )
+
         try:
             await producer.start()
-            yield cls(producer=producer)
+            yield cls(
+                producer=producer,
+                generate_correlation_id=config.generate_correlation_id,
+            )
         finally:
             await producer.stop()
 
@@ -203,13 +227,19 @@ class KafkaEventPublisher(EventPublisherProtocol):
         self,
         *,
         producer: KafkaProducerCompatible,
+        generate_correlation_id: bool,
     ):
         """Please do not call directly! Should be called by the `construct` method.
         Args:
             producer:
                 hands over a started AIOKafkaProducer.
+            generate_correlation_id:
+                whether to throw an error or generate a new ID if no correlation ID is
+                set for the context when trying to publish an event. An invalid ID will
+                result in an error in either case.
         """
         self._producer = producer
+        self._generate_correlation_id = generate_correlation_id
 
     async def _publish_validated(
         self, *, payload: JsonObject, type_: Ascii, key: Ascii, topic: Ascii
@@ -222,8 +252,21 @@ class KafkaEventPublisher(EventPublisherProtocol):
             key (str): The event type. ASCII characters only.
             topic (str): The event type. ASCII characters only.
         """
-        event_headers = [("type", type_.encode("ascii"))]
+        try:
+            correlation_id = get_correlation_id()
+        except CorrelationIdContextError:
+            if not self._generate_correlation_id:
+                raise
 
+            correlation_id = new_correlation_id()
+            logging.info("Generated new correlation id: %s", correlation_id)
+
+        validate_correlation_id(correlation_id)
+
+        event_headers = [
+            ("type", type_.encode("ascii")),
+            ("correlation_id", correlation_id.encode("ascii")),
+        ]
         await self._producer.send_and_wait(
             topic, key=key, value=payload, headers=event_headers
         )
@@ -240,12 +283,17 @@ class ConsumerEvent(Protocol):
     offset: int
 
 
-def get_event_type(event: ConsumerEvent) -> str:
-    """Extract the event type out of an ConsumerEvent."""
-    for header in event.headers:
-        if header[0] == "type":
-            return header[1].decode("ascii")
-    raise EventTypeNotFoundError()
+def headers_as_dict(event: ConsumerEvent) -> dict[str, str]:
+    """Extract the headers from a ConsumerEvent object and return them as a dict."""
+    return {name: value.decode("ascii") for name, value in event.headers}
+
+
+def get_header_value(header_name: str, headers: dict[str, str]) -> str:
+    """Extract the given value from the dict headers and raise an error if not found."""
+    try:
+        return headers[header_name]
+    except KeyError as err:
+        raise EventHeaderNotFoundError(header_name=header_name) from err
 
 
 KCC = TypeVar("KCC")
@@ -380,21 +428,28 @@ class KafkaEventSubscriber(InboundProviderBase):
     async def _consume_event(self, event: ConsumerEvent) -> None:
         """Consume an event by passing it down to the translator via the protocol."""
         event_label = self._get_event_label(event)
+        headers = headers_as_dict(event)
 
         try:
-            type_ = get_event_type(event)
-        except EventTypeNotFoundError:
-            logging.warning("Ignored an event without type: %s", event_label)
+            type_ = get_header_value(header_name="type", headers=headers)
+            correlation_id = get_header_value(
+                header_name="correlation_id", headers=headers
+            )
+        except EventHeaderNotFoundError as err:
+            logging.warning("Ignored an event: %s. %s", event_label, err.args[0])
             return
 
         if type_ in self._types_whitelist:
             logging.info('Consuming event of type "%s": %s', type_, event_label)
 
             try:
-                # blocks until event processing is completed:
-                await self._translator.consume(
-                    payload=event.value, type_=type_, topic=event.topic
-                )
+                async with set_correlation_id(correlation_id):
+                    # blocks until event processing is completed:
+                    await self._translator.consume(
+                        payload=event.value,
+                        type_=type_,
+                        topic=event.topic,
+                    )
             except Exception:
                 logging.error(
                     "A fatal error occurred while processing the event: %s",

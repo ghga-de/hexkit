@@ -51,7 +51,7 @@ def get_main_deps_pyproject(modified_pyproject: dict[str, Any]) -> list[Requirem
 
 
 def get_optional_deps_pyproject(
-    modified_pyproject: dict[str, Any]
+    modified_pyproject: dict[str, Any],
 ) -> list[Requirement]:
     """Get a list of the optional dependencies from pyproject.toml"""
 
