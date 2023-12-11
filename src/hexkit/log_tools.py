@@ -47,6 +47,19 @@ class LoggingConfig(BaseSettings):
     log_level: str = Field(
         default="INFO", description="The minimum log level to capture."
     )
+    service_name: str = Field(
+        ...,
+        examples=["my-cool-special-service"],
+        description="The name of the (micro-)service. This will be included in log messages.",
+    )
+    service_instance_id: str = Field(
+        ...,
+        examples=["germany-bw-instance-001"],
+        description=(
+            "A string that uniquely identifies this instance across all instances of"
+            + " this service. This is included in log messages."
+        ),
+    )
 
 
 class JsonFormatter(Formatter):
@@ -78,9 +91,9 @@ class JsonFormatter(Formatter):
         output.update(
             {key: value for key, value in log_record.get("always_include", {}).items()}
         )
-        output["correlation_id"] = log_record["correlation_id"]
+        output["correlation_id"] = log_record.get("correlation_id", "")
         output["message"] = record.getMessage()  # construct msg str with any args
-        output["details"] = log_record["details"]
+        output["details"] = log_record.get("details", {})
 
         # Convert to JSON string
         return json.dumps(output)
@@ -103,8 +116,9 @@ class Adapter(LoggerAdapter):
         """
         details = kwargs.pop("extra", {})
         kwargs["extra"] = {"details": details}
-        kwargs["extra"]["always_include"] = self.extra
         kwargs["extra"]["correlation_id"] = correlation_id_var.get("")
+        if self.extra:
+            kwargs["extra"].update({key: val for key, val in self.extra.items()})
 
         return msg, kwargs
 
@@ -117,13 +131,7 @@ class LoggerFactory:
     In main top-level module:
         ```
         config = LogConfig()
-        LoggerFactory.configure(
-            config=config,
-            always_include={
-                "service": config.service_name,
-                "instance": config.service_instance_id,
-            },
-        )
+        LoggerFactory.configure(config=config)
         ```
     In another module:
         ```
@@ -133,8 +141,11 @@ class LoggerFactory:
         ```
     """
 
-    config: LoggingConfig = LoggingConfig(log_level="INFO")
-    _always_include: dict[str, str] = {}
+    config: LoggingConfig = LoggingConfig(
+        log_level="INFO",
+        service_name="",
+        service_instance_id="",
+    )
     _adapters: dict[str, Adapter] = {}
 
     @classmethod
@@ -142,7 +153,6 @@ class LoggerFactory:
         cls,
         *,
         log_config: LoggingConfig,
-        always_include: dict[str, str],
     ):
         """Set configuration values and update any existing `Adapter` objects.
 
@@ -150,15 +160,15 @@ class LoggerFactory:
 
         Args:
             - `log_config`: Configuration used to set the log level and any other items.
-            - `always_include`: Other static information that should be included in the
-                log messages, e.g. service ID.
         """
         cls.config = log_config
-        cls._always_include = always_include
 
         for name in cls._adapters:
             cls._adapters[name].logger.setLevel(log_config.log_level.upper())
-            cls._adapters[name].extra = always_include
+            cls._adapters[name].extra = {
+                "service": cls.config.service_name,
+                "instance": cls.config.service_instance_id,
+            }
 
     @classmethod
     def get_configured_logger(cls, name: str) -> LoggerAdapter:
@@ -181,7 +191,10 @@ class LoggerFactory:
 
         logger_adapter = Adapter(
             logger,
-            cls._always_include,
+            {
+                "service": cls.config.service_name,
+                "instance": cls.config.service_instance_id,
+            },
         )
         cls._adapters[name] = logger_adapter
 
