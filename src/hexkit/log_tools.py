@@ -14,9 +14,10 @@
 # limitations under the License.
 #
 
-"""Tools for logging with hexkit."""
+"""Configurable logging tools with JSON output."""
 
 import json
+from collections import OrderedDict
 from collections.abc import MutableMapping
 from datetime import datetime, timezone
 from logging import (
@@ -24,6 +25,7 @@ from logging import (
     LoggerAdapter,
     LogRecord,
     StreamHandler,
+    addLevelName,
     getLogger,
 )
 from typing import Any
@@ -34,6 +36,9 @@ from pydantic_settings import BaseSettings
 from hexkit.correlation import (
     correlation_id_var,
 )
+
+# Add TRACE log level
+addLevelName(5, "TRACE")
 
 
 class LoggingConfig(BaseSettings):
@@ -47,30 +52,38 @@ class LoggingConfig(BaseSettings):
 class JsonFormatter(Formatter):
     """A formatter class that outputs logs in JSON format."""
 
-    def format(self, record: LogRecord):
+    def format(self, record: LogRecord) -> str:
         """Format the specified record as text.
 
-        This will format the log record as JSON.
+        This will format the log record as JSON with the following values (in order):
+            - timestamp: The ISO 8601-formatted timestamp of the log message.
+            - name: The name of the logger.
+            - level: The log's severity.
+            - any information included in `always_include` during configuration
+            - correlation_id: The correlation ID, if set, from the current context.
+            - message: The message that was logged, formatted with any arguments.
+            - details: Any additional values included at time of logging.
         """
         # Create a log record dictionary
         log_record = record.__dict__
+        output: OrderedDict[str, str] = OrderedDict()
 
         # Format to ISO 8601 with three decimal places for seconds
         timestamp = datetime.fromtimestamp(log_record["created"])
         timestamp = timestamp.astimezone(timezone.utc)
         iso_timestamp = timestamp.strftime("%Y-%m-%dT%H:%M:%S.%f")[:-3] + "Z"
+        output["timestamp"] = iso_timestamp
+        output["name"] = log_record["name"]
+        output["level"] = log_record["levelname"]
+        output.update(
+            {key: value for key, value in log_record.get("always_include", {}).items()}
+        )
+        output["correlation_id"] = log_record["correlation_id"]
+        output["message"] = record.getMessage()  # construct msg str with any args
+        output["details"] = log_record["details"]
 
-        formatted = {}
-        formatted["timestamp"] = iso_timestamp
-        formatted["service"] = log_record.get("service", "Unknown")
-        formatted["instance"] = log_record.get("instance", "Unknown")
-        formatted["name"] = log_record["name"].upper()
-        formatted["level"] = log_record["levelname"]
-        formatted["message"] = record.getMessage()
-        formatted["details"] = log_record["details"]
-
-        # Convert to JSON
-        return json.dumps(formatted)
+        # Convert to JSON string
+        return json.dumps(output)
 
 
 class Adapter(LoggerAdapter):
@@ -84,56 +97,83 @@ class Adapter(LoggerAdapter):
         """Process the logging message and keyword arguments passed in to a logging call
         to insert contextual information.
 
-        This is where universal contextual information is added.
+        This is where contextual information is added.
+        Note: contextual in this case does not refer to ContextVars, although some
+        information may be retrieved that way.
         """
-        # Add extra arguments to 'details' key
         details = kwargs.pop("extra", {})
         kwargs["extra"] = {"details": details}
+        kwargs["extra"]["always_include"] = self.extra
         kwargs["extra"]["correlation_id"] = correlation_id_var.get("")
-        if self.extra:
-            kwargs["extra"]["service"] = self.extra["service"]
-            kwargs["extra"]["instance"] = self.extra["instance"]
 
         return msg, kwargs
 
 
 class LoggerFactory:
-    """A class that can take `LogConfig` and produce logger objects accordingly.
+    """A class that can take `LogConfig` and produce configured loggers accordingly.
 
     Usage:
 
     In main top-level module:
         ```
         config = LogConfig()
-        logger_factory = LoggerFactory(
+        LoggerFactory.configure(
             config=config,
-            service_name="ucs",
-            service_instance_id="1",
+            always_include={
+                "service": config.service_name,
+                "instance": config.service_instance_id,
+            },
         )
         ```
     In another module:
         ```
-        from main_module import logger_factory
-        log = logger_factory.get_configured_logger(name=__name__)
-        log.info("The file with ID '%s' is invalid", file_id, extra={"file_id": file_id})
+        from hexkit.log_tools import LoggerFactory
+        log = LoggerFactory.get_configured_logger(__name__)
+        log.error("The file with ID '%s' is invalid", file_id, extra={"file_id": file_id})
         ```
     """
 
-    def __init__(
-        self,
+    config: LoggingConfig = LoggingConfig(log_level="INFO")
+    _always_include: dict[str, str] = {}
+    _adapters: dict[str, Adapter] = {}
+
+    @classmethod
+    def configure(
+        cls,
         *,
         log_config: LoggingConfig,
-        service_name: str,
-        service_instance_id: str,
+        always_include: dict[str, str],
     ):
-        self._config = log_config
-        self._service_name = service_name
-        self._service_instance_id = service_instance_id
+        """Set configuration values and update any existing `Adapter` objects.
 
-    def get_configured_logger(self, *, name: str) -> LoggerAdapter:
-        """Returns a configured logger object with the provided name."""
+        Will update existing loggers/logger adapters with config changes.
+
+        Args:
+            - `log_config`: Configuration used to set the log level and any other items.
+            - `always_include`: Other static information that should be included in the
+                log messages, e.g. service ID.
+        """
+        cls.config = log_config
+        cls._always_include = always_include
+
+        for name in cls._adapters:
+            cls._adapters[name].logger.setLevel(log_config.log_level.upper())
+            cls._adapters[name].extra = always_include
+
+    @classmethod
+    def get_configured_logger(cls, name: str) -> LoggerAdapter:
+        """Returns a configured logger object with the provided name.
+
+        Creates a new logger or returns an existing one if possible.
+        Use the `extra` keyword in log calls to include information in the `details`
+        field of the log message.
+        """
+        if name in cls._adapters:
+            return cls._adapters[name]
+
         logger = getLogger(name)
-        logger.setLevel(self._config.log_level)
+
+        logger.setLevel(cls.config.log_level)
 
         handler = StreamHandler()
         handler.setFormatter(JsonFormatter())
@@ -141,10 +181,8 @@ class LoggerFactory:
 
         logger_adapter = Adapter(
             logger,
-            {
-                "service": self._service_name,
-                "instance": self._service_instance_id,
-            },
+            cls._always_include,
         )
+        cls._adapters[name] = logger_adapter
 
         return logger_adapter
