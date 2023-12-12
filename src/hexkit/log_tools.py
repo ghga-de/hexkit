@@ -70,9 +70,10 @@ class JsonFormatter(Formatter):
 
         This will format the log record as JSON with the following values (in order):
             - timestamp: The ISO 8601-formatted timestamp of the log message.
-            - name: The name of the logger.
+            - service: The name of the service where the log was generated.
+            - instance: The instance ID of the service where the log was generated.
             - level: The log's severity.
-            - any information included in `always_include` during configuration
+            - name: The name of the logger.
             - correlation_id: The correlation ID, if set, from the current context.
             - message: The message that was logged, formatted with any arguments.
             - details: Any additional values included at time of logging.
@@ -86,11 +87,10 @@ class JsonFormatter(Formatter):
         timestamp = timestamp.astimezone(timezone.utc)
         iso_timestamp = timestamp.strftime("%Y-%m-%dT%H:%M:%S.%f")[:-3] + "Z"
         output["timestamp"] = iso_timestamp
-        output["name"] = log_record["name"]
+        output["service"] = log_record.get("service", "Not set")
+        output["instance"] = log_record.get("instance", "Not set")
         output["level"] = log_record["levelname"]
-        output.update(
-            {key: value for key, value in log_record.get("always_include", {}).items()}
-        )
+        output["name"] = log_record["name"]
         output["correlation_id"] = log_record.get("correlation_id", "")
         output["message"] = record.getMessage()  # construct msg str with any args
         output["details"] = log_record.get("details", {})
@@ -117,6 +117,8 @@ class Adapter(LoggerAdapter):
         details = kwargs.pop("extra", {})
         kwargs["extra"] = {"details": details}
         kwargs["extra"]["correlation_id"] = correlation_id_var.get("")
+
+        # Include 'service' and 'instance'
         if self.extra:
             kwargs["extra"].update({key: val for key, val in self.extra.items()})
 
@@ -163,6 +165,7 @@ class LoggerFactory:
         """
         cls.config = log_config
 
+        # Update registered logger adapters
         for name in cls._adapters:
             cls._adapters[name].logger.setLevel(log_config.log_level.upper())
             cls._adapters[name].extra = {
