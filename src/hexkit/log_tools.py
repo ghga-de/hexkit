@@ -28,7 +28,7 @@ from logging import (
     addLevelName,
     getLogger,
 )
-from typing import Any
+from typing import Any, Literal
 
 from pydantic import Field
 from pydantic_settings import BaseSettings
@@ -39,12 +39,13 @@ from hexkit.correlation import (
 
 # Add TRACE log level
 addLevelName(5, "TRACE")
+LogLevel = Literal["CRITICAL", "ERROR", "WARNING", "INFO", "DEBUG", "TRACE"]
 
 
 class LoggingConfig(BaseSettings):
     """A class containing logging config."""
 
-    log_level: str = Field(
+    log_level: LogLevel = Field(
         default="INFO", description="The minimum log level to capture."
     )
     service_name: str = Field(
