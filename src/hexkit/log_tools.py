@@ -115,6 +115,23 @@ class JsonFormatter(Formatter):
         return json.dumps(output)
 
 
+class RecordCompiler(StreamHandler):
+    """A class to make all non-standard information available to formatters."""
+
+    def handle(self, record: LogRecord) -> bool:
+        log_record = record.__dict__
+        timestamp = datetime.fromtimestamp(log_record["created"])
+        timestamp = timestamp.astimezone(timezone.utc)
+        iso_timestamp = timestamp.strftime("%Y-%m-%dT%H:%M:%S.%f")[:-3] + "Z"
+        record.timestamp = iso_timestamp
+        record.service = log_record.get("service", "Not set")
+        record.instance = log_record.get("instance", "Not set")
+        record.level = log_record["levelname"]
+        record.correlation_id = log_record.get("correlation_id", "")
+        record.details = log_record.get("details", {})
+        return super().handle(record)
+
+
 class StructuredLogger(LoggerAdapter):
     """Custom LoggerAdapter to add contextual information.
 
