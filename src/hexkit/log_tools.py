@@ -37,6 +37,14 @@ from hexkit.correlation import (
     correlation_id_var,
 )
 
+__all__ = [
+    "LoggingConfig",
+    "StructuredLogger",
+    "LoggerFactory",
+    "configure_logging",
+    "JsonFormatter",
+]
+
 # Add TRACE log level
 addLevelName(5, "TRACE")
 LogLevel = Literal["CRITICAL", "ERROR", "WARNING", "INFO", "DEBUG", "TRACE"]
@@ -60,6 +68,13 @@ class LoggingConfig(BaseSettings):
             "A string that uniquely identifies this instance across all instances of"
             + " this service. This is included in log messages."
         ),
+    )
+
+
+def configure_logging(*, config: LoggingConfig):
+    """Set up logging"""
+    LoggerFactory.configure(
+        log_config=config,
     )
 
 
@@ -100,8 +115,11 @@ class JsonFormatter(Formatter):
         return json.dumps(output)
 
 
-class Adapter(LoggerAdapter):
-    """Custom LoggerAdapter to add contextual information."""
+class StructuredLogger(LoggerAdapter):
+    """Custom LoggerAdapter to add contextual information.
+
+    Add correlation ID, service, instance, and places 'extra' param values into 'details'.
+    """
 
     def process(
         self,
@@ -133,8 +151,9 @@ class LoggerFactory:
 
     In main top-level module:
         ```
-        config = LogConfig()
-        LoggerFactory.configure(config=config)
+        from hexkit.log_tools import configure_logging
+        config = Config()  # ensure it subclasses LoggingConfig
+        configure_logging(config=config)
         ```
     In another module:
         ```
@@ -144,12 +163,8 @@ class LoggerFactory:
         ```
     """
 
-    config: LoggingConfig = LoggingConfig(
-        log_level="INFO",
-        service_name="",
-        service_instance_id="",
-    )
-    _adapters: dict[str, Adapter] = {}
+    config: LoggingConfig = LoggingConfig(service_name="", service_instance_id="")
+    _loggers: dict[str, StructuredLogger] = {}
 
     @classmethod
     def configure(
@@ -157,7 +172,7 @@ class LoggerFactory:
         *,
         log_config: LoggingConfig,
     ):
-        """Set configuration values and update any existing `Adapter` objects.
+        """Set configuration values and update any existing `StructuredLogger` objects.
 
         Will update existing loggers/logger adapters with config changes.
 
@@ -165,14 +180,17 @@ class LoggerFactory:
             - `log_config`: Configuration used to set the log level and any other items.
         """
         cls.config = log_config
+        extras = {
+            "service": cls.config.service_name,
+            "instance": cls.config.service_instance_id,
+        }
 
-        # Update registered logger adapters
-        for name in cls._adapters:
-            cls._adapters[name].logger.setLevel(log_config.log_level.upper())
-            cls._adapters[name].extra = {
-                "service": cls.config.service_name,
-                "instance": cls.config.service_instance_id,
-            }
+        # Update registered logger adapters (StructuredLogger)
+        for name in cls._loggers:
+            cls._loggers[name].logger.setLevel(log_config.log_level.upper())
+
+            if cls._loggers[name].extra != extras:
+                cls._loggers[name].extra = extras
 
     @classmethod
     def get_configured_logger(cls, name: str) -> LoggerAdapter:
@@ -182,8 +200,8 @@ class LoggerFactory:
         Use the `extra` keyword in log calls to include information in the `details`
         field of the log message.
         """
-        if name in cls._adapters:
-            return cls._adapters[name]
+        if name in cls._loggers:
+            return cls._loggers[name]
 
         logger = getLogger(name)
 
@@ -193,13 +211,13 @@ class LoggerFactory:
         handler.setFormatter(JsonFormatter())
         logger.addHandler(handler)
 
-        logger_adapter = Adapter(
+        logger_adapter = StructuredLogger(
             logger,
             {
                 "service": cls.config.service_name,
                 "instance": cls.config.service_instance_id,
             },
         )
-        cls._adapters[name] = logger_adapter
+        cls._loggers[name] = logger_adapter
 
         return logger_adapter
