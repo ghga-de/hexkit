@@ -38,11 +38,12 @@ from hexkit.correlation import (
 )
 
 __all__ = [
+    "JsonFormatter",
+    "LoggerFactory",
     "LoggingConfig",
     "StructuredLogger",
-    "LoggerFactory",
+    "RecordCompiler",
     "configure_logging",
-    "JsonFormatter",
 ]
 
 # Add TRACE log level
@@ -69,6 +70,19 @@ class LoggingConfig(BaseSettings):
             + " this service. This is included in log messages."
         ),
     )
+    log_format: str = Field(
+        default="",
+        examples=[
+            "%(timestamp)s - %(service)s - %(level)s - %(message)s",
+            "%(asctime)s - Severity: %(levelno)s - %(msg)s",
+        ],
+        description=(
+            "If set, will replace JSON formatting with the specified string format. If"
+            + " not set, has no effect. In addition to the standard attributes, the"
+            + " following can also be specified: timestamp, service, instance, level,"
+            + " correlation_id, and details"
+        ),
+    )
 
 
 def configure_logging(*, config: LoggingConfig):
@@ -82,7 +96,7 @@ class JsonFormatter(Formatter):
     """A formatter class that outputs logs in JSON format."""
 
     def format(self, record: LogRecord) -> str:
-        """Format the specified record as text.
+        """Format the specified record as a JSON string.
 
         This will format the log record as JSON with the following values (in order):
             - timestamp: The ISO 8601-formatted timestamp of the log message.
@@ -98,18 +112,14 @@ class JsonFormatter(Formatter):
         log_record = record.__dict__
         output: OrderedDict[str, str] = OrderedDict()
 
-        # Format to ISO 8601 with three decimal places for seconds
-        timestamp = datetime.fromtimestamp(log_record["created"])
-        timestamp = timestamp.astimezone(timezone.utc)
-        iso_timestamp = timestamp.strftime("%Y-%m-%dT%H:%M:%S.%f")[:-3] + "Z"
-        output["timestamp"] = iso_timestamp
-        output["service"] = log_record.get("service", "Not set")
-        output["instance"] = log_record.get("instance", "Not set")
-        output["level"] = log_record["levelname"]
+        output["timestamp"] = log_record["timestamp"]
+        output["service"] = log_record["service"]
+        output["instance"] = log_record["instance"]
+        output["level"] = log_record["level"]
         output["name"] = log_record["name"]
-        output["correlation_id"] = log_record.get("correlation_id", "")
+        output["correlation_id"] = log_record["correlation_id"]
         output["message"] = record.getMessage()  # construct msg str with any args
-        output["details"] = log_record.get("details", {})
+        output["details"] = log_record["details"]
 
         # Convert to JSON string
         return json.dumps(output)
@@ -119,6 +129,7 @@ class RecordCompiler(StreamHandler):
     """A class to make all non-standard information available to formatters."""
 
     def handle(self, record: LogRecord) -> bool:
+        """Set custom record attributes"""
         log_record = record.__dict__
         timestamp = datetime.fromtimestamp(log_record["created"])
         timestamp = timestamp.astimezone(timezone.utc)
@@ -204,7 +215,10 @@ class LoggerFactory:
 
         # Update registered logger adapters (StructuredLogger)
         for name in cls._loggers:
-            cls._loggers[name].logger.setLevel(log_config.log_level.upper())
+            format_string = cls.config.log_format
+            formatter = Formatter(format_string) if format_string else JsonFormatter()
+            cls._loggers[name].logger.setLevel(log_config.log_level)
+            cls._loggers[name].logger.handlers[0].setFormatter(formatter)
 
             if cls._loggers[name].extra != extras:
                 cls._loggers[name].extra = extras
@@ -224,8 +238,11 @@ class LoggerFactory:
 
         logger.setLevel(cls.config.log_level)
 
-        handler = StreamHandler()
-        handler.setFormatter(JsonFormatter())
+        handler = RecordCompiler()
+
+        format_string = cls.config.log_format
+        formatter = Formatter(format_string) if format_string else JsonFormatter()
+        handler.setFormatter(formatter)
         logger.addHandler(handler)
 
         logger_adapter = StructuredLogger(
