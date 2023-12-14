@@ -27,7 +27,6 @@ dependencies = [
     "pydantic >=2, <3",
     "pydantic_settings >=2, <3",
     "PyYAML >=6.0, <7",
-    "dependency-injector >=4.41.0, <5",
 ]
 
 [project.optional-dependencies]

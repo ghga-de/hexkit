@@ -22,7 +22,6 @@ Please note, these tests are written in a way so that they can be reused by the
 """
 
 import json
-from copy import deepcopy
 from typing import NamedTuple
 
 import pytest
@@ -203,7 +202,7 @@ def check_problem_outcomes(
 
 
 @pytest.mark.asyncio
-async def test_receive_calc_publish(cases: list[Case] = deepcopy(CASES)):
+async def test_receive_calc_publish():
     """
     Test the receipt of new arithmetic problems, the calculation, and the publication of
     the results.
@@ -212,12 +211,12 @@ async def test_receive_calc_publish(cases: list[Case] = deepcopy(CASES)):
     with KafkaContainer(image=KAFKA_IMAGE) as kafka:
         kafka_server = kafka.get_bootstrap_server()
 
-        submit_test_problems(cases, kafka_server=kafka_server)
+        submit_test_problems(CASES, kafka_server=kafka_server)
 
         # run the stream_calc app:
         # (for each problem separately to avoid running forever)
         config = Config(kafka_servers=[kafka_server])
-        for _ in cases:
+        for _ in CASES:
             await main(config=config, run_forever=False)
 
-        check_problem_outcomes(cases, kafka_server=kafka_server)
+        check_problem_outcomes(CASES, kafka_server=kafka_server)
