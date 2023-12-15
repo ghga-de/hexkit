@@ -13,7 +13,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 #
-"""Tests for the log_tools module."""
+"""Tests for the log module."""
 
 import json
 import logging
@@ -22,7 +22,7 @@ from dataclasses import dataclass, field
 
 import pytest
 
-from hexkit.log_tools import (
+from hexkit.log import (
     JsonFormatter,
     LoggingConfig,
     RecordCompiler,
