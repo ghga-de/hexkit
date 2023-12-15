@@ -228,6 +228,7 @@ def test_reconfiguration_of_existing_loggers():
 def test_root_config():
     """Test that the root logger is configured by default."""
     root = logging.getLogger()
+    level = root.level
 
     for handler in root.handlers:
         assert not isinstance(handler, RecordCompiler)
@@ -235,3 +236,9 @@ def test_root_config():
     configure_logging(config=DEFAULT_CONFIG)
 
     assert any([isinstance(handler, RecordCompiler) for handler in root.handlers])
+
+    for handler in root.handlers:
+        if isinstance(handler, RecordCompiler):
+            root.removeHandler(handler)
+
+    root.setLevel(level)
