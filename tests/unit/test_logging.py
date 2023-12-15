@@ -112,7 +112,7 @@ def test_configured_log_level(caplog, expect_json_log):
         log_format="",
     )
 
-    configure_logging(logger=logger, config=config)
+    configure_logging(config=config, logger=logger)
 
     assert not caplog.records
 
@@ -200,7 +200,7 @@ def test_formatter_selection(
         log_format=log_format,
     )
     log = logging.getLogger("test_formatter_selection")
-    configure_logging(logger=log, config=config)
+    configure_logging(config=config, logger=log)
 
     handlers = log.handlers
     assert isinstance(handlers[0].formatter, formatter_class)
@@ -220,6 +220,18 @@ def test_reconfiguration_of_existing_loggers():
         log_format="%(timestamp)s - %(msg)s",
     )
 
-    configure_logging(logger=log, config=config)
+    configure_logging(config=config, logger=log)
     assert log.getEffectiveLevel() == trace
     assert isinstance(log.handlers[0].formatter, logging.Formatter)
+
+
+def test_root_config():
+    """Test that the root logger is configured by default."""
+    root = logging.getLogger()
+
+    for handler in root.handlers:
+        assert not isinstance(handler, RecordCompiler)
+
+    configure_logging(config=DEFAULT_CONFIG)
+
+    assert any([isinstance(handler, RecordCompiler) for handler in root.handlers])

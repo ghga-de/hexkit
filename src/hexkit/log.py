@@ -19,13 +19,7 @@
 import json
 from collections import OrderedDict
 from datetime import datetime, timezone
-from logging import (
-    Formatter,
-    Logger,
-    LogRecord,
-    StreamHandler,
-    addLevelName,
-)
+from logging import Formatter, Logger, LogRecord, StreamHandler, addLevelName, getLogger
 from typing import Literal, Optional
 
 from pydantic import Field
@@ -148,13 +142,18 @@ class RecordCompiler(StreamHandler):
         return super().handle(record)
 
 
-def configure_logging(*, logger: Logger, config: LoggingConfig):
-    """Set up logging"""
+def configure_logging(*, config: LoggingConfig, logger: Optional[Logger] = None):
+    """Set up logging. Configures the root logger by default,
+    but can be used to configure a specific logger as well.
+    """
     formatter = Formatter(config.log_format) if config.log_format else JsonFormatter()
 
     handler = RecordCompiler(config=config)
     handler.setLevel(config.log_level)
     handler.setFormatter(formatter)
+
+    if not logger:
+        logger = getLogger()
 
     logger.setLevel(config.log_level)
     logger.addHandler(handler)
