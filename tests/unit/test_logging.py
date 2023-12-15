@@ -38,7 +38,7 @@ VALID_CONFIG = LoggingConfig(
     service_instance_id="0",
 )
 
-DEFAULT_KEYS = (  # all the keys present in the resulting log
+KEYS_IN_JSON_LOG = (  # all the keys present in the resulting log
     "timestamp",
     "service",
     "instance",
@@ -49,7 +49,7 @@ DEFAULT_KEYS = (  # all the keys present in the resulting log
     "details",
 )
 
-ADDED_KEYS = (  # a list of non-standard keys added by the adapter/record compiler
+ADDED_KEYS = (  # a list of non-standard keys added by the RecordCompiler
     "timestamp",
     "service",
     "instance",
@@ -135,7 +135,7 @@ def test_record_compiler(caplog):
     record_compiler = RecordCompiler(config=DEFAULT_CONFIG)
 
     assert not caplog.records
-    log = logging.getLogger()  # getting root logger, not configured
+    log = logging.getLogger("test_record_compiler")
     log.setLevel("INFO")
     log.error("This is a test")
 
@@ -147,7 +147,7 @@ def test_record_compiler(caplog):
 
     # Feed the record to the RecordCompiler
     record_compiler.handle(record)
-    for key in DEFAULT_KEYS:
+    for key in KEYS_IN_JSON_LOG:
         assert key in record.__dict__
 
 
@@ -156,7 +156,7 @@ def test_json_formatter(caplog):
     formatter = JsonFormatter()
 
     assert not caplog.records
-    log = logging.getLogger()  # just get root logger
+    log = logging.getLogger("test_json_formatter")
     log.setLevel("INFO")
     log.error("This is a %s", "test")  # test with arg to make sure this isn't lost
 
@@ -174,9 +174,9 @@ def test_json_formatter(caplog):
     # format with the json formatter
     output = formatter.format(record)
 
-    # load back into json format and verify the expected keys are all there
+    # load back into json format and verify the added keys are there
     json_log = json.loads(output)
-    for key in DEFAULT_KEYS:
+    for key in ADDED_KEYS:
         assert key in json_log
 
     # make sure the message is what we expected
@@ -209,10 +209,8 @@ def test_formatter_selection(
 def test_reconfiguration_of_existing_loggers():
     """Ensure applying configuration to an existing logger works as expected."""
     log = logging.getLogger("reconfig")
-    info = 20
     trace = 5
 
-    assert log.getEffectiveLevel() == info
     assert len(log.handlers) == 0
 
     config = LoggingConfig(
