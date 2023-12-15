@@ -24,10 +24,9 @@ import pytest
 
 from hexkit.log_tools import (
     JsonFormatter,
-    LoggerFactory,
     LoggingConfig,
     RecordCompiler,
-    StructuredLogger,
+    configure_logging,
 )
 
 VALID_SERVICE_NAME = "test"
@@ -59,13 +58,6 @@ ADDED_KEYS = (  # a list of non-standard keys added by the adapter/record compil
 )
 
 DEFAULT_CONFIG = LoggingConfig(service_name="", service_instance_id="")
-
-
-@pytest.fixture(autouse=True)
-def reset_config():
-    """Reset the config before and after each test."""
-    LoggerFactory.configure(log_config=DEFAULT_CONFIG)
-    yield
 
 
 @dataclass
@@ -109,67 +101,40 @@ def expect_json_log(capsys):
     return capture_log
 
 
-def test_logger_construction():
-    """Make sure the factory returns the correct class"""
-    logger = LoggerFactory.get_configured_logger("test_logger_construction")
-    assert isinstance(logger, StructuredLogger)
-    assert isinstance(logger.logger, logging.Logger)
-    handlers = logger.logger.handlers
-    assert len(handlers) == 1
-    assert isinstance(handlers[0], RecordCompiler)
-    assert isinstance(handlers[0].formatter, JsonFormatter)
-
-
-def test_no_config(caplog, expect_json_log):
-    """Make sure you can still log without configuration."""
-    logger = LoggerFactory.get_configured_logger("test_no_config")
-    assert not caplog.records
-
-    logger.debug("should not log")
-    assert not caplog.records
-
-    with expect_json_log() as json_log:
-        logger.info("should log")
-
-    assert isinstance(json_log, JsonLog)  # for autocompletion
-    assert json_log.level == "INFO"
-    assert json_log.service == ""
-    assert json_log.instance == ""
-    assert json_log.message == "should log"
-
-    with expect_json_log() as thing:
-        logger.error("should log too")
-    assert thing.message == "should log too"
-    assert thing.level == "ERROR"
-
-
-def test_with_config(expect_json_log):
+def test_configured_log_level(caplog, expect_json_log):
     """Test with config"""
+    logger = logging.getLogger("test_configured_log_level")
     config = LoggingConfig(
+        log_level="CRITICAL",  # set to higher than default of WARNING
         service_name=VALID_SERVICE_NAME,
         service_instance_id=VALID_INSTANCE_ID,
         log_format="",
     )
 
-    LoggerFactory.configure(log_config=config)
+    configure_logging(logger=logger, config=config)
 
-    log = LoggerFactory.get_configured_logger("test_with_config")
+    assert not caplog.records
 
+    # assert nothing was captured due to config
+    logger.warning("should not log")
+    assert not caplog.records
+
+    # verify that the log is emitted and that it's the one we expect
     with expect_json_log() as json_log:
-        log.error("hi")
+        logger.critical("should log")
 
     assert isinstance(json_log, JsonLog)
     assert json_log.service == config.service_name
     assert json_log.instance == config.service_instance_id
-    assert json_log.message == "hi"
+    assert json_log.message == "should log"
 
 
 def test_record_compiler(caplog):
     """Unit test for the RecordCompiler class."""
-    record_compiler = RecordCompiler()
+    record_compiler = RecordCompiler(config=DEFAULT_CONFIG)
 
     assert not caplog.records
-    log = logging.getLogger("hi")  # just get root logger
+    log = logging.getLogger()  # getting root logger, not configured
     log.setLevel("INFO")
     log.error("This is a test")
 
@@ -202,7 +167,7 @@ def test_json_formatter(caplog):
         formatter.format(record)
 
     # use the record compiler to stick in the extra fields
-    record_compiler = RecordCompiler()
+    record_compiler = RecordCompiler(config=DEFAULT_CONFIG)
     record_compiler.handle(record)
 
     # format with the json formatter
@@ -231,28 +196,21 @@ def test_formatter_selection(log_format: str, formatter_class: type[logging.Form
         service_instance_id=VALID_INSTANCE_ID,
         log_format=log_format,
     )
+    log = logging.getLogger("test_formatter_selection")
+    configure_logging(logger=log, config=config)
 
-    LoggerFactory.configure(log_config=config)
-
-    log = LoggerFactory.get_configured_logger("test_formatter_selection")
-
-    handlers = log.logger.handlers
+    handlers = log.handlers
     assert isinstance(handlers[0].formatter, formatter_class)
 
 
 def test_reconfiguration_of_existing_loggers():
-    """Ensure applying configuration to the LoggerFactory updates all existing loggers
-    as well as loggers created thereafter.
-    """
-    log = LoggerFactory.get_configured_logger("reconfig")
-    log2 = LoggerFactory.get_configured_logger("reconfig2")
+    """Ensure applying configuration to an existing logger works as expected."""
+    log = logging.getLogger("reconfig")
     info = 20
     trace = 5
 
     assert log.getEffectiveLevel() == info
-    assert log2.getEffectiveLevel() == info
-    assert isinstance(log.logger.handlers[0].formatter, JsonFormatter)
-    assert isinstance(log2.logger.handlers[0].formatter, JsonFormatter)
+    assert len(log.handlers) == 0
 
     config = LoggingConfig(
         log_level="TRACE",  # can verify as well that the custom level exists
@@ -261,12 +219,6 @@ def test_reconfiguration_of_existing_loggers():
         log_format="%(timestamp)s - %(msg)s",
     )
 
-    LoggerFactory.configure(log_config=config)
+    configure_logging(logger=log, config=config)
     assert log.getEffectiveLevel() == trace
-    assert log2.getEffectiveLevel() == trace
-    assert isinstance(log.logger.handlers[0].formatter, logging.Formatter)
-    assert isinstance(log2.logger.handlers[0].formatter, logging.Formatter)
-
-    log3 = LoggerFactory.get_configured_logger("reconfig3")
-    assert log3.getEffectiveLevel() == trace
-    assert isinstance(log3.logger.handlers[0].formatter, logging.Formatter)
+    assert isinstance(log.handlers[0].formatter, logging.Formatter)

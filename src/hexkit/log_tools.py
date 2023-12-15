@@ -18,17 +18,15 @@
 
 import json
 from collections import OrderedDict
-from collections.abc import MutableMapping
 from datetime import datetime, timezone
 from logging import (
     Formatter,
-    LoggerAdapter,
+    Logger,
     LogRecord,
     StreamHandler,
     addLevelName,
-    getLogger,
 )
-from typing import Any, Literal
+from typing import Literal
 
 from pydantic import Field
 from pydantic_settings import BaseSettings
@@ -39,12 +37,14 @@ from hexkit.correlation import (
 
 __all__ = [
     "JsonFormatter",
-    "LoggerFactory",
     "LoggingConfig",
-    "StructuredLogger",
     "RecordCompiler",
     "configure_logging",
 ]
+
+
+DUMMY_RECORD = LogRecord("dummy", 0, "dummy", 0, None, None, None, None, None)
+RESERVED_RECORD_KEYS = DUMMY_RECORD.__dict__.keys()
 
 # Add TRACE log level
 addLevelName(5, "TRACE")
@@ -85,13 +85,6 @@ class LoggingConfig(BaseSettings):
     )
 
 
-def configure_logging(*, config: LoggingConfig):
-    """Set up logging"""
-    LoggerFactory.configure(
-        log_config=config,
-    )
-
-
 class JsonFormatter(Formatter):
     """A formatter class that outputs logs in JSON format."""
 
@@ -128,130 +121,40 @@ class JsonFormatter(Formatter):
 class RecordCompiler(StreamHandler):
     """A class to make all non-standard information available to formatters."""
 
+    def __init__(self, *, config: LoggingConfig):
+        """Initialize with logging config."""
+        super().__init__()
+
+        self._service_name = config.service_name
+        self._service_instance_id = config.service_instance_id
+
     def handle(self, record: LogRecord) -> bool:
         """Set custom record attributes"""
         log_record = record.__dict__
         timestamp = datetime.fromtimestamp(log_record["created"])
         timestamp = timestamp.astimezone(timezone.utc)
         iso_timestamp = timestamp.strftime("%Y-%m-%dT%H:%M:%S.%f")[:-3] + "Z"
+        extras = {
+            key: value
+            for key, value in log_record.items()
+            if key not in RESERVED_RECORD_KEYS
+        }
         record.timestamp = iso_timestamp
-        record.service = log_record.get("service", "Not set")
-        record.instance = log_record.get("instance", "Not set")
+        record.service = self._service_name
+        record.instance = self._service_instance_id
         record.level = log_record["levelname"]
-        record.correlation_id = log_record.get("correlation_id", "")
-        record.details = log_record.get("details", {})
+        record.correlation_id = correlation_id_var.get(None)
+        record.details = extras
         return super().handle(record)
 
 
-class StructuredLogger(LoggerAdapter):
-    """Custom LoggerAdapter to add contextual information.
+def configure_logging(*, logger: Logger, config: LoggingConfig):
+    """Set up logging"""
+    formatter = Formatter(config.log_format) if config.log_format else JsonFormatter()
 
-    Add correlation ID, service, instance, and places 'extra' param values into 'details'.
-    """
+    handler = RecordCompiler(config=config)
+    handler.setLevel(config.log_level)
+    handler.setFormatter(formatter)
 
-    def process(
-        self,
-        msg: Any,
-        kwargs: MutableMapping[str, Any],
-    ) -> tuple[Any, MutableMapping[str, Any]]:
-        """Process the logging message and keyword arguments passed in to a logging call
-        to insert contextual information.
-
-        This is where contextual information is added.
-        Note: contextual in this case does not refer to ContextVars, although some
-        information may be retrieved that way.
-        """
-        details = kwargs.pop("extra", {})
-        kwargs["extra"] = {"details": details}
-        kwargs["extra"]["correlation_id"] = correlation_id_var.get("")
-
-        # Include 'service' and 'instance'
-        if self.extra:
-            kwargs["extra"].update({key: val for key, val in self.extra.items()})
-
-        return msg, kwargs
-
-
-class LoggerFactory:
-    """A class that can take `LogConfig` and produce configured loggers accordingly.
-
-    Usage:
-
-    In main top-level module:
-        ```
-        from hexkit.log_tools import configure_logging
-        config = Config()  # ensure it subclasses LoggingConfig
-        configure_logging(config=config)
-        ```
-    In another module:
-        ```
-        from hexkit.log_tools import LoggerFactory
-        log = LoggerFactory.get_configured_logger(__name__)
-        log.error("The file with ID '%s' is invalid", file_id, extra={"file_id": file_id})
-        ```
-    """
-
-    config: LoggingConfig = LoggingConfig(service_name="", service_instance_id="")
-    _loggers: dict[str, StructuredLogger] = {}
-
-    @classmethod
-    def configure(
-        cls,
-        *,
-        log_config: LoggingConfig,
-    ):
-        """Set configuration values and update any existing `StructuredLogger` objects.
-
-        Will update existing loggers/logger adapters with config changes.
-
-        Args:
-            - `log_config`: Configuration used to set the log level and any other items.
-        """
-        cls.config = log_config
-        extras = {
-            "service": cls.config.service_name,
-            "instance": cls.config.service_instance_id,
-        }
-
-        # Update registered logger adapters (StructuredLogger)
-        for name in cls._loggers:
-            format_string = cls.config.log_format
-            formatter = Formatter(format_string) if format_string else JsonFormatter()
-            cls._loggers[name].logger.setLevel(log_config.log_level)
-            cls._loggers[name].logger.handlers[0].setFormatter(formatter)
-
-            if cls._loggers[name].extra != extras:
-                cls._loggers[name].extra = extras
-
-    @classmethod
-    def get_configured_logger(cls, name: str) -> LoggerAdapter:
-        """Returns a configured logger object with the provided name.
-
-        Creates a new logger or returns an existing one if possible.
-        Use the `extra` keyword in log calls to include information in the `details`
-        field of the log message.
-        """
-        if name in cls._loggers:
-            return cls._loggers[name]
-
-        logger = getLogger(name)
-
-        logger.setLevel(cls.config.log_level)
-
-        handler = RecordCompiler()
-
-        format_string = cls.config.log_format
-        formatter = Formatter(format_string) if format_string else JsonFormatter()
-        handler.setFormatter(formatter)
-        logger.addHandler(handler)
-
-        logger_adapter = StructuredLogger(
-            logger,
-            {
-                "service": cls.config.service_name,
-                "instance": cls.config.service_instance_id,
-            },
-        )
-        cls._loggers[name] = logger_adapter
-
-        return logger_adapter
+    logger.setLevel(config.log_level)
+    logger.addHandler(handler)
