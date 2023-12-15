@@ -66,7 +66,6 @@ def reset_config():
     """Reset the config before and after each test."""
     LoggerFactory.configure(log_config=DEFAULT_CONFIG)
     yield
-    LoggerFactory.configure(log_config=DEFAULT_CONFIG)
 
 
 @dataclass
@@ -82,7 +81,7 @@ class JsonLog:
     message: str = ""
     details: dict[str, str] = field(default_factory=dict)
 
-    def get_values_from_dict(self, values: dict[str, str]):
+    def update_values_from_dict(self, values: dict[str, str]):
         """Modify dataclass in place"""
         self.__dict__.update(values)
 
@@ -103,7 +102,7 @@ def expect_json_log(capsys):
         yield loaded_log
         captured = capsys.readouterr().err  # Capture the stderr
         try:
-            loaded_log.get_values_from_dict(json.loads(captured))
+            loaded_log.update_values_from_dict(json.loads(captured))
         except json.JSONDecodeError as err:
             raise RuntimeError("Log doesn't seem to be in JSON format") from err
 
