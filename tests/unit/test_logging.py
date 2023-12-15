@@ -225,20 +225,39 @@ def test_reconfiguration_of_existing_loggers():
     assert isinstance(log.handlers[0].formatter, logging.Formatter)
 
 
-def test_root_config():
-    """Test that the root logger is configured by default."""
+@pytest.fixture
+def root_logger_reset():
+    """Reset root logger level and handlers after modification."""
     root = logging.getLogger()
-    level = root.level
+    original_level = root.level
+    root_handlers = root.handlers.copy()
 
+    yield
+
+    # reset level and remove RecordCompiler handler
+    root.setLevel(original_level)
+
+    for handler in root.handlers:
+        if handler not in root_handlers:
+            root.addHandler(handler)
+
+
+def test_root_logger_configuration(root_logger_reset):
+    """Test that `configure_logging` configures the root logger by default.
+
+    In case of failure, the fixture should prevent leaving root logger in modified state.
+    """
+    root = logging.getLogger()
+
+    # Verify that no RecordCompiler handlers exist
     for handler in root.handlers:
         assert not isinstance(handler, RecordCompiler)
 
+    # Configure and retrieve copy of list of handlers post-configuration
     configure_logging(config=DEFAULT_CONFIG)
+    root_handlers = root.handlers.copy()
+    level = root.level
 
-    assert any([isinstance(handler, RecordCompiler) for handler in root.handlers])
-
-    for handler in root.handlers:
-        if isinstance(handler, RecordCompiler):
-            root.removeHandler(handler)
-
-    root.setLevel(level)
+    # Now perform check to see if RecordCompiler was actually added to
+    assert level == 20  # INFO equates to 20 by default
+    assert any(isinstance(handler, RecordCompiler) for handler in root_handlers)
