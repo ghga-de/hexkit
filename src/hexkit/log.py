@@ -26,7 +26,7 @@ from logging import (
     StreamHandler,
     addLevelName,
 )
-from typing import Literal
+from typing import Literal, Optional
 
 from pydantic import Field
 from pydantic_settings import BaseSettings
@@ -70,8 +70,8 @@ class LoggingConfig(BaseSettings):
             + " this service. This is included in log messages."
         ),
     )
-    log_format: str = Field(
-        default="",
+    log_format: Optional[str] = Field(
+        default=None,
         examples=[
             "%(timestamp)s - %(service)s - %(level)s - %(message)s",
             "%(asctime)s - Severity: %(levelno)s - %(msg)s",

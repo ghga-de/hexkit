@@ -19,6 +19,7 @@ import json
 import logging
 from contextlib import contextmanager
 from dataclasses import dataclass, field
+from typing import Optional
 
 import pytest
 
@@ -185,11 +186,13 @@ def test_json_formatter(caplog):
 @pytest.mark.parametrize(
     "log_format, formatter_class",
     [
-        ("", JsonFormatter),
+        (None, JsonFormatter),
         ("%(message)s", logging.Formatter),
     ],
 )
-def test_formatter_selection(log_format: str, formatter_class: type[logging.Formatter]):
+def test_formatter_selection(
+    log_format: Optional[str], formatter_class: type[logging.Formatter]
+):
     """Make sure the proper formatter is selected based on the config."""
     config = LoggingConfig(
         service_name=VALID_SERVICE_NAME,
