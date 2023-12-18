@@ -46,9 +46,6 @@ def root_logger_reset():
 
     yield
 
-    # reset level and remove RecordCompiler handler
+    # reset level and handlers
     root.setLevel(original_level)
-
-    for handler in root.handlers:
-        if handler not in root_handlers:
-            root.addHandler(handler)
+    root.handlers = root_handlers
