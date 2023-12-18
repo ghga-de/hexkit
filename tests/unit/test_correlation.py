@@ -37,14 +37,27 @@ from hexkit.protocols.eventsub import EventSubscriberProtocol
 from hexkit.providers.akafka.provider import KafkaConfig, KafkaEventSubscriber
 from hexkit.providers.akafka.testutils import (
     KafkaFixture,
-    kafka_fixture,  # noqa: F401
+    get_kafka_fixture,
 )
 from hexkit.utils import set_context_var
 
+kafka_fixture = get_kafka_fixture(scope="module")
 # Set seed to avoid non-deterministic outcomes with random.random()
 random.seed(17)
 
 VALID_CORRELATION_ID = "7041eb31-7333-4b57-97d7-90f5562c3383"
+
+
+@pytest.fixture
+def reset_kafka(kafka_fixture: KafkaFixture):
+    """Reset the kafka fixture.
+
+    Delete all topics in setup in case something was left in from a previous test case.
+    Delete all topics in teardown to clean up after given test case.
+    """
+    kafka_fixture.delete_topics()
+    yield
+    kafka_fixture.delete_topics()
 
 
 async def set_id_sleep_resume(correlation_id: str):
@@ -155,47 +168,6 @@ async def test_context_var_setter():
 
 
 @pytest.mark.parametrize(
-    "correlation_id,generate_correlation_id,expected_exception",
-    [
-        (VALID_CORRELATION_ID, False, None),
-        (VALID_CORRELATION_ID, True, None),
-        ("invalid", False, InvalidCorrelationIdError),
-        ("invalid", True, InvalidCorrelationIdError),
-        ("", False, CorrelationIdContextError),
-        ("", True, None),
-    ],
-    ids=[
-        "valid_id_without_generate_flag",
-        "valid_id_with_generate_flag",
-        "invalid_id_without_generate_flag",
-        "invalid_id_with_generate_flag",
-        "no_id_without_generate_flag",
-        "no_id_with_generate_flag",
-    ],
-)
-@pytest.mark.asyncio
-async def test_correlation_publishing(
-    kafka_fixture: KafkaFixture,  # noqa: F811
-    correlation_id: str,
-    generate_correlation_id: bool,
-    expected_exception,
-):
-    """Test situations with event publishing using the correlation ID."""
-    # Update configuration of publishing provider (KafkaEventPublisher).
-    kafka_fixture.publisher._generate_correlation_id = generate_correlation_id
-    assert kafka_fixture.publisher._generate_correlation_id == generate_correlation_id
-
-    async with set_context_var(correlation_id_var, correlation_id):
-        with pytest.raises(expected_exception) if expected_exception else nullcontext():
-            await kafka_fixture.publish_event(
-                payload={},
-                type_="test_type",
-                topic="test_topic",
-                key="test_key",
-            )
-
-
-@pytest.mark.parametrize(
     "expected_correlation_id,cid_in_header,exception",
     [
         (VALID_CORRELATION_ID, True, None),
@@ -285,3 +257,45 @@ async def test_correlation_consuming(
     ) as kafka_event_subscriber:
         with pytest.raises(exception) if exception else nullcontext():
             await kafka_event_subscriber.run(forever=False)
+
+
+@pytest.mark.parametrize(
+    "correlation_id,generate_correlation_id,expected_exception",
+    [
+        (VALID_CORRELATION_ID, False, None),
+        (VALID_CORRELATION_ID, True, None),
+        ("invalid", False, InvalidCorrelationIdError),
+        ("invalid", True, InvalidCorrelationIdError),
+        ("", False, CorrelationIdContextError),
+        ("", True, None),
+    ],
+    ids=[
+        "valid_id_without_generate_flag",
+        "valid_id_with_generate_flag",
+        "invalid_id_without_generate_flag",
+        "invalid_id_with_generate_flag",
+        "no_id_without_generate_flag",
+        "no_id_with_generate_flag",
+    ],
+)
+@pytest.mark.asyncio(scope="module")
+async def test_correlation_publishing(
+    kafka_fixture: KafkaFixture,
+    reset_kafka,
+    correlation_id: str,
+    generate_correlation_id: bool,
+    expected_exception,
+):
+    """Test situations with event publishing using the correlation ID."""
+    # Update configuration of publishing provider (KafkaEventPublisher).
+    kafka_fixture.publisher._generate_correlation_id = generate_correlation_id
+    assert kafka_fixture.publisher._generate_correlation_id == generate_correlation_id
+
+    async with set_context_var(correlation_id_var, correlation_id):
+        with pytest.raises(expected_exception) if expected_exception else nullcontext():
+            await kafka_fixture.publish_event(
+                payload={},
+                type_="test_type",
+                topic="test_topic",
+                key="test_key",
+            )
