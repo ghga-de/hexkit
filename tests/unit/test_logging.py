@@ -22,6 +22,7 @@ from dataclasses import dataclass, field
 from typing import Optional
 
 import pytest
+from pydantic import Field, SecretBytes, SecretStr
 
 from hexkit.log import (
     JsonFormatter,
@@ -245,3 +246,17 @@ def test_root_logger_configuration(root_logger_reset):  # noqa: F811
     # Now perform check to see if RecordCompiler was actually added to
     assert level == 20  # INFO equates to 20 by default
     assert any(isinstance(handler, RecordCompiler) for handler in root_handlers)
+
+
+def test_secrets_logging_config(root_logger_reset, expect_json_log):  # noqa: F811
+    """Make sure secret values are not revealed when logging the configuration."""
+
+    class TestConfig(LoggingConfig):
+        secret_bytes: SecretBytes = Field(default=b"test")
+        secret_str: SecretStr = Field(default="test")
+
+    with expect_json_log() as json_log:
+        configure_logging(config=TestConfig(service_name="", service_instance_id=""))
+
+    assert json_log.details["secret_bytes"] == "**********"
+    assert json_log.details["secret_str"] == "**********"

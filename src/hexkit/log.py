@@ -143,8 +143,11 @@ class RecordCompiler(StreamHandler):
 
 
 def configure_logging(*, config: LoggingConfig, logger: Optional[Logger] = None):
-    """Set up logging. Configures the root logger by default,
-    but can be used to configure a specific logger as well.
+    """Set up logging.
+
+    Configures the root logger by default, but can be used to configure a specific
+    logger as well. Will also log the complete configuration of the service with
+    secret values hidden.
     """
     formatter = Formatter(config.log_format) if config.log_format else JsonFormatter()
 
@@ -157,3 +160,8 @@ def configure_logging(*, config: LoggingConfig, logger: Optional[Logger] = None)
 
     logger.setLevel(config.log_level)
     logger.addHandler(handler)
+
+    logger.info(
+        "Logging configured, complete configuration in details",
+        extra=config.model_dump(mode="json"),
+    )
