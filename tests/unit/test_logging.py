@@ -29,6 +29,7 @@ from hexkit.log import (
     RecordCompiler,
     configure_logging,
 )
+from tests.fixtures.utils import root_logger_reset  # noqa: F401
 
 VALID_SERVICE_NAME = "test"
 VALID_INSTANCE_ID = "001"
@@ -225,24 +226,7 @@ def test_reconfiguration_of_existing_loggers():
     assert isinstance(log.handlers[0].formatter, logging.Formatter)
 
 
-@pytest.fixture
-def root_logger_reset():
-    """Reset root logger level and handlers after modification."""
-    root = logging.getLogger()
-    original_level = root.level
-    root_handlers = root.handlers.copy()
-
-    yield
-
-    # reset level and remove RecordCompiler handler
-    root.setLevel(original_level)
-
-    for handler in root.handlers:
-        if handler not in root_handlers:
-            root.addHandler(handler)
-
-
-def test_root_logger_configuration(root_logger_reset):
+def test_root_logger_configuration(root_logger_reset):  # noqa: F811
     """Test that `configure_logging` configures the root logger by default.
 
     In case of failure, the fixture should prevent leaving root logger in modified state.
