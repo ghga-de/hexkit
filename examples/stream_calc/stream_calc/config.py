@@ -18,6 +18,7 @@
 
 from typing import Literal
 
+from hexkit.config import config_from_yaml
 from hexkit.providers.akafka.provider import KafkaConfig
 from stream_calc.translators.eventpub import EventResultEmitterConfig
 from stream_calc.translators.eventsub import EventProblemReceiverConfig
@@ -25,6 +26,7 @@ from stream_calc.translators.eventsub import EventProblemReceiverConfig
 LOGLEVEL = Literal["DEBUG", "INFO", "WARNING", "ERROR", "CRITICAL"]
 
 
+@config_from_yaml(prefix="stream_calc")
 class Config(KafkaConfig, EventProblemReceiverConfig, EventResultEmitterConfig):
     """Config parameters and their defaults."""
 

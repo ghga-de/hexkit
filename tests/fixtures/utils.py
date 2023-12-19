@@ -15,9 +15,11 @@
 
 """Utils for fixture handling"""
 
+import logging
 import os
 from pathlib import Path
 
+import pytest
 import yaml
 
 TEST_FILE_DIR = Path(__file__).parent.resolve() / "test_files"
@@ -33,3 +35,17 @@ def read_yaml(path: Path) -> dict:
     """Read yaml file and return content as dict."""
     with open(path, encoding="UTF-8") as file:
         return yaml.safe_load(file)
+
+
+@pytest.fixture
+def root_logger_reset():
+    """Reset root logger level and handlers after modification."""
+    root = logging.getLogger()
+    original_level = root.level
+    root_handlers = root.handlers.copy()
+
+    yield
+
+    # reset level and handlers
+    root.setLevel(original_level)
+    root.handlers = root_handlers

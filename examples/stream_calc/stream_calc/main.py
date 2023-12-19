@@ -20,22 +20,7 @@ import asyncio
 import logging
 
 from stream_calc.config import Config
-from stream_calc.container import Container  # type: ignore
-
-
-def get_container(config: Config) -> Container:
-    """
-    Get a pre-configures container for the stream calc app.
-
-    Args:
-        config: App config object.
-    """
-    logging.basicConfig(level=config.log_level)
-
-    container = Container()
-    container.config.load_config(config)
-
-    return container
+from stream_calc.inject import prepare_event_subscriber
 
 
 async def main(
@@ -52,8 +37,9 @@ async def main(
         run_forever:
             If set too `False`, will exit after handling one arithmetic problem.
     """
-    async with get_container(config) as container:
-        event_subscriber = await container.event_subscriber()
+    logging.basicConfig(level=config.log_level)
+
+    async with prepare_event_subscriber(config=config) as event_subscriber:
         await event_subscriber.run(forever=run_forever)
 
 
