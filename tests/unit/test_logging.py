@@ -248,15 +248,26 @@ def test_root_logger_configuration(root_logger_reset):  # noqa: F811
     assert any(isinstance(handler, RecordCompiler) for handler in root_handlers)
 
 
-def test_secrets_logging_config(root_logger_reset, expect_json_log):  # noqa: F811
-    """Make sure secret values are not revealed when logging the configuration."""
+def test_secrets_logging_config(root_logger_reset, capsys):  # noqa: F811
+    """Make sure secret values are not revealed when logging the configuration.
+
+    Additionally, make sure all other values *are* logged.
+    """
 
     class TestConfig(LoggingConfig):
-        secret_bytes: SecretBytes = Field(default=b"test")
-        secret_str: SecretStr = Field(default="test")
+        secret_bytes: SecretBytes = Field(default=b"my secret bytes")
+        secret_str: SecretStr = Field(default="my secret str")
 
-    with expect_json_log() as json_log:
-        configure_logging(config=TestConfig(service_name="", service_instance_id=""))
+    config = TestConfig(service_name="", service_instance_id="")
 
-    assert json_log.details["secret_bytes"] == "**********"
-    assert json_log.details["secret_str"] == "**********"
+    configure_logging(config=config)
+    out, err = capsys.readouterr()
+    printed_log = out + err
+
+    # Verify that secret values are not contained in log, but everything else is.
+    for key, val in config.model_dump().items():
+        assert key in printed_log
+        if isinstance(val, (SecretBytes, SecretStr)):
+            assert str(val.get_secret_value()) not in printed_log
+        elif val:
+            assert val in printed_log

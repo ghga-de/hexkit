@@ -147,7 +147,7 @@ def configure_logging(*, config: LoggingConfig, logger: Optional[Logger] = None)
 
     Configures the root logger by default, but can be used to configure a specific
     logger as well. Will also log the complete configuration of the service with
-    secret values hidden.
+    secret values hidden, if it's passed to this function and inherits from LoggingConfig.
     """
     formatter = Formatter(config.log_format) if config.log_format else JsonFormatter()
 
