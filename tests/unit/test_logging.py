@@ -255,8 +255,10 @@ def test_secrets_logging_config(root_logger_reset, capsys):  # noqa: F811
     """
 
     class TestConfig(LoggingConfig):
-        secret_bytes: SecretBytes = Field(default=b"my secret bytes")
-        secret_str: SecretStr = Field(default="my secret str")
+        string: str = "foo"
+        number: int = 42
+        secret_bytes: SecretBytes = Field(default=b"silent")
+        secret_str: SecretStr = Field(default="silent")
 
     config = TestConfig(service_name="", service_instance_id="")
 
@@ -264,10 +266,10 @@ def test_secrets_logging_config(root_logger_reset, capsys):  # noqa: F811
     out, err = capsys.readouterr()
     printed_log = out + err
 
-    # Verify that secret values are not contained in log, but everything else is.
-    for key, val in config.model_dump().items():
+    assert "Logging configured, complete configuration in details" in printed_log
+    assert "silent" not in printed_log
+    for key, value in config.model_dump().items():
         assert key in printed_log
-        if isinstance(val, (SecretBytes, SecretStr)):
-            assert str(val.get_secret_value()) not in printed_log
-        elif val:
-            assert val in printed_log
+        if not key.startswith("secret"):
+            json_value = "null" if value is None else str(value)
+            assert json_value in printed_log
