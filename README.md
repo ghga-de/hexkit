@@ -59,7 +59,7 @@ Please have a look at the example application described in
 [./examples/stream_calc](./examples/stream_calc).
 
 We put a lot of effort into making the code self-documenting, so please do not be afraid
-jumping directly into it. You can find the protocols being defined at
+of jumping directly into it. You can find the protocols being defined at
 [./src/hexkit/protocols](./src/hexkit/protocols) and the providers being implemented at
 [./src/hexkit/providers](./src/hexkit/providers).
 
