@@ -1,0 +1,24 @@
+[project]
+name = "hexkit"
+version = "2.0.0"
+description = "A Toolkit for Building Microservices using the Hexagonal Architecture"
+dependencies = [
+    "pydantic >=2, <3",
+    "pydantic_settings >=2, <3",
+    "PyYAML >=6.0, <7",
+]
+
+[project.optional-dependencies]
+akafka = ["aiokafka~=0.8.0", "jsonschema >=4.17.3, <5"]
+s3 = ["boto3 >=1.26.50, <2", "botocore >=1.29.50, <2"]
+mongodb = ["motor >=3.1.1, <4"]
+
+test-akafka = ["hexkit[akafka]", "testcontainers[kafka] >=3.7.1, <4"]
+test-s3 = ["hexkit[s3]", "testcontainers >=3.7.1, <4"]
+test-mongodb = ["hexkit[mongodb]", "testcontainers[mongo] >=3.7.1, <4"]
+test = ["hexkit[test-akafka,test-s3,test-mongodb]"]
+
+all = ["hexkit[test]"]
+
+[project.urls]
+Repository = "https://github.com/ghga-de/hexkit"

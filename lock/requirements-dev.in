@@ -1,0 +1,7 @@
+# requirements for development and testing this service
+
+# template requirements for development and testing
+-r requirements-dev-template.in
+
+# additional requirements can be listed here
+testcontainers[kafka,mongo]>=3.4.1

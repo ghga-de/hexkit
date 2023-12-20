@@ -40,12 +40,20 @@ except ImportError:
         main_fn(check="--check" in sys.argv[1:])
 
 
-REPO_ROOT_DIR = Path(__file__).parent.parent.resolve()
+REPO_ROOT_DIR = Path(__file__).parent.parent.absolute()
 
-DEPRECATED_FILES = ".deprecated_files"
-MANDATORY_FILES = ".mandatory_files"
-STATIC_FILES = ".static_files"
+FILE_LIST_DIR_NAME = ".template"
+DEPRECATED_FILES = "deprecated_files"
+MANDATORY_FILES = "mandatory_files"
+STATIC_FILES = "static_files"
+
 IGNORE_SUFFIX = "_ignore"
+
+TEMPLATE_LIST_REL_PATHS = [
+    f"{FILE_LIST_DIR_NAME}/{list_name}.txt"
+    for list_name in [STATIC_FILES, MANDATORY_FILES, DEPRECATED_FILES]
+]
+
 RAW_TEMPLATE_URL = (
     "https://raw.githubusercontent.com/ghga-de/microservice-repository-template/main/"
 )
@@ -55,9 +63,14 @@ class ValidationError(RuntimeError):
     """Raised when files need to be updated."""
 
 
+def get_file_list_path(list_name: str, relative: bool = False) -> Path:
+    """Get the path to the file list of the given name."""
+    return Path(REPO_ROOT_DIR / FILE_LIST_DIR_NAME / f"{list_name}.txt")
+
+
 def get_file_list(list_name: str) -> list[str]:
     """Return a list of all file names specified in a given list file."""
-    list_path = REPO_ROOT_DIR / list_name
+    list_path = get_file_list_path(list_name)
     with open(list_path, encoding="utf8") as list_file:
         file_list = [
             clean_line
@@ -212,14 +225,13 @@ def remove_files(files: list[str], check: bool = False) -> bool:
 def main(check: bool = False):
     """Update the static files in the service template."""
     updated = False
-    if not check:
-        update_files([STATIC_FILES], diff=True, check=False)
+
+    print("Template lists...")
+    if update_files(TEMPLATE_LIST_REL_PATHS, diff=True, check=False):
+        updated = True
 
     print("Static files...")
     files_to_update = get_file_list(STATIC_FILES)
-    if check:
-        files_to_update.append(STATIC_FILES)
-    files_to_update.extend((MANDATORY_FILES, DEPRECATED_FILES))
     if update_files(files_to_update, diff=True, check=check):
         updated = True
 

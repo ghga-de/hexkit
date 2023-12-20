@@ -31,11 +31,12 @@ import tomli_w
 from script_utils import cli, deps
 
 REPO_ROOT_DIR = Path(__file__).parent.parent.resolve()
+LOCK_DIR = REPO_ROOT_DIR / "lock"
 
 PYPROJECT_TOML_PATH = REPO_ROOT_DIR / "pyproject.toml"
-DEV_DEPS_PATH = REPO_ROOT_DIR / "requirements-dev.in"
-OUTPUT_LOCK_PATH = REPO_ROOT_DIR / "requirements.txt"
-OUTPUT_DEV_LOCK_PATH = REPO_ROOT_DIR / "requirements-dev.txt"
+DEV_DEPS_PATH = LOCK_DIR / "requirements-dev.in"
+OUTPUT_LOCK_PATH = LOCK_DIR / "requirements.txt"
+OUTPUT_DEV_LOCK_PATH = LOCK_DIR / "requirements-dev.txt"
 
 
 def fix_temp_dir_comments(file_path: Path):

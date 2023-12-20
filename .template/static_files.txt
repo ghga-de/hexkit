@@ -26,12 +26,14 @@ scripts/update_openapi_docs.py
 scripts/update_readme.py
 scripts/update_lock.py
 scripts/update_hook_revs.py
+scripts/update_pyproject.py
 scripts/list_outdated_dependencies.py
 scripts/README.md
 
 .github/workflows/check_config_docs.yaml
 .github/workflows/check_openapi_spec.yaml
 .github/workflows/check_readme.yaml
+.github/workflows/check_pyproject.yaml
 .github/workflows/check_template_files.yaml
 .github/workflows/ci_release.yaml
 .github/workflows/ci_workflow_dispatch.yaml
@@ -40,15 +42,18 @@ scripts/README.md
 
 example_data/README.md
 
-.coveragerc
+.template/README.md
+
+.readme_generation/readme_template.md
+.readme_generation/README.md
+
+.pyproject_generation/pyproject_template.toml
+.pyproject_generation/README.md
+
+lock/requirements-dev-template.in
+lock/README.md
+
 .gitattributes
 .gitignore
-.mypy.ini
-.ruff.toml
-pytest.ini
 
 LICENSE
-requirements-dev-common.in
-
-.readme_template.md
-readme_generation.md

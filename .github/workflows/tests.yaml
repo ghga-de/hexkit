@@ -11,7 +11,7 @@ jobs:
       - uses: actions/checkout@v3
 
       - id: common
-        uses: ghga-de/gh-action-common@v3
+        uses: ghga-de/gh-action-common@v4
 
       - id: pytest
         run: |

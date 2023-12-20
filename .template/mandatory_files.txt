@@ -13,16 +13,20 @@ tests/fixtures/__init__.py
 
 scripts/script_utils/fastapi_app_location.py
 
+.readme_generation/description.md
+.readme_generation/design.md
+
+.pyproject_generation/pyproject_custom.toml
+
+lock/requirements-dev.in
+lock/requirements-dev.txt
+lock/requirements.txt
+
 Dockerfile
 config_schema.json
 example_config.yaml
 LICENSE
 pyproject.toml
 README.md
-requirements-dev.in
-requirements-dev.txt
-requirements.txt
 
-.description.md
-.design.md
 .pre-commit-config.yaml
