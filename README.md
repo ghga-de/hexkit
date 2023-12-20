@@ -49,8 +49,8 @@ for the rest. For example, you could use hexkit for simplifying the exchange of 
 between microservices but use a classical web framework such as FastAPI for designing
 REST API and an ORM like SQLAlchemy for interacting with databases.
 
-Please also feel free, developing hexagonal components (using the base classes of
-hexkit or not) yourself. Not every protocol or provider has to be general-purpose,
+Please also feel free to develop hexagonal components yourself (using the base classes of
+hexkit or not). Not every protocol or provider has to be general-purpose,
 however, if they are, please consider contributing them to hexkit.
 
 ## Getting started
