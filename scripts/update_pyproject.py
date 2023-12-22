@@ -58,12 +58,37 @@ def write_pyproject(pyproject: dict[str, object]) -> None:
         tomli_w.dump(pyproject, file)
 
 
+def merge_fields(*, source: dict[str, object], dest: dict[str, object]):
+    """Merge fields existing in both custom and template pyproject definitions.
+
+    If a given field is a dictionary, merge or assign depending on if it's found in dest.
+    If the field is anything else either assign the value or exit with a message if a
+    conflict exists.
+    """
+    for field, value in source.items():
+        if isinstance(value, dict):
+            if field in dest:
+                merge_fields(source=source[field], dest=dest[field])  # type: ignore
+            else:
+                dest[field] = value
+        else:
+            if field in dest and value != dest[field]:
+                cli.echo_failure(f"Conflicting values for '{field}'")
+                exit(1)
+            elif field not in dest:
+                dest[field] = value
+
+
 def merge_pyprojects(inputs: list[dict[str, object]]) -> dict[str, object]:
     """Compile a pyproject dict from the provided input dicts."""
     pyproject = inputs[0]
 
     for input in inputs[1:]:
-        pyproject.update(input)
+        for field, value in input.items():
+            if field not in pyproject:
+                pyproject[field] = value
+            else:
+                merge_fields(source=value, dest=pyproject[field])  # type: ignore
 
     return pyproject
 

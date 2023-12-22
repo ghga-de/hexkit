@@ -28,8 +28,9 @@ from script_utils import cli, deps, lock_deps
 
 REPO_ROOT_DIR = Path(__file__).parent.parent.resolve()
 PYPROJECT_TOML_PATH = REPO_ROOT_DIR / "pyproject.toml"
-DEV_DEPS_PATH = REPO_ROOT_DIR / "requirements-dev.in"
-LOCK_FILE_PATH = REPO_ROOT_DIR / "requirements-dev.txt"
+LOCK_DIR = REPO_ROOT_DIR / "lock"
+DEV_DEPS_PATH = LOCK_DIR / "requirements-dev.in"
+LOCK_FILE_PATH = LOCK_DIR / "requirements-dev.txt"
 
 
 class OutdatedDep(NamedTuple):
@@ -78,7 +79,7 @@ def get_deps_dev() -> list[Requirement]:
             for line in (line.strip() for line in dev_deps)
             if line  # skip empty lines
             and not line.startswith("#")  # skip comments
-            and "requirements-dev-common.in" not in line  # skip inclusion line
+            and "requirements-dev-template.in" not in line  # skip inclusion line
         ]
 
     return [Requirement(dependency) for dependency in dependencies]
