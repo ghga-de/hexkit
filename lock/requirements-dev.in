@@ -1,7 +1,7 @@
 # requirements for development and testing this service
 
-# common requirements for development and testing
--r requirements-dev-common.in
+# template requirements for development and testing
+-r requirements-dev-template.in
 
 # additional requirements can be listed her
 cryptography >= 41

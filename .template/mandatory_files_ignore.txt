@@ -7,13 +7,11 @@
 .github/workflows/dev_cd.yaml
 .github/workflows/check_openapi_spec.yaml
 
-example_data
-
 scripts/script_utils/fastapi_app_location.py
 
 Dockerfile
 config_schema.json
 example_config.yaml
 
-.description.md
-.design.md
+.readme_generation/description.md
+.readme_generation/design.md

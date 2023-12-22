@@ -1,0 +1,2 @@
+# Optional list of files which are actually deprecated in the template
+# but are still allowed to be used in the current repository

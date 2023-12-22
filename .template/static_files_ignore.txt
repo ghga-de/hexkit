@@ -8,8 +8,6 @@
 .github/workflows/ci_release.yaml
 .github/workflows/ci_workflow_dispatch.yaml
 
-scripts/script_utils/fastapi_app_location.py
-
 scripts/update_config_docs.py
 scripts/update_openapi_docs.py
 scripts/update_readme.py
@@ -17,6 +15,4 @@ scripts/update_readme.py
 example_data/README.md
 
 .devcontainer/Dockerfile
-
-.readme_template.md
-readme_generation.md
+.readme_generation/README.md

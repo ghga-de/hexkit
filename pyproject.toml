@@ -1,28 +1,13 @@
 [build-system]
-requires = ["setuptools>=67.7.2"]
+requires = [
+    "setuptools>=67.7.2",
+]
 build-backend = "setuptools.build_meta"
 
 [project]
 name = "hexkit"
 version = "2.0.0"
 description = "A Toolkit for Building Microservices using the Hexagonal Architecture"
-readme = "README.md"
-authors = [
-    { name = "German Human Genome Phenome Archive (GHGA)", email = "contact@ghga.de" },
-]
-requires-python = ">=3.9"
-license = { text = "Apache 2.0" }
-classifiers = [
-    "Development Status :: 1 - Planning",
-    "Operating System :: POSIX :: Linux",
-    "Programming Language :: Python :: 3.9",
-    "Programming Language :: Python :: 3.10",
-    "Programming Language :: Python :: 3.11",
-    "License :: OSI Approved :: Apache Software License",
-    "Topic :: Internet :: WWW/HTTP :: HTTP Servers",
-    "Topic :: Software Development :: Libraries",
-    "Intended Audience :: Developers",
-]
 dependencies = [
     "pydantic >=2, <3",
     "pydantic_settings >=2, <3",
@@ -30,19 +15,146 @@ dependencies = [
 ]
 
 [project.optional-dependencies]
-akafka = ["aiokafka~=0.8.0", "jsonschema >=4.17.3, <5"]
-s3 = ["boto3 >=1.26.50, <2", "botocore >=1.29.50, <2"]
-mongodb = ["motor >=3.1.1, <4"]
-
-test-akafka = ["hexkit[akafka]", "testcontainers[kafka] >=3.7.1, <4"]
-test-s3 = ["hexkit[s3]", "testcontainers >=3.7.1, <4"]
-test-mongodb = ["hexkit[mongodb]", "testcontainers[mongo] >=3.7.1, <4"]
-test = ["hexkit[test-akafka,test-s3,test-mongodb]"]
-
-all = ["hexkit[test]"]
+akafka = [
+    "aiokafka~=0.8.0",
+    "jsonschema >=4.17.3, <5",
+]
+s3 = [
+    "boto3 >=1.26.50, <2",
+    "botocore >=1.29.50, <2",
+]
+mongodb = [
+    "motor >=3.1.1, <4",
+]
+test-akafka = [
+    "hexkit[akafka]",
+    "testcontainers[kafka] >=3.7.1, <4",
+]
+test-s3 = [
+    "hexkit[s3]",
+    "testcontainers >=3.7.1, <4",
+]
+test-mongodb = [
+    "hexkit[mongodb]",
+    "testcontainers[mongo] >=3.7.1, <4",
+]
+test = [
+    "hexkit[test-akafka,test-s3,test-mongodb]",
+]
+all = [
+    "hexkit[test]",
+]
 
 [project.urls]
 Repository = "https://github.com/ghga-de/hexkit"
 
 [tool.setuptools.packages.find]
-where = ["src"]
+where = [
+    "src",
+]
+
+[tool.ruff]
+exclude = [
+    ".git",
+    ".devcontainer",
+    "__pycache__",
+    "build",
+    "dist",
+]
+ignore = [
+    "E",
+    "W",
+    "PLW",
+    "RUF001",
+    "RUF010",
+    "RUF012",
+    "N818",
+    "B008",
+    "PLR2004",
+    "D205",
+    "D400",
+    "D401",
+    "D107",
+    "D206",
+    "D300",
+]
+line-length = 88
+select = [
+    "C90",
+    "F",
+    "I",
+    "S",
+    "B",
+    "N",
+    "UP",
+    "PL",
+    "RUF",
+    "SIM",
+    "D",
+]
+fixable = [
+    "UP",
+    "I",
+    "D",
+]
+src = [
+    "src",
+    "tests",
+    "examples",
+    "scripts",
+]
+target-version = "py39"
+
+[tool.ruff.mccabe]
+max-complexity = 10
+
+[tool.ruff.per-file-ignores]
+"scripts/*" = [
+    "PL",
+    "S",
+    "SIM",
+    "D",
+]
+"tests/*" = [
+    "S",
+    "SIM",
+    "PLR",
+    "B011",
+]
+".devcontainer/*" = [
+    "S",
+    "SIM",
+    "D",
+]
+"examples/*" = [
+    "S",
+    "D",
+]
+"__init__.py" = [
+    "D",
+]
+
+[tool.ruff.pydocstyle]
+convention = "pep257"
+
+[tool.mypy]
+disable_error_code = "import"
+show_error_codes = true
+exclude = [
+    "build/lib/",
+]
+warn_redundant_casts = true
+warn_unused_ignores = true
+check_untyped_defs = true
+no_site_packages = false
+
+[tool.pytest.ini_options]
+minversion = "7.1"
+asyncio_mode = "strict"
+
+[tool.coverage.paths]
+source = [
+    "src",
+    "/workspace/src",
+    "**/lib/python*/site-packages",
+]
