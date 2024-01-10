@@ -23,12 +23,11 @@ from collections.abc import AsyncGenerator, Sequence
 from contextlib import asynccontextmanager
 from dataclasses import dataclass
 from functools import partial
-from typing import Optional, Union
+from typing import Callable, Optional, Union
 
 import pytest_asyncio
 from aiokafka import AIOKafkaConsumer, TopicPartition
 from kafka import KafkaAdminClient
-from kafka.errors import KafkaError
 from testcontainers.kafka import KafkaContainer
 
 from hexkit.custom_types import Ascii, JsonObject, PytestScope
@@ -341,11 +340,13 @@ class KafkaFixture:
         config: KafkaConfig,
         kafka_servers: list[str],
         publisher: KafkaEventPublisher,
+        cmd_interface: Callable,
     ):
         """Initialize with connection details and a ready-to-use publisher."""
         self.config = config
         self.kafka_servers = kafka_servers
         self.publisher = publisher
+        self._cmd_interface = cmd_interface
 
     async def publish_event(
         self, *, payload: JsonObject, type_: Ascii, topic: Ascii, key: Ascii = "test"
@@ -360,10 +361,11 @@ class KafkaFixture:
         """
         return EventRecorder(kafka_servers=self.kafka_servers, topic=in_topic)
 
-    def delete_topics(self, topics: Optional[Union[str, list[str]]] = None):
+    def clear_topics(self, topics: Optional[Union[str, list[str]]] = None):
         """
-        Delete given topic(s) from Kafka broker. When no topics are specified,
-        all existing topics will be deleted.
+        Clear messages from given topic(s).
+
+        When no topics are specified, all existing topics will be cleared.
         """
         admin_client = KafkaAdminClient(bootstrap_servers=self.kafka_servers)
         all_topics = admin_client.list_topics()
@@ -371,18 +373,48 @@ class KafkaFixture:
             topics = all_topics
         elif isinstance(topics, str):
             topics = [topics]
-        try:
-            existing_topics = set(all_topics)
-            for topic in topics:
-                if topic in existing_topics:
-                    try:
-                        admin_client.delete_topics([topic])
-                    except KafkaError as error:
-                        raise RuntimeError(
-                            f"Could not delete topic {topic} from Kafka"
-                        ) from error
-        finally:
+
+        existing_topics = set(all_topics)
+
+        # The required JSON config has a schema specified as follows
+        delete_config: dict[str, Union[list, int]] = {
+            "partitions": [],
+            "version": 1,
+        }
+
+        # Add the partition offset info for each topic
+        for topic in topics:
+            if topic in existing_topics:
+                delete_config["partitions"].append(  # type: ignore
+                    {
+                        "topic": topic,
+                        "partition": 0,
+                        "offset": -1,
+                    }
+                )
+
+        # No specific filename required, but online examples tend to use sth similar
+        file_name = "delete-records.config"
+        json_data = json.dumps(delete_config)
+
+        # Write the config to a file in the testcontainer and run the delete script
+        echo_command = (
+            f"echo '{json_data}' > {file_name} && kafka-delete-records"
+            + f" --bootstrap-server localhost:9092 --offset-json-file {file_name}"
+        )
+
+        # The echo command must be run in a shell, or else the > operator won't work
+        cmd = ["sh", "-c", echo_command]
+
+        # Run and capture exit code, output
+        result, output = self._cmd_interface(cmd=cmd)
+
+        # If the exit code is not 0, raise an error outputting the exit code & output
+        if result != 0:
             admin_client.close()
+            raise RuntimeError(f"result: {result}, output: {output}")
+
+        admin_client.close()
 
     @asynccontextmanager
     async def expect_events(
@@ -412,10 +444,14 @@ async def kafka_fixture_function() -> AsyncGenerator[KafkaFixture, None]:
             service_instance_id="001",
             kafka_servers=kafka_servers,
         )
+        cmd_interface = kafka.get_wrapped_container().exec_run
 
         async with KafkaEventPublisher.construct(config=config) as publisher:
             yield KafkaFixture(
-                config=config, kafka_servers=kafka_servers, publisher=publisher
+                config=config,
+                kafka_servers=kafka_servers,
+                publisher=publisher,
+                cmd_interface=cmd_interface,
             )
 
 
