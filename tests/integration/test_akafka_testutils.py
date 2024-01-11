@@ -99,7 +99,7 @@ async def test_clear_topics_specific(kafka_fixture: KafkaFixture):  # noqa: F811
     )
 
     # Clear the CLEAR topic
-    kafka_fixture.clear_topics(CLEAR)
+    kafka_fixture.clear_topics(consumer, CLEAR)
 
     # Set a reasonable timeout to check all messages but not run indefinitely
     consumer.config["consumer_timeout_ms"] = 2000

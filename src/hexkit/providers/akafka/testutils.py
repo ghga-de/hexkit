@@ -27,7 +27,7 @@ from typing import Callable, Optional, Union
 
 import pytest_asyncio
 from aiokafka import AIOKafkaConsumer, TopicPartition
-from kafka import KafkaAdminClient
+from kafka import KafkaAdminClient, KafkaConsumer
 from testcontainers.kafka import KafkaContainer
 
 from hexkit.custom_types import Ascii, JsonObject, PytestScope
@@ -361,7 +361,11 @@ class KafkaFixture:
         """
         return EventRecorder(kafka_servers=self.kafka_servers, topic=in_topic)
 
-    def clear_topics(self, topics: Optional[Union[str, list[str]]] = None):
+    def clear_topics(
+        self,
+        consumer: Union[AIOKafkaConsumer, KafkaConsumer],
+        topics: Optional[Union[str, list[str]]] = None,
+    ):
         """
         Clear messages from given topic(s).
 
@@ -376,16 +380,20 @@ class KafkaFixture:
 
         # The required JSON config has a schema specified as follows:
         delete_config: dict[str, Union[list, int]] = {
-            "partitions": [],
+            "partitions": [],  # {topic:str, partition: int, offset: int}
             "version": 1,
         }
 
         # Get partition info for the topics requested to be cleared
         partition_info = admin_client.describe_topics(topics)
+        topic_partitions: list[TopicPartition] = []
 
         # Add the partition offset info for each topic
         for item in partition_info:
             for partition in item["partitions"]:
+                topic_partitions.append(
+                    TopicPartition(item["topic"], partition["partition"])
+                )
                 delete_config["partitions"].append(  # type: ignore
                     {
                         "topic": item["topic"],
@@ -393,6 +401,8 @@ class KafkaFixture:
                         "offset": -1,
                     }
                 )
+
+        consumer.pause(*topic_partitions)
 
         file_name = "record-deletion.json"
         json_data = json.dumps(delete_config)
@@ -412,6 +422,8 @@ class KafkaFixture:
         if result != 0:
             admin_client.close()
             raise RuntimeError(f"result: {result}, output: {output}")
+
+        consumer.resume(*topic_partitions)
 
         admin_client.close()
 
