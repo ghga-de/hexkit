@@ -363,8 +363,9 @@ class KafkaFixture:
 
     def clear_topics(
         self,
-        consumer: Union[AIOKafkaConsumer, KafkaConsumer],
+        *,
         topics: Optional[Union[str, list[str]]] = None,
+        consumer: Optional[Union[AIOKafkaConsumer, KafkaConsumer]] = None,
     ):
         """
         Clear messages from given topic(s).
@@ -404,19 +405,23 @@ class KafkaFixture:
 
         # Can only pause once a message has been consumed from a given partition
         paused_partitions: list[TopicPartition] = []
-        for topic_partition in topic_partitions:
-            try:
-                consumer.pause(topic_partition)
-                paused_partitions.append(topic_partition)
-            except KeyError:
-                pass
+        if consumer:
+            for topic_partition in topic_partitions:
+                try:
+                    consumer.pause(topic_partition)
+                    paused_partitions.append(topic_partition)
+                except KeyError:
+                    pass
 
         file_name = "record-deletion.json"
         json_data = json.dumps(delete_config)
 
         # Write the config to a file in the testcontainer and run the delete script
         echo_command = f"echo '{json_data}' > {file_name}"
-        delete_command = f"kafka-delete-records --bootstrap-server localhost:9092 --offset-json-file {file_name}"
+        delete_command = (
+            "kafka-delete-records --bootstrap-server localhost:9092 "
+            + f"--offset-json-file {file_name}"
+        )
         command = f"{echo_command} && {delete_command}"
 
         # The echo command must be run in a shell
@@ -431,7 +436,8 @@ class KafkaFixture:
             raise RuntimeError(f"result: {result}, output: {output}")
 
         # Resume paused partitions
-        consumer.resume(*paused_partitions)
+        if consumer:
+            consumer.resume(*paused_partitions)
 
         admin_client.close()
 
