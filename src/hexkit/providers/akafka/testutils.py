@@ -374,37 +374,36 @@ class KafkaFixture:
         elif isinstance(topics, str):
             topics = [topics]
 
-        existing_topics = set(all_topics)
-
-        # The required JSON config has a schema specified as follows
+        # The required JSON config has a schema specified as follows:
         delete_config: dict[str, Union[list, int]] = {
             "partitions": [],
             "version": 1,
         }
 
+        # Get partition info for the topics requested to be cleared
+        partition_info = admin_client.describe_topics(topics)
+
         # Add the partition offset info for each topic
-        for topic in topics:
-            if topic in existing_topics:
+        for item in partition_info:
+            for partition in item["partitions"]:
                 delete_config["partitions"].append(  # type: ignore
                     {
-                        "topic": topic,
-                        "partition": 0,
+                        "topic": item["topic"],
+                        "partition": partition["partition"],
                         "offset": -1,
                     }
                 )
 
-        # No specific filename required, but online examples tend to use sth similar
-        file_name = "delete-records.config"
+        file_name = "record-deletion.json"
         json_data = json.dumps(delete_config)
 
         # Write the config to a file in the testcontainer and run the delete script
-        echo_command = (
-            f"echo '{json_data}' > {file_name} && kafka-delete-records"
-            + f" --bootstrap-server localhost:9092 --offset-json-file {file_name}"
-        )
+        echo_command = f"echo '{json_data}' > {file_name}"
+        delete_command = f"kafka-delete-records --bootstrap-server localhost:9092 --offset-json-file {file_name}"
+        command = f"{echo_command} && {delete_command}"
 
-        # The echo command must be run in a shell, or else the > operator won't work
-        cmd = ["sh", "-c", echo_command]
+        # The echo command must be run in a shell
+        cmd = ["sh", "-c", command]
 
         # Run and capture exit code, output
         result, output = self._cmd_interface(cmd=cmd)
