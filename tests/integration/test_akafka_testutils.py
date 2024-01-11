@@ -35,10 +35,6 @@ from hexkit.providers.akafka.testutils import (
 )
 
 TEST_TYPE = "test_type"
-KEEP = "keep_topic"
-CLEAR = "clear_topic"
-KEEP_TOPIC_PARTITION = TopicPartition(KEEP, 0)
-CLEAR_TOPIC_PARTITION = TopicPartition(CLEAR, 0)
 
 
 def make_payload(msg: str) -> JsonObject:
@@ -53,19 +49,24 @@ async def test_clear_topics_specific(kafka_fixture: KafkaFixture):  # noqa: F811
         bootstrap_servers=kafka_fixture.config.kafka_servers
     )
 
+    topic_to_keep = "keep_topic"
+    topic_to_clear = "clear_topic"
+    partition_keep = TopicPartition(topic_to_keep, 0)
+    partition_clear = TopicPartition(topic_to_clear, 0)
+
     await kafka_fixture.publish_event(
-        payload=make_payload("clear1"), type_=TEST_TYPE, topic=CLEAR
+        payload=make_payload("clear1"), type_=TEST_TYPE, topic=topic_to_clear
     )
     await kafka_fixture.publish_event(
-        payload=make_payload("keep1"), type_=TEST_TYPE, topic=KEEP
+        payload=make_payload("keep1"), type_=TEST_TYPE, topic=topic_to_keep
     )
 
-    assert CLEAR in admin_client.list_topics()
-    assert KEEP in admin_client.list_topics()
+    assert topic_to_clear in admin_client.list_topics()
+    assert topic_to_keep in admin_client.list_topics()
 
     consumer = KafkaConsumer(
-        KEEP,
-        CLEAR,
+        topic_to_keep,
+        topic_to_clear,
         bootstrap_servers=kafka_fixture.kafka_servers[0],
         group_id="test",
         auto_offset_reset="earliest",
@@ -76,30 +77,28 @@ async def test_clear_topics_specific(kafka_fixture: KafkaFixture):  # noqa: F811
     count = 0
     for record in consumer:
         count += 1
-        assert record.topic in (KEEP, CLEAR)
+        assert record.topic in (topic_to_keep, topic_to_clear)
 
         # break when we get to the end, not when we reach an expected record count
-        if consumer.position(KEEP_TOPIC_PARTITION) == consumer.highwater(
-            KEEP_TOPIC_PARTITION
-        ) and consumer.position(CLEAR_TOPIC_PARTITION) == consumer.highwater(
-            CLEAR_TOPIC_PARTITION
-        ):
+        if consumer.position(partition_keep) == consumer.highwater(
+            partition_keep
+        ) and consumer.position(partition_clear) == consumer.highwater(partition_clear):
             break
     assert count == 2
 
     # Publish new messages, one to CLEAR and one to KEEP
-    clear_payload2 = make_payload(CLEAR + "2")
+    clear_payload2 = make_payload(topic_to_clear + "2")
     await kafka_fixture.publish_event(
-        payload=clear_payload2, type_=TEST_TYPE, topic=CLEAR
+        payload=clear_payload2, type_=TEST_TYPE, topic=topic_to_clear
     )
 
-    keep_payload2 = make_payload(KEEP + "2")
+    keep_payload2 = make_payload(topic_to_keep + "2")
     await kafka_fixture.publish_event(
-        payload=keep_payload2, type_=TEST_TYPE, topic=KEEP
+        payload=keep_payload2, type_=TEST_TYPE, topic=topic_to_keep
     )
 
     # Clear the CLEAR topic
-    kafka_fixture.clear_topics(consumer, CLEAR)
+    kafka_fixture.clear_topics(consumer, topic_to_clear)
 
     # Set a reasonable timeout to check all messages but not run indefinitely
     consumer.config["consumer_timeout_ms"] = 2000
@@ -108,42 +107,39 @@ async def test_clear_topics_specific(kafka_fixture: KafkaFixture):  # noqa: F811
     total = 0
     for record in consumer:
         total += 1
-        assert record.topic == KEEP
+        assert record.topic == topic_to_keep
         assert record.value.decode("utf-8") == json.dumps(keep_payload2)
+
     # Assert that we processed 1 message
     assert total == 1
-    assert consumer.position(CLEAR_TOPIC_PARTITION) == consumer.highwater(
-        CLEAR_TOPIC_PARTITION
-    )
-    assert consumer.position(KEEP_TOPIC_PARTITION) == consumer.highwater(
-        KEEP_TOPIC_PARTITION
+    assert consumer.position(partition_clear) == consumer.highwater(partition_clear)
+    assert consumer.position(partition_keep) == consumer.highwater(partition_keep)
+
+    clear_payload3 = make_payload(topic_to_clear + "3")
+    await kafka_fixture.publish_event(
+        payload=clear_payload3, type_=TEST_TYPE, topic=topic_to_clear
     )
 
-    clear_payload3 = make_payload(CLEAR + "3")
+    keep_payload3 = make_payload(topic_to_keep + "3")
     await kafka_fixture.publish_event(
-        payload=clear_payload3, type_=TEST_TYPE, topic=CLEAR
-    )
-
-    keep_payload3 = make_payload(KEEP + "3")
-    await kafka_fixture.publish_event(
-        payload=keep_payload3, type_=TEST_TYPE, topic=KEEP
+        payload=keep_payload3, type_=TEST_TYPE, topic=topic_to_keep
     )
 
     total = 0
-    keep = 0
-    clear = 0
+    keep_count = 0
+    clear_count = 0
     for record in consumer:
         total += 1
-        if record.topic == KEEP:
-            keep += 1
+        if record.topic == topic_to_keep:
+            keep_count += 1
             assert record.value.decode("utf-8") == json.dumps(keep_payload3)
-        elif record.topic == CLEAR:
-            clear += 1
+        elif record.topic == topic_to_clear:
+            clear_count += 1
             assert record.value.decode("utf-8") == json.dumps(clear_payload3)
 
     assert total == 2
-    assert keep == 1
-    assert clear == 1
+    assert keep_count == 1
+    assert clear_count == 1
 
     consumer.close()
 
