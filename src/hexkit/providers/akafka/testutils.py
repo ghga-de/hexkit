@@ -374,7 +374,7 @@ class KafkaFixture:
         admin_client = KafkaAdminClient(bootstrap_servers=self.kafka_servers)
         all_topics = admin_client.list_topics()
         if topics is None:
-            topics = all_topics
+            topics = [topic for topic in all_topics if not topic.startswith("__")]
         elif isinstance(topics, str):
             topics = [topics]
 
