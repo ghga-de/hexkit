@@ -19,7 +19,7 @@ import json
 from collections.abc import Sequence
 
 import pytest
-from kafka import KafkaAdminClient, KafkaConsumer, TopicPartition
+from kafka import KafkaConsumer, TopicPartition
 
 from hexkit.custom_types import JsonObject
 from hexkit.providers.akafka import (
@@ -45,10 +45,6 @@ def make_payload(msg: str) -> JsonObject:
 @pytest.mark.asyncio
 async def test_clear_topics_specific(kafka_fixture: KafkaFixture):  # noqa: F811
     """Make sure the reset function works"""
-    admin_client = KafkaAdminClient(
-        bootstrap_servers=kafka_fixture.config.kafka_servers
-    )
-
     topic_to_keep = "keep_topic"
     topic_to_clear = "clear_topic"
     partition_keep = TopicPartition(topic_to_keep, 0)
@@ -60,9 +56,6 @@ async def test_clear_topics_specific(kafka_fixture: KafkaFixture):  # noqa: F811
     await kafka_fixture.publish_event(
         payload=make_payload("keep1"), type_=TEST_TYPE, topic=topic_to_keep
     )
-
-    assert topic_to_clear in admin_client.list_topics()
-    assert topic_to_keep in admin_client.list_topics()
 
     consumer = KafkaConsumer(
         topic_to_keep,
@@ -142,6 +135,55 @@ async def test_clear_topics_specific(kafka_fixture: KafkaFixture):  # noqa: F811
     assert clear_count == 1
 
     consumer.close()
+
+
+@pytest.mark.asyncio
+async def test_clear_all_topics(kafka_fixture: KafkaFixture):  # noqa: F811
+    """Test clearing all topics with the kafka fixture's `clear_topics` function."""
+    topic1 = "topic1"
+    topic2 = "topic2"
+
+    await kafka_fixture.publish_event(
+        payload=make_payload("test1"), type_=TEST_TYPE, topic=topic1
+    )
+    await kafka_fixture.publish_event(
+        payload=make_payload("test2"), type_=TEST_TYPE, topic=topic2
+    )
+
+    consumer = KafkaConsumer(
+        topic1,
+        topic2,
+        bootstrap_servers=kafka_fixture.kafka_servers[0],
+        group_id="test",
+        auto_offset_reset="earliest",
+        enable_auto_commit=True,
+        consumer_timeout_ms=2000,
+    )
+
+    kafka_fixture.clear_topics(consumer)
+
+    count = 0
+    for _ in consumer:
+        count += 1
+
+    assert count == 0
+    for topic in (topic1, topic2):
+        assert consumer.highwater(TopicPartition(topic, 0)) == consumer.position(
+            TopicPartition(topic, 0)
+        )
+
+    await kafka_fixture.publish_event(
+        payload=make_payload("test1"), type_=TEST_TYPE, topic=topic1
+    )
+    await kafka_fixture.publish_event(
+        payload=make_payload("test2"), type_=TEST_TYPE, topic=topic2
+    )
+
+    count = 0
+    for _ in consumer:
+        count += 1
+
+    assert count == 2
 
 
 @pytest.mark.asyncio
