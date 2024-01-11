@@ -402,7 +402,14 @@ class KafkaFixture:
                     }
                 )
 
-        consumer.pause(*topic_partitions)
+        # Can only pause once a message has been consumed from a given partition
+        paused_partitions: list[TopicPartition] = []
+        for topic_partition in topic_partitions:
+            try:
+                consumer.pause(topic_partition)
+                paused_partitions.append(topic_partition)
+            except KeyError:
+                pass
 
         file_name = "record-deletion.json"
         json_data = json.dumps(delete_config)
@@ -423,7 +430,8 @@ class KafkaFixture:
             admin_client.close()
             raise RuntimeError(f"result: {result}, output: {output}")
 
-        consumer.resume(*topic_partitions)
+        # Resume paused partitions
+        consumer.resume(*paused_partitions)
 
         admin_client.close()
 
