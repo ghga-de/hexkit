@@ -27,7 +27,7 @@ from typing import Callable, Optional, Union
 
 import pytest_asyncio
 from aiokafka import AIOKafkaConsumer, TopicPartition
-from kafka import KafkaAdminClient, KafkaConsumer
+from kafka import KafkaAdminClient
 from kafka.errors import KafkaError
 from testcontainers.kafka import KafkaContainer
 
@@ -366,7 +366,6 @@ class KafkaFixture:
         self,
         *,
         topics: Optional[Union[str, list[str]]] = None,
-        consumer: Optional[Union[AIOKafkaConsumer, KafkaConsumer]] = None,
     ):
         """
         Clear messages from given topic(s).
@@ -388,14 +387,10 @@ class KafkaFixture:
 
         # Get partition info for the topics requested to be cleared
         partition_info = admin_client.describe_topics(topics)
-        topic_partitions: list[TopicPartition] = []
 
         # Add the partition offset info for each topic
         for item in partition_info:
             for partition in item["partitions"]:
-                topic_partitions.append(
-                    TopicPartition(item["topic"], partition["partition"])
-                )
                 delete_config["partitions"].append(  # type: ignore
                     {
                         "topic": item["topic"],
@@ -403,16 +398,6 @@ class KafkaFixture:
                         "offset": -1,
                     }
                 )
-
-        # Can only pause once a message has been consumed from a given partition
-        paused_partitions: list[TopicPartition] = []
-        if consumer:
-            for topic_partition in topic_partitions:
-                try:
-                    consumer.pause(topic_partition)
-                    paused_partitions.append(topic_partition)
-                except KeyError:
-                    pass
 
         file_name = "record-deletion.json"
         json_data = json.dumps(delete_config)
@@ -435,10 +420,6 @@ class KafkaFixture:
         if result != 0:
             admin_client.close()
             raise RuntimeError(f"result: {result}, output: {output}")
-
-        # Resume paused partitions
-        if consumer:
-            consumer.resume(*paused_partitions)
 
         admin_client.close()
 
