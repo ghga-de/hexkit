@@ -112,6 +112,7 @@ async def test_clear_topics_specific(kafka_fixture: KafkaFixture):  # noqa: F811
         group_id="test",
         auto_offset_reset="earliest",
         enable_auto_commit=True,
+        consumer_timeout_ms=2000,
     )
 
     # Verify that both messages were consumed as expected so we can trust the consumer
@@ -141,18 +142,13 @@ async def test_clear_topics_specific(kafka_fixture: KafkaFixture):  # noqa: F811
     # Clear the CLEAR topic
     kafka_fixture.clear_topics(topics=topic_to_clear)
 
-    # Set a reasonable timeout to check all messages but not run indefinitely
-    consumer.config["consumer_timeout_ms"] = 2000
-
     # make sure the KEEP topic still has its event but CLEAR is empty
-    total = 0
-    for record in consumer:
-        total += 1
-        assert record.topic == topic_to_keep
-        assert record.value.decode("utf-8") == json.dumps(keep_payload2)
+    records = list(consumer)
+    assert len(records) == 1
+    assert records[0].topic == topic_to_keep
+    assert records[0].value.decode("utf-8") == json.dumps(keep_payload2)
 
     # Assert that we processed 1 message
-    assert total == 1
     assert consumer.position(partition_clear) == consumer.highwater(partition_clear)
     assert consumer.position(partition_keep) == consumer.highwater(partition_keep)
 
@@ -166,21 +162,13 @@ async def test_clear_topics_specific(kafka_fixture: KafkaFixture):  # noqa: F811
         payload=keep_payload3, type_=TEST_TYPE, topic=topic_to_keep
     )
 
-    total = 0
-    keep_count = 0
-    clear_count = 0
-    for record in consumer:
-        total += 1
-        if record.topic == topic_to_keep:
-            keep_count += 1
-            assert record.value.decode("utf-8") == json.dumps(keep_payload3)
-        elif record.topic == topic_to_clear:
-            clear_count += 1
-            assert record.value.decode("utf-8") == json.dumps(clear_payload3)
-
-    assert total == 2
-    assert keep_count == 1
-    assert clear_count == 1
+    final_records = list(consumer)
+    final_records.sort(key=lambda record: record.topic)
+    assert len(final_records) == 2
+    assert final_records[0].topic == topic_to_clear
+    assert final_records[0].value.decode("utf-8") == json.dumps(clear_payload3)
+    assert final_records[1].topic == topic_to_keep
+    assert final_records[1].value.decode("utf-8") == json.dumps(keep_payload3)
 
     consumer.close()
 
@@ -210,11 +198,8 @@ async def test_clear_all_topics(kafka_fixture: KafkaFixture):  # noqa: F811
 
     kafka_fixture.clear_topics()
 
-    count = 0
-    for _ in consumer:
-        count += 1
+    assert len(list(consumer)) == 0
 
-    assert count == 0
     for topic in (topic1, topic2):
         assert consumer.highwater(TopicPartition(topic, 0)) == consumer.position(
             TopicPartition(topic, 0)
@@ -227,11 +212,7 @@ async def test_clear_all_topics(kafka_fixture: KafkaFixture):  # noqa: F811
         payload=make_payload("test2"), type_=TEST_TYPE, topic=topic2
     )
 
-    count = 0
-    for _ in consumer:
-        count += 1
-
-    assert count == 2
+    assert len(list(consumer)) == 2
 
 
 @pytest.mark.asyncio
