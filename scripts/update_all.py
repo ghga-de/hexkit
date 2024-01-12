@@ -19,33 +19,57 @@
 """Run all update scripts that are present in the repository in the correct order"""
 
 try:
-    from scripts.update_template_files import main as update_template
+    from update_template_files import main as update_template
 except ImportError:
-    pass
+    print("update_template_files script not found")
 else:
     print("Pulling in updates from template repository")
     update_template()
 
 try:
-    from scripts.update_config_docs import main as update_config
+    from update_pyproject import main as update_pyproject
 except ImportError:
-    pass
+    print("update_pyproject script not found")
+else:
+    print("Updating pyproject.toml file")
+    update_pyproject()
+
+try:
+    from update_lock import main as update_lock
+except ImportError:
+    print("update_lock script not found")
+else:
+    print("Upgrading the lock file")
+    update_lock(upgrade=True)
+
+try:
+    from update_hook_revs import main as update_hook_revs
+except ImportError:
+    print("update_hook_revs script not found")
+else:
+    print("Updating config docs")
+    update_hook_revs()
+
+try:
+    from update_config_docs import main as update_config
+except ImportError:
+    print("update_config_docs script not found")
 else:
     print("Updating config docs")
     update_config()
 
 try:
-    from scripts.update_openapi_docs import main as update_openapi
+    from update_openapi_docs import main as update_openapi
 except ImportError:
-    pass
+    print("update_openapi_docs script not found")
 else:
     print("Updating OpenAPI docs")
     update_openapi()
 
 try:
-    from scripts.update_readme import main as update_readme
+    from update_readme import main as update_readme
 except ImportError:
-    pass
+    print("update_readme script not found")
 else:
     print("Updating README")
     update_readme()
