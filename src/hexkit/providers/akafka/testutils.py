@@ -423,21 +423,22 @@ class KafkaFixture:
         all existing topics will be deleted.
         """
         admin_client = KafkaAdminClient(bootstrap_servers=self.kafka_servers)
-        all_topics = admin_client.list_topics()
-        if topics is None:
-            topics = all_topics
-        elif isinstance(topics, str):
-            topics = [topics]
+
         try:
-            existing_topics = set(all_topics)
-            for topic in topics:
-                if topic in existing_topics:
-                    try:
-                        admin_client.delete_topics([topic])
-                    except KafkaError as error:
-                        raise RuntimeError(
-                            f"Could not delete topic {topic} from Kafka"
-                        ) from error
+            all_topics = admin_client.list_topics()
+            if topics is None:
+                topics = all_topics
+            elif isinstance(topics, str):
+                topics = [topics]
+                existing_topics = set(all_topics)
+                for topic in topics:
+                    if topic in existing_topics:
+                        try:
+                            admin_client.delete_topics([topic])
+                        except KafkaError as error:
+                            raise RuntimeError(
+                                f"Could not delete topic {topic} from Kafka"
+                            ) from error
         finally:
             admin_client.close()
 
