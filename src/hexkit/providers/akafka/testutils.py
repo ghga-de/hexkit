@@ -341,7 +341,7 @@ class KafkaFixture:
         config: KafkaConfig,
         kafka_servers: list[str],
         publisher: KafkaEventPublisher,
-        cmd_exec_func: Callable[[str, bool], str],
+        cmd_exec_func: Callable[[str, bool], None],
     ):
         """Initialize with connection details and a ready-to-use publisher."""
         self.config = config
@@ -470,15 +470,12 @@ async def kafka_fixture_function() -> AsyncGenerator[KafkaFixture, None]:
             kafka_servers=kafka_servers,
         )
 
-        def wrapped_exec_run(command: str, run_in_shell: bool) -> str:
+        def wrapped_exec_run(command: str, run_in_shell: bool):
             """Run the given command in the kafka testcontainer.
 
             Args:
               - `command`: The full command to run.
               - `run_in_shell`: If True, will run the command in a shell.
-
-            Returns:
-                The stdout result of the command.
 
             Raises:
               - `RuntimeError`: when the exit code returned by the command is not zero.
@@ -488,8 +485,6 @@ async def kafka_fixture_function() -> AsyncGenerator[KafkaFixture, None]:
 
             if exit_code != 0:
                 raise RuntimeError(f"result: {exit_code}, output: {output}")
-
-            return output
 
         async with KafkaEventPublisher.construct(config=config) as publisher:
             yield KafkaFixture(
