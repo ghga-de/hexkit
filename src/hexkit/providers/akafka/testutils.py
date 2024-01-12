@@ -341,7 +341,7 @@ class KafkaFixture:
         config: KafkaConfig,
         kafka_servers: list[str],
         publisher: KafkaEventPublisher,
-        cmd_exec_func: Callable,
+        cmd_exec_func: Callable[[str, bool], str],
     ):
         """Initialize with connection details and a ready-to-use publisher."""
         self.config = config
@@ -402,7 +402,7 @@ class KafkaFixture:
         file_name = "record-deletion.json"
         json_data = json.dumps(delete_config)
 
-        # Write the config to a file in the testcontainer and run the delete script
+        # Build the two command strings that write the config file and run the deletion
         echo_command = f"echo '{json_data}' > {file_name}"
         delete_command = (
             "kafka-delete-records --bootstrap-server localhost:9092 "
@@ -410,18 +410,12 @@ class KafkaFixture:
         )
         command = f"{echo_command} && {delete_command}"
 
-        # The echo command must be run in a shell
-        cmd = ["sh", "-c", command]
-
-        # Run and capture exit code, output
-        result, output = self._cmd_exec_func(cmd=cmd)
-
-        # If the exit code is not 0, raise an error outputting the exit code & output
-        if result != 0:
+        # Run the command in a shell
+        try:
+            self._cmd_exec_func(command, True)
+        finally:
+            # Close the client
             admin_client.close()
-            raise RuntimeError(f"result: {result}, output: {output}")
-
-        admin_client.close()
 
     def delete_topics(self, topics: Optional[Union[str, list[str]]] = None):
         """
@@ -475,14 +469,34 @@ async def kafka_fixture_function() -> AsyncGenerator[KafkaFixture, None]:
             service_instance_id="001",
             kafka_servers=kafka_servers,
         )
-        cmd_exec_func = kafka.get_wrapped_container().exec_run
+
+        def wrapped_exec_run(command: str, run_in_shell: bool) -> str:
+            """Run the given command in the kafka testcontainer.
+
+            Args:
+              - `command`: The full command to run.
+              - `run_in_shell`: If True, will run the command in a shell.
+
+            Returns:
+                The stdout result of the command.
+
+            Raises:
+              - `RuntimeError`: when the exit code returned by the command is not zero.
+            """
+            cmd = ["sh", "-c", command] if run_in_shell else command
+            exit_code, output = kafka.get_wrapped_container().exec_run(cmd)
+
+            if exit_code != 0:
+                raise RuntimeError(f"result: {exit_code}, output: {output}")
+
+            return output
 
         async with KafkaEventPublisher.construct(config=config) as publisher:
             yield KafkaFixture(
                 config=config,
                 kafka_servers=kafka_servers,
                 publisher=publisher,
-                cmd_exec_func=cmd_exec_func,
+                cmd_exec_func=wrapped_exec_run,
             )
 
 
