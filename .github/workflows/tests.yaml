@@ -13,14 +13,15 @@ jobs:
       - id: common
         uses: ghga-de/gh-action-common@v4
 
-      - id: pytest
+      - id: tox
         run: |
           export ${{ steps.common.outputs.CONFIG_YAML_ENV_VAR_NAME }}="${{ steps.common.outputs.CONFIG_YAML }}"
 
-          pytest \
+          tox \
+            run \
+            -- \
             --cov="${{ steps.common.outputs.PACKAGE_NAME }}" \
-            --cov-report=xml \
-            tests
+            --cov-report=xml
 
       - id: coveralls
         name: Upload coverage to coveralls
