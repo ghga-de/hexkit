@@ -341,13 +341,13 @@ class KafkaFixture:
         config: KafkaConfig,
         kafka_servers: list[str],
         publisher: KafkaEventPublisher,
-        cmd_interface: Callable,
+        cmd_exec_func: Callable,
     ):
         """Initialize with connection details and a ready-to-use publisher."""
         self.config = config
         self.kafka_servers = kafka_servers
         self.publisher = publisher
-        self._cmd_interface = cmd_interface
+        self._cmd_exec_func = cmd_exec_func
 
     async def publish_event(
         self, *, payload: JsonObject, type_: Ascii, topic: Ascii, key: Ascii = "test"
@@ -414,7 +414,7 @@ class KafkaFixture:
         cmd = ["sh", "-c", command]
 
         # Run and capture exit code, output
-        result, output = self._cmd_interface(cmd=cmd)
+        result, output = self._cmd_exec_func(cmd=cmd)
 
         # If the exit code is not 0, raise an error outputting the exit code & output
         if result != 0:
@@ -475,14 +475,14 @@ async def kafka_fixture_function() -> AsyncGenerator[KafkaFixture, None]:
             service_instance_id="001",
             kafka_servers=kafka_servers,
         )
-        cmd_interface = kafka.get_wrapped_container().exec_run
+        cmd_exec_func = kafka.get_wrapped_container().exec_run
 
         async with KafkaEventPublisher.construct(config=config) as publisher:
             yield KafkaFixture(
                 config=config,
                 kafka_servers=kafka_servers,
                 publisher=publisher,
-                cmd_interface=cmd_interface,
+                cmd_exec_func=cmd_exec_func,
             )
 
 
