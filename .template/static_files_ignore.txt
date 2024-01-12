@@ -12,6 +12,7 @@
 scripts/update_config_docs.py
 scripts/update_openapi_docs.py
 scripts/update_readme.py
+scripts/update_all.py
 
 example_data/README.md
 
