@@ -362,6 +362,44 @@ class KafkaFixture:
         """
         return EventRecorder(kafka_servers=self.kafka_servers, topic=in_topic)
 
+    def _build_record_deletion_config(self, partitions: JsonObject) -> JsonObject:
+        """Build the config required to run the kafka-delete-records script."""
+        # The required JSON config has a schema specified as follows:
+        deletion_config: dict[str, Union[list, int]] = {
+            "partitions": [],  # {topic:str, partition: int, offset: int}
+            "version": 1,
+        }
+
+        # Add the partition offset info for each topic
+        for item in partitions:
+            for partition in item["partitions"]:  # type: ignore
+                deletion_config["partitions"].append(  # type: ignore
+                    {
+                        "topic": item["topic"],  # type: ignore
+                        "partition": partition["partition"],  # type: ignore
+                        "offset": -1,  # -1 instructs kafka to delete all records
+                    }
+                )
+
+        return deletion_config
+
+    def _build_record_deletion_command(self, delete_config: JsonObject) -> str:
+        """Build the command string used to run kafka-delete-records.
+
+        The configuration is dumped to a file with an echo command, and then the
+        delete command is called using that file.
+        """
+        file_name = "record-deletion.json"
+        json_data = json.dumps(delete_config)
+
+        # Build the two command strings that write the config file and run the deletion
+        echo_command = f"echo '{json_data}' > {file_name}"
+        deletion_command = (
+            f"kafka-delete-records --bootstrap-server {self.config.kafka_servers[0]} "
+            + f"--offset-json-file {file_name}"
+        )
+        return f"{echo_command} && {deletion_command}"
+
     def clear_topics(
         self,
         *,
@@ -373,46 +411,27 @@ class KafkaFixture:
         When no topics are specified, all existing topics will be cleared.
         """
         admin_client = KafkaAdminClient(bootstrap_servers=self.kafka_servers)
-        all_topics = admin_client.list_topics()
-        if topics is None:
-            topics = [topic for topic in all_topics if not topic.startswith("__")]
-        elif isinstance(topics, str):
-            topics = [topics]
-
-        # The required JSON config has a schema specified as follows:
-        delete_config: dict[str, Union[list, int]] = {
-            "partitions": [],  # {topic:str, partition: int, offset: int}
-            "version": 1,
-        }
-
-        # Get partition info for the topics requested to be cleared
-        partition_info = admin_client.describe_topics(topics)
-
-        # Add the partition offset info for each topic
-        for item in partition_info:
-            for partition in item["partitions"]:
-                delete_config["partitions"].append(  # type: ignore
-                    {
-                        "topic": item["topic"],
-                        "partition": partition["partition"],
-                        "offset": -1,
-                    }
-                )
-
-        file_name = "record-deletion.json"
-        json_data = json.dumps(delete_config)
-
-        # Build the two command strings that write the config file and run the deletion
-        echo_command = f"echo '{json_data}' > {file_name}"
-        delete_command = (
-            f"kafka-delete-records --bootstrap-server {self.kafka_servers[0]} "
-            + f"--offset-json-file {file_name}"
-        )
-        command = f"{echo_command} && {delete_command}"
-
-        # Run the command in a shell
         try:
+            all_topics = admin_client.list_topics()
+
+            # If not clearing specific topics, delete all aside from the internal
+            # __consumer_offsets topic
+            if topics is None:
+                topics = [
+                    topic for topic in all_topics if topic != "__consumer_offsets"
+                ]
+            elif isinstance(topics, str):
+                topics = [topics]
+
+            # Get partition info for the topics requested to be cleared
+            partition_info: JsonObject = admin_client.describe_topics(topics)
+
+            # Get the command and then run it in a shell
+            deletion_config = self._build_record_deletion_config(partition_info)
+            command = self._build_record_deletion_command(deletion_config)
+
             self._cmd_exec_func(command, True)
+
         finally:
             # Close the client
             admin_client.close()
