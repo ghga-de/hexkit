@@ -484,7 +484,9 @@ async def kafka_fixture_function() -> AsyncGenerator[KafkaFixture, None]:
             exit_code, output = kafka.get_wrapped_container().exec_run(cmd)
 
             if exit_code != 0:
-                raise RuntimeError(f"result: {exit_code}, output: {output}")
+                raise RuntimeError(
+                    f"result: {exit_code}, output: {output.decode('utf-8')}"
+                )
 
         async with KafkaEventPublisher.construct(config=config) as publisher:
             yield KafkaFixture(
