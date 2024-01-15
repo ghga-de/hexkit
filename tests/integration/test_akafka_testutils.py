@@ -63,9 +63,7 @@ class DummyTranslator(EventSubscriberProtocol):
 
 def test_delete_topics_specific(kafka_fixture: KafkaFixture):  # noqa: F811
     """Make sure the reset function works"""
-    admin_client = KafkaAdminClient(
-        bootstrap_servers=kafka_fixture.config.kafka_servers
-    )
+    admin_client = KafkaAdminClient(bootstrap_servers=kafka_fixture.kafka_servers)
     new_topics = [
         NewTopic(name="test", num_partitions=1, replication_factor=1),
         NewTopic(name="test2", num_partitions=1, replication_factor=1),
@@ -81,15 +79,14 @@ def test_delete_topics_specific(kafka_fixture: KafkaFixture):  # noqa: F811
 
     # make sure it got deleted
     final_topics = admin_client.list_topics()
+    admin_client.close()
     assert "test" not in final_topics
     assert "test2" in final_topics
 
 
 def test_delete_topics_all(kafka_fixture: KafkaFixture):  # noqa: F811
     """Test topic deletion without specifying parameters"""
-    admin_client = KafkaAdminClient(
-        bootstrap_servers=kafka_fixture.config.kafka_servers
-    )
+    admin_client = KafkaAdminClient(bootstrap_servers=kafka_fixture.kafka_servers)
 
     new_topics = [
         NewTopic(name="test", num_partitions=1, replication_factor=1),
@@ -104,6 +101,7 @@ def test_delete_topics_all(kafka_fixture: KafkaFixture):  # noqa: F811
     kafka_fixture.delete_topics()
 
     final_topics = admin_client.list_topics()
+    admin_client.close()
     assert "test" not in final_topics
     assert "test2" not in final_topics
 
