@@ -336,18 +336,20 @@ class EventRecorder:
 class KafkaFixture:
     """Yielded by the `kafka_fixture` function"""
 
-    def __init__(
+    def __init__(  # noqa: PLR0913
         self,
         *,
         config: KafkaConfig,
         kafka_servers: list[str],
         publisher: KafkaEventPublisher,
+        kafka_bootstrap_internal: str,
         cmd_exec_func: Callable[[str, bool], None],
     ):
         """Initialize with connection details and a ready-to-use publisher."""
         self.config = config
         self.kafka_servers = kafka_servers
         self.publisher = publisher
+        self._kafka_bootstrap_internal = kafka_bootstrap_internal
         self._cmd_exec_func = cmd_exec_func
 
     async def publish_event(
@@ -396,7 +398,7 @@ class KafkaFixture:
         # Build the two command strings that write the config file and run the deletion
         echo_command = f"echo '{json_data}' > {file_name}"
         deletion_command = (
-            "kafka-delete-records --bootstrap-server localhost:9092 "
+            f"kafka-delete-records --bootstrap-server {self._kafka_bootstrap_internal} "
             + f"--offset-json-file {file_name}"
         )
         return f"{echo_command} && {deletion_command}"
@@ -495,6 +497,8 @@ async def kafka_fixture_function() -> AsyncGenerator[KafkaFixture, None]:
             service_instance_id="001",
             kafka_servers=kafka_servers,
         )
+        kafka_listeners = kafka.env["KAFKA_LISTENERS"].split(",")
+        kafka_bootstrap_internal = kafka_listeners[0].split("://")[1]
 
         def wrapped_exec_run(command: str, run_in_shell: bool):
             """Run the given command in the kafka testcontainer.
@@ -519,6 +523,7 @@ async def kafka_fixture_function() -> AsyncGenerator[KafkaFixture, None]:
                 config=config,
                 kafka_servers=kafka_servers,
                 publisher=publisher,
+                kafka_bootstrap_internal=kafka_bootstrap_internal,
                 cmd_exec_func=wrapped_exec_run,
             )
 
