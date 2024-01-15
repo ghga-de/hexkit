@@ -396,7 +396,7 @@ class KafkaFixture:
         # Build the two command strings that write the config file and run the deletion
         echo_command = f"echo '{json_data}' > {file_name}"
         deletion_command = (
-            f"kafka-delete-records --bootstrap-server {self.config.kafka_servers[0]} "
+            "kafka-delete-records --bootstrap-server localhost:9092 "
             + f"--offset-json-file {file_name}"
         )
         return f"{echo_command} && {deletion_command}"
