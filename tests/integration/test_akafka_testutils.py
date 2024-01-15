@@ -45,7 +45,7 @@ def make_payload(msg: str) -> JsonObject:
     return {"test_msg": msg}
 
 
-class TestTranslator(EventSubscriberProtocol):
+class DummyTranslator(EventSubscriberProtocol):
     """An event subscriber translator that simply tracks what it's consumed."""
 
     def __init__(self, topics_of_interest: list[str]):
@@ -207,7 +207,7 @@ async def test_clear_all_topics(kafka_fixture: KafkaFixture):  # noqa: F811
     # clear the above two topics
     kafka_fixture.clear_topics()
 
-    test_translator = TestTranslator([topic1, topic2])
+    test_translator = DummyTranslator([topic1, topic2])
     async with KafkaEventSubscriber.construct(
         config=KafkaConfig(
             service_name="test_service",
