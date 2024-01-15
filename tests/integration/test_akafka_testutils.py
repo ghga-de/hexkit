@@ -22,10 +22,12 @@ import pytest
 from kafka import KafkaAdminClient, KafkaConsumer, TopicPartition
 from kafka.admin.new_topic import NewTopic
 
-from hexkit.custom_types import JsonObject
-from hexkit.providers.akafka import (
+from hexkit.custom_types import Ascii, JsonObject
+from hexkit.providers.akafka.provider import (
+    EventSubscriberProtocol,
     KafkaConfig,
     KafkaEventPublisher,
+    KafkaEventSubscriber,
 )
 from hexkit.providers.akafka.testutils import (
     ExpectedEvent,
@@ -41,6 +43,22 @@ TEST_TYPE = "test_type"
 def make_payload(msg: str) -> JsonObject:
     """Return a test payload with a specified string."""
     return {"test_msg": msg}
+
+
+class TestTranslator(EventSubscriberProtocol):
+    """An event subscriber translator that simply tracks what it's consumed."""
+
+    def __init__(self, topics_of_interest: list[str]):
+        self.topics_of_interest = topics_of_interest
+        self.types_of_interest = [TEST_TYPE]
+        self.consumed: dict[str, list[JsonObject]] = {
+            topic: [] for topic in topics_of_interest
+        }
+
+    async def _consume_validated(
+        self, *, payload: JsonObject, type_: Ascii, topic: Ascii
+    ):
+        self.consumed[topic].append(payload)
 
 
 def test_delete_topics_specific(kafka_fixture: KafkaFixture):  # noqa: F811
@@ -180,39 +198,43 @@ async def test_clear_all_topics(kafka_fixture: KafkaFixture):  # noqa: F811
     topic2 = "topic2"
 
     await kafka_fixture.publish_event(
-        payload=make_payload("test1"), type_=TEST_TYPE, topic=topic1
+        payload=make_payload("topic1_msg1"), type_=TEST_TYPE, topic=topic1
     )
     await kafka_fixture.publish_event(
-        payload=make_payload("test2"), type_=TEST_TYPE, topic=topic2
+        payload=make_payload("topic2_msg1"), type_=TEST_TYPE, topic=topic2
     )
 
-    consumer = KafkaConsumer(
-        topic1,
-        topic2,
-        bootstrap_servers=kafka_fixture.kafka_servers[0],
-        group_id="test",
-        auto_offset_reset="earliest",
-        enable_auto_commit=True,
-        consumer_timeout_ms=2000,
-    )
-
+    # clear the above two topics
     kafka_fixture.clear_topics()
 
-    assert len(list(consumer)) == 0
-
-    for topic in (topic1, topic2):
-        assert consumer.highwater(TopicPartition(topic, 0)) == consumer.position(
-            TopicPartition(topic, 0)
+    test_translator = TestTranslator([topic1, topic2])
+    async with KafkaEventSubscriber.construct(
+        config=KafkaConfig(
+            service_name="test_service",
+            service_instance_id="1",
+            kafka_servers=kafka_fixture.kafka_servers,
+        ),
+        translator=test_translator,
+    ) as subscriber:
+        # publish two new events
+        await kafka_fixture.publish_event(
+            payload=make_payload("topic1_msg2"), type_=TEST_TYPE, topic=topic1
+        )
+        await kafka_fixture.publish_event(
+            payload=make_payload("topic2_msg2"), type_=TEST_TYPE, topic=topic2
         )
 
-    await kafka_fixture.publish_event(
-        payload=make_payload("test1"), type_=TEST_TYPE, topic=topic1
-    )
-    await kafka_fixture.publish_event(
-        payload=make_payload("test2"), type_=TEST_TYPE, topic=topic2
-    )
+        # Consume the events and verify that only the new, post-deletion events are found
+        await subscriber.run(False)
+        await subscriber.run(False)
 
-    assert len(list(consumer)) == 2
+        topic1_events = test_translator.consumed[topic1]
+        assert len(topic1_events) == 1
+        assert topic1_events[0] == make_payload("topic1_msg2")
+
+        topic2_events = test_translator.consumed[topic2]
+        assert len(topic2_events) == 1
+        assert topic2_events[0] == make_payload("topic2_msg2")
 
 
 @pytest.mark.asyncio
