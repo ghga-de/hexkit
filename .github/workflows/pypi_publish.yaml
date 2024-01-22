@@ -16,10 +16,24 @@ jobs:
         with:
           python-version: "3.9"
 
-      - name: Verify Package Version vs Tag Version
+      - name: Ensure package version and tag are equal
+        working-directory: ${{ inputs.working_directory }}
+        shell: bash
         run: |
-          PKG_VER="$(grep -oP 'version = "\K[^"]+' pyproject.toml)"
-          TAG_VER="${GITHUB_REF##*/}"
+          if [ -f "setup.py" ]
+          then
+            PKG_VER="$(python setup.py --version)"
+          elif [ -f "pyproject.toml" ]
+          then
+            version=$(python3.11 -c "import tomllib; print(tomllib.load(open('pyproject.toml', 'rb'))['project']['version'])")
+            PKG_VER=$version
+          else
+            echo "Neither setup.py nor pyproject.toml were found." >&2; exit 1
+          fi
+
+          TAG_VER=${{ inputs.package_version }}
+          [[ -z "$TAG_VER" ]] && TAG_VER=${{ inputs.tag }}
+
           echo "Package version is $PKG_VER" >&2
           echo "Tag version is $TAG_VER" >&2
           if [ "$PKG_VER" != "$TAG_VER" ]; then
@@ -46,7 +60,7 @@ jobs:
       - name: Install the newly build package with all extras
         run: |
           TAR_PATH="$( realpath ./dist/*.tar.gz)"
-          python -m \
+          python3 -m \
             pip install \
             "${TAR_PATH}[all]"
 
@@ -56,7 +70,7 @@ jobs:
           pip install
           -r requirements-dev.txt
 
-      - name: Run pytest on freshly installed package
+      - name: Run pytest on freshly install package
         run: |
           pytest .
 
