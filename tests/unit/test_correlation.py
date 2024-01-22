@@ -55,9 +55,9 @@ def reset_kafka(kafka_fixture: KafkaFixture):
     Delete all topics in setup in case something was left in from a previous test case.
     Delete all topics in teardown to clean up after given test case.
     """
-    kafka_fixture.delete_topics()
+    kafka_fixture.clear_topics()
     yield
-    kafka_fixture.delete_topics()
+    kafka_fixture.clear_topics()
 
 
 async def set_id_sleep_resume(correlation_id: str):

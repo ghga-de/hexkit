@@ -19,11 +19,12 @@
 Please note, only use for testing purposes.
 """
 import json
+import warnings
 from collections.abc import AsyncGenerator, Sequence
 from contextlib import asynccontextmanager
 from dataclasses import dataclass
 from functools import partial
-from typing import Optional, Union
+from typing import Callable, Optional, Union
 
 import pytest_asyncio
 from aiokafka import AIOKafkaConsumer, TopicPartition
@@ -341,11 +342,13 @@ class KafkaFixture:
         config: KafkaConfig,
         kafka_servers: list[str],
         publisher: KafkaEventPublisher,
+        cmd_exec_func: Callable[[str, bool], None],
     ):
         """Initialize with connection details and a ready-to-use publisher."""
         self.config = config
         self.kafka_servers = kafka_servers
         self.publisher = publisher
+        self._cmd_exec_func = cmd_exec_func
 
     async def publish_event(
         self, *, payload: JsonObject, type_: Ascii, topic: Ascii, key: Ascii = "test"
@@ -360,11 +363,91 @@ class KafkaFixture:
         """
         return EventRecorder(kafka_servers=self.kafka_servers, topic=in_topic)
 
+    def _build_record_deletion_config(self, partitions: JsonObject) -> JsonObject:
+        """Build the config required to run the kafka-delete-records script."""
+        # The required JSON config has a schema specified as follows:
+        deletion_config: dict[str, Union[list, int]] = {
+            "partitions": [],  # {topic:str, partition: int, offset: int}
+            "version": 1,
+        }
+
+        # Add the partition offset info for each topic
+        for item in partitions:
+            for partition in item["partitions"]:  # type: ignore
+                deletion_config["partitions"].append(  # type: ignore
+                    {
+                        "topic": item["topic"],  # type: ignore
+                        "partition": partition["partition"],  # type: ignore
+                        "offset": -1,  # -1 instructs kafka to delete all records
+                    }
+                )
+
+        return deletion_config
+
+    def _build_record_deletion_command(self, delete_config: JsonObject) -> str:
+        """Build the command string used to run kafka-delete-records.
+
+        The configuration is dumped to a file with an echo command, and then the
+        delete command is called using that file.
+        """
+        file_name = "record-deletion.json"
+        json_data = json.dumps(delete_config)
+
+        # Build the two command strings that write the config file and run the deletion
+        echo_command = f"echo '{json_data}' > {file_name}"
+        deletion_command = (
+            "kafka-delete-records --bootstrap-server localhost:9092 "
+            + f"--offset-json-file {file_name}"
+        )
+        return f"{echo_command} && {deletion_command}"
+
+    def clear_topics(
+        self,
+        *,
+        topics: Optional[Union[str, list[str]]] = None,
+    ):
+        """
+        Clear messages from given topic(s).
+
+        When no topics are specified, all existing topics will be cleared.
+        """
+        admin_client = KafkaAdminClient(bootstrap_servers=self.kafka_servers)
+        try:
+            all_topics = admin_client.list_topics()
+
+            # If not clearing specific topics, delete all aside from the internal
+            # __consumer_offsets topic
+            if topics is None:
+                topics = [
+                    topic for topic in all_topics if topic != "__consumer_offsets"
+                ]
+            elif isinstance(topics, str):
+                topics = [topics]
+
+            # Get partition info for the topics requested to be cleared
+            partition_info: JsonObject = admin_client.describe_topics(topics)
+
+            # Get the command and then run it in a shell
+            deletion_config = self._build_record_deletion_config(partition_info)
+            command = self._build_record_deletion_command(deletion_config)
+
+            self._cmd_exec_func(command, True)
+
+        finally:
+            # Close the client
+            admin_client.close()
+
     def delete_topics(self, topics: Optional[Union[str, list[str]]] = None):
         """
         Delete given topic(s) from Kafka broker. When no topics are specified,
         all existing topics will be deleted.
         """
+        warnings.warn(
+            "delete_topics() is deprecated and will be removed in future versions. "
+            + f"Use {self.clear_topics.__name__}() instead.",
+            DeprecationWarning,
+            stacklevel=2,
+        )
         admin_client = KafkaAdminClient(bootstrap_servers=self.kafka_servers)
         all_topics = admin_client.list_topics()
         if topics is None:
@@ -413,9 +496,30 @@ async def kafka_fixture_function() -> AsyncGenerator[KafkaFixture, None]:
             kafka_servers=kafka_servers,
         )
 
+        def wrapped_exec_run(command: str, run_in_shell: bool):
+            """Run the given command in the kafka testcontainer.
+
+            Args:
+              - `command`: The full command to run.
+              - `run_in_shell`: If True, will run the command in a shell.
+
+            Raises:
+              - `RuntimeError`: when the exit code returned by the command is not zero.
+            """
+            cmd = ["sh", "-c", command] if run_in_shell else command
+            exit_code, output = kafka.get_wrapped_container().exec_run(cmd)
+
+            if exit_code != 0:
+                raise RuntimeError(
+                    f"result: {exit_code}, output: {output.decode('utf-8')}"
+                )
+
         async with KafkaEventPublisher.construct(config=config) as publisher:
             yield KafkaFixture(
-                config=config, kafka_servers=kafka_servers, publisher=publisher
+                config=config,
+                kafka_servers=kafka_servers,
+                publisher=publisher,
+                cmd_exec_func=wrapped_exec_run,
             )
 
 

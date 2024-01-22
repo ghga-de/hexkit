@@ -15,13 +15,20 @@
 #
 
 """Testing of the Kafka testutils."""
+import json
 from collections.abc import Sequence
 
 import pytest
-from kafka import KafkaAdminClient
+from kafka import KafkaAdminClient, KafkaConsumer, TopicPartition
 from kafka.admin.new_topic import NewTopic
 
-from hexkit.providers.akafka import KafkaConfig, KafkaEventPublisher
+from hexkit.custom_types import Ascii, JsonObject
+from hexkit.providers.akafka.provider import (
+    EventSubscriberProtocol,
+    KafkaConfig,
+    KafkaEventPublisher,
+    KafkaEventSubscriber,
+)
 from hexkit.providers.akafka.testutils import (
     ExpectedEvent,
     KafkaFixture,
@@ -30,12 +37,33 @@ from hexkit.providers.akafka.testutils import (
     kafka_fixture,  # noqa: F401
 )
 
+TEST_TYPE = "test_type"
+
+
+def make_payload(msg: str) -> JsonObject:
+    """Return a test payload with a specified string."""
+    return {"test_msg": msg}
+
+
+class DummyTranslator(EventSubscriberProtocol):
+    """An event subscriber translator that simply tracks what it's consumed."""
+
+    def __init__(self, topics_of_interest: list[str]):
+        self.topics_of_interest = topics_of_interest
+        self.types_of_interest = [TEST_TYPE]
+        self.consumed: dict[str, list[JsonObject]] = {
+            topic: [] for topic in topics_of_interest
+        }
+
+    async def _consume_validated(
+        self, *, payload: JsonObject, type_: Ascii, topic: Ascii
+    ):
+        self.consumed[topic].append(payload)
+
 
 def test_delete_topics_specific(kafka_fixture: KafkaFixture):  # noqa: F811
     """Make sure the reset function works"""
-    admin_client = KafkaAdminClient(
-        bootstrap_servers=kafka_fixture.config.kafka_servers
-    )
+    admin_client = KafkaAdminClient(bootstrap_servers=kafka_fixture.kafka_servers)
     new_topics = [
         NewTopic(name="test", num_partitions=1, replication_factor=1),
         NewTopic(name="test2", num_partitions=1, replication_factor=1),
@@ -51,15 +79,14 @@ def test_delete_topics_specific(kafka_fixture: KafkaFixture):  # noqa: F811
 
     # make sure it got deleted
     final_topics = admin_client.list_topics()
+    admin_client.close()
     assert "test" not in final_topics
     assert "test2" in final_topics
 
 
 def test_delete_topics_all(kafka_fixture: KafkaFixture):  # noqa: F811
     """Test topic deletion without specifying parameters"""
-    admin_client = KafkaAdminClient(
-        bootstrap_servers=kafka_fixture.config.kafka_servers
-    )
+    admin_client = KafkaAdminClient(bootstrap_servers=kafka_fixture.kafka_servers)
 
     new_topics = [
         NewTopic(name="test", num_partitions=1, replication_factor=1),
@@ -74,8 +101,138 @@ def test_delete_topics_all(kafka_fixture: KafkaFixture):  # noqa: F811
     kafka_fixture.delete_topics()
 
     final_topics = admin_client.list_topics()
+    admin_client.close()
     assert "test" not in final_topics
     assert "test2" not in final_topics
+
+
+@pytest.mark.asyncio
+async def test_clear_topics_specific(kafka_fixture: KafkaFixture):  # noqa: F811
+    """Make sure the reset function works"""
+    topic_to_keep = "keep_topic"
+    topic_to_clear = "clear_topic"
+    partition_keep = TopicPartition(topic_to_keep, 0)
+    partition_clear = TopicPartition(topic_to_clear, 0)
+
+    await kafka_fixture.publish_event(
+        payload=make_payload("clear1"), type_=TEST_TYPE, topic=topic_to_clear
+    )
+    await kafka_fixture.publish_event(
+        payload=make_payload("keep1"), type_=TEST_TYPE, topic=topic_to_keep
+    )
+
+    consumer = KafkaConsumer(
+        topic_to_keep,
+        topic_to_clear,
+        bootstrap_servers=kafka_fixture.kafka_servers[0],
+        group_id="test",
+        auto_offset_reset="earliest",
+        enable_auto_commit=True,
+        consumer_timeout_ms=2000,
+    )
+
+    # Verify that both messages were consumed as expected so we can trust the consumer
+    count = 0
+    for record in consumer:
+        count += 1
+        assert record.topic in (topic_to_keep, topic_to_clear)
+
+        # break when we get to the end, not when we reach an expected record count
+        if consumer.position(partition_keep) == consumer.highwater(
+            partition_keep
+        ) and consumer.position(partition_clear) == consumer.highwater(partition_clear):
+            break
+    assert count == 2
+
+    # Publish new messages, one to CLEAR and one to KEEP
+    clear_payload2 = make_payload(topic_to_clear + "2")
+    await kafka_fixture.publish_event(
+        payload=clear_payload2, type_=TEST_TYPE, topic=topic_to_clear
+    )
+
+    keep_payload2 = make_payload(topic_to_keep + "2")
+    await kafka_fixture.publish_event(
+        payload=keep_payload2, type_=TEST_TYPE, topic=topic_to_keep
+    )
+
+    # Clear the CLEAR topic
+    kafka_fixture.clear_topics(topics=topic_to_clear)
+
+    # make sure the KEEP topic still has its event but CLEAR is empty
+    records = list(consumer)
+    assert len(records) == 1
+    assert records[0].topic == topic_to_keep
+    assert records[0].value.decode("utf-8") == json.dumps(keep_payload2)
+
+    # Assert that we processed 1 message
+    assert consumer.position(partition_clear) == consumer.highwater(partition_clear)
+    assert consumer.position(partition_keep) == consumer.highwater(partition_keep)
+
+    clear_payload3 = make_payload(topic_to_clear + "3")
+    await kafka_fixture.publish_event(
+        payload=clear_payload3, type_=TEST_TYPE, topic=topic_to_clear
+    )
+
+    keep_payload3 = make_payload(topic_to_keep + "3")
+    await kafka_fixture.publish_event(
+        payload=keep_payload3, type_=TEST_TYPE, topic=topic_to_keep
+    )
+
+    final_records = list(consumer)
+    final_records.sort(key=lambda record: record.topic)
+    assert len(final_records) == 2
+    assert final_records[0].topic == topic_to_clear
+    assert final_records[0].value.decode("utf-8") == json.dumps(clear_payload3)
+    assert final_records[1].topic == topic_to_keep
+    assert final_records[1].value.decode("utf-8") == json.dumps(keep_payload3)
+
+    consumer.close()
+
+
+@pytest.mark.asyncio
+async def test_clear_all_topics(kafka_fixture: KafkaFixture):  # noqa: F811
+    """Test clearing all topics with the kafka fixture's `clear_topics` function."""
+    topic1 = "topic1"
+    topic2 = "topic2"
+
+    await kafka_fixture.publish_event(
+        payload=make_payload("topic1_msg1"), type_=TEST_TYPE, topic=topic1
+    )
+    await kafka_fixture.publish_event(
+        payload=make_payload("topic2_msg1"), type_=TEST_TYPE, topic=topic2
+    )
+
+    # clear the above two topics
+    kafka_fixture.clear_topics()
+
+    test_translator = DummyTranslator([topic1, topic2])
+    async with KafkaEventSubscriber.construct(
+        config=KafkaConfig(
+            service_name="test_service",
+            service_instance_id="1",
+            kafka_servers=kafka_fixture.kafka_servers,
+        ),
+        translator=test_translator,
+    ) as subscriber:
+        # publish two new events
+        await kafka_fixture.publish_event(
+            payload=make_payload("topic1_msg2"), type_=TEST_TYPE, topic=topic1
+        )
+        await kafka_fixture.publish_event(
+            payload=make_payload("topic2_msg2"), type_=TEST_TYPE, topic=topic2
+        )
+
+        # Consume the events and verify that only the new, post-deletion events are found
+        await subscriber.run(False)
+        await subscriber.run(False)
+
+        topic1_events = test_translator.consumed[topic1]
+        assert len(topic1_events) == 1
+        assert topic1_events[0] == make_payload("topic1_msg2")
+
+        topic2_events = test_translator.consumed[topic2]
+        assert len(topic2_events) == 1
+        assert topic2_events[0] == make_payload("topic2_msg2")
 
 
 @pytest.mark.asyncio
