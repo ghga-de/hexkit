@@ -25,7 +25,7 @@ jobs:
             PKG_VER="$(python setup.py --version)"
           elif [ -f "pyproject.toml" ]
           then
-            version=$(python3.11 -c "import tomllib; print(tomllib.load(open('pyproject.toml', 'rb'))['project']['version'])")
+            version=$(python3 -c "import tomli; print(tomli.load(open('pyproject.toml', 'rb'))['project']['version'])")
             PKG_VER=$version
           else
             echo "Neither setup.py nor pyproject.toml were found." >&2; exit 1
@@ -70,7 +70,7 @@ jobs:
           pip install
           -r requirements-dev.txt
 
-      - name: Run pytest on freshly install package
+      - name: Run pytest on freshly installed package
         run: |
           pytest .
 
