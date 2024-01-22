@@ -54,10 +54,10 @@ jobs:
           --outdir dist/
           .
 
-      - name: Install the newly build package with all extras
+      - name: Install the newly built package with all extras
         run: |
           TAR_PATH="$( realpath ./dist/*.tar.gz)"
-          python3 -m \
+          python -m \
             pip install \
             "${TAR_PATH}[all]"
 
