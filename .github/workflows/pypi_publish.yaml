@@ -18,17 +18,8 @@ jobs:
 
       - name: Ensure package version and tag are equal
         run: |
-          if [ -f "setup.py" ]
-          then
-            PKG_VER="$(python setup.py --version)"
-          elif [ -f "pyproject.toml" ]
-          then
-            version=$(python3 -c "import tomli; print(tomli.load(open('pyproject.toml', 'rb'))['project']['version'])")
-            PKG_VER=$version
-          else
-            echo "Neither setup.py nor pyproject.toml were found." >&2; exit 1
-          fi
 
+          PKG_VER="$(grep -oP '^version = "\K[^"]+' pyproject.toml)"
           TAG_VER="${GITHUB_REF##*/}"
 
           echo "Package version is $PKG_VER" >&2
