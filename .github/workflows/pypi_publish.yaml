@@ -16,10 +16,12 @@ jobs:
         with:
           python-version: "3.9"
 
-      - name: Verify Package Version vs Tag Version
+      - name: Ensure package version and tag are equal
         run: |
-          PKG_VER="$(grep -oP 'version = "\K[^"]+' pyproject.toml)"
+
+          PKG_VER="$(grep -oP '^version = "\K[^"]+' pyproject.toml)"
           TAG_VER="${GITHUB_REF##*/}"
+
           echo "Package version is $PKG_VER" >&2
           echo "Tag version is $TAG_VER" >&2
           if [ "$PKG_VER" != "$TAG_VER" ]; then
@@ -43,7 +45,7 @@ jobs:
           --outdir dist/
           .
 
-      - name: Install the newly build package with all extras
+      - name: Install the newly built package with all extras
         run: |
           TAR_PATH="$( realpath ./dist/*.tar.gz)"
           python -m \
