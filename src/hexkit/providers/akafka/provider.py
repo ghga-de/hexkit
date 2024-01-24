@@ -259,7 +259,7 @@ class KafkaEventPublisher(EventPublisherProtocol):
                 raise
 
             correlation_id = new_correlation_id()
-            logging.info("Generated new correlation id: %s", correlation_id)
+            logging.info("Generated new correlation ID: %s", correlation_id)
 
         validate_correlation_id(correlation_id)
 
