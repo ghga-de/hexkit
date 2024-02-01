@@ -335,6 +335,10 @@ class KafkaConsumerCompatible(Protocol):
         """
         ...
 
+    async def commit(self, offsets=None):
+        """Commit offsets to Kafka Broker."""
+        ...
+
     async def start(self) -> None:
         """Setup the consumer."""
         ...
@@ -475,3 +479,4 @@ class KafkaEventSubscriber(InboundProviderBase):
         else:
             event = await self._consumer.__anext__()
             await self._consume_event(event)
+        await self._consumer.commit()

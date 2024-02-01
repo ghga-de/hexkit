@@ -203,10 +203,9 @@ async def test_consumer_commit_mode(kafka_fixture: KafkaFixture):  # noqa: F811
         consumer = cast(AIOKafkaConsumer, event_subscriber._consumer)
 
         # check that the consumer is in manual commit mode
-        assert await consumer.committed(partition=partition) == None
+        assert not consumer._enable_auto_commit
 
-        # commit and check if the event reached the correct partition
-        await consumer.commit()
+        # check if the event was committed successfully
         consumer_offset = await consumer.committed(partition=partition)
         assert consumer_offset == 1
 
