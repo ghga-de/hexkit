@@ -18,11 +18,15 @@
 
 from os import environ
 from pathlib import Path
+from typing import cast
 from unittest.mock import AsyncMock
 
 import pytest
+from aiokafka import AIOKafkaConsumer
+from kafka import KafkaAdminClient, TopicPartition
 
 from hexkit.custom_types import JsonObject
+from hexkit.protocols.eventsub import EventSubscriberProtocol
 from hexkit.providers.akafka import (
     KafkaConfig,
     KafkaEventPublisher,
@@ -162,3 +166,57 @@ async def test_kafka_ssl(tmp_path: Path):
         translator.consume.assert_awaited_once_with(
             payload=payload, type_=type_, topic=topic
         )
+
+
+@pytest.mark.asyncio
+async def test_consumer_commit_mode(kafka_fixture: KafkaFixture):  # noqa: F811
+    """Verify the consumer implementation behavior matches expectations."""
+    type_ = "test_type"
+    topic = "test_topic"
+    type_ = "test_type"
+    partition = TopicPartition(topic, 0)
+
+    # prepare subscriber
+    config = KafkaConfig(
+        service_name="test_subscriber",
+        service_instance_id="1",
+        kafka_servers=kafka_fixture.kafka_servers,
+    )
+
+    # Everything that matters happens in the consumer, no proper subscriber is needed
+    translator = AsyncMock(spec=EventSubscriberProtocol)
+    translator.topics_of_interest = [topic]
+    translator.types_of_interest = [type_]
+
+    await kafka_fixture.publish_event(
+        payload={"test_msg": "msg1"}, type_=type_, topic=topic
+    )
+
+    async with KafkaEventSubscriber.construct(
+        config=config,
+        translator=translator,
+    ) as event_subscriber:
+        # consume one event:
+        await event_subscriber.run(forever=False)
+
+        # provide correct type information
+        consumer = cast(AIOKafkaConsumer, event_subscriber._consumer)
+
+        # check that the consumer is in manual commit mode
+        assert await consumer.committed(partition=partition) == None
+
+        # commit and check if the event reached the correct partition
+        await consumer.commit()
+        consumer_offset = await consumer.committed(partition=partition)
+        assert consumer_offset == 1
+
+    # get a broker client to check, if the commit has been propagated successfully
+    client = KafkaAdminClient(bootstrap_servers=kafka_fixture.kafka_servers[0])
+
+    assert topic in client.list_topics()
+    broker_offsets = client.list_consumer_group_offsets(
+        group_id=config.service_name, partitions=[partition]
+    )
+    assert broker_offsets[partition].offset == consumer_offset
+
+    client.close()

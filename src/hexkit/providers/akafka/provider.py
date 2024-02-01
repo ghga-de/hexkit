@@ -311,6 +311,7 @@ class KafkaConsumerCompatible(Protocol):
         client_id: str,
         group_id: str,
         auto_offset_reset: Literal["earliest"],
+        enable_auto_commit: bool,
         key_deserializer: Callable[[bytes], str],
         value_deserializer: Callable[[bytes], str],
     ):
@@ -390,6 +391,7 @@ class KafkaEventSubscriber(InboundProviderBase):
             client_id=client_id,
             group_id=config.service_name,
             auto_offset_reset="earliest",
+            enable_auto_commit=False,
             key_deserializer=lambda event_key: event_key.decode("ascii"),
             value_deserializer=lambda event_value: json.loads(
                 event_value.decode("ascii")
