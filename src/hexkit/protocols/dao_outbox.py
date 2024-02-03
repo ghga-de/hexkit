@@ -48,7 +48,7 @@ class Event:
     payload: dict
 
 
-class OutboxDaoFactoryProtocol(DaoFactoryBase):
+class DaoOutboxFactoryProtocol(DaoFactoryBase):
     """A protocol describing a factory to produce Data Access Objects (DAO) objects
     which automatically publish changes according to the outbox pattern.
     """
