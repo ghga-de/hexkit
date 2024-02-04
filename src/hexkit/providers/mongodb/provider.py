@@ -69,6 +69,61 @@ def dto_to_document(dto: Dto, *, id_field: str) -> dict[str, Any]:
     return document
 
 
+def validate_find_mapping(mapping: Mapping[str, Any], *, dto_model: type[Dto]):
+    """Validates a key/value mapping used in find methods against the provided DTO model.
+
+    Raises:
+        InvalidMappingError: If validation fails.
+    """
+    try:
+        validate_fields_in_model(model=dto_model, fields=set(mapping.keys()))
+    except FieldNotInModelError as error:
+        raise InvalidFindMappingError(
+            f"The provided find mapping was invalid: {error}."
+        ) from error
+
+
+def replace_id_field_in_find_mapping(
+    mapping: Mapping[str, Any], id_field: str
+) -> Mapping[str, Any]:
+    """If the provided find mapping includes the ID field, it is replaced with MongoDB's
+    internal ID field name.
+    """
+    if id_field in mapping:
+        mapping = dict(mapping)
+        mapping["_id"] = mapping.pop(id_field)
+
+    return mapping
+
+
+async def get_single_hit(
+    *, hits: AsyncIterator[Dto], mapping: Mapping[str, Any]
+) -> Dto:
+    """Asserts that there is exactly one hit in the provided AsyncIterator of hits and
+    returns it.
+
+    Args:
+        hits: An AsyncIterator of hits resulting from a find operation.
+        mapping: The mapping that was used to obtain the hits.
+
+    Raises:
+        NoHitsFoundError: If no hit was found.
+        MultipleHitsFoundError: If more than one hit was found.
+    """
+    try:
+        dto = await hits.__anext__()
+    except StopAsyncIteration as error:
+        raise NoHitsFoundError(mapping=mapping) from error
+
+    try:
+        _ = await hits.__anext__()
+    except StopAsyncIteration:
+        # This is expected:
+        return dto
+
+    raise MultipleHitsFoundError(mapping=mapping)
+
+
 class MongoDbDaoBase(ABC, Generic[Dto]):
     """A base class with methods common to all MongoDB-based DAOs.
     This shall be used as base class for other MongoDB-based DAO implementations.
@@ -163,19 +218,6 @@ class MongoDbDaoBase(ABC, Generic[Dto]):
         # (trusting MongoDB that matching on the _id field can only yield one or
         # zero matches)
 
-    def _validate_find_mapping(self, mapping: Mapping[str, Any]):
-        """Validates a key/value mapping used in find methods.
-
-        Raises:
-            InvalidMappingError: If validation fails.
-        """
-        try:
-            validate_fields_in_model(model=self._dto_model, fields=set(mapping.keys()))
-        except FieldNotInModelError as error:
-            raise InvalidFindMappingError(
-                f"The provided find mapping was invalid: {error}."
-            ) from error
-
     async def find_one(self, *, mapping: Mapping[str, Any]) -> Dto:
         """Find the resource that matches the specified mapping. It is expected that
         at most one resource matches the constraints. An exception is raised if no or
@@ -197,19 +239,7 @@ class MongoDbDaoBase(ABC, Generic[Dto]):
                 Raised when obtaining more than one hit.
         """
         hits = self.find_all(mapping=mapping)
-
-        try:
-            dto = await hits.__anext__()
-        except StopAsyncIteration as error:
-            raise NoHitsFoundError(mapping=mapping) from error
-
-        try:
-            _ = await hits.__anext__()
-        except StopAsyncIteration:
-            # This is expected:
-            return dto
-
-        raise MultipleHitsFoundError(mapping=mapping)
+        return await get_single_hit(hits=hits, mapping=mapping)
 
     async def find_all(self, *, mapping: Mapping[str, Any]) -> AsyncIterator[Dto]:
         """Find all resources that match the specified mapping.
@@ -223,11 +253,8 @@ class MongoDbDaoBase(ABC, Generic[Dto]):
             An AsyncIterator of hits. All hits are in the form of the respective DTO
             model.
         """
-        self._validate_find_mapping(mapping)
-
-        if self._id_field in mapping:
-            mapping = dict(mapping)
-            mapping["_id"] = mapping.pop(self._id_field)
+        validate_find_mapping(mapping, dto_model=self._dto_model)
+        mapping = replace_id_field_in_find_mapping(mapping, self._id_field)
 
         cursor = self._collection.find(filter=mapping)
 
@@ -236,7 +263,7 @@ class MongoDbDaoBase(ABC, Generic[Dto]):
 
 
 class MongoDbDaoSurrogateId(MongoDbDaoBase[Dto], Generic[Dto, DtoCreation_contra]):
-    """A duck type of a DAO that generates an internal/surrogate key for
+    """A DAO that generates an internal/surrogate key for
     identifying resources in the database. ID/keys cannot be defined by the client of
     the DAO. Thus, both a standard DTO model (first type parameter), which includes
     the key field, as well as special DTO model (second type parameter), which is
@@ -331,7 +358,7 @@ class MongoDbDaoSurrogateId(MongoDbDaoBase[Dto], Generic[Dto, DtoCreation_contra
 
 
 class MongoDbDaoNaturalId(MongoDbDaoBase[Dto]):
-    """A duck type of a DAO that uses a natural resource ID profided by the client."""
+    """A DAO that uses a natural resource ID profided by the client."""
 
     @classmethod
     def with_transaction(cls) -> AbstractAsyncContextManager["DaoNaturalId[Dto]"]:
