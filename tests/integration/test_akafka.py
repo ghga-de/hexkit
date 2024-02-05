@@ -25,7 +25,7 @@ import pytest
 from aiokafka import AIOKafkaConsumer
 from kafka import KafkaAdminClient, TopicPartition
 
-from hexkit.custom_types import JsonObject
+from hexkit.custom_types import Ascii, JsonObject
 from hexkit.protocols.eventsub import EventSubscriberProtocol
 from hexkit.providers.akafka import (
     KafkaConfig,
@@ -176,6 +176,12 @@ async def test_consumer_commit_mode(kafka_fixture: KafkaFixture):  # noqa: F811
     type_ = "test_type"
     partition = TopicPartition(topic, 0)
 
+    error_message = "Consumer crashed successfully."
+
+    async def crash(*, payload: JsonObject, type_: Ascii, topic: Ascii):
+        """Drop in replacement for patch testing consume."""
+        raise ValueError(error_message)
+
     # prepare subscriber
     config = KafkaConfig(
         service_name="test_subscriber",
@@ -196,12 +202,24 @@ async def test_consumer_commit_mode(kafka_fixture: KafkaFixture):  # noqa: F811
         config=config,
         translator=translator,
     ) as event_subscriber:
-        # consume one event:
-        await event_subscriber.run(forever=False)
-
         # provide correct type information
         consumer = cast(AIOKafkaConsumer, event_subscriber._consumer)
 
+        # save original for patching
+        consume_function = translator.consume
+
+        # crash consumer while processing an event
+        translator.consume = crash
+        with pytest.raises(ValueError, match=error_message):
+            await event_subscriber.run(forever=False)
+
+        # assert event was not committed
+        consumer_offset = await consumer.committed(partition=partition)
+        assert consumer_offset == None
+
+        # successfully consume one event:
+        translator.consume = consume_function
+        await event_subscriber.run(forever=False)
 
         # check if the event was committed successfully
         consumer_offset = await consumer.committed(partition=partition)
