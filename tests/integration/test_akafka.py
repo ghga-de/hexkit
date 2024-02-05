@@ -198,15 +198,15 @@ async def test_consumer_commit_mode(kafka_fixture: KafkaFixture):  # noqa: F811
         payload={"test_msg": "msg1"}, type_=type_, topic=topic
     )
 
+    # save original for patching
+    consume_function = translator.consume
+
     async with KafkaEventSubscriber.construct(
         config=config,
         translator=translator,
     ) as event_subscriber:
         # provide correct type information
         consumer = cast(AIOKafkaConsumer, event_subscriber._consumer)
-
-        # save original for patching
-        consume_function = translator.consume
 
         # crash consumer while processing an event
         translator.consume = crash
@@ -216,6 +216,13 @@ async def test_consumer_commit_mode(kafka_fixture: KafkaFixture):  # noqa: F811
         # assert event was not committed
         consumer_offset = await consumer.committed(partition=partition)
         assert consumer_offset == None
+
+    async with KafkaEventSubscriber.construct(
+        config=config,
+        translator=translator,
+    ) as event_subscriber:
+        # provide correct type information
+        consumer = cast(AIOKafkaConsumer, event_subscriber._consumer)
 
         # successfully consume one event:
         translator.consume = consume_function
