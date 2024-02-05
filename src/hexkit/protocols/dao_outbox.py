@@ -64,6 +64,7 @@ class DaoOutboxFactoryProtocol(DaoFactoryBase, ABC):
         fields_to_index: Optional[Collection[str]] = None,
         dto_to_event: Callable[[Dto], JsonObject],
         event_topic: str,
+        autopublish: bool = True,
     ) -> DaoOutbox[Dto]:
         """Constructs a Outbox DAO for interacting with resources in a database.
 
@@ -83,6 +84,9 @@ class DaoOutboxFactoryProtocol(DaoFactoryBase, ABC):
                 A function that takes a DTO and returns the payload for an event.
             event_topic:
                 The topic to which events should be published.
+            autopublish:
+                Whether to automatically publish changes. Defaults to True.
+
         Returns:
             A DAO of type DaoOutbox, which require ID specification upon resource
             creation.
@@ -108,6 +112,7 @@ class DaoOutboxFactoryProtocol(DaoFactoryBase, ABC):
             fields_to_index=fields_to_index,
             dto_to_event=dto_to_event,
             event_topic=event_topic,
+            autopublish=autopublish,
         )
 
     @abstractmethod
@@ -120,6 +125,7 @@ class DaoOutboxFactoryProtocol(DaoFactoryBase, ABC):
         fields_to_index: Optional[Collection[str]],
         dto_to_event: Callable[[Dto], JsonObject],
         event_topic: str,
+        autopublish: bool,
     ) -> DaoOutbox[Dto]:
         """*To be implemented by the provider. Input validation is done outside of this
         method.*

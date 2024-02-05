@@ -15,3 +15,5 @@
 #
 
 """An implementation of the DaoOutboxFactoryProtocol based on MongoDB and Apache Kafka."""
+
+from .provider import MongoKafkaConfig, MongoKafkaDaoOutboxFactory  # noqa: F401

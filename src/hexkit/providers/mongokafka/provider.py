@@ -17,9 +17,9 @@
 """An implementation of the DaoOutboxFactoryProtocol based on MongoDB and Apache Kafka."""
 
 import json
-from collections.abc import AsyncIterator, Collection, Mapping
+from collections.abc import AsyncIterator, Awaitable, Collection, Mapping
 from contextlib import AbstractAsyncContextManager, asynccontextmanager, contextmanager
-from typing import Any, Awaitable, Callable, Generic, Optional
+from typing import Any, Callable, Generic, Optional
 
 from motor.core import AgnosticCollection
 from motor.motor_asyncio import AsyncIOMotorClient
@@ -65,11 +65,11 @@ def document_to_dto(
             If the documents `__metadata__` field indicates that the resource has
             been deleted.
     """
-    if document["__metadata__"]["deleted"]:
+    if document.get("__metadata__", {}).get("deleted", False):
         raise ResourceDeletedError(id_=document["_id"])
 
     document_cleaned = document.copy()
-    del document_cleaned["__metadata__"]
+    _ = document_cleaned.pop("__metadata__", None)
     document_cleaned[id_field] = document_cleaned.pop("_id")
 
     return dto_model.model_validate(document_cleaned)
@@ -162,7 +162,7 @@ class MongoKafkaDaoOutbox(Generic[Dto]):
         """
         raise NotImplementedError
 
-    def __init__(
+    def __init__(  # noqa: PLR0913
         self,
         *,
         id_field: str,
@@ -171,6 +171,7 @@ class MongoKafkaDaoOutbox(Generic[Dto]):
         dao: MongoDbDaoNaturalId[Dto],
         publish_change: Callable[[Dto], Awaitable[None]],
         publish_delete: Callable[[str], Awaitable[None]],
+        autopublish: bool,
     ):
         """Initialize the DAO.
 
@@ -190,6 +191,9 @@ class MongoKafkaDaoOutbox(Generic[Dto]):
                 created or changed resource.
             publish_delete:
                 A callable returning an awaitable for publishing the deletion of a
+                resource.
+            autopublish:
+                Whether to automatically publish changes.
         """
         self._id_field = id_field
         self._dto_model = dto_model
@@ -197,6 +201,7 @@ class MongoKafkaDaoOutbox(Generic[Dto]):
         self._dao = dao
         self._publish_change = publish_change
         self._publish_delete = publish_delete
+        self._autopublish = autopublish
 
     async def get_by_id(self, id_: str) -> Dto:
         """Get a resource by providing its ID.
@@ -210,7 +215,8 @@ class MongoKafkaDaoOutbox(Generic[Dto]):
         Raises:
             ResourceNotFoundError: when resource with the specified id_ was not found
         """
-        return await self._dao.get_by_id(id_)
+        with assert_not_deleted():
+            return await self._dao.get_by_id(id_)
 
     async def update(self, dto: Dto) -> None:
         """Update an existing resource.
@@ -227,7 +233,8 @@ class MongoKafkaDaoOutbox(Generic[Dto]):
         with assert_not_deleted():
             await self._dao.update(dto)
 
-        await self._publish_change(dto)
+        if self._autopublish:
+            await self._publish_change(dto)
 
     async def delete(self, *, id_: str) -> None:
         """Delete a resource by providing its ID.
@@ -243,7 +250,8 @@ class MongoKafkaDaoOutbox(Generic[Dto]):
             {"_id": document["_id"]}, document, upsert=True
         )
 
-        await self._publish_delete(id_)
+        if self._autopublish:
+            await self._publish_delete(id_)
 
     async def find_one(self, *, mapping: Mapping[str, Any]) -> Dto:
         """Find the resource that matches the specified mapping. It is expected that
@@ -286,7 +294,7 @@ class MongoKafkaDaoOutbox(Generic[Dto]):
         cursor = self._collection.find(filter=mapping)
 
         async for document in cursor:
-            if document["__metadata__"]["deleted"]:
+            if document.get("__metadata__", {}).get("deleted", False):
                 continue
             yield document_to_dto(
                 document, id_field=self._id_field, dto_model=self._dto_model
@@ -305,7 +313,9 @@ class MongoKafkaDaoOutbox(Generic[Dto]):
                 when a resource with the ID specified in the dto does already exist.
         """
         await self._dao.insert(dto=dto)
-        await self._publish_change(dto)
+
+        if self._autopublish:
+            await self._publish_change(dto)
 
     async def upsert(self, dto: Dto) -> None:
         """Update the provided resource if it already exists, create it otherwise.
@@ -316,11 +326,12 @@ class MongoKafkaDaoOutbox(Generic[Dto]):
                 resource ID.
         """
         await self._dao.upsert(dto=dto)
-        await self._publish_change(dto)
+        if self._autopublish:
+            await self._publish_change(dto)
 
     async def publish_document(self, document: dict[str, Any]) -> None:
         """Publishes a document"""
-        if document["__metadata__"]["deleted"]:
+        if document.get("__metadata__", {}).get("deleted", False):
             await self._publish_delete(document["_id"])
         else:
             dto = document_to_dto(
@@ -330,7 +341,7 @@ class MongoKafkaDaoOutbox(Generic[Dto]):
 
     async def publish_pending(self) -> None:
         """Publishes all non-published changes."""
-        cursor = self._collection.find(filter={"__metadata__": {"published": False}})
+        cursor = self._collection.find(filter={"__metadata__.published": False})
 
         async for document in cursor:
             await self.publish_document(document)
@@ -389,7 +400,7 @@ class MongoKafkaDaoOutboxFactory(DaoOutboxFactoryProtocol):
     def __repr__(self) -> str:  # noqa: D105
         return f"{self.__class__.__qualname__}(config={repr(self._config)})"
 
-    async def _get_dao(
+    async def _get_dao(  # noqa: PLR0913
         self,
         *,
         name: str,
@@ -398,6 +409,7 @@ class MongoKafkaDaoOutboxFactory(DaoOutboxFactoryProtocol):
         fields_to_index: Optional[Collection[str]],
         dto_to_event: Callable[[Dto], JsonObject],
         event_topic: str,
+        autopublish: bool,
     ) -> DaoOutbox[Dto]:
         """Constructs a DAO for interacting with resources in a MongoDB database.
         Updates are automatically published to Apache Kafka.
@@ -445,4 +457,5 @@ class MongoKafkaDaoOutboxFactory(DaoOutboxFactoryProtocol):
             dao=dao,
             publish_change=publish_change,
             publish_delete=publish_delete,
+            autopublish=autopublish,
         )
