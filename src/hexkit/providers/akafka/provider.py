@@ -443,6 +443,8 @@ class KafkaEventSubscriber(InboundProviderBase):
             )
         except EventHeaderNotFoundError as err:
             logging.warning("Ignored an event: %s. %s", event_label, err.args[0])
+            # acknowledge event receipt
+            await self._consumer.commit()
             return
 
         if type_ in self._types_whitelist:
@@ -456,6 +458,8 @@ class KafkaEventSubscriber(InboundProviderBase):
                         type_=type_,
                         topic=event.topic,
                     )
+                    # acknowledge successfully processed event
+                    await self._consumer.commit()
             except Exception:
                 logging.error(
                     "A fatal error occurred while processing the event: %s",
@@ -465,6 +469,8 @@ class KafkaEventSubscriber(InboundProviderBase):
 
         else:
             logging.info("Ignored event of type %s: %s", type_, event_label)
+            # acknowledge event receipt
+            await self._consumer.commit()
 
     async def run(self, forever: bool = True) -> None:
         """
@@ -479,4 +485,3 @@ class KafkaEventSubscriber(InboundProviderBase):
         else:
             event = await self._consumer.__anext__()
             await self._consume_event(event)
-        await self._consumer.commit()
