@@ -311,6 +311,7 @@ class KafkaConsumerCompatible(Protocol):
         client_id: str,
         group_id: str,
         auto_offset_reset: Literal["earliest"],
+        enable_auto_commit: bool,
         key_deserializer: Callable[[bytes], str],
         value_deserializer: Callable[[bytes], str],
     ):
@@ -332,6 +333,10 @@ class KafkaConsumerCompatible(Protocol):
             value_serializer:
                 Function to deserialize the values into strings.
         """
+        ...
+
+    async def commit(self, offsets=None):
+        """Commit offsets to Kafka Broker."""
         ...
 
     async def start(self) -> None:
@@ -390,6 +395,7 @@ class KafkaEventSubscriber(InboundProviderBase):
             client_id=client_id,
             group_id=config.service_name,
             auto_offset_reset="earliest",
+            enable_auto_commit=False,
             key_deserializer=lambda event_key: event_key.decode("ascii"),
             value_deserializer=lambda event_value: json.loads(
                 event_value.decode("ascii")
@@ -437,6 +443,8 @@ class KafkaEventSubscriber(InboundProviderBase):
             )
         except EventHeaderNotFoundError as err:
             logging.warning("Ignored an event: %s. %s", event_label, err.args[0])
+            # acknowledge event receipt
+            await self._consumer.commit()
             return
 
         if type_ in self._types_whitelist:
@@ -450,6 +458,8 @@ class KafkaEventSubscriber(InboundProviderBase):
                         type_=type_,
                         topic=event.topic,
                     )
+                    # acknowledge successfully processed event
+                    await self._consumer.commit()
             except Exception:
                 logging.error(
                     "A fatal error occurred while processing the event: %s",
@@ -459,6 +469,8 @@ class KafkaEventSubscriber(InboundProviderBase):
 
         else:
             logging.info("Ignored event of type %s: %s", type_, event_label)
+            # acknowledge event receipt
+            await self._consumer.commit()
 
     async def run(self, forever: bool = True) -> None:
         """
