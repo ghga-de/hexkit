@@ -264,7 +264,7 @@ async def test_publishing_after_failure(
 
 
 @pytest.mark.asyncio
-async def test_republising(
+async def test_republishing(
     mongodb_fixture: MongoDbFixture,  # noqa: F811
     kafka_fixture: KafkaFixture,  # noqa: F811
 ):
