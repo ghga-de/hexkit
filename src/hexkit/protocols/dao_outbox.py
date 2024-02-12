@@ -88,7 +88,7 @@ class DaoOutboxFactoryProtocol(DaoFactoryBase, ABC):
                 Whether to automatically publish changes. Defaults to True.
 
         Returns:
-            A DAO of type DaoOutbox, which require ID specification upon resource
+            A DAO of type DaoOutbox, which requires ID specification upon resource
             creation.
 
         Raises:
