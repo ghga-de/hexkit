@@ -70,7 +70,7 @@ def dto_to_document(dto: Dto, *, id_field: str) -> dict[str, Any]:
 
 
 def validate_find_mapping(mapping: Mapping[str, Any], *, dto_model: type[Dto]):
-    """Validates a key/value mapping used in find methods against the provided DTO model.
+    """Validates a key/value mapping used in find methods against the provided DTO model by checking if the mapping keys exist as model fields.
 
     Raises:
         InvalidMappingError: If validation fails.
