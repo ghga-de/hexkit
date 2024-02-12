@@ -66,7 +66,7 @@ class DaoOutboxFactoryProtocol(DaoFactoryBase, ABC):
         event_topic: str,
         autopublish: bool = True,
     ) -> DaoOutbox[Dto]:
-        """Constructs a Outbox DAO for interacting with resources in a database.
+        """Constructs an Outbox DAO for interacting with resources in a database.
 
         Args:
             name:
