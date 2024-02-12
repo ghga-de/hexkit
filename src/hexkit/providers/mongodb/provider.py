@@ -76,7 +76,7 @@ def validate_find_mapping(mapping: Mapping[str, Any], *, dto_model: type[Dto]):
         InvalidMappingError: If validation fails.
     """
     try:
-        validate_fields_in_model(model=dto_model, fields=set(mapping.keys()))
+        validate_fields_in_model(model=dto_model, fields=set(mapping))
     except FieldNotInModelError as error:
         raise InvalidFindMappingError(
             f"The provided find mapping was invalid: {error}."
