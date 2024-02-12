@@ -222,7 +222,7 @@ async def test_publishing_after_failure(
         **mongodb_fixture.config.model_dump(), **kafka_fixture.config.model_dump()
     )
 
-    # a dto tp event function that fails the first time:
+    # a dto to event function that fails the first time:
     fail = True
 
     def dto_to_event(dto: ExampleDto):
