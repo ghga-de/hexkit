@@ -11,7 +11,9 @@ services:
         VARIANT: 3.9
 
     init: true
-    privileged: true
+
+    extra_hosts:
+      - host.docker.internal:host-gateway
 
     volumes:
       - ..:/workspace:cached
