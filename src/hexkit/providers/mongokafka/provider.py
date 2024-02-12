@@ -147,7 +147,7 @@ def assert_not_deleted():
 
 
 class MongoKafkaDaoOutbox(Generic[Dto]):
-    """A DAO that uses a natural resource ID profided by the client."""
+    """A DAO that uses a natural resource ID provided by the client."""
 
     @classmethod
     def with_transaction(cls) -> AbstractAsyncContextManager["DaoNaturalId[Dto]"]:
