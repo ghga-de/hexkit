@@ -268,10 +268,8 @@ async def uuid4_id_generator() -> AsyncGenerator[str, None]:
         yield str(uuid4())
 
 
-class DaoFactoryProtocol(ABC):
-    """A protocol describing a factory to produce Data Access Objects (DAO) objects
-    that are enclosed in transactional scopes.
-    """
+class DaoFactoryBase:
+    """A base for Data Access Objects (DAO) Factory protocols."""
 
     class IdFieldNotFoundError(ValueError):
         """Raised when the dto_model did not contain the expected id_field."""
@@ -334,6 +332,32 @@ class DaoFactoryProtocol(ABC):
             raise cls.IndexFieldsInvalidError(
                 f"Provided index fields are invalid: {error}"
             ) from error
+
+    @classmethod
+    def _validate(
+        cls,
+        *,
+        dto_model: type[Dto],
+        id_field: str,
+        dto_creation_model: Optional[type[DtoCreation]],
+        fields_to_index: Optional[Collection[str]],
+    ) -> None:
+        """Validates the input parameters of the get_dao method."""
+        cls._validate_dto_model_id(dto_model=dto_model, id_field=id_field)
+        cls._validate_dto_creation_model(
+            dto_model=dto_model,
+            dto_creation_model=dto_creation_model,
+            id_field=id_field,
+        )
+        cls._validate_fields_to_index(
+            dto_model=dto_model, fields_to_index=fields_to_index
+        )
+
+
+class DaoFactoryProtocol(DaoFactoryBase, ABC):
+    """A protocol describing a factory to produce Data Access Objects (DAO) objects
+    that are enclosed in transactional scopes.
+    """
 
     @overload
     async def get_dao(
@@ -408,16 +432,11 @@ class DaoFactoryProtocol(ABC):
             self.IdFieldNotFoundError:
                 Raised when the dto_model did not contain the expected id_field.
         """
-        self._validate_dto_model_id(dto_model=dto_model, id_field=id_field)
-
-        self._validate_dto_creation_model(
+        self._validate(
             dto_model=dto_model,
-            dto_creation_model=dto_creation_model,
             id_field=id_field,
-        )
-
-        self._validate_fields_to_index(
-            dto_model=dto_model, fields_to_index=fields_to_index
+            dto_creation_model=dto_creation_model,
+            fields_to_index=fields_to_index,
         )
 
         if id_generator is None:
@@ -430,7 +449,6 @@ class DaoFactoryProtocol(ABC):
             id_field=id_field,
             fields_to_index=fields_to_index,
             dto_creation_model=dto_creation_model,
-            # (above behavior by mypy seems incorrect)
             id_generator=id_generator,
         )
 

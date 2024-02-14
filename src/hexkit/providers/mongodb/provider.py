@@ -25,9 +25,9 @@ import json
 from abc import ABC
 from collections.abc import AsyncGenerator, AsyncIterator, Collection, Mapping
 from contextlib import AbstractAsyncContextManager
-from typing import Any, Generic, Optional, Union, overload
+from typing import Any, Callable, Generic, Optional, Union, overload
 
-from motor.core import AgnosticClientSession, AgnosticCollection
+from motor.core import AgnosticCollection
 from motor.motor_asyncio import AsyncIOMotorClient
 from pydantic import Field, SecretStr
 from pydantic_settings import BaseSettings
@@ -49,6 +49,81 @@ from hexkit.utils import FieldNotInModelError, validate_fields_in_model
 __all__ = ["MongoDbConfig", "MongoDbDaoFactory"]
 
 
+def document_to_dto(
+    document: dict[str, Any], *, id_field: str, dto_model: type[Dto]
+) -> Dto:
+    """Converts a document obtained from the MongoDB database into a DTO model-
+    compliant representation.
+    """
+    document[id_field] = document.pop("_id")
+    return dto_model.model_validate(document)
+
+
+def dto_to_document(dto: Dto, *, id_field: str) -> dict[str, Any]:
+    """Converts a DTO into a representation that is a compatible document for a
+    MongoDB Database.
+    """
+    document = json.loads(dto.model_dump_json())
+    document["_id"] = document.pop(id_field)
+
+    return document
+
+
+def validate_find_mapping(mapping: Mapping[str, Any], *, dto_model: type[Dto]):
+    """Validates a key/value mapping used in find methods against the provided DTO model by checking if the mapping keys exist as model fields.
+
+    Raises:
+        InvalidMappingError: If validation fails.
+    """
+    try:
+        validate_fields_in_model(model=dto_model, fields=set(mapping))
+    except FieldNotInModelError as error:
+        raise InvalidFindMappingError(
+            f"The provided find mapping was invalid: {error}."
+        ) from error
+
+
+def replace_id_field_in_find_mapping(
+    mapping: Mapping[str, Any], id_field: str
+) -> Mapping[str, Any]:
+    """If the provided find mapping includes the ID field, it is replaced with MongoDB's
+    internal ID field name.
+    """
+    if id_field in mapping:
+        mapping = dict(mapping)
+        mapping["_id"] = mapping.pop(id_field)
+
+    return mapping
+
+
+async def get_single_hit(
+    *, hits: AsyncIterator[Dto], mapping: Mapping[str, Any]
+) -> Dto:
+    """Asserts that there is exactly one hit in the provided AsyncIterator of hits and
+    returns it.
+
+    Args:
+        hits: An AsyncIterator of hits resulting from a find operation.
+        mapping: The mapping that was used to obtain the hits.
+
+    Raises:
+        NoHitsFoundError: If no hit was found.
+        MultipleHitsFoundError: If more than one hit was found.
+    """
+    try:
+        dto = await hits.__anext__()
+    except StopAsyncIteration as error:
+        raise NoHitsFoundError(mapping=mapping) from error
+
+    try:
+        _ = await hits.__anext__()
+    except StopAsyncIteration:
+        # This is expected:
+        return dto
+
+    raise MultipleHitsFoundError(mapping=mapping)
+
+
 class MongoDbDaoBase(ABC, Generic[Dto]):
     """A base class with methods common to all MongoDB-based DAOs.
     This shall be used as base class for other MongoDB-based DAO implementations.
@@ -60,7 +135,8 @@ class MongoDbDaoBase(ABC, Generic[Dto]):
         dto_model: type[Dto],
         id_field: str,
         collection: AgnosticCollection,
-        session: Optional[AgnosticClientSession] = None,
+        document_to_dto: Callable[[dict[str, Any]], Dto],
+        dto_to_document: Callable[[Dto], dict[str, Any]],
     ):
         """Initialize the DAO.
 
@@ -72,32 +148,18 @@ class MongoDbDaoBase(ABC, Generic[Dto]):
                 (DAO implementation might use this field as primary key.)
             collection:
                 A collection object from the motor library.
-            session:
-                If transactional support is needed, please provide an
-                AsyncIOMotorClientSession that is within an active transaction. If None
-                is provided, every database operation is immediately commited. Defaults
-                to None.
+            document_to_dto:
+                A callable that takes a document obtained from the MongoDB database
+                and returns a DTO model-compliant representation.
+            dto_to_document:
+                A callable that takes a DTO model and returns a representation that is
+                a compatible document for a MongoDB database.
         """
         self._collection = collection
-        self._session = session
         self._dto_model = dto_model
         self._id_field = id_field
-
-    def _document_to_dto(self, document: dict[str, Any]) -> Dto:
-        """Converts a document obtained from the MongoDB database into a DTO model-
-        compliant representation.
-        """
-        document[self._id_field] = document.pop("_id")
-        return self._dto_model(**document)
-
-    def _dto_to_document(self, dto: Dto) -> dict[str, Any]:
-        """Converts a DTO into a representation that is a compatible document for a
-        MongoDB Database.
-        """
-        document = json.loads(dto.model_dump_json())
-        document["_id"] = document.pop(self._id_field)
-
-        return document
+        self._document_to_dto = document_to_dto
+        self._dto_to_document = dto_to_document
 
     async def get_by_id(self, id_: str) -> Dto:
         """Get a resource by providing its ID.
@@ -111,10 +173,7 @@ class MongoDbDaoBase(ABC, Generic[Dto]):
         Raises:
             ResourceNotFoundError: when resource with the specified id_ was not found
         """
-        document = await self._collection.find_one(
-            {"_id": id_},
-            session=self._session,
-        )
+        document = await self._collection.find_one({"_id": id_})
 
         if document is None:
             raise ResourceNotFoundError(id_=id_)
@@ -134,9 +193,7 @@ class MongoDbDaoBase(ABC, Generic[Dto]):
                 when resource with the id specified in the dto was not found
         """
         document = self._dto_to_document(dto)
-        result = await self._collection.replace_one(
-            {"_id": document["_id"]}, document, session=self._session
-        )
+        result = await self._collection.replace_one({"_id": document["_id"]}, document)
 
         if result.matched_count == 0:
             raise ResourceNotFoundError(id_=document["_id"])
@@ -153,26 +210,13 @@ class MongoDbDaoBase(ABC, Generic[Dto]):
         Raises:
             ResourceNotFoundError: when resource with the specified id_ was not found
         """
-        result = await self._collection.delete_one({"_id": id_}, session=self._session)
+        result = await self._collection.delete_one({"_id": id_})
 
         if result.deleted_count == 0:
             raise ResourceNotFoundError(id_=id_)
 
         # (trusting MongoDB that matching on the _id field can only yield one or
         # zero matches)
-
-    def _validate_find_mapping(self, mapping: Mapping[str, Any]):
-        """Validates a key/value mapping used in find methods.
-
-        Raises:
-            InvalidMappingError: If validation fails.
-        """
-        try:
-            validate_fields_in_model(model=self._dto_model, fields=set(mapping.keys()))
-        except FieldNotInModelError as error:
-            raise InvalidFindMappingError(
-                f"The provided find mapping was invalid: {error}."
-            ) from error
 
     async def find_one(self, *, mapping: Mapping[str, Any]) -> Dto:
         """Find the resource that matches the specified mapping. It is expected that
@@ -195,19 +239,7 @@ class MongoDbDaoBase(ABC, Generic[Dto]):
                 Raised when obtaining more than one hit.
         """
         hits = self.find_all(mapping=mapping)
-
-        try:
-            document = await hits.__anext__()
-        except StopAsyncIteration as error:
-            raise NoHitsFoundError(mapping=mapping) from error
-
-        try:
-            _ = await hits.__anext__()
-        except StopAsyncIteration:
-            # This is expected:
-            return document
-
-        raise MultipleHitsFoundError(mapping=mapping)
+        return await get_single_hit(hits=hits, mapping=mapping)
 
     async def find_all(self, *, mapping: Mapping[str, Any]) -> AsyncIterator[Dto]:
         """Find all resources that match the specified mapping.
@@ -221,20 +253,17 @@ class MongoDbDaoBase(ABC, Generic[Dto]):
             An AsyncIterator of hits. All hits are in the form of the respective DTO
             model.
         """
-        self._validate_find_mapping(mapping)
+        validate_find_mapping(mapping, dto_model=self._dto_model)
+        mapping = replace_id_field_in_find_mapping(mapping, self._id_field)
 
-        if self._id_field in mapping:
-            mapping = dict(mapping)
-            mapping["_id"] = mapping.pop(self._id_field)
-
-        cursor = self._collection.find(filter=mapping, session=self._session)
+        cursor = self._collection.find(filter=mapping)
 
         async for document in cursor:
             yield self._document_to_dto(document)
 
 
 class MongoDbDaoSurrogateId(MongoDbDaoBase[Dto], Generic[Dto, DtoCreation_contra]):
-    """A duck type of a DAO that generates an internal/surrogate key for
+    """A DAO that generates an internal/surrogate key for
     identifying resources in the database. ID/keys cannot be defined by the client of
     the DAO. Thus, both a standard DTO model (first type parameter), which includes
     the key field, as well as special DTO model (second type parameter), which is
@@ -265,7 +294,8 @@ class MongoDbDaoSurrogateId(MongoDbDaoBase[Dto], Generic[Dto, DtoCreation_contra
         id_field: str,
         collection: AgnosticCollection,
         id_generator: AsyncGenerator[str, None],
-        session: Optional[AgnosticClientSession] = None,
+        document_to_dto: Callable[[dict[str, Any]], Dto],
+        dto_to_document: Callable[[Dto], dict[str, Any]],
     ):
         """Initialize the DAO.
 
@@ -282,17 +312,21 @@ class MongoDbDaoSurrogateId(MongoDbDaoBase[Dto], Generic[Dto, DtoCreation_contra
                 (DAO implementation might use this field as primary key.)
             collection:
                 A collection object from the motor library.
-            session:
-                If transactional support is needed, please provide an
-                AsyncIOMotorClientSession that is within an active transaction. If None
-                is provided, every database operation is immediately commited. Defaults
-                to None.
+            id_generator:
+                A generator to continuously generate new IDs for new resources.
+            document_to_dto:
+                A callable that takes a document obtained from the MongoDB database
+                and returns a DTO model-compliant representation.
+            dto_to_document:
+                A callable that takes a DTO model and returns a representation that is
+                a compatible document for a MongoDB database.
         """
         super().__init__(
             dto_model=dto_model,
             id_field=id_field,
             collection=collection,
-            session=session,
+            document_to_dto=document_to_dto,
+            dto_to_document=dto_to_document,
         )
 
         self._dto_creation_model = dto_creation_model
@@ -318,13 +352,13 @@ class MongoDbDaoSurrogateId(MongoDbDaoBase[Dto], Generic[Dto, DtoCreation_contra
         full_dto = self._dto_model(**data)
 
         document = self._dto_to_document(full_dto)
-        await self._collection.insert_one(document, session=self._session)
+        await self._collection.insert_one(document)
 
         return full_dto
 
 
 class MongoDbDaoNaturalId(MongoDbDaoBase[Dto]):
-    """A duck type of a DAO that uses a natural resource ID profided by the client."""
+    """A DAO that uses a natural resource ID profided by the client."""
 
     @classmethod
     def with_transaction(cls) -> AbstractAsyncContextManager["DaoNaturalId[Dto]"]:
@@ -352,7 +386,7 @@ class MongoDbDaoNaturalId(MongoDbDaoBase[Dto]):
                 when a resource with the ID specified in the dto does already exist.
         """
         document = self._dto_to_document(dto)
-        await self._collection.insert_one(document, session=self._session)
+        await self._collection.insert_one(document)
 
     async def upsert(self, dto: Dto) -> None:
         """Update the provided resource if it already exists, create it otherwise.
@@ -364,7 +398,7 @@ class MongoDbDaoNaturalId(MongoDbDaoBase[Dto]):
         """
         document = self._dto_to_document(dto)
         await self._collection.replace_one(
-            {"_id": document["_id"]}, document, session=self._session, upsert=True
+            {"_id": document["_id"]}, document, upsert=True
         )
 
 
@@ -467,11 +501,18 @@ class MongoDbDaoFactory(DaoFactoryProtocol):
 
         collection = self._db[name]
 
+        document_to_dto_ = lambda document: document_to_dto(
+            document=document, id_field=id_field, dto_model=dto_model
+        )
+        dto_to_document_ = lambda dto: dto_to_document(dto=dto, id_field=id_field)
+
         if dto_creation_model is None:
             return MongoDbDaoNaturalId(
                 collection=collection,
                 dto_model=dto_model,
                 id_field=id_field,
+                document_to_dto=document_to_dto_,
+                dto_to_document=dto_to_document_,
             )
 
         return MongoDbDaoSurrogateId(
@@ -480,4 +521,6 @@ class MongoDbDaoFactory(DaoFactoryProtocol):
             dto_creation_model=dto_creation_model,
             id_field=id_field,
             id_generator=id_generator,
+            document_to_dto=document_to_dto_,
+            dto_to_document=dto_to_document_,
         )
