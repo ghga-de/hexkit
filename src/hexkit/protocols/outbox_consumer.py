@@ -25,6 +25,10 @@ from pydantic import BaseModel
 Dto = TypeVar("Dto", bound=BaseModel)
 
 
+class DtoValidationError(ValueError):
+    """Raised when the payload of a received event was not formatted as expected."""
+
+
 class DaoOutboxConsumerProtocol(ABC, Generic[Dto]):
     """A protocol for consuming events published through the DaoOutboxFactoryProtocol.
 
@@ -36,6 +40,9 @@ class DaoOutboxConsumerProtocol(ABC, Generic[Dto]):
             dto_model:
                 A pydantic model representing the data transfer object (DTO) for the
                 payload of changed events.
+
+    If the upstream provider using this protocol fails to convert the payload of a
+    change event to the expected DTO model, it should raise a DtoValidationError.
     """
 
     event_topic: str
