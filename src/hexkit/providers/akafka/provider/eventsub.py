@@ -203,7 +203,7 @@ class KafkaEventSubscriber(InboundProviderBase):
     def _get_event_label(event: ConsumerEvent) -> str:
         """Get a label that identifies an event."""
         return (
-            f"{event.topic} - {event.partition} - {event.offset} "
+            f"{event.topic} - {event.partition} - {event.key} - {event.offset} "
             + " (topic-partition-offset)"
         )
 

@@ -17,7 +17,6 @@
 """Protocol related to event subscription."""
 
 from abc import ABC, abstractmethod
-from typing import Optional
 
 from hexkit.custom_types import Ascii, JsonObject
 from hexkit.utils import check_ascii
@@ -52,7 +51,7 @@ class EventSubscriberProtocol(ABC):
         payload: JsonObject,
         type_: Ascii,
         topic: Ascii,
-        key: Optional[Ascii],
+        key: Ascii,
     ) -> None:
         """Receive an event of interest and process it according to its type.
 
@@ -60,7 +59,7 @@ class EventSubscriberProtocol(ABC):
             payload: The data/payload to send with the event.
             type_: The type of the event.
             topic: Name of the topic the event was published to.
-            key: An optional key used for routing the event.
+            key: A key used for routing the event.
         """
         check_ascii(type_, topic)
 
@@ -78,7 +77,7 @@ class EventSubscriberProtocol(ABC):
         payload: JsonObject,
         type_: Ascii,
         topic: Ascii,
-        key: Optional[Ascii],
+        key: Ascii,
     ) -> None:
         """
         Receive and process an event with already validated topic, type, and key.
@@ -87,6 +86,6 @@ class EventSubscriberProtocol(ABC):
             payload: The data/payload to send with the event.
             type_: The type of the event.
             topic: Name of the topic the event was published to.
-            key: An optional key used for routing the event.
+            key: A key used for routing the event.
         """
         ...

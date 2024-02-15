@@ -40,7 +40,6 @@ class FakeSubscriber(EventSubscriberProtocol):
     "type_, topic, key, exception",
     [
         ("test_type", "test_topic", "test_key", None),
-        ("test_type", "test_topic", None, None),
         (
             "test_ßtype",  # non ascii
             "test_topic",
@@ -62,7 +61,7 @@ class FakeSubscriber(EventSubscriberProtocol):
     ],
 )
 async def test_ascii_val(
-    type_: str, topic: str, key: Optional[str], exception: Optional[type[Exception]]
+    type_: str, topic: str, key: str, exception: Optional[type[Exception]]
 ):
     """Tests the ASCII validation logic included in the EventSubscriberProtocol."""
     payload = {"test_content": "Hello World"}

@@ -16,8 +16,6 @@
 
 """Translators that target the event publishing protocol."""
 
-from typing import Optional
-
 from pydantic_settings import BaseSettings
 
 from hexkit.custom_types import Ascii, JsonObject
@@ -71,7 +69,7 @@ class EventProblemReceiver(EventSubscriberProtocol):
         # This implementation does NOT use the `topic` and `key` information that is
         # provided as part of the EventSubscriberProtocol:
         topic: Ascii,
-        key: Optional[Ascii],
+        key: Ascii,
     ) -> None:
         """
         Receive and process an event with already validated topic, type, and key.
@@ -80,7 +78,7 @@ class EventProblemReceiver(EventSubscriberProtocol):
             payload: The data/payload to send with the event.
             type_: The type of the event.
             topic: Name of the topic the event was published to.
-            key: An optional key used for routing the event.
+            key: A key used for routing the event.
         """
 
         if type_ == "multiplication_problem":
