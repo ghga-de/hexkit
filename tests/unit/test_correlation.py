@@ -20,6 +20,7 @@ import random
 from collections import namedtuple
 from contextlib import nullcontext
 from contextvars import ContextVar
+from typing import Optional
 from unittest.mock import AsyncMock, Mock
 
 import pytest
@@ -243,7 +244,12 @@ async def test_correlation_consuming(
             self.types_of_interest = [type_]
 
         async def _consume_validated(
-            self, *, payload: JsonObject, type_: Ascii, topic: Ascii
+            self,
+            *,
+            payload: JsonObject,
+            type_: Ascii,
+            topic: Ascii,
+            key: Optional[Ascii],
         ) -> None:
             # Make sure the IDs match
             if not cid_in_header:

@@ -233,6 +233,7 @@ class KafkaEventSubscriber(InboundProviderBase):
                         payload=event.value,
                         type_=type_,
                         topic=event.topic,
+                        key=event.key,
                     )
                     # acknowledge successfully processed event
                     await self._consumer.commit()

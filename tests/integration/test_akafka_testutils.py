@@ -17,6 +17,7 @@
 """Testing of the Kafka testutils."""
 import json
 from collections.abc import Sequence
+from typing import Optional
 
 import pytest
 from kafka import KafkaAdminClient, KafkaConsumer, TopicPartition
@@ -56,7 +57,7 @@ class DummyTranslator(EventSubscriberProtocol):
         }
 
     async def _consume_validated(
-        self, *, payload: JsonObject, type_: Ascii, topic: Ascii
+        self, *, payload: JsonObject, type_: Ascii, topic: Ascii, key: Optional[Ascii]
     ):
         self.consumed[topic].append(payload)
 

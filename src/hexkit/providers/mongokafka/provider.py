@@ -24,6 +24,7 @@ from collections.abc import AsyncIterator, Awaitable, Collection, Mapping
 from contextlib import AbstractAsyncContextManager, asynccontextmanager, contextmanager
 from typing import Any, Callable, Generic, Optional
 
+from aiokafka import AIOKafkaProducer
 from motor.core import AgnosticCollection
 from motor.motor_asyncio import AsyncIOMotorClient
 
@@ -36,6 +37,7 @@ from hexkit.protocols.dao import (
 from hexkit.protocols.daopub import DaoPublisher, DaoPublisherFactoryProtocol
 from hexkit.protocols.eventpub import EventPublisherProtocol
 from hexkit.providers.akafka.provider import KafkaConfig, KafkaEventPublisher
+from hexkit.providers.akafka.provider.eventpub import KafkaProducerCompatible
 from hexkit.providers.mongodb.provider import (
     MongoDbConfig,
     MongoDbDaoNaturalId,
@@ -374,6 +376,7 @@ class MongoKafkaDaoPublisherFactory(DaoPublisherFactoryProtocol):
         cls,
         *,
         config: MongoKafkaConfig,
+        kafka_producer_cls: type[KafkaProducerCompatible] = AIOKafkaProducer,
     ):
         """Setup and teardown an instance of the provider.
 
@@ -383,7 +386,9 @@ class MongoKafkaDaoPublisherFactory(DaoPublisherFactoryProtocol):
         Returns:
             An instance of the provider.
         """
-        async with KafkaEventPublisher.construct(config=config) as event_publisher:
+        async with KafkaEventPublisher.construct(
+            config=config, kafka_producer_cls=kafka_producer_cls
+        ) as event_publisher:
             yield cls(config=config, event_publisher=event_publisher)
 
     def __init__(
