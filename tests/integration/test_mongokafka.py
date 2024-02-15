@@ -30,7 +30,7 @@ from hexkit.providers.mongodb.testutils import (  # noqa: F401
     MongoDbFixture,
     mongodb_fixture,
 )
-from hexkit.providers.mongokafka import MongoKafkaConfig, MongoKafkaDaoOutboxFactory
+from hexkit.providers.mongokafka import MongoKafkaConfig, MongoKafkaDaoPublisherFactory
 from hexkit.providers.mongokafka.provider import CHANGE_EVENT_TYPE, DELETE_EVENT_TYPE
 
 EXAMPLE_TOPIC = "example"
@@ -58,7 +58,7 @@ async def test_dao_outbox_happy(
         **mongodb_fixture.config.model_dump(), **kafka_fixture.config.model_dump()
     )
 
-    async with MongoKafkaDaoOutboxFactory.construct(config=config) as factory:
+    async with MongoKafkaDaoPublisherFactory.construct(config=config) as factory:
         dao = await factory.get_dao(
             name="example",
             dto_model=ExampleDto,
@@ -180,7 +180,7 @@ async def test_delay_publishing(
         **mongodb_fixture.config.model_dump(), **kafka_fixture.config.model_dump()
     )
 
-    async with MongoKafkaDaoOutboxFactory.construct(config=config) as factory:
+    async with MongoKafkaDaoPublisherFactory.construct(config=config) as factory:
         dao = await factory.get_dao(
             name="example",
             dto_model=ExampleDto,
@@ -234,7 +234,7 @@ async def test_publishing_after_failure(
 
         return dto.model_dump()
 
-    async with MongoKafkaDaoOutboxFactory.construct(config=config) as factory:
+    async with MongoKafkaDaoPublisherFactory.construct(config=config) as factory:
         dao = await factory.get_dao(
             name="example",
             dto_model=ExampleDto,
@@ -273,7 +273,7 @@ async def test_republishing(
         **mongodb_fixture.config.model_dump(), **kafka_fixture.config.model_dump()
     )
 
-    async with MongoKafkaDaoOutboxFactory.construct(config=config) as factory:
+    async with MongoKafkaDaoPublisherFactory.construct(config=config) as factory:
         dao = await factory.get_dao(
             name="example",
             dto_model=ExampleDto,

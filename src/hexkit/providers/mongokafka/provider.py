@@ -14,7 +14,10 @@
 # limitations under the License.
 #
 
-"""An implementation of the DaoOutboxFactoryProtocol based on MongoDB and Apache Kafka."""
+"""An implementation of the DaoPublisherFactoryProtocol based on MongoDB and Apache Kafka.
+
+Require dependencies of the `akafka` and `mongodb` extras.
+"""
 
 import json
 from collections.abc import AsyncIterator, Awaitable, Collection, Mapping
@@ -30,7 +33,7 @@ from hexkit.protocols.dao import (
     Dto,
     ResourceNotFoundError,
 )
-from hexkit.protocols.dao_outbox import DaoOutbox, DaoOutboxFactoryProtocol
+from hexkit.protocols.daopub import DaoPublisher, DaoPublisherFactoryProtocol
 from hexkit.protocols.eventpub import EventPublisherProtocol
 from hexkit.providers.akafka.provider import KafkaConfig, KafkaEventPublisher
 from hexkit.providers.mongodb.provider import (
@@ -146,7 +149,7 @@ def assert_not_deleted():
         raise ResourceNotFoundError(id_=error.id_) from error
 
 
-class MongoKafkaDaoOutbox(Generic[Dto]):
+class MongoKafkaDaoPublisher(Generic[Dto]):
     """A DAO that uses a natural resource ID provided by the client."""
 
     @classmethod
@@ -360,8 +363,8 @@ class MongoKafkaConfig(MongoDbConfig, KafkaConfig):
     """Config parameters and their defaults."""
 
 
-class MongoKafkaDaoOutboxFactory(DaoOutboxFactoryProtocol):
-    """A provider implementing the DaoOutboxFactoryProtocol based on MongoDB and
+class MongoKafkaDaoPublisherFactory(DaoPublisherFactoryProtocol):
+    """A provider implementing the DaoPublisherFactoryProtocol based on MongoDB and
     Apache Kafka.
     """
 
@@ -410,11 +413,11 @@ class MongoKafkaDaoOutboxFactory(DaoOutboxFactoryProtocol):
         dto_to_event: Callable[[Dto], JsonObject],
         event_topic: str,
         autopublish: bool,
-    ) -> DaoOutbox[Dto]:
+    ) -> DaoPublisher[Dto]:
         """Constructs a DAO for interacting with resources in a MongoDB database.
         Updates are automatically published to Apache Kafka.
 
-        Please see the DaoOutboxFactoryProtocol superclass for documentation of
+        Please see the DaoPublisherFactoryProtocol superclass for documentation of
         parameters.
         """
         if fields_to_index is not None:
@@ -450,7 +453,7 @@ class MongoKafkaDaoOutboxFactory(DaoOutboxFactoryProtocol):
             collection=collection,
         )
 
-        return MongoKafkaDaoOutbox(
+        return MongoKafkaDaoPublisher(
             id_field=id_field,
             dto_model=dto_model,
             collection=collection,

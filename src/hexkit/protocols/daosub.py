@@ -14,7 +14,7 @@
 # limitations under the License.
 #
 
-"""A protocol for consuming events published through the DaoOutboxFactoryProtocol."""
+"""A protocol for consuming events published through the DaoPublisherFactoryProtocol."""
 
 
 from abc import ABC, abstractmethod
@@ -29,8 +29,8 @@ class DtoValidationError(ValueError):
     """Raised when the payload of a received event was not formatted as expected."""
 
 
-class DaoOutboxConsumerProtocol(ABC, Generic[Dto]):
-    """A protocol for consuming events published through the DaoOutboxFactoryProtocol.
+class DaoSubscriberProtocol(ABC, Generic[Dto]):
+    """A protocol for consuming events published through the DaoPublisherFactoryProtocol.
 
     In addition to the methods described below, implementations shall expose the
     the following attributes:

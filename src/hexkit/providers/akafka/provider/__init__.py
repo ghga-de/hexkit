@@ -14,6 +14,25 @@
 # limitations under the License.
 #
 
-"""An implementation of the DaoPublisherFactoryProtocol based on MongoDB and Apache Kafka."""
+"""A subpackage containing all Apache Kafka-specific provider.
 
-from .provider import MongoKafkaConfig, MongoKafkaDaoPublisherFactory  # noqa: F401
+Require dependencies of the `akafka` extra.
+"""
+
+from .config import KafkaConfig
+from .eventpub import KafkaEventPublisher
+from .eventsub import (
+    ConsumerEvent,
+    KafkaEventSubscriber,
+    get_header_value,
+    headers_as_dict,
+)
+
+__all__ = [
+    "KafkaEventPublisher",
+    "KafkaEventSubscriber",
+    "KafkaConfig",
+    "ConsumerEvent",
+    "get_header_value",
+    "headers_as_dict",
+]
