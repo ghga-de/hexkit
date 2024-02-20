@@ -25,7 +25,7 @@ import pytest
 
 from hexkit.correlation import set_correlation_id
 from hexkit.custom_types import JsonObject
-from hexkit.providers.akafka.provider import (
+from hexkit.providers.akafka import (
     KafkaConfig,
     KafkaEventPublisher,
     KafkaEventSubscriber,

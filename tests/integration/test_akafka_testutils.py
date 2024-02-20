@@ -24,7 +24,7 @@ from kafka.admin.new_topic import NewTopic
 
 from hexkit.custom_types import Ascii, JsonObject
 from hexkit.protocols.eventsub import EventSubscriberProtocol
-from hexkit.providers.akafka.provider import (
+from hexkit.providers.akafka import (
     KafkaConfig,
     KafkaEventPublisher,
     KafkaEventSubscriber,

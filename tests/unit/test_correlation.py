@@ -34,7 +34,7 @@ from hexkit.correlation import (
 )
 from hexkit.custom_types import Ascii, JsonObject
 from hexkit.protocols.eventsub import EventSubscriberProtocol
-from hexkit.providers.akafka.provider import KafkaConfig, KafkaEventSubscriber
+from hexkit.providers.akafka import KafkaConfig, KafkaEventSubscriber
 from hexkit.providers.akafka.testutils import (
     KafkaFixture,
     get_kafka_fixture,

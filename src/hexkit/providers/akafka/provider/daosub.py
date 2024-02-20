@@ -19,6 +19,7 @@
 """
 
 import logging
+from collections.abc import Sequence
 from contextlib import asynccontextmanager
 
 from aiokafka import AIOKafkaConsumer
@@ -31,12 +32,14 @@ from hexkit.protocols.daosub import (
     DtoValidationError,
 )
 from hexkit.protocols.eventsub import EventSubscriberProtocol
-from hexkit.providers.akafka.provider.config import KafkaConfig
+from hexkit.providers.akafka.config import KafkaConfig
 from hexkit.providers.akafka.provider.eventsub import (
     KafkaConsumerCompatible,
     KafkaEventSubscriber,
 )
-from hexkit.providers.mongokafka.provider import CHANGE_EVENT_TYPE, DELETE_EVENT_TYPE
+
+CHANGE_EVENT_TYPE = "upserted"
+DELETE_EVENT_TYPE = "deleted"
 
 
 class TranslatorConverter(EventSubscriberProtocol):
@@ -44,9 +47,9 @@ class TranslatorConverter(EventSubscriberProtocol):
     create a single translator implementing the `EventSubscriberProtocol`.
     """
 
-    event_types_of_interest = [CHANGE_EVENT_TYPE, DELETE_EVENT_TYPE]
+    types_of_interest = [CHANGE_EVENT_TYPE, DELETE_EVENT_TYPE]
 
-    def __init__(self, *, translators: list[DaoSubscriberProtocol]):
+    def __init__(self, *, translators: Sequence[DaoSubscriberProtocol]):
         self.topics_of_interest = [translator.event_topic for translator in translators]
 
         if len(set(self.topics_of_interest)) != len(self.topics_of_interest):
@@ -77,26 +80,25 @@ class TranslatorConverter(EventSubscriberProtocol):
             # This should never happen, as the topic should have been filtered out:
             raise RuntimeError
 
-        try:
-            dto = translator.dto_model.model_validate(payload)
-        except ValidationError as error:
-            message = (
-                f"The event of type {type_} on topic {topic} was not valid wrt. the"
-                + " DTO model."
-            )
-            logging.error(message)
-            raise DtoValidationError(message) from error
-
         if type_ == CHANGE_EVENT_TYPE:
+            try:
+                dto = translator.dto_model.model_validate(payload)
+            except ValidationError as error:
+                message = (
+                    f"The event of type {type_} on topic {topic} was not valid wrt. the"
+                    + " DTO model."
+                )
+                logging.error(message)
+                raise DtoValidationError(message) from error
+
             await translator.changed(resource_id=key, update=dto)
-        elif type_ == DELETE_EVENT_TYPE:
-            await translator.deleted(resource_id=key)
+
         else:
-            # This should never happen, as the type should have been filtered out:
-            raise RuntimeError
+            # a deletion event:
+            await translator.deleted(resource_id=key)
 
 
-class KafkaOutboxConsumer(InboundProviderBase):
+class KafkaOutboxSubscriber(InboundProviderBase):
     """Apache Kafka-specific provider using translators that implement the
     `DaoSubscriberProtocol`.
     """
@@ -107,7 +109,7 @@ class KafkaOutboxConsumer(InboundProviderBase):
         cls,
         *,
         config: KafkaConfig,
-        translators: list[DaoSubscriberProtocol],
+        translators: Sequence[DaoSubscriberProtocol],
         kafka_consumer_cls: type[KafkaConsumerCompatible] = AIOKafkaConsumer,
     ):
         """Setup and teardown an instance of the provider.

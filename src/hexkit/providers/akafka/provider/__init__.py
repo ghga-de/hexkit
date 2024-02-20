@@ -19,7 +19,7 @@
 Require dependencies of the `akafka` extra.
 """
 
-from .config import KafkaConfig
+from .daosub import KafkaOutboxSubscriber
 from .eventpub import KafkaEventPublisher
 from .eventsub import (
     ConsumerEvent,
@@ -31,8 +31,8 @@ from .eventsub import (
 __all__ = [
     "KafkaEventPublisher",
     "KafkaEventSubscriber",
-    "KafkaConfig",
     "ConsumerEvent",
     "get_header_value",
     "headers_as_dict",
+    "KafkaOutboxSubscriber",
 ]

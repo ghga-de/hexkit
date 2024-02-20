@@ -35,7 +35,7 @@ from hexkit.correlation import (
 )
 from hexkit.custom_types import Ascii, JsonObject
 from hexkit.protocols.eventpub import EventPublisherProtocol
-from hexkit.providers.akafka.provider.config import KafkaConfig
+from hexkit.providers.akafka.config import KafkaConfig
 from hexkit.providers.akafka.provider.utils import (
     generate_client_id,
     generate_ssl_context,

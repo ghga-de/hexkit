@@ -22,7 +22,7 @@ from typing import Optional
 
 from aiokafka.helpers import create_ssl_context
 
-from hexkit.providers.akafka.provider.config import KafkaConfig
+from hexkit.providers.akafka.config import KafkaConfig
 
 
 def generate_client_id(*, service_name: str, instance_id: str) -> str:

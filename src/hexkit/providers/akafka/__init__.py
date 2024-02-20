@@ -19,10 +19,16 @@ They correspond to the `EventPublisherProtocol` and `EventSubscriberProtocol`,
 respectively.
 """
 
+from .config import KafkaConfig
 from .provider import (
-    KafkaConfig,
     KafkaEventPublisher,
     KafkaEventSubscriber,
+    KafkaOutboxSubscriber,
 )
 
-__all__ = ["KafkaEventPublisher", "KafkaEventSubscriber", "KafkaConfig"]
+__all__ = [
+    "KafkaEventPublisher",
+    "KafkaEventSubscriber",
+    "KafkaConfig",
+    "KafkaOutboxSubscriber",
+]

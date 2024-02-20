@@ -36,7 +36,8 @@ from hexkit.protocols.dao import (
 )
 from hexkit.protocols.daopub import DaoPublisher, DaoPublisherFactoryProtocol
 from hexkit.protocols.eventpub import EventPublisherProtocol
-from hexkit.providers.akafka.provider import KafkaConfig, KafkaEventPublisher
+from hexkit.providers.akafka import KafkaConfig, KafkaEventPublisher
+from hexkit.providers.akafka.provider.daosub import CHANGE_EVENT_TYPE, DELETE_EVENT_TYPE
 from hexkit.providers.akafka.provider.eventpub import KafkaProducerCompatible
 from hexkit.providers.mongodb.provider import (
     MongoDbConfig,
@@ -45,9 +46,6 @@ from hexkit.providers.mongodb.provider import (
     replace_id_field_in_find_mapping,
     validate_find_mapping,
 )
-
-CHANGE_EVENT_TYPE = "upserted"
-DELETE_EVENT_TYPE = "deleted"
 
 
 class ResourceDeletedError(RuntimeError):
