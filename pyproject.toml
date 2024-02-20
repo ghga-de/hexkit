@@ -22,7 +22,7 @@ classifiers = [
     "Intended Audience :: Developers",
 ]
 name = "hexkit"
-version = "2.2.0"
+version = "3.0.0"
 description = "A Toolkit for Building Microservices using the Hexagonal Architecture"
 dependencies = [
     "pydantic >=2, <3",
@@ -35,7 +35,7 @@ text = "Apache 2.0"
 
 [project.optional-dependencies]
 akafka = [
-    "aiokafka~=0.8.0",
+    "aiokafka~=0.10.0",
     "jsonschema >=4.17.3, <5",
 ]
 s3 = [
@@ -80,6 +80,21 @@ exclude = [
     "build",
     "dist",
 ]
+line-length = 88
+src = [
+    "src",
+    "tests",
+    "examples",
+    "scripts",
+]
+target-version = "py39"
+
+[tool.ruff.lint]
+fixable = [
+    "UP",
+    "I",
+    "D",
+]
 ignore = [
     "E",
     "W",
@@ -97,7 +112,6 @@ ignore = [
     "D206",
     "D300",
 ]
-line-length = 88
 select = [
     "C90",
     "F",
@@ -111,23 +125,11 @@ select = [
     "SIM",
     "D",
 ]
-fixable = [
-    "UP",
-    "I",
-    "D",
-]
-src = [
-    "src",
-    "tests",
-    "examples",
-    "scripts",
-]
-target-version = "py39"
 
-[tool.ruff.mccabe]
+[tool.ruff.lint.mccabe]
 max-complexity = 10
 
-[tool.ruff.per-file-ignores]
+[tool.ruff.lint.per-file-ignores]
 "scripts/*" = [
     "PL",
     "S",
@@ -153,7 +155,7 @@ max-complexity = 10
     "D",
 ]
 
-[tool.ruff.pydocstyle]
+[tool.ruff.lint.pydocstyle]
 convention = "pep257"
 
 [tool.mypy]
