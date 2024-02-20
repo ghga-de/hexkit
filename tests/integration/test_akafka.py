@@ -178,7 +178,7 @@ async def test_consumer_commit_mode(kafka_fixture: KafkaFixture):  # noqa: F811
 
     error_message = "Consumer crashed successfully."
 
-    async def crash(*, payload: JsonObject, type_: Ascii, topic: Ascii):
+    async def crash(*, payload: JsonObject, type_: Ascii, topic: Ascii, key: Ascii):
         """Drop in replacement for patch testing consume."""
         raise ValueError(error_message)
 
