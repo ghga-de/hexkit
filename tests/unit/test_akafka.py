@@ -207,7 +207,7 @@ async def test_kafka_event_subscriber(
     # check if the translator was called correctly:
     if is_translator_called:
         translator.consume.assert_awaited_once_with(
-            payload=payload, type_=type_, topic=topic
+            payload=payload, type_=type_, topic=topic, key=event.key
         )
     else:
         assert translator.consume.await_count == 0
