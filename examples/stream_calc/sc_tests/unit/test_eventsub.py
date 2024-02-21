@@ -54,7 +54,9 @@ async def test_event_problem_receiver(
     problem_receiver = EventProblemReceiver(
         config=EventProblemReceiverConfig(), problem_handler=problem_handler
     )
-    await problem_receiver.consume(payload=payload, type_=type_, topic=topic)
+    await problem_receiver.consume(
+        payload=payload, type_=type_, topic=topic, key="test"
+    )
 
     # check the published event:
     mock_method = getattr(problem_handler, handler_method)
@@ -75,5 +77,7 @@ async def test_event_problem_receiver_with_missing_field():
         EventProblemReceiver.MalformedPayloadError,
         match="did not contain the expected field 'multiplicand'",
     ):
-        await problem_receiver.consume(payload=payload, type_=type_, topic=topic)
+        await problem_receiver.consume(
+            payload=payload, type_=type_, topic=topic, key="test"
+        )
     problem_handler.multiply.assert_not_awaited()

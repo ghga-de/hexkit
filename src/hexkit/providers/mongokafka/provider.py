@@ -14,13 +14,17 @@
 # limitations under the License.
 #
 
-"""An implementation of the DaoOutboxFactoryProtocol based on MongoDB and Apache Kafka."""
+"""An implementation of the DaoPublisherFactoryProtocol based on MongoDB and Apache Kafka.
+
+Require dependencies of the `akafka` and `mongodb` extras.
+"""
 
 import json
 from collections.abc import AsyncIterator, Awaitable, Collection, Mapping
 from contextlib import AbstractAsyncContextManager, asynccontextmanager, contextmanager
 from typing import Any, Callable, Generic, Optional
 
+from aiokafka import AIOKafkaProducer
 from motor.core import AgnosticCollection
 from motor.motor_asyncio import AsyncIOMotorClient
 
@@ -30,9 +34,11 @@ from hexkit.protocols.dao import (
     Dto,
     ResourceNotFoundError,
 )
-from hexkit.protocols.dao_outbox import DaoOutbox, DaoOutboxFactoryProtocol
+from hexkit.protocols.daopub import DaoPublisher, DaoPublisherFactoryProtocol
 from hexkit.protocols.eventpub import EventPublisherProtocol
-from hexkit.providers.akafka.provider import KafkaConfig, KafkaEventPublisher
+from hexkit.providers.akafka import KafkaConfig, KafkaEventPublisher
+from hexkit.providers.akafka.provider.daosub import CHANGE_EVENT_TYPE, DELETE_EVENT_TYPE
+from hexkit.providers.akafka.provider.eventpub import KafkaProducerCompatible
 from hexkit.providers.mongodb.provider import (
     MongoDbConfig,
     MongoDbDaoNaturalId,
@@ -40,9 +46,6 @@ from hexkit.providers.mongodb.provider import (
     replace_id_field_in_find_mapping,
     validate_find_mapping,
 )
-
-CHANGE_EVENT_TYPE = "upserted"
-DELETE_EVENT_TYPE = "deleted"
 
 
 class ResourceDeletedError(RuntimeError):
@@ -146,7 +149,7 @@ def assert_not_deleted():
         raise ResourceNotFoundError(id_=error.id_) from error
 
 
-class MongoKafkaDaoOutbox(Generic[Dto]):
+class MongoKafkaDaoPublisher(Generic[Dto]):
     """A DAO that uses a natural resource ID provided by the client."""
 
     @classmethod
@@ -360,8 +363,8 @@ class MongoKafkaConfig(MongoDbConfig, KafkaConfig):
     """Config parameters and their defaults."""
 
 
-class MongoKafkaDaoOutboxFactory(DaoOutboxFactoryProtocol):
-    """A provider implementing the DaoOutboxFactoryProtocol based on MongoDB and
+class MongoKafkaDaoPublisherFactory(DaoPublisherFactoryProtocol):
+    """A provider implementing the DaoPublisherFactoryProtocol based on MongoDB and
     Apache Kafka.
     """
 
@@ -371,6 +374,7 @@ class MongoKafkaDaoOutboxFactory(DaoOutboxFactoryProtocol):
         cls,
         *,
         config: MongoKafkaConfig,
+        kafka_producer_cls: type[KafkaProducerCompatible] = AIOKafkaProducer,
     ):
         """Setup and teardown an instance of the provider.
 
@@ -380,7 +384,9 @@ class MongoKafkaDaoOutboxFactory(DaoOutboxFactoryProtocol):
         Returns:
             An instance of the provider.
         """
-        async with KafkaEventPublisher.construct(config=config) as event_publisher:
+        async with KafkaEventPublisher.construct(
+            config=config, kafka_producer_cls=kafka_producer_cls
+        ) as event_publisher:
             yield cls(config=config, event_publisher=event_publisher)
 
     def __init__(
@@ -410,11 +416,11 @@ class MongoKafkaDaoOutboxFactory(DaoOutboxFactoryProtocol):
         dto_to_event: Callable[[Dto], JsonObject],
         event_topic: str,
         autopublish: bool,
-    ) -> DaoOutbox[Dto]:
+    ) -> DaoPublisher[Dto]:
         """Constructs a DAO for interacting with resources in a MongoDB database.
         Updates are automatically published to Apache Kafka.
 
-        Please see the DaoOutboxFactoryProtocol superclass for documentation of
+        Please see the DaoPublisherFactoryProtocol superclass for documentation of
         parameters.
         """
         if fields_to_index is not None:
@@ -450,7 +456,7 @@ class MongoKafkaDaoOutboxFactory(DaoOutboxFactoryProtocol):
             collection=collection,
         )
 
-        return MongoKafkaDaoOutbox(
+        return MongoKafkaDaoPublisher(
             id_field=id_field,
             dto_model=dto_model,
             collection=collection,

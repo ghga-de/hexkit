@@ -66,17 +66,19 @@ class EventProblemReceiver(EventSubscriberProtocol):
         *,
         payload: JsonObject,
         type_: Ascii,
-        # This implementation does NOT use the `topic` information that is provided as
-        # part of the EventSubscriberProtocol:
+        # This implementation does NOT use the `topic` and `key` information that is
+        # provided as part of the EventSubscriberProtocol:
         topic: Ascii,
+        key: Ascii,
     ) -> None:
         """
-        Receive and process an event with already validated topic and type.
+        Receive and process an event with already validated topic, type, and key.
 
         Args:
             payload: The data/payload to send with the event.
             type_: The type of the event.
             topic: Name of the topic the event was published to.
+            key: A key used for routing the event.
         """
 
         if type_ == "multiplication_problem":

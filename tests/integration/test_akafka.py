@@ -102,7 +102,7 @@ async def test_kafka_event_subscriber(kafka_fixture: KafkaFixture):  # noqa: F81
 
     # check if the translator was called correctly:
     translator.consume.assert_awaited_once_with(
-        payload=payload, type_=type_, topic=topic
+        payload=payload, type_=type_, topic=topic, key=key
     )
 
 
@@ -164,7 +164,7 @@ async def test_kafka_ssl(tmp_path: Path):
             await event_subscriber.run(forever=False)
 
         translator.consume.assert_awaited_once_with(
-            payload=payload, type_=type_, topic=topic
+            payload=payload, type_=type_, topic=topic, key=key
         )
 
 
@@ -178,7 +178,7 @@ async def test_consumer_commit_mode(kafka_fixture: KafkaFixture):  # noqa: F811
 
     error_message = "Consumer crashed successfully."
 
-    async def crash(*, payload: JsonObject, type_: Ascii, topic: Ascii):
+    async def crash(*, payload: JsonObject, type_: Ascii, topic: Ascii, key: Ascii):
         """Drop in replacement for patch testing consume."""
         raise ValueError(error_message)
 

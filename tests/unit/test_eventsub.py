@@ -17,6 +17,7 @@
 """Testing the event publishing protocol."""
 
 from contextlib import nullcontext
+from typing import Optional
 
 import pytest
 
@@ -30,28 +31,38 @@ class FakeSubscriber(EventSubscriberProtocol):
     any logic.
     """
 
-    async def _consume_validated(self, *, payload, type_, topic) -> None:
+    async def _consume_validated(self, *, payload, type_, topic, key) -> None:
         pass
 
 
 @pytest.mark.asyncio
 @pytest.mark.parametrize(
-    "type_, topic, exception",
+    "type_, topic, key, exception",
     [
-        ("test_type", "test_topic", None),
+        ("test_type", "test_topic", "test_key", None),
         (
             "test_ßtype",  # non ascii
             "test_topic",
+            "test_key",
             NonAsciiStrError,
         ),
         (
             "test_type",
             "test_ßtopic",  # non ascii
+            "test_key",
+            NonAsciiStrError,
+        ),
+        (
+            "test_type",
+            "test_topic",
+            "test_ßkey",  # non ascii
             NonAsciiStrError,
         ),
     ],
 )
-async def test_ascii_val(type_, topic, exception):
+async def test_ascii_val(
+    type_: str, topic: str, key: str, exception: Optional[type[Exception]]
+):
     """Tests the ASCII validation logic included in the EventSubscriberProtocol."""
     payload = {"test_content": "Hello World"}
 
@@ -61,7 +72,5 @@ async def test_ascii_val(type_, topic, exception):
     # publish event using the provider:
     with pytest.raises(exception) if exception else nullcontext():
         await event_submitter.consume(
-            payload=payload,
-            type_=type_,
-            topic=topic,
+            payload=payload, type_=type_, topic=topic, key=key
         )

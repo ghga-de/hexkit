@@ -19,7 +19,7 @@
 from typing import Literal
 
 from hexkit.config import config_from_yaml
-from hexkit.providers.akafka.provider import KafkaConfig
+from hexkit.providers.akafka import KafkaConfig
 from stream_calc.translators.eventpub import EventResultEmitterConfig
 from stream_calc.translators.eventsub import EventProblemReceiverConfig
 

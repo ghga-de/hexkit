@@ -23,8 +23,8 @@ from kafka import KafkaAdminClient, KafkaConsumer, TopicPartition
 from kafka.admin.new_topic import NewTopic
 
 from hexkit.custom_types import Ascii, JsonObject
-from hexkit.providers.akafka.provider import (
-    EventSubscriberProtocol,
+from hexkit.protocols.eventsub import EventSubscriberProtocol
+from hexkit.providers.akafka import (
     KafkaConfig,
     KafkaEventPublisher,
     KafkaEventSubscriber,
@@ -56,7 +56,7 @@ class DummyTranslator(EventSubscriberProtocol):
         }
 
     async def _consume_validated(
-        self, *, payload: JsonObject, type_: Ascii, topic: Ascii
+        self, *, payload: JsonObject, type_: Ascii, topic: Ascii, key: Ascii
     ):
         self.consumed[topic].append(payload)
 

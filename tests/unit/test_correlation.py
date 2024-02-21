@@ -34,7 +34,7 @@ from hexkit.correlation import (
 )
 from hexkit.custom_types import Ascii, JsonObject
 from hexkit.protocols.eventsub import EventSubscriberProtocol
-from hexkit.providers.akafka.provider import KafkaConfig, KafkaEventSubscriber
+from hexkit.providers.akafka import KafkaConfig, KafkaEventSubscriber
 from hexkit.providers.akafka.testutils import (
     KafkaFixture,
     get_kafka_fixture,
@@ -243,7 +243,12 @@ async def test_correlation_consuming(
             self.types_of_interest = [type_]
 
         async def _consume_validated(
-            self, *, payload: JsonObject, type_: Ascii, topic: Ascii
+            self,
+            *,
+            payload: JsonObject,
+            type_: Ascii,
+            topic: Ascii,
+            key: Ascii,
         ) -> None:
             # Make sure the IDs match
             if not cid_in_header:
