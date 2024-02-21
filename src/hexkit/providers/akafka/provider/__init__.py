@@ -14,7 +14,7 @@
 # limitations under the License.
 #
 
-"""A subpackage containing all Apache Kafka-specific provider.
+"""A subpackage containing all Apache Kafka-specific providers.
 
 Require dependencies of the `akafka` extra.
 """
