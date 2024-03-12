@@ -16,7 +16,6 @@
 
 """Test the mongokafka providers."""
 
-
 import pytest
 from pydantic import BaseModel, ConfigDict
 

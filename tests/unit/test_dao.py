@@ -44,8 +44,7 @@ class FakeDaoFactory(DaoFactoryProtocol):
         dto_creation_model: None,
         fields_to_index: Optional[Collection[str]],
         id_generator: AsyncGenerator[str, None],
-    ) -> DaoNaturalId[Dto]:
-        ...
+    ) -> DaoNaturalId[Dto]: ...
 
     @overload
     async def _get_dao(
@@ -57,8 +56,7 @@ class FakeDaoFactory(DaoFactoryProtocol):
         dto_creation_model: type[DtoCreation],
         fields_to_index: Optional[Collection[str]],
         id_generator: AsyncGenerator[str, None],
-    ) -> DaoSurrogateId[Dto, DtoCreation]:
-        ...
+    ) -> DaoSurrogateId[Dto, DtoCreation]: ...
 
     async def _get_dao(
         self,
