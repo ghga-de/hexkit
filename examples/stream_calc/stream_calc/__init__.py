@@ -14,5 +14,4 @@
 # limitations under the License.
 #
 
-"""A simple event streaming based calculator.
-"""
+"""A simple event streaming based calculator."""

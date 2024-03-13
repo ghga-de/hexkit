@@ -368,8 +368,7 @@ class DaoFactoryProtocol(DaoFactoryBase, ABC):
         id_field: str,
         fields_to_index: Optional[Collection[str]] = None,
         id_generator: Optional[AsyncGenerator[str, None]] = None,
-    ) -> DaoNaturalId[Dto]:
-        ...
+    ) -> DaoNaturalId[Dto]: ...
 
     @overload
     async def get_dao(
@@ -381,8 +380,7 @@ class DaoFactoryProtocol(DaoFactoryBase, ABC):
         dto_creation_model: type[DtoCreation],
         fields_to_index: Optional[Collection[str]] = None,
         id_generator: Optional[AsyncGenerator[str, None]] = None,
-    ) -> DaoSurrogateId[Dto, DtoCreation]:
-        ...
+    ) -> DaoSurrogateId[Dto, DtoCreation]: ...
 
     async def get_dao(
         self,
@@ -463,8 +461,7 @@ class DaoFactoryProtocol(DaoFactoryBase, ABC):
         dto_creation_model: None,
         fields_to_index: Optional[Collection[str]],
         id_generator: AsyncGenerator[str, None],
-    ) -> DaoNaturalId[Dto]:
-        ...
+    ) -> DaoNaturalId[Dto]: ...
 
     @overload
     @abstractmethod
@@ -477,8 +474,7 @@ class DaoFactoryProtocol(DaoFactoryBase, ABC):
         dto_creation_model: type[DtoCreation],
         fields_to_index: Optional[Collection[str]],
         id_generator: AsyncGenerator[str, None],
-    ) -> DaoSurrogateId[Dto, DtoCreation]:
-        ...
+    ) -> DaoSurrogateId[Dto, DtoCreation]: ...
 
     @abstractmethod
     async def _get_dao(

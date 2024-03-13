@@ -29,7 +29,7 @@ from typing import Any, Callable, Literal, Optional, Protocol, TypeVar
 
 from aiokafka import AIOKafkaConsumer, AIOKafkaProducer
 from aiokafka.helpers import create_ssl_context
-from pydantic import Field
+from pydantic import Field, SecretStr
 from pydantic_settings import BaseSettings
 
 from hexkit.base import InboundProviderBase
@@ -93,7 +93,7 @@ class KafkaConfig(BaseSettings):
     kafka_ssl_keyfile: str = Field(
         default="", description="Optional filename containing the client private key."
     )
-    kafka_ssl_password: str = Field(
+    kafka_ssl_password: SecretStr = Field(
         default="",
         description="Optional password to be used for the client private key.",
     )
@@ -131,7 +131,7 @@ def generate_ssl_context(config: KafkaConfig) -> Optional[ssl.SSLContext]:
             cafile=config.kafka_ssl_cafile,
             certfile=config.kafka_ssl_certfile,
             keyfile=config.kafka_ssl_keyfile,
-            password=config.kafka_ssl_password,
+            password=config.kafka_ssl_password.get_secret_value(),
         )
         if config.kafka_security_protocol == "SSL"
         else None

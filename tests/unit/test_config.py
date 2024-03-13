@@ -14,6 +14,7 @@
 # limitations under the License.
 
 """Test config parsing module"""
+
 import os
 import shutil
 from pathlib import Path
