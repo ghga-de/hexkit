@@ -16,7 +16,6 @@
 
 """Utilities related to Kafka."""
 
-
 import ssl
 from typing import Optional
 
@@ -40,7 +39,7 @@ def generate_ssl_context(config: KafkaConfig) -> Optional[ssl.SSLContext]:
             cafile=config.kafka_ssl_cafile,
             certfile=config.kafka_ssl_certfile,
             keyfile=config.kafka_ssl_keyfile,
-            password=config.kafka_ssl_password,
+            password=config.kafka_ssl_password.get_secret_value(),
         )
         if config.kafka_security_protocol == "SSL"
         else None

@@ -15,6 +15,7 @@
 #
 
 """Testing of the Kafka testutils."""
+
 import json
 from collections.abc import Sequence
 

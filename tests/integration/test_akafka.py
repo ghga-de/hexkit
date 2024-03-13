@@ -24,6 +24,7 @@ from unittest.mock import AsyncMock
 import pytest
 from aiokafka import AIOKafkaConsumer
 from kafka import KafkaAdminClient, TopicPartition
+from pydantic import SecretStr
 
 from hexkit.custom_types import Ascii, JsonObject
 from hexkit.protocols.eventsub import EventSubscriberProtocol
@@ -142,7 +143,7 @@ async def test_kafka_ssl(tmp_path: Path):
             kafka_ssl_cafile=str(path / "ca.crt"),
             kafka_ssl_certfile=str(path / "client.crt"),
             kafka_ssl_keyfile=str(path / "client.key"),
-            kafka_ssl_password=secrets.client_pwd,
+            kafka_ssl_password=SecretStr(secrets.client_pwd),
         )
 
         async with KafkaEventPublisher.construct(config=config) as event_publisher:

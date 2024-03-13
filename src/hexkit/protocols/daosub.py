@@ -16,7 +16,6 @@
 
 """A protocol for consuming events published through the DaoPublisherFactoryProtocol."""
 
-
 from abc import ABC, abstractmethod
 from typing import Generic, TypeVar
 

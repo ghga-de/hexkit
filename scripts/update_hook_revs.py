@@ -16,6 +16,7 @@
 # limitations under the License.
 #
 """Script to ensure the pre-commit hook revs match what is installed."""
+
 import re
 import sys
 from functools import partial
@@ -48,7 +49,7 @@ def get_repl_value(match, dependencies: dict[str, str], outdated_hooks: list[str
 
         # Use the v prefix if it was used before
         if ver.startswith("v"):
-            new_ver = ver[0] + new_ver
+            new_ver = f"v{new_ver}"
 
         # Make a list of what's outdated
         if new_ver != ver:

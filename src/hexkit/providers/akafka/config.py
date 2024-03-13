@@ -16,10 +16,9 @@
 
 """Apache Kafka specific configuration."""
 
-
 from typing import Literal
 
-from pydantic import Field
+from pydantic import Field, SecretStr
 from pydantic_settings import BaseSettings
 
 
@@ -64,7 +63,7 @@ class KafkaConfig(BaseSettings):
     kafka_ssl_keyfile: str = Field(
         default="", description="Optional filename containing the client private key."
     )
-    kafka_ssl_password: str = Field(
+    kafka_ssl_password: SecretStr = Field(
         default="",
         description="Optional password to be used for the client private key.",
     )
