@@ -16,6 +16,7 @@
 # limitations under the License.
 #
 """Check capped dependencies for newer versions."""
+
 import sys
 from collections.abc import Sequence
 from pathlib import Path
