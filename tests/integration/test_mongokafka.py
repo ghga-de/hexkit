@@ -16,7 +16,6 @@
 
 """Test the DAO pub/sub functionality based on the mongokafka/kafka providers."""
 
-
 from typing import Optional
 
 import pytest

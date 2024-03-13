@@ -18,6 +18,7 @@
 
 Please note, only use for testing purposes.
 """
+
 from collections.abc import Generator
 from dataclasses import dataclass
 from typing import Optional, Union
