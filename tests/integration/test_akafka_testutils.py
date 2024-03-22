@@ -278,6 +278,46 @@ async def test_event_recorder(
 
 
 @pytest.mark.asyncio
+async def test_clear_topics_with_recorder(kafka_fixture: KafkaFixture):  # noqa: F811
+    """Test the behavior of the event recorder is not affected by clear_topics().
+    For context: `clear_topics()` does not wipe out topic offsets. That has no impact on
+    normal event consumption in testing (e.g. `subscriber.run(forever=False)`), but
+    `EventRecorder` retrieves the offsets upon both start and stop, then calculates the
+    difference as the number of events it should listen to. If an EventRecorder has been
+    used and persists (like in session-scoped testing), then a gap can arise between its
+    `__starting_offsets` and `latest_offsets`.
+    """
+    topic: Ascii = "test_topic"
+    payload: JsonObject = {"test_content": "Hello"}
+    type_: Ascii = "test_type"
+    key: Ascii = "test_key"
+
+    # Trigger creation of the consumer and consume an event to establish consumer offsets.
+    async with kafka_fixture.record_events(in_topic=topic):
+        await kafka_fixture.publish_event(
+            payload=payload, topic=topic, type_=type_, key=key
+        )
+
+    # Publish some events that don't get consumed in order to push out the
+    # topic's log end offset
+    for _ in range(5):
+        await kafka_fixture.publish_event(
+            payload=payload, topic=topic, type_=type_, key=key
+        )
+
+    # Clear all records from the topic (leaving offsets intact)
+    kafka_fixture.clear_topics()
+
+    # Use the event recorder again. The consumer should skip to the end of the topic
+    # before yielding control, thus avoiding the problem of trying to consume events
+    # that don't exist. pre-fix would have expected 6 events rather than 1.
+    async with kafka_fixture.record_events(in_topic=topic):
+        await kafka_fixture.publish_event(
+            payload=payload, topic=topic, type_=type_, key=key
+        )
+
+
+@pytest.mark.asyncio
 async def test_expect_events_happy(
     kafka_fixture: KafkaFixture,  # noqa: F811
 ):
