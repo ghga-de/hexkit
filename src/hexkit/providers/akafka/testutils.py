@@ -302,6 +302,12 @@ class EventRecorder:
         consumer = self._get_consumer()
         await consumer.start()
 
+        # The number of events to consume is determined by the difference between the
+        # starting and final offsets. To avoid waiting for too many events (and thus
+        # waiting forever), seek_to_end so only events published inside the context of
+        # the event recorder are considered.
+        await consumer.seek_to_end()
+
         try:
             self._starting_offsets = await self._get_consumer_offsets(consumer=consumer)
         finally:
