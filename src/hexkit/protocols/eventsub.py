@@ -45,27 +45,47 @@ class EventSubscriberProtocol(ABC):
     topics_of_interest: list[Ascii]
     types_of_interest: list[Ascii]
 
-    async def consume(self, *, payload: JsonObject, type_: Ascii, topic: Ascii) -> None:
+    async def consume(
+        self,
+        *,
+        payload: JsonObject,
+        type_: Ascii,
+        topic: Ascii,
+        key: Ascii,
+    ) -> None:
         """Receive an event of interest and process it according to its type.
 
         Args:
-            payload (JsonObject): The data/payload to send with the event.
-            type_ (str): The type of the event.
-            topic (str): Name of the topic the event was published to.
+            payload: The data/payload to send with the event.
+            type_: The type of the event.
+            topic: Name of the topic the event was published to.
+            key: A key used for routing the event.
         """
         check_ascii(type_, topic)
-        await self._consume_validated(payload=payload, type_=type_, topic=topic)
+
+        if key:
+            check_ascii(key)
+
+        await self._consume_validated(
+            payload=payload, type_=type_, topic=topic, key=key
+        )
 
     @abstractmethod
     async def _consume_validated(
-        self, *, payload: JsonObject, type_: Ascii, topic: Ascii
+        self,
+        *,
+        payload: JsonObject,
+        type_: Ascii,
+        topic: Ascii,
+        key: Ascii,
     ) -> None:
         """
-        Receive and process an event with already validated topic and type.
+        Receive and process an event with already validated topic, type, and key.
 
         Args:
-            payload (JsonObject): The data/payload to send with the event.
-            type_ (str): The type of the event.
-            topic (str): Name of the topic the event was published to.
+            payload: The data/payload to send with the event.
+            type_: The type of the event.
+            topic: Name of the topic the event was published to.
+            key: A key used for routing the event.
         """
         ...

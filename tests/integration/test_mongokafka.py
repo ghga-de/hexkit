@@ -14,12 +14,16 @@
 # limitations under the License.
 #
 
-"""Test the mongokafka providers."""
+"""Test the DAO pub/sub functionality based on the mongokafka/kafka providers."""
+
+from typing import Optional
 
 import pytest
 from pydantic import BaseModel, ConfigDict
 
 from hexkit.protocols.dao import ResourceNotFoundError
+from hexkit.protocols.daosub import DaoSubscriberProtocol, DtoValidationError
+from hexkit.providers.akafka import KafkaOutboxSubscriber
 from hexkit.providers.akafka.testutils import (  # noqa: F401
     ExpectedEvent,
     KafkaFixture,
@@ -29,7 +33,7 @@ from hexkit.providers.mongodb.testutils import (  # noqa: F401
     MongoDbFixture,
     mongodb_fixture,
 )
-from hexkit.providers.mongokafka import MongoKafkaConfig, MongoKafkaDaoOutboxFactory
+from hexkit.providers.mongokafka import MongoKafkaConfig, MongoKafkaDaoPublisherFactory
 from hexkit.providers.mongokafka.provider import CHANGE_EVENT_TYPE, DELETE_EVENT_TYPE
 
 EXAMPLE_TOPIC = "example"
@@ -47,6 +51,28 @@ class ExampleDto(BaseModel):
     model_config = ConfigDict(frozen=True)
 
 
+class DummyOutboxSubscriber(DaoSubscriberProtocol[ExampleDto]):
+    """A dummy implementation of the `DaoSubscriberProtocol` for the `ExampleDto`."""
+
+    event_topic = EXAMPLE_TOPIC
+    dto_model = ExampleDto
+
+    def __init__(self):
+        """Initialize with a `received` attribute for inspecting events consumed.
+        It is a list of tuples, each containing the resource ID and, in case of a
+        change event, the dto.
+        """
+        self.received: list[tuple[str, Optional[ExampleDto]]] = []
+
+    async def changed(self, resource_id: str, update: ExampleDto) -> None:
+        """Consume change event (created or updated) for the given resource."""
+        self.received.append((resource_id, update))
+
+    async def deleted(self, resource_id: str) -> None:
+        """Consume event indicating the deletion of the given resource."""
+        self.received.append((resource_id, None))
+
+
 @pytest.mark.asyncio
 async def test_dao_outbox_happy(
     mongodb_fixture: MongoDbFixture,  # noqa: F811
@@ -57,7 +83,7 @@ async def test_dao_outbox_happy(
         **mongodb_fixture.config.model_dump(), **kafka_fixture.config.model_dump()
     )
 
-    async with MongoKafkaDaoOutboxFactory.construct(config=config) as factory:
+    async with MongoKafkaDaoPublisherFactory.construct(config=config) as factory:
         dao = await factory.get_dao(
             name="example",
             dto_model=ExampleDto,
@@ -179,7 +205,7 @@ async def test_delay_publishing(
         **mongodb_fixture.config.model_dump(), **kafka_fixture.config.model_dump()
     )
 
-    async with MongoKafkaDaoOutboxFactory.construct(config=config) as factory:
+    async with MongoKafkaDaoPublisherFactory.construct(config=config) as factory:
         dao = await factory.get_dao(
             name="example",
             dto_model=ExampleDto,
@@ -233,7 +259,7 @@ async def test_publishing_after_failure(
 
         return dto.model_dump()
 
-    async with MongoKafkaDaoOutboxFactory.construct(config=config) as factory:
+    async with MongoKafkaDaoPublisherFactory.construct(config=config) as factory:
         dao = await factory.get_dao(
             name="example",
             dto_model=ExampleDto,
@@ -272,7 +298,7 @@ async def test_republishing(
         **mongodb_fixture.config.model_dump(), **kafka_fixture.config.model_dump()
     )
 
-    async with MongoKafkaDaoOutboxFactory.construct(config=config) as factory:
+    async with MongoKafkaDaoPublisherFactory.construct(config=config) as factory:
         dao = await factory.get_dao(
             name="example",
             dto_model=ExampleDto,
@@ -301,3 +327,98 @@ async def test_republishing(
             in_topic=EXAMPLE_TOPIC,
         ):
             await dao.republish()
+
+
+@pytest.mark.asyncio
+async def test_dao_pub_sub_happy(
+    mongodb_fixture: MongoDbFixture,  # noqa: F811
+    kafka_fixture: KafkaFixture,  # noqa: F811
+):
+    """Test the happy path of transmitting resource changes or deletions between the
+    MongoKafkaOutboxFactory and the KafkaOutboxSubscriber.
+    """
+    config = MongoKafkaConfig(
+        **mongodb_fixture.config.model_dump(), **kafka_fixture.config.model_dump()
+    )
+
+    sub_translator = DummyOutboxSubscriber()
+
+    # publish some changes and deletions:
+    async with MongoKafkaDaoPublisherFactory.construct(config=config) as factory:
+        dao = await factory.get_dao(
+            name="example",
+            dto_model=ExampleDto,
+            id_field="id",
+            dto_to_event=lambda dto: dto.model_dump(),
+            event_topic=EXAMPLE_TOPIC,
+        )
+
+        # insert an example resource:
+        example = ExampleDto(id="test1", field_a="test1", field_b=27, field_c=True)
+
+        await dao.insert(example)
+        # update the resource:
+        example_update = example.model_copy(update={"field_c": False})
+        await dao.update(example_update)
+
+        # delete the resource again:
+        await dao.delete(id_=example.id)
+
+    expected_events = [
+        (example.id, example),
+        (example.id, example_update),
+        (example.id, None),
+    ]
+
+    # consume events:
+    async with KafkaOutboxSubscriber.construct(
+        config=config,
+        translators=[sub_translator],
+    ) as subscriber:
+        for _ in expected_events:
+            await subscriber.run(forever=False)
+
+    assert sub_translator.received == expected_events
+
+
+@pytest.mark.asyncio
+async def test_dao_pub_sub_invalid_dto(
+    mongodb_fixture: MongoDbFixture,  # noqa: F811
+    kafka_fixture: KafkaFixture,  # noqa: F811
+):
+    """Test that using the KafkaOutboxSubscriber to consume an event with an
+    unexpected payload raises a `DtoValidationError`.
+    """
+    config = MongoKafkaConfig(
+        **mongodb_fixture.config.model_dump(), **kafka_fixture.config.model_dump()
+    )
+
+    sub_translator = DummyOutboxSubscriber()
+
+    class ProducerDTO(BaseModel):
+        """producer DTO that differs from the DTO expected by the TestOutboxSubscriber"""
+
+        id: str
+        field_a: str
+
+    # publish some changes and deletions:
+    async with MongoKafkaDaoPublisherFactory.construct(config=config) as factory:
+        dao = await factory.get_dao(
+            name="example",
+            dto_model=ProducerDTO,
+            id_field="id",
+            dto_to_event=lambda dto: dto.model_dump(),
+            event_topic=EXAMPLE_TOPIC,
+        )
+
+        # insert an example resource:
+        example = ProducerDTO(id="test1", field_a="test1")
+        await dao.insert(example)
+
+    # consume events:
+    async with KafkaOutboxSubscriber.construct(
+        config=config,
+        translators=[sub_translator],
+    ) as subscriber:
+        with pytest.raises(DtoValidationError):
+            await subscriber.run(forever=False)

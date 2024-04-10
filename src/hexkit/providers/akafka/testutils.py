@@ -34,9 +34,9 @@ from kafka.errors import KafkaError
 from testcontainers.kafka import KafkaContainer
 
 from hexkit.custom_types import Ascii, JsonObject, PytestScope
+from hexkit.providers.akafka import KafkaConfig
 from hexkit.providers.akafka.provider import (
     ConsumerEvent,
-    KafkaConfig,
     KafkaEventPublisher,
     get_header_value,
     headers_as_dict,
