@@ -20,6 +20,7 @@ import random
 from collections import namedtuple
 from contextlib import nullcontext
 from contextvars import ContextVar
+from typing import Optional
 from unittest.mock import AsyncMock, Mock
 
 import pytest
@@ -35,29 +36,15 @@ from hexkit.correlation import (
 from hexkit.custom_types import Ascii, JsonObject
 from hexkit.protocols.eventsub import EventSubscriberProtocol
 from hexkit.providers.akafka import KafkaConfig, KafkaEventSubscriber
-from hexkit.providers.akafka.testutils import (
-    KafkaFixture,
-    get_kafka_fixture,
-)
+from hexkit.providers.akafka.testutils import KafkaFixture
 from hexkit.utils import set_context_var
 
-kafka_fixture = get_kafka_fixture(scope="module")
+pytestmark = pytest.mark.asyncio(scope="session")
+
 # Set seed to avoid non-deterministic outcomes with random.random()
 random.seed(17)
 
 VALID_CORRELATION_ID = "7041eb31-7333-4b57-97d7-90f5562c3383"
-
-
-@pytest.fixture
-def reset_kafka(kafka_fixture: KafkaFixture):
-    """Reset the kafka fixture.
-
-    Delete all topics in setup in case something was left in from a previous test case.
-    Delete all topics in teardown to clean up after given test case.
-    """
-    kafka_fixture.clear_topics()
-    yield
-    kafka_fixture.clear_topics()
 
 
 async def set_id_sleep_resume(correlation_id: str):
@@ -83,7 +70,6 @@ async def set_id_sleep_resume(correlation_id: str):
         correlation_id_var.reset(token)
 
 
-@pytest.mark.asyncio
 async def test_correlation_id_isolation():
     """Make sure correlation IDs are isolated to the respective async task and that
     there's no interference from task switching.
@@ -100,8 +86,9 @@ async def test_correlation_id_isolation():
         (VALID_CORRELATION_ID, None),
     ],
 )
-@pytest.mark.asyncio
-async def test_correlation_id_validation(correlation_id: str, exception):
+async def test_correlation_id_validation(
+    correlation_id: str, exception: Optional[type[Exception]]
+):
     """Ensure an error is raised when correlation ID validation fails."""
     with pytest.raises(exception) if exception else nullcontext():
         validate_correlation_id(correlation_id)
@@ -115,8 +102,9 @@ async def test_correlation_id_validation(correlation_id: str, exception):
         (VALID_CORRELATION_ID, None),
     ],
 )
-@pytest.mark.asyncio
-async def test_set_correlation_id(correlation_id: str, exception):
+async def test_set_correlation_id(
+    correlation_id: str, exception: Optional[type[Exception]]
+):
     """Ensure correct error is raised when passing an invalid or empty string to
     `set_correlation_id`.
     """
@@ -133,8 +121,9 @@ async def test_set_correlation_id(correlation_id: str, exception):
         (VALID_CORRELATION_ID, None),
     ],
 )
-@pytest.mark.asyncio
-async def test_get_correlation_id(correlation_id: str, exception):
+async def test_get_correlation_id(
+    correlation_id: str, exception: Optional[type[Exception]]
+):
     """Ensure an error is raised when calling `get_correlation_id` for an empty id or
     invalid ID.
     """
@@ -143,7 +132,6 @@ async def test_get_correlation_id(correlation_id: str, exception):
             get_correlation_id()
 
 
-@pytest.mark.asyncio
 async def test_context_var_setter():
     """Make sure `set_context_var()` properly resets the context var after use."""
     default = "default"
@@ -178,7 +166,6 @@ async def test_context_var_setter():
         ("", False, None),
     ],
 )
-@pytest.mark.asyncio
 async def test_correlation_consuming(
     expected_correlation_id: str,
     cid_in_header: bool,
@@ -283,24 +270,22 @@ async def test_correlation_consuming(
         "no_id_with_generate_flag",
     ],
 )
-@pytest.mark.asyncio(scope="module")
 async def test_correlation_publishing(
-    kafka_fixture: KafkaFixture,
-    reset_kafka,
+    kafka: KafkaFixture,
     correlation_id: str,
     generate_correlation_id: bool,
-    expected_exception,
+    expected_exception: Optional[type[Exception]],
 ):
     """Test situations with event publishing using the correlation ID."""
     # Update configuration of publishing provider (KafkaEventPublisher).
-    kafka_fixture.publisher._generate_correlation_id = generate_correlation_id
-    assert kafka_fixture.publisher._generate_correlation_id == generate_correlation_id
+    kafka.publisher._generate_correlation_id = generate_correlation_id
+    assert kafka.publisher._generate_correlation_id == generate_correlation_id
 
     async with set_context_var(correlation_id_var, correlation_id):
         with pytest.raises(expected_exception) if expected_exception else nullcontext():
-            await kafka_fixture.publish_event(
+            await kafka.publish_event(
                 payload={},
                 type_="test_type",
-                topic="test_topic",
+                topic="test_topic2",
                 key="test_key",
             )

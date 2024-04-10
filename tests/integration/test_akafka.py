@@ -23,7 +23,8 @@ from unittest.mock import AsyncMock
 
 import pytest
 from aiokafka import AIOKafkaConsumer
-from kafka import KafkaAdminClient, TopicPartition
+from aiokafka.admin import AIOKafkaAdminClient
+from aiokafka.structs import TopicPartition
 from pydantic import SecretStr
 
 from hexkit.custom_types import Ascii, JsonObject
@@ -34,17 +35,14 @@ from hexkit.providers.akafka import (
     KafkaEventSubscriber,
 )
 from hexkit.providers.akafka.testcontainer import KafkaSSLContainer
-from hexkit.providers.akafka.testutils import (  # noqa: F401
-    ExpectedEvent,
-    KafkaFixture,
-    kafka_fixture,
-)
+from hexkit.providers.akafka.testutils import ExpectedEvent, KafkaFixture
 
 from ..fixtures.kafka_secrets import KafkaSecrets
 
+pytestmark = pytest.mark.asyncio(scope="session")
 
-@pytest.mark.asyncio
-async def test_kafka_event_publisher(kafka_fixture: KafkaFixture):  # noqa: F811
+
+async def test_kafka_event_publisher(kafka: KafkaFixture):
     """Test the KafkaEventPublisher."""
     payload: JsonObject = {"test_content": "Hello World"}
     type_ = "test_type"
@@ -54,10 +52,10 @@ async def test_kafka_event_publisher(kafka_fixture: KafkaFixture):  # noqa: F811
     config = KafkaConfig(
         service_name="test_publisher",
         service_instance_id="1",
-        kafka_servers=kafka_fixture.kafka_servers,
+        kafka_servers=kafka.kafka_servers,
     )
 
-    async with kafka_fixture.expect_events(
+    async with kafka.expect_events(
         events=[ExpectedEvent(payload=payload, type_=type_, key=key)],
         in_topic=topic,
     ):
@@ -70,8 +68,7 @@ async def test_kafka_event_publisher(kafka_fixture: KafkaFixture):  # noqa: F811
             )
 
 
-@pytest.mark.asyncio
-async def test_kafka_event_subscriber(kafka_fixture: KafkaFixture):  # noqa: F811
+async def test_kafka_event_subscriber(kafka: KafkaFixture):
     """Test the KafkaEventSubscriber with mocked EventSubscriber."""
     payload = {"test_content": "Hello World"}
     type_ = "test_type"
@@ -84,15 +81,13 @@ async def test_kafka_event_subscriber(kafka_fixture: KafkaFixture):  # noqa: F81
     translator.types_of_interest = [type_]
 
     # publish one event:
-    await kafka_fixture.publish_event(
-        topic=topic, payload=payload, key=key, type_=type_
-    )
+    await kafka.publish_event(topic=topic, payload=payload, key=key, type_=type_)
 
     # setup the provider:
     config = KafkaConfig(
         service_name="event_subscriber",
         service_instance_id="1",
-        kafka_servers=kafka_fixture.kafka_servers,
+        kafka_servers=kafka.kafka_servers,
     )
     async with KafkaEventSubscriber.construct(
         config=config,
@@ -107,7 +102,6 @@ async def test_kafka_event_subscriber(kafka_fixture: KafkaFixture):  # noqa: F81
     )
 
 
-@pytest.mark.asyncio
 async def test_kafka_ssl(tmp_path: Path):
     """Test connecting to Kafka via SSL (TLS)."""
     hostname = environ.get("TC_HOST") or "localhost"
@@ -169,8 +163,7 @@ async def test_kafka_ssl(tmp_path: Path):
         )
 
 
-@pytest.mark.asyncio
-async def test_consumer_commit_mode(kafka_fixture: KafkaFixture):  # noqa: F811
+async def test_consumer_commit_mode(kafka: KafkaFixture):
     """Verify the consumer implementation behavior matches expectations."""
     type_ = "test_type"
     topic = "test_topic"
@@ -180,14 +173,14 @@ async def test_consumer_commit_mode(kafka_fixture: KafkaFixture):  # noqa: F811
     error_message = "Consumer crashed successfully."
 
     async def crash(*, payload: JsonObject, type_: Ascii, topic: Ascii, key: Ascii):
-        """Drop in replacement for patch testing consume."""
+        """Drop-in replacement for patch testing the consume method."""
         raise ValueError(error_message)
 
     # prepare subscriber
     config = KafkaConfig(
         service_name="test_subscriber",
         service_instance_id="1",
-        kafka_servers=kafka_fixture.kafka_servers,
+        kafka_servers=kafka.kafka_servers,
     )
 
     # Everything that matters happens in the consumer, no proper subscriber is needed
@@ -195,9 +188,7 @@ async def test_consumer_commit_mode(kafka_fixture: KafkaFixture):  # noqa: F811
     translator.topics_of_interest = [topic]
     translator.types_of_interest = [type_]
 
-    await kafka_fixture.publish_event(
-        payload={"test_msg": "msg1"}, type_=type_, topic=topic
-    )
+    await kafka.publish_event(payload={"test_msg": "msg1"}, type_=type_, topic=topic)
 
     # save original for patching
     consume_function = translator.consume
@@ -216,7 +207,7 @@ async def test_consumer_commit_mode(kafka_fixture: KafkaFixture):  # noqa: F811
 
         # assert event was not committed
         consumer_offset = await consumer.committed(partition=partition)
-        assert consumer_offset == None
+        assert consumer_offset is None
 
     async with KafkaEventSubscriber.construct(
         config=config,
@@ -225,21 +216,35 @@ async def test_consumer_commit_mode(kafka_fixture: KafkaFixture):  # noqa: F811
         # provide correct type information
         consumer = cast(AIOKafkaConsumer, event_subscriber._consumer)
 
+        # check that there was no prior commit
+        consumer_offset = await consumer.committed(partition=partition)
+        assert consumer_offset is None
+
         # successfully consume one event:
         translator.consume = consume_function
         await event_subscriber.run(forever=False)
 
-        # check if the event was committed successfully
+        # check that the event was committed successfully
         consumer_offset = await consumer.committed(partition=partition)
-        assert consumer_offset == 1
+        assert consumer_offset is not None
 
-    # get a broker client to check, if the commit has been propagated successfully
-    client = KafkaAdminClient(bootstrap_servers=kafka_fixture.kafka_servers[0])
+        # publish and consume another event
+        await kafka.publish_event(
+            payload={"test_msg": "msg2"}, type_=type_, topic=topic
+        )
+        await event_subscriber.run(forever=False)
+        consumer_offset += 1
 
-    assert topic in client.list_topics()
-    broker_offsets = client.list_consumer_group_offsets(
+        assert await consumer.committed(partition=partition) == consumer_offset
+
+    # get a broker client to check that the commit has been propagated successfully
+    client = AIOKafkaAdminClient(bootstrap_servers=kafka.kafka_servers[0])
+    await client.start()
+
+    assert topic in await client.list_topics()
+    broker_offsets = await client.list_consumer_group_offsets(
         group_id=config.service_name, partitions=[partition]
     )
     assert broker_offsets[partition].offset == consumer_offset
 
-    client.close()
+    await client.close()

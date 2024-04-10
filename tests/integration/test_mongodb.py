@@ -30,10 +30,9 @@ from hexkit.protocols.dao import (
     NoHitsFoundError,
     ResourceNotFoundError,
 )
-from hexkit.providers.mongodb.testutils import (  # noqa: F401
-    MongoDbFixture,
-    mongodb_fixture,
-)
+from hexkit.providers.mongodb.testutils import MongoDbFixture
+
+pytestmark = pytest.mark.asyncio(scope="session")
 
 
 class ExampleCreationDto(BaseModel):
@@ -52,10 +51,9 @@ class ExampleDto(ExampleCreationDto):
     id: str
 
 
-@pytest.mark.asyncio
-async def test_dao_find_all_with_id(mongodb_fixture: MongoDbFixture):  # noqa: F811
+async def test_dao_find_all_with_id(mongodb: MongoDbFixture):
     """Test using the id field as part of the mapping in find_all()"""
-    dao = await mongodb_fixture.dao_factory.get_dao(
+    dao = await mongodb.dao_factory.get_dao(
         name="example",
         dto_model=ExampleDto,
         dto_creation_model=ExampleCreationDto,
@@ -105,12 +103,9 @@ async def test_dao_find_all_with_id(mongodb_fixture: MongoDbFixture):  # noqa: F
     assert result == resource_inserted
 
 
-@pytest.mark.asyncio
-async def test_dao_find_all_without_collection(
-    mongodb_fixture: MongoDbFixture,  # noqa: F811
-):
+async def test_dao_find_all_without_collection(mongodb: MongoDbFixture):
     """Test calling find_all() when there is no collection."""
-    dao = await mongodb_fixture.dao_factory.get_dao(
+    dao = await mongodb.dao_factory.get_dao(
         name="does-not-exist-at-all",
         dto_model=ExampleDto,
         id_field="id",
@@ -124,24 +119,22 @@ async def test_dao_find_all_without_collection(
     assert len(resources_read) == 0
 
 
-@pytest.mark.asyncio
-async def test_empty_collections(mongodb_fixture: MongoDbFixture):  # noqa: F811
+async def test_empty_collections(mongodb: MongoDbFixture):
     """Make sure mongo reset function works"""
-    db = mongodb_fixture.client[mongodb_fixture.config.db_name]
+    db = mongodb.client[mongodb.config.db_name]
     db.create_collection("test1")
     db.create_collection("test2")
     assert len(db.list_collection_names()) == 2
 
-    mongodb_fixture.empty_collections(exclude_collections=["test1"])
+    mongodb.empty_collections(exclude_collections=["test1"])
     assert db.list_collection_names() == ["test1"]
 
 
-@pytest.mark.asyncio
-async def test_dao_happy(mongodb_fixture: MongoDbFixture):  # noqa: F811
+async def test_dao_happy(mongodb: MongoDbFixture):
     """Test the happy path of performing basic CRUD database interactions using
     the MongoDbDaoFactory in a surrograte ID setting.
     """
-    dao = await mongodb_fixture.dao_factory.get_dao(
+    dao = await mongodb.dao_factory.get_dao(
         name="example",
         dto_model=ExampleDto,
         dto_creation_model=ExampleCreationDto,
@@ -201,12 +194,9 @@ async def test_dao_happy(mongodb_fixture: MongoDbFixture):  # noqa: F811
         _ = await dao.get_by_id(resource_inserted.id)
 
 
-@pytest.mark.asyncio
-async def test_dao_insert_natural_id_happy(
-    mongodb_fixture: MongoDbFixture,  # noqa: F811
-):
+async def test_dao_insert_natural_id_happy(mongodb: MongoDbFixture):
     """Tests the happy path of inserting a new resource in a natural ID setting."""
-    dao = await mongodb_fixture.dao_factory.get_dao(
+    dao = await mongodb.dao_factory.get_dao(
         name="example",
         dto_model=ExampleDto,
         id_field="id",
@@ -220,14 +210,11 @@ async def test_dao_insert_natural_id_happy(
     assert resource == resource_observed
 
 
-@pytest.mark.asyncio
-async def test_dao_upsert_natural_id_happy(
-    mongodb_fixture: MongoDbFixture,  # noqa: F811
-):
+async def test_dao_upsert_natural_id_happy(mongodb: MongoDbFixture):
     """Tests the happy path of upserting new and existing resources in a natural ID
     setting.
     """
-    dao = await mongodb_fixture.dao_factory.get_dao(
+    dao = await mongodb.dao_factory.get_dao(
         name="example",
         dto_model=ExampleDto,
         id_field="id",
@@ -249,12 +236,9 @@ async def test_dao_upsert_natural_id_happy(
     assert resource_update == resource_update_observed
 
 
-@pytest.mark.asyncio
-async def test_dao_get_not_found(
-    mongodb_fixture: MongoDbFixture,  # noqa: F811
-):
+async def test_dao_get_not_found(mongodb: MongoDbFixture):
     """Tests getting a non existing resource via its ID."""
-    dao = await mongodb_fixture.dao_factory.get_dao(
+    dao = await mongodb.dao_factory.get_dao(
         name="example",
         dto_model=ExampleDto,
         id_field="id",
@@ -264,12 +248,9 @@ async def test_dao_get_not_found(
         _ = await dao.get_by_id("my_non_existing_id_001")
 
 
-@pytest.mark.asyncio
-async def test_dao_update_not_found(
-    mongodb_fixture: MongoDbFixture,  # noqa: F811
-):
+async def test_dao_update_not_found(mongodb: MongoDbFixture):
     """Tests updating a non existing resource."""
-    dao = await mongodb_fixture.dao_factory.get_dao(
+    dao = await mongodb.dao_factory.get_dao(
         name="example",
         dto_model=ExampleDto,
         id_field="id",
@@ -283,12 +264,9 @@ async def test_dao_update_not_found(
         await dao.update(resource)
 
 
-@pytest.mark.asyncio
-async def test_dao_delete_not_found(
-    mongodb_fixture: MongoDbFixture,  # noqa: F811
-):
+async def test_dao_delete_not_found(mongodb: MongoDbFixture):
     """Tests deleting a non existing resource via its ID."""
-    dao = await mongodb_fixture.dao_factory.get_dao(
+    dao = await mongodb.dao_factory.get_dao(
         name="example",
         dto_model=ExampleDto,
         id_field="id",
@@ -298,12 +276,9 @@ async def test_dao_delete_not_found(
         await dao.delete(id_="my_non_existing_id_001")
 
 
-@pytest.mark.asyncio
-async def test_dao_find_invalid_mapping(
-    mongodb_fixture: MongoDbFixture,  # noqa: F811
-):
+async def test_dao_find_invalid_mapping(mongodb: MongoDbFixture):
     """Tests find_one and find_all methods with an invalid mapping."""
-    dao = await mongodb_fixture.dao_factory.get_dao(
+    dao = await mongodb.dao_factory.get_dao(
         name="example",
         dto_model=ExampleDto,
         id_field="id",
@@ -317,12 +292,9 @@ async def test_dao_find_invalid_mapping(
         _ = [hit async for hit in dao.find_all(mapping=mapping)]
 
 
-@pytest.mark.asyncio
-async def test_dao_find_no_hits(
-    mongodb_fixture: MongoDbFixture,  # noqa: F811
-):
+async def test_dao_find_no_hits(mongodb: MongoDbFixture):
     """Tests find_one and find_all methods with a mapping that results in no hits."""
-    dao = await mongodb_fixture.dao_factory.get_dao(
+    dao = await mongodb.dao_factory.get_dao(
         name="example",
         dto_model=ExampleDto,
         id_field="id",
@@ -336,12 +308,9 @@ async def test_dao_find_no_hits(
     assert len(resources) == 0
 
 
-@pytest.mark.asyncio
-async def test_dao_find_one_with_multiple_hits(
-    mongodb_fixture: MongoDbFixture,  # noqa: F811
-):
+async def test_dao_find_one_with_multiple_hits(mongodb: MongoDbFixture):
     """Tests find_one with a mapping that results in multiple hits."""
-    dao = await mongodb_fixture.dao_factory.get_dao(
+    dao = await mongodb.dao_factory.get_dao(
         name="example",
         dto_model=ExampleDto,
         dto_creation_model=ExampleCreationDto,
@@ -358,10 +327,7 @@ async def test_dao_find_one_with_multiple_hits(
         _ = await dao.find_one(mapping={"field_b": 27})
 
 
-@pytest.mark.asyncio
-async def test_custom_id_generator(
-    mongodb_fixture: MongoDbFixture,  # noqa: F811
-):
+async def test_custom_id_generator(mongodb: MongoDbFixture):
     """Tests find_one with a mapping that results in multiple hits."""
 
     # define a custom generator:
@@ -381,7 +347,7 @@ async def test_custom_id_generator(
     )
 
     # use that custom generator for inserting 3 resources:
-    dao = await mongodb_fixture.dao_factory.get_dao(
+    dao = await mongodb.dao_factory.get_dao(
         name="example",
         dto_model=ExampleDto,
         dto_creation_model=ExampleCreationDto,
@@ -395,8 +361,7 @@ async def test_custom_id_generator(
         assert resource_inserted.id == f"{prefix}-{count_offset+count}"
 
 
-@pytest.mark.asyncio
-async def test_complex_models(mongodb_fixture: MongoDbFixture):  # noqa: F811
+async def test_complex_models(mongodb: MongoDbFixture):
     """Tests whether complex pydantic models are correctly saved and retrieved."""
 
     # a complex model:
@@ -407,7 +372,7 @@ async def test_complex_models(mongodb_fixture: MongoDbFixture):  # noqa: F811
         some_path: Path
         some_nested_data: ExampleDto
 
-    dao = await mongodb_fixture.dao_factory.get_dao(
+    dao = await mongodb.dao_factory.get_dao(
         name="example",
         dto_model=ComplexModel,
         id_field="id",

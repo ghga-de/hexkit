@@ -34,8 +34,9 @@ from hexkit.providers.akafka.testutils import (
     KafkaFixture,
     RecordedEvent,
     ValidationError,
-    kafka_fixture,  # noqa: F401
 )
+
+pytestmark = pytest.mark.asyncio(scope="session")
 
 TEST_TYPE = "test_type"
 
@@ -61,25 +62,24 @@ class DummyTranslator(EventSubscriberProtocol):
         self.consumed[topic].append(payload)
 
 
-@pytest.mark.asyncio
-async def test_clear_topics_specific(kafka_fixture: KafkaFixture):  # noqa: F811
+async def test_clear_topics_specific(kafka: KafkaFixture):
     """Make sure the reset function works"""
     topic_to_keep = "keep_topic"
     topic_to_clear = "clear_topic"
     partition_keep = TopicPartition(topic_to_keep, 0)
     partition_clear = TopicPartition(topic_to_clear, 0)
 
-    await kafka_fixture.publish_event(
+    await kafka.publish_event(
         payload=make_payload("clear1"), type_=TEST_TYPE, topic=topic_to_clear
     )
-    await kafka_fixture.publish_event(
+    await kafka.publish_event(
         payload=make_payload("keep1"), type_=TEST_TYPE, topic=topic_to_keep
     )
 
     consumer = KafkaConsumer(
         topic_to_keep,
         topic_to_clear,
-        bootstrap_servers=kafka_fixture.kafka_servers[0],
+        bootstrap_servers=kafka.kafka_servers[0],
         group_id="test",
         auto_offset_reset="earliest",
         enable_auto_commit=True,
@@ -101,17 +101,17 @@ async def test_clear_topics_specific(kafka_fixture: KafkaFixture):  # noqa: F811
 
     # Publish new messages, one to CLEAR and one to KEEP
     clear_payload2 = make_payload(topic_to_clear + "2")
-    await kafka_fixture.publish_event(
+    await kafka.publish_event(
         payload=clear_payload2, type_=TEST_TYPE, topic=topic_to_clear
     )
 
     keep_payload2 = make_payload(topic_to_keep + "2")
-    await kafka_fixture.publish_event(
+    await kafka.publish_event(
         payload=keep_payload2, type_=TEST_TYPE, topic=topic_to_keep
     )
 
     # Clear the CLEAR topic
-    kafka_fixture.clear_topics(topics=topic_to_clear)
+    await kafka.clear_topics(topics=topic_to_clear)
 
     # make sure the KEEP topic still has its event but CLEAR is empty
     records = list(consumer)
@@ -124,12 +124,12 @@ async def test_clear_topics_specific(kafka_fixture: KafkaFixture):  # noqa: F811
     assert consumer.position(partition_keep) == consumer.highwater(partition_keep)
 
     clear_payload3 = make_payload(topic_to_clear + "3")
-    await kafka_fixture.publish_event(
+    await kafka.publish_event(
         payload=clear_payload3, type_=TEST_TYPE, topic=topic_to_clear
     )
 
     keep_payload3 = make_payload(topic_to_keep + "3")
-    await kafka_fixture.publish_event(
+    await kafka.publish_event(
         payload=keep_payload3, type_=TEST_TYPE, topic=topic_to_keep
     )
 
@@ -144,36 +144,35 @@ async def test_clear_topics_specific(kafka_fixture: KafkaFixture):  # noqa: F811
     consumer.close()
 
 
-@pytest.mark.asyncio
-async def test_clear_all_topics(kafka_fixture: KafkaFixture):  # noqa: F811
+async def test_clear_all_topics(kafka: KafkaFixture):
     """Test clearing all topics with the kafka fixture's `clear_topics` function."""
     topic1 = "topic1"
     topic2 = "topic2"
 
-    await kafka_fixture.publish_event(
+    await kafka.publish_event(
         payload=make_payload("topic1_msg1"), type_=TEST_TYPE, topic=topic1
     )
-    await kafka_fixture.publish_event(
+    await kafka.publish_event(
         payload=make_payload("topic2_msg1"), type_=TEST_TYPE, topic=topic2
     )
 
     # clear the above two topics
-    kafka_fixture.clear_topics()
+    await kafka.clear_topics()
 
     test_translator = DummyTranslator([topic1, topic2])
     async with KafkaEventSubscriber.construct(
         config=KafkaConfig(
             service_name="test_service",
             service_instance_id="1",
-            kafka_servers=kafka_fixture.kafka_servers,
+            kafka_servers=kafka.kafka_servers,
         ),
         translator=test_translator,
     ) as subscriber:
         # publish two new events
-        await kafka_fixture.publish_event(
+        await kafka.publish_event(
             payload=make_payload("topic1_msg2"), type_=TEST_TYPE, topic=topic1
         )
-        await kafka_fixture.publish_event(
+        await kafka.publish_event(
             payload=make_payload("topic2_msg2"), type_=TEST_TYPE, topic=topic2
         )
 
@@ -190,7 +189,6 @@ async def test_clear_all_topics(kafka_fixture: KafkaFixture):  # noqa: F811
         assert topic2_events[0] == make_payload("topic2_msg2")
 
 
-@pytest.mark.asyncio
 @pytest.mark.parametrize(
     "events_to_publish",
     (
@@ -206,8 +204,7 @@ async def test_clear_all_topics(kafka_fixture: KafkaFixture):  # noqa: F811
     ),
 )
 async def test_event_recorder(
-    events_to_publish: Sequence[RecordedEvent],
-    kafka_fixture: KafkaFixture,  # noqa: F811
+    events_to_publish: Sequence[RecordedEvent], kafka: KafkaFixture
 ):
     """Test event recording using the EventRecorder class."""
     topic = "test_topic"
@@ -215,10 +212,10 @@ async def test_event_recorder(
     config = KafkaConfig(
         service_name="test_publisher",
         service_instance_id="1",
-        kafka_servers=kafka_fixture.kafka_servers,
+        kafka_servers=kafka.kafka_servers,
     )
 
-    async with kafka_fixture.record_events(in_topic=topic) as recorder:
+    async with kafka.record_events(in_topic=topic) as recorder:
         async with KafkaEventPublisher.construct(config=config) as event_publisher:
             for event in events_to_publish:
                 await event_publisher.publish(
@@ -231,8 +228,7 @@ async def test_event_recorder(
     assert recorder.recorded_events == events_to_publish
 
 
-@pytest.mark.asyncio
-async def test_clear_topics_with_recorder(kafka_fixture: KafkaFixture):  # noqa: F811
+async def test_clear_topics_with_recorder(kafka: KafkaFixture):
     """Test the behavior of the event recorder is not affected by clear_topics().
 
     For context: `clear_topics()` does not wipe out topic offsets. That has no impact on
@@ -248,34 +244,25 @@ async def test_clear_topics_with_recorder(kafka_fixture: KafkaFixture):  # noqa:
     key: Ascii = "test_key"
 
     # Trigger creation of the consumer and consume an event to establish consumer offsets.
-    async with kafka_fixture.record_events(in_topic=topic):
-        await kafka_fixture.publish_event(
-            payload=payload, topic=topic, type_=type_, key=key
-        )
+    async with kafka.record_events(in_topic=topic):
+        await kafka.publish_event(payload=payload, topic=topic, type_=type_, key=key)
 
     # Publish some events that don't get consumed in order to push out the
     # topic's log end offset
     for _ in range(5):
-        await kafka_fixture.publish_event(
-            payload=payload, topic=topic, type_=type_, key=key
-        )
+        await kafka.publish_event(payload=payload, topic=topic, type_=type_, key=key)
 
     # Clear all records from the topic (leaving offsets intact)
-    kafka_fixture.clear_topics()
+    await kafka.clear_topics()
 
     # Use the event recorder again. The consumer should skip to the end of the topic
     # before yielding control, thus avoiding the problem of trying to consume events
     # that don't exist. pre-fix would have expected 6 events rather than 1.
-    async with kafka_fixture.record_events(in_topic=topic):
-        await kafka_fixture.publish_event(
-            payload=payload, topic=topic, type_=type_, key=key
-        )
+    async with kafka.record_events(in_topic=topic):
+        await kafka.publish_event(payload=payload, topic=topic, type_=type_, key=key)
 
 
-@pytest.mark.asyncio
-async def test_expect_events_happy(
-    kafka_fixture: KafkaFixture,  # noqa: F811
-):
+async def test_expect_events_happy(kafka: KafkaFixture):
     """Test successful validation of recorded events with the expect_events method of
     the KafkaFixture.
     """
@@ -298,10 +285,10 @@ async def test_expect_events_happy(
     config = KafkaConfig(
         service_name="test_publisher",
         service_instance_id="1",
-        kafka_servers=kafka_fixture.kafka_servers,
+        kafka_servers=kafka.kafka_servers,
     )
 
-    async with kafka_fixture.expect_events(events=expected_events, in_topic=topic):
+    async with kafka.expect_events(events=expected_events, in_topic=topic):
         async with KafkaEventPublisher.construct(config=config) as event_publisher:
             for event in events_to_publish:
                 await event_publisher.publish(
@@ -312,7 +299,6 @@ async def test_expect_events_happy(
                 )
 
 
-@pytest.mark.asyncio
 @pytest.mark.parametrize(
     "events_to_publish",
     [
@@ -375,8 +361,7 @@ async def test_expect_events_happy(
     ],
 )
 async def test_expect_events_mismatch(
-    events_to_publish: Sequence[RecordedEvent],
-    kafka_fixture: KafkaFixture,  # noqa: F811
+    events_to_publish: Sequence[RecordedEvent], kafka: KafkaFixture
 ):
     """Test the handling of mismatches between recorded and expected events using the
     expect_events method of the KafkaFixture.
@@ -396,10 +381,10 @@ async def test_expect_events_mismatch(
     config = KafkaConfig(
         service_name="test_publisher",
         service_instance_id="1",
-        kafka_servers=kafka_fixture.kafka_servers,
+        kafka_servers=kafka.kafka_servers,
     )
 
-    event_recorder = kafka_fixture.expect_events(
+    event_recorder = kafka.expect_events(
         events=expected_events,
         in_topic=topic,
     )
