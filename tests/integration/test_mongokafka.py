@@ -51,8 +51,8 @@ class ExampleDto(BaseModel):
     model_config = ConfigDict(frozen=True)
 
 
-class TestOutboxSubscriber(DaoSubscriberProtocol[ExampleDto]):
-    """A test implementation of the `DaoSubscriberProtocol` for the `ExampleDto`."""
+class DummyOutboxSubscriber(DaoSubscriberProtocol[ExampleDto]):
+    """A dummy implementation of the `DaoSubscriberProtocol` for the `ExampleDto`."""
 
     event_topic = EXAMPLE_TOPIC
     dto_model = ExampleDto
@@ -65,13 +65,11 @@ class TestOutboxSubscriber(DaoSubscriberProtocol[ExampleDto]):
         self.received: list[tuple[str, Optional[ExampleDto]]] = []
 
     async def changed(self, resource_id: str, update: ExampleDto) -> None:
-        """Consume a change event (created or updated) for the resource with the given
-        ID.
-        """
+        """Consume change event (created or updated) for the given resource."""
         self.received.append((resource_id, update))
 
     async def deleted(self, resource_id: str) -> None:
-        """Consume an event indicating the deletion of the resource with the given ID."""
+        """Consume event indicating the deletion of the given resource."""
         self.received.append((resource_id, None))
 
 
@@ -343,7 +341,7 @@ async def test_dao_pub_sub_happy(
         **mongodb_fixture.config.model_dump(), **kafka_fixture.config.model_dump()
     )
 
-    sub_translator = TestOutboxSubscriber()
+    sub_translator = DummyOutboxSubscriber()
 
     # publish some changes and deletions:
     async with MongoKafkaDaoPublisherFactory.construct(config=config) as factory:
@@ -363,6 +361,7 @@ async def test_dao_pub_sub_happy(
         example_update = example.model_copy(update={"field_c": False})
         await dao.update(example_update)
 
+        # delete the resource again:
         await dao.delete(id_=example.id)
 
     expected_events = [
@@ -394,7 +393,7 @@ async def test_dao_pub_sub_invalid_dto(
         **mongodb_fixture.config.model_dump(), **kafka_fixture.config.model_dump()
     )
 
-    sub_translator = TestOutboxSubscriber()
+    sub_translator = DummyOutboxSubscriber()
 
     class ProducerDTO(BaseModel):
         """producer DTO that differs from the DTO expected by the TestOutboxSubscriber"""
