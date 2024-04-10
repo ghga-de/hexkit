@@ -34,7 +34,7 @@ from hexkit.protocols.dao import (
 )
 
 
-class DaoOutbox(DaoNaturalId[Dto], typing.Protocol[Dto]):
+class DaoPublisher(DaoNaturalId[Dto], typing.Protocol[Dto]):
     """A Data Access Object (DAO) that automatically publishes changes according to the
     outbox pattern.
     """
@@ -50,7 +50,7 @@ class DaoOutbox(DaoNaturalId[Dto], typing.Protocol[Dto]):
         ...
 
 
-class DaoOutboxFactoryProtocol(DaoFactoryBase, ABC):
+class DaoPublisherFactoryProtocol(DaoFactoryBase, ABC):
     """A protocol describing a factory to produce Data Access Objects (DAO) objects
     which automatically publish changes according to the outbox pattern.
     """
@@ -65,7 +65,7 @@ class DaoOutboxFactoryProtocol(DaoFactoryBase, ABC):
         dto_to_event: Callable[[Dto], JsonObject],
         event_topic: str,
         autopublish: bool = True,
-    ) -> DaoOutbox[Dto]:
+    ) -> DaoPublisher[Dto]:
         """Constructs an Outbox DAO for interacting with resources in a database.
 
         Args:
@@ -88,7 +88,7 @@ class DaoOutboxFactoryProtocol(DaoFactoryBase, ABC):
                 Whether to automatically publish changes. Defaults to True.
 
         Returns:
-            A DAO of type DaoOutbox, which requires ID specification upon resource
+            A DAO of type DaoPublisher, which requires ID specification upon resource
             creation.
 
         Raises:
@@ -123,7 +123,7 @@ class DaoOutboxFactoryProtocol(DaoFactoryBase, ABC):
         dto_to_event: Callable[[Dto], JsonObject],
         event_topic: str,
         autopublish: bool,
-    ) -> DaoOutbox[Dto]:
+    ) -> DaoPublisher[Dto]:
         """*To be implemented by the provider. Input validation is done outside of this
         method.*
         """
