@@ -343,8 +343,6 @@ filelock==3.13.4 \
     # via
     #   tox
     #   virtualenv
-func-timeout==4.3.5 \
-    --hash=sha256:74cd3c428ec94f4edfba81f9b2f14904846d5ffccc27c92433b8b5939b5575dd
 gprof2dot==2022.7.29 \
     --hash=sha256:45b4d298bd36608fccf9511c3fd88a773f7a1abc04d6cd39445b11ba43133ec5 \
     --hash=sha256:f165b3851d3c52ee4915eb1bd6cca571e5759823c2cd0f71a79bda93c2dc85d6

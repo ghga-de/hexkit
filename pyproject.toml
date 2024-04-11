@@ -182,4 +182,4 @@ source = [
 ]
 
 [tool.tox]
-legacy_tox_ini = "    [tox]\n    min_version = 4.0\n    env_list =\n        py39\n        py311\n\n    [testenv]\n    pass_env=\n        TC_HOST\n        DOCKER_HOST\n    deps =\n        --no-deps -r ./lock/requirements-dev.txt\n    commands = pytest ./tests {posargs}\n"
+legacy_tox_ini = "    [tox]\n    min_version = 4.0\n    env_list =\n        py39\n        py312\n\n    [testenv]\n    pass_env=\n        TC_HOST\n        DOCKER_HOST\n    deps =\n        --no-deps -r ./lock/requirements-dev.txt\n    commands = pytest ./tests {posargs}\n"

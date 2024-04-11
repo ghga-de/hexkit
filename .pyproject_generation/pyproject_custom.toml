@@ -29,7 +29,7 @@ legacy_tox_ini = """
     min_version = 4.0
     env_list =
         py39
-        py311
+        py312
 
     [testenv]
     pass_env=
