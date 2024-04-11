@@ -24,8 +24,9 @@ from hexkit.providers.testing.eventpub import (
     TopicExhaustedError,
 )
 
+pytestmark = pytest.mark.asyncio(scope="module")
 
-@pytest.mark.asyncio
+
 async def test_in_mem_publisher():
     """Test the InMemEventPublisher testing utilities."""
     type_ = "test_type"
@@ -54,7 +55,6 @@ async def test_in_mem_publisher():
     assert stored_event.type_ == type_
 
 
-@pytest.mark.asyncio
 async def test_in_mem_publisher_with_multiple_events():
     """
     Test that events are passed in the right order. And make sure that
@@ -86,7 +86,6 @@ async def test_in_mem_publisher_with_multiple_events():
         _ = event_store.get(topic)
 
 
-@pytest.mark.asyncio
 async def test_in_mem_publisher_with_multiple_topics():
     """Test that events are passed in the right order."""
     payload_per_topic = {
@@ -110,7 +109,7 @@ async def test_in_mem_publisher_with_multiple_topics():
             _ = event_store.get(topic).payload
 
 
-def test_event_store_get_from_empty_topic():
+async def test_event_store_get_from_empty_topic():
     """Test that consuming from non-used/empty topic raises the correct exception."""
     topic = "topic_that_has_no_events_yet", "test_type", "test_key"
     event_store = InMemEventStore()
