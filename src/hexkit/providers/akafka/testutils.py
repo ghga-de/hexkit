@@ -420,6 +420,7 @@ class KafkaFixture:
         await admin_client.start()
         try:
             if topics is None:
+                # if topics is None, the admin client gets all topics
                 if exclude_internal:
                     topics = [
                         topic
