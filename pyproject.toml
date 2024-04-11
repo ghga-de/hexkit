@@ -37,7 +37,7 @@ text = "Apache 2.0"
 akafka = [
     "aiokafka~=0.10.0",
     "kafka-python~=2.0.2",
-    "jsonschema >=4.17.3, <5",
+    "jsonschema >=4.21, <5",
 ]
 s3 = [
     "boto3 >=1.26.50, <2",
