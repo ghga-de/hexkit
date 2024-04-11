@@ -20,7 +20,8 @@ import json
 from collections.abc import Sequence
 
 import pytest
-from kafka import KafkaConsumer, TopicPartition
+from aiokafka import AIOKafkaConsumer
+from aiokafka.structs import TopicPartition
 
 from hexkit.custom_types import Ascii, JsonObject
 from hexkit.protocols.eventsub import EventSubscriberProtocol
@@ -76,7 +77,7 @@ async def test_clear_topics_specific(kafka: KafkaFixture):
         payload=make_payload("keep1"), type_=TEST_TYPE, topic=topic_to_keep
     )
 
-    consumer = KafkaConsumer(
+    consumer = AIOKafkaConsumer(
         topic_to_keep,
         topic_to_clear,
         bootstrap_servers=kafka.kafka_servers[0],
@@ -85,17 +86,20 @@ async def test_clear_topics_specific(kafka: KafkaFixture):
         enable_auto_commit=True,
         consumer_timeout_ms=2000,
     )
+    await consumer.start()
 
     # Verify that both messages were consumed as expected so we can trust the consumer
     count = 0
-    for record in consumer:
+    async for record in consumer:
         count += 1
         assert record.topic in (topic_to_keep, topic_to_clear)
 
         # break when we get to the end, not when we reach an expected record count
-        if consumer.position(partition_keep) == consumer.highwater(
+        if await consumer.position(partition_keep) == consumer.highwater(
             partition_keep
-        ) and consumer.position(partition_clear) == consumer.highwater(partition_clear):
+        ) and await consumer.position(partition_clear) == consumer.highwater(
+            partition_clear
+        ):
             break
     assert count == 2
 
@@ -114,14 +118,12 @@ async def test_clear_topics_specific(kafka: KafkaFixture):
     await kafka.clear_topics(topics=topic_to_clear)
 
     # make sure the KEEP topic still has its event but CLEAR is empty
-    records = list(consumer)
+    prefetched = await consumer.getmany(timeout_ms=500)
+    assert len(prefetched) == 1
+    records = next(iter(prefetched.values()))
     assert len(records) == 1
     assert records[0].topic == topic_to_keep
     assert records[0].value.decode("utf-8") == json.dumps(keep_payload2)
-
-    # Assert that we processed 1 message
-    assert consumer.position(partition_clear) == consumer.highwater(partition_clear)
-    assert consumer.position(partition_keep) == consumer.highwater(partition_keep)
 
     clear_payload3 = make_payload(topic_to_clear + "3")
     await kafka.publish_event(
@@ -133,7 +135,15 @@ async def test_clear_topics_specific(kafka: KafkaFixture):
         payload=keep_payload3, type_=TEST_TYPE, topic=topic_to_keep
     )
 
-    final_records = list(consumer)
+    final_records = []
+    while True:
+        prefetched = await consumer.getmany(timeout_ms=500)
+        if not prefetched:
+            break
+        assert len(prefetched) == 1
+        records = next(iter(prefetched.values()))
+        final_records.extend(records)
+
     final_records.sort(key=lambda record: record.topic)
     assert len(final_records) == 2
     assert final_records[0].topic == topic_to_clear
@@ -141,7 +151,7 @@ async def test_clear_topics_specific(kafka: KafkaFixture):
     assert final_records[1].topic == topic_to_keep
     assert final_records[1].value.decode("utf-8") == json.dumps(keep_payload3)
 
-    consumer.close()
+    await consumer.stop()
 
 
 async def test_clear_all_topics(kafka: KafkaFixture):

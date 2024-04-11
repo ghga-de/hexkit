@@ -19,14 +19,11 @@
 import tarfile
 import time
 from io import BytesIO
-from ssl import SSLError
 from textwrap import dedent
 from typing import Literal, Optional
 
-from kafka import KafkaConsumer
-from kafka.errors import KafkaError, NoBrokersAvailable, UnrecognizedBrokerVersion
 from testcontainers.core.container import DockerContainer
-from testcontainers.core.waiting_utils import wait_container_is_ready
+from testcontainers.core.waiting_utils import wait_for_logs
 
 __all__ = ["KafkaSSLContainer"]
 
@@ -115,32 +112,15 @@ class KafkaSSLContainer(DockerContainer):
         port = self.get_exposed_port(self.port)
         return f"{host}:{port}"
 
-    def start(self) -> "KafkaSSLContainer":
+    def start(self, timeout: Optional[float] = 30) -> "KafkaSSLContainer":
         """Start the Docker container."""
         script = self.TC_START_SCRIPT
         command = f'sh -c "while [ ! -f {script} ]; do sleep 0.1; done; sh {script}"'
         self.with_command(command)
         super().start()
         self.tc_start()
-        self._connect()
+        wait_for_logs(self, r".*\[KafkaServer id=\d+\] started.*", timeout=timeout)
         return self
-
-    @wait_container_is_ready(
-        UnrecognizedBrokerVersion, NoBrokersAvailable, KafkaError, ValueError
-    )  # pyright: ignore
-    def _connect(self) -> None:
-        bootstrap_server = self.get_bootstrap_server()
-        try:
-            consumer = KafkaConsumer(
-                group_id="test",
-                bootstrap_servers=[bootstrap_server],
-                security_protocol=self.protocol,
-            )
-        except SSLError:
-            pass  # count this as connected
-        else:
-            if not consumer.bootstrap_connected():
-                raise KafkaError("Unable to connect with Kafka container!")
 
     def tc_start(self) -> None:
         """Start the test container."""
