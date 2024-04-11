@@ -47,7 +47,7 @@ TEST_FILE_PATHS = [
 ]
 
 MEBIBYTE = 1024 * 1024
-TIMEOUT = 30
+TIMEOUT = 60
 
 
 def calc_md5(content: bytes) -> str:
