@@ -62,9 +62,7 @@ async def test_delete_created_buckets(s3: S3Fixture, tmp_file: FileObject):
 
     # delete_created_buckets() should remove the created bucket again
     await s3.storage.delete_created_buckets()
-    assert not await s3.storage.does_object_exist(
-        bucket_id=bucket_id, object_id=object_id
-    )
+    assert not await s3.storage.does_bucket_exist(bucket_id=bucket_id)
 
 
 async def test_empty_buckets(s3: S3Fixture, tmp_file: FileObject):
