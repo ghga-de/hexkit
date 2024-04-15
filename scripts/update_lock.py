@@ -100,13 +100,7 @@ def compile_lock_file(
 
     print(f"Updating '{output.name}'...")
 
-    command = [
-        "uv",
-        "pip",
-        "compile",
-        "--refresh",
-        "--generate-hashes",
-    ]
+    command = ["uv", "pip", "compile", "--refresh", "--generate-hashes", "--no-header"]
 
     if upgrade:
         command.append("--upgrade")
