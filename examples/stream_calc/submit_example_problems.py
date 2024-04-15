@@ -18,6 +18,8 @@
 
 """A script for submitting example problems to the stream calculator app."""
 
+import asyncio
+
 from sc_tests.integration.test_event_api import (
     CASES,
     DEFAULT_CONFIG,
@@ -27,5 +29,11 @@ from sc_tests.integration.test_event_api import (
 
 KAFKA_SERVER = DEFAULT_CONFIG.kafka_servers[0]
 
-submit_test_problems(CASES, kafka_server=KAFKA_SERVER)
-check_problem_outcomes(CASES, kafka_server=KAFKA_SERVER)
+
+async def main():
+    await submit_test_problems(CASES, kafka_server=KAFKA_SERVER)
+    await check_problem_outcomes(CASES, kafka_server=KAFKA_SERVER)
+
+
+if __name__ == "__main__":
+    asyncio.run(main())

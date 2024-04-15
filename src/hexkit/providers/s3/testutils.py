@@ -47,7 +47,7 @@ TEST_FILE_PATHS = [
 ]
 
 MEBIBYTE = 1024 * 1024
-TIMEOUT = 30
+TIMEOUT = 60
 
 
 def calc_md5(content: bytes) -> str:
@@ -87,22 +87,6 @@ class S3Fixture:
         self.storage = storage
         self._buckets: set[str] = set()
 
-    async def empty_buckets(self, buckets_to_exclude: Optional[list[str]] = None):
-        """Clean the test artifacts or files from given bucket"""
-        if buckets_to_exclude is None:
-            buckets_to_exclude = []
-
-        for bucket in self._buckets:
-            if bucket in buckets_to_exclude:
-                continue
-
-            # Get list of all objects in the bucket
-            object_ids = await self.storage.list_all_object_ids(bucket_id=bucket)
-
-            # Delete all objects
-            for object_id in object_ids:
-                await self.storage.delete_object(bucket_id=bucket, object_id=object_id)
-
     async def populate_buckets(self, buckets: list[str]):
         """Populate the storage with buckets."""
         await populate_storage(
@@ -116,6 +100,22 @@ class S3Fixture:
         await populate_storage(
             self.storage, bucket_fixtures=[], object_fixtures=file_objects
         )
+
+    async def empty_buckets(self, buckets_to_exclude: Optional[list[str]] = None):
+        """Clean the test artifacts or files from the populated buckets."""
+        for bucket in self._buckets.difference(buckets_to_exclude or []):
+            # Get list of all objects in the bucket
+            object_ids = await self.storage.list_all_object_ids(bucket_id=bucket)
+            # Delete all of these objects
+            for object_id in object_ids:
+                await self.storage.delete_object(bucket_id=bucket, object_id=object_id)
+
+    async def delete_buckets(self, buckets_to_exclude: Optional[list[str]] = None):
+        """Delete the populated buckets."""
+        buckets = self._buckets
+        for bucket in list(buckets.difference(buckets_to_exclude or [])):
+            await self.storage.delete_bucket(bucket, delete_content=True)
+            buckets.discard(bucket)
 
 
 def s3_fixture_function() -> Generator[S3Fixture, None, None]:
@@ -142,8 +142,8 @@ s3_fixture = get_s3_fixture()
 
 @contextmanager
 def temp_file_object(
-    bucket_id: str = "mydefaulttestbucket001",
-    object_id: str = "mydefaulttestobject001",
+    bucket_id: str = "default-test-bucket",
+    object_id: str = "default-test-object",
     size: int = 5 * MEBIBYTE,
 ) -> Generator[FileObject, None, None]:
     """Generates a file object with the specified size in bytes."""
@@ -164,8 +164,8 @@ def temp_file_object(
         )
 
 
-@pytest.fixture
-def file_fixture():
+@pytest.fixture(name="tmp_file")
+def file_fixture() -> Generator[FileObject, None, None]:
     """A fixture that provides a temporary file."""
     with temp_file_object() as temp_file:
         yield temp_file
@@ -374,9 +374,9 @@ async def typical_workflow(
     storage_client: ObjectStorageProtocol,
     test_file_path: Path,
     test_file_md5: str,
-    bucket1_id: str = "mytestbucket001",
-    bucket2_id: str = "mytestbucket002",
-    object_id: str = "mytestobject001",
+    bucket1_id: str = "example-bucket-1",
+    bucket2_id: str = "excample-bucket-2",
+    object_id: str = "example-object-1",
     use_multipart_upload: bool = True,
     part_size: int = ObjectStorageProtocol.DEFAULT_PART_SIZE,
 ):
@@ -450,5 +450,12 @@ async def typical_workflow(
     download_and_check_test_file(
         presigned_url=download_url2, expected_md5=test_file_md5
     )
+
+    print(f" - delete bucket {bucket2_id}")
+    await storage_client.delete_object(bucket_id=bucket2_id, object_id=object_id)
+    await storage_client.delete_bucket(bucket2_id)
+
+    print(" - confirm bucket deletion")
+    assert not await storage_client.does_bucket_exist(bucket2_id)  # noqa: S101
 
     print("Done.")

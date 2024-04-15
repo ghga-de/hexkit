@@ -31,6 +31,8 @@ from hexkit.providers.akafka import (
     KafkaEventSubscriber,
 )
 
+pytestmark = pytest.mark.asyncio(scope="module")
+
 VALID_CORRELATION_ID = "7041eb31-7333-4b57-97d7-90f5562c3383"
 CORRELATION_ID_HEADER = (
     "correlation_id",
@@ -38,7 +40,6 @@ CORRELATION_ID_HEADER = (
 )
 
 
-@pytest.mark.asyncio
 async def test_kafka_event_publisher():
     """Test the KafkaEventPublisher with mocked KafkaEventPublisher."""
     type_ = "test_type"
@@ -92,7 +93,6 @@ async def test_kafka_event_publisher():
     producer.stop.assert_awaited_once()
 
 
-@pytest.mark.asyncio
 @pytest.mark.parametrize(
     "type_, headers, is_translator_called, processing_failure, exception",
     [

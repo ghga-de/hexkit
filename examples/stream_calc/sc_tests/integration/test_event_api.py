@@ -25,7 +25,7 @@ import json
 from typing import NamedTuple
 
 import pytest
-from kafka import KafkaConsumer, KafkaProducer
+from aiokafka import AIOKafkaConsumer, AIOKafkaProducer
 from testcontainers.kafka import KafkaContainer
 
 from hexkit.custom_types import JsonObject
@@ -107,7 +107,7 @@ CASES = [
 ]
 
 
-def submit_test_problems(
+async def submit_test_problems(
     cases: list[Case],
     *,
     kafka_server: str,
@@ -126,17 +126,18 @@ def submit_test_problems(
             The topic to submit the problem events to.
     """
 
-    producer = KafkaProducer(
+    producer = AIOKafkaProducer(
         client_id="test_producer",
         bootstrap_servers=[kafka_server],
         key_serializer=lambda key: key.encode("ascii"),
         value_serializer=lambda event_value: json.dumps(event_value).encode("ascii"),
     )
+    await producer.start()
 
     print("Submitted a few problems:")
     for case in cases:
         print(case.description)
-        producer.send(
+        await producer.send(
             topic=topic,
             value=case.problem.payload,
             key="test_examples",
@@ -146,11 +147,11 @@ def submit_test_problems(
             ],
         )
 
-    producer.flush()
-    producer.close()
+    await producer.flush()
+    await producer.stop()
 
 
-def check_problem_outcomes(
+async def check_problem_outcomes(
     cases: list[Case],
     *,
     kafka_server: str,
@@ -169,7 +170,7 @@ def check_problem_outcomes(
             The topic to expect the outcome events to arrive in.
     """
 
-    consumer = KafkaConsumer(
+    consumer = AIOKafkaConsumer(
         topic,
         client_id="example_consumer",
         group_id="example",
@@ -178,10 +179,13 @@ def check_problem_outcomes(
         key_deserializer=lambda event_key: event_key.decode("ascii"),
         value_deserializer=lambda event_value: json.loads(event_value.decode("ascii")),
     )
+    await consumer.start()
 
-    print("\nAwaiting response from the stream_calc application.\nThe results are:")
+    cases = cases[::-1]
 
-    for case, received_record in zip(cases, consumer):
+    async for received_record in consumer:
+        case = cases.pop()
+
         # check if received event contains the expected content:
         assert received_record.headers[0][0] == "type"
         type_ = received_record.headers[0][1].decode("ascii")
@@ -198,7 +202,12 @@ def check_problem_outcomes(
         else:
             raise ValueError(f"Unkown event type: {type_}")
 
-    consumer.close()
+        if not cases:
+            break
+
+    assert not cases
+
+    await consumer.stop()
 
 
 @pytest.mark.asyncio
@@ -211,7 +220,7 @@ async def test_receive_calc_publish():
     with KafkaContainer(image=KAFKA_IMAGE) as kafka:
         kafka_server = kafka.get_bootstrap_server()
 
-        submit_test_problems(CASES, kafka_server=kafka_server)
+        await submit_test_problems(CASES, kafka_server=kafka_server)
 
         # run the stream_calc app:
         # (for each problem separately to avoid running forever)
@@ -219,4 +228,4 @@ async def test_receive_calc_publish():
         for _ in CASES:
             await main(config=config, run_forever=False)
 
-        check_problem_outcomes(CASES, kafka_server=kafka_server)
+        await check_problem_outcomes(CASES, kafka_server=kafka_server)

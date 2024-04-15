@@ -163,8 +163,16 @@ class S3ObjectStorage(ObjectStorageProtocol):
             config=self._advanced_config,
         )
 
+        self._created_buckets: set[str] = set()
+
     def __repr__(self) -> str:
         return f"{self.__class__.__qualname__}(config={repr(self._config)})"
+
+    async def delete_created_buckets(self):
+        """Delete all the buckets that have been created by the provider."""
+        buckets = self._created_buckets
+        while buckets:
+            await self._delete_bucket(bucket_id=buckets.pop(), delete_content=True)
 
     @staticmethod
     def _format_s3_error_code(error_code: str):
@@ -261,6 +269,8 @@ class S3ObjectStorage(ObjectStorageProtocol):
             raise self._translate_s3_client_errors(
                 error, bucket_id=bucket_id
             ) from error
+        else:
+            self._created_buckets.add(bucket_id)
 
     async def _delete_bucket(
         self, bucket_id: str, *, delete_content: bool = False
@@ -283,6 +293,8 @@ class S3ObjectStorage(ObjectStorageProtocol):
             raise self._translate_s3_client_errors(
                 error, bucket_id=bucket_id
             ) from error
+        else:
+            self._created_buckets.discard(bucket_id)
 
     async def _list_all_object_ids(self, *, bucket_id: str) -> list[str]:
         """Retrieve a list of IDs for all objects currently present in the specified bucket"""

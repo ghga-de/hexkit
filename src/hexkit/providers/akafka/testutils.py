@@ -20,7 +20,6 @@ Please note, only use for testing purposes.
 """
 
 import json
-import warnings
 from collections.abc import AsyncGenerator, Sequence
 from contextlib import asynccontextmanager
 from dataclasses import dataclass
@@ -29,8 +28,7 @@ from typing import Callable, Optional, Union
 
 import pytest_asyncio
 from aiokafka import AIOKafkaConsumer, TopicPartition
-from kafka import KafkaAdminClient
-from kafka.errors import KafkaError
+from aiokafka.admin import AIOKafkaAdminClient
 from testcontainers.kafka import KafkaContainer
 
 from hexkit.custom_types import Ascii, JsonObject, PytestScope
@@ -408,71 +406,51 @@ class KafkaFixture:
         )
         return f"{echo_command} && {deletion_command}"
 
-    def clear_topics(
+    async def _get_topic_description(
         self,
-        *,
-        topics: Optional[Union[str, list[str]]] = None,
-    ):
-        """
-        Clear messages from given topic(s).
+        topics: Optional[Union[list[str], str]] = None,
+        exclude_internal: bool = True,
+    ) -> JsonObject:
+        """Get a decription of the given topic(s).
 
-        When no topics are specified, all existing topics will be cleared.
+        If no topics are specified, all topics will be covered, except internal topics
+        unless otherwise specified.
         """
-        admin_client = KafkaAdminClient(bootstrap_servers=self.kafka_servers)
+        admin_client = AIOKafkaAdminClient(bootstrap_servers=self.kafka_servers)
+        await admin_client.start()
         try:
-            all_topics = admin_client.list_topics()
-
-            # If not clearing specific topics, delete all aside from the internal
-            # __consumer_offsets topic
             if topics is None:
-                topics = [
-                    topic for topic in all_topics if topic != "__consumer_offsets"
-                ]
+                # if topics is None, the admin client gets all topics
+                if exclude_internal:
+                    topics = [
+                        topic
+                        for topic in await admin_client.list_topics()
+                        if not topic.startswith("__")
+                    ]
             elif isinstance(topics, str):
                 topics = [topics]
-
-            # Get partition info for the topics requested to be cleared
-            partition_info: JsonObject = admin_client.describe_topics(topics)
-
-            # Get the command and then run it in a shell
-            deletion_config = self._build_record_deletion_config(partition_info)
-            command = self._build_record_deletion_command(deletion_config)
-
-            self._cmd_exec_func(command, True)
-
+            return await admin_client.describe_topics(topics)
         finally:
-            # Close the client
-            admin_client.close()
+            await admin_client.close()
 
-    def delete_topics(self, topics: Optional[Union[str, list[str]]] = None):
+    async def clear_topics(
+        self,
+        topics: Optional[Union[str, list[str]]] = None,
+        exclude_internal: bool = True,
+    ):
+        """Clear messages from given topic(s).
+
+        If no topics are specified, all topics will be cleared, except internal topics
+        unless otherwise specified.
         """
-        Delete given topic(s) from Kafka broker. When no topics are specified,
-        all existing topics will be deleted.
-        """
-        warnings.warn(
-            "delete_topics() is deprecated and will be removed in future versions. "
-            + f"Use {self.clear_topics.__name__}() instead.",
-            DeprecationWarning,
-            stacklevel=2,
-        )
-        admin_client = KafkaAdminClient(bootstrap_servers=self.kafka_servers)
-        all_topics = admin_client.list_topics()
-        if topics is None:
-            topics = all_topics
-        elif isinstance(topics, str):
-            topics = [topics]
-        try:
-            existing_topics = set(all_topics)
-            for topic in topics:
-                if topic in existing_topics:
-                    try:
-                        admin_client.delete_topics([topic])
-                    except KafkaError as error:
-                        raise RuntimeError(
-                            f"Could not delete topic {topic} from Kafka"
-                        ) from error
-        finally:
-            admin_client.close()
+        # Get the description of the topics to be deleted
+        partition_info = await self._get_topic_description(topics, exclude_internal)
+
+        # Build the command line and then run it in a shell
+        deletion_config = self._build_record_deletion_config(partition_info)
+        command = self._build_record_deletion_command(deletion_config)
+
+        self._cmd_exec_func(command, True)
 
     @asynccontextmanager
     async def expect_events(

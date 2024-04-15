@@ -30,6 +30,8 @@ from hexkit.protocols.dao import (
     DtoCreation,
 )
 
+pytestmark = pytest.mark.asyncio(scope="module")
+
 
 class FakeDaoFactory(DaoFactoryProtocol):
     """Implements the DaoFactoryProtocol without providing any logic."""
@@ -95,7 +97,6 @@ class ExampleDto(ExampleCreationDto):
     id: str
 
 
-@pytest.mark.asyncio
 async def test_get_dto_valid():
     """Use the get_dao method of the DaoFactory with valid parameters."""
     dao_factory = FakeDaoFactory()
@@ -110,7 +111,6 @@ async def test_get_dto_valid():
         )
 
 
-@pytest.mark.asyncio
 async def test_get_dto_invalid_id():
     """Use the get_dao method of the DaoFactory with an invalid ID that is not found in
     the provided DTO model.
@@ -123,7 +123,6 @@ async def test_get_dto_invalid_id():
         )
 
 
-@pytest.mark.asyncio
 @pytest.mark.parametrize(
     "dto_creation_model",
     [ExampleDto, ExampleInvalidCreationDto],
@@ -141,7 +140,6 @@ async def test_get_dto_invalid_creation_model(dto_creation_model: type[BaseModel
         )
 
 
-@pytest.mark.asyncio
 async def test_get_dto_invalid_fields_to_index():
     """Use the get_dao method of the DaoFactory with an invalid list of fields to index."""
     dao_factory = FakeDaoFactory()

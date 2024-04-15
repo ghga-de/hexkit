@@ -17,8 +17,8 @@ eval "$(pyenv init -)"
     source ~/.profile
     source ~/.bashrc
 fi
-pyenv install --skip-existing 3.11.7
-pyenv global system 3.11.7
+pyenv install --skip-existing 3.12
+pyenv global system 3.12
 
 # upgrade pip
 python -m pip install --upgrade pip
