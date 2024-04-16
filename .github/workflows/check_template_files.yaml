@@ -4,9 +4,9 @@ on: push
 
 jobs:
   check-template-files:
-    runs-on: ubuntu-latest
-
     name: Check template files
+
+    runs-on: ubuntu-latest
 
     steps:
       - name: Checkout repository
