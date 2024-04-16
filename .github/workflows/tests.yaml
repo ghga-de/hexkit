@@ -4,27 +4,49 @@ on: push
 
 jobs:
   tests:
-    runs-on: ubuntu-latest
     name: Tests
 
+    runs-on: ubuntu-latest
+
+    strategy:
+      matrix:
+        python-version: ['3.9', '3.10', '3.11', '3.12']
+
     steps:
-      - uses: actions/checkout@v3
+      - name: Checkout repository
+        id: checkout
+        uses: actions/checkout@v4
 
-      - id: common
-        uses: ghga-de/gh-action-common@v4
+      - name: Common steps
+        id: common
+        uses: ghga-de/gh-action-common@v5
+        with:
+          python-version: ${{ matrix.python-version }}
 
-      - id: tox
+      - name: Install tox plugin
+        id: install-tox-gh-actions
+        run: |
+          pip install --disable-pip-version-check "tox-gh-actions>=3.2,<4"
+
+      - name: Run tests with Python ${{ matrix.python-version }}
+        id: pytest
+        if: ${{ matrix.python-version != '3.12' }}
         run: |
           export ${{ steps.common.outputs.CONFIG_YAML_ENV_VAR_NAME }}="${{ steps.common.outputs.CONFIG_YAML }}"
 
-          tox \
-            run \
-            -- \
-            --cov="${{ steps.common.outputs.PACKAGE_NAME }}" \
-            --cov-report=xml
+          tox
 
-      - id: coveralls
-        name: Upload coverage to coveralls
+      - name: Run tests with Python ${{ matrix.python-version }} measuring coverage
+        id: pytest-coverage
+        if: ${{ matrix.python-version == '3.12' }}
+        run: |
+          export ${{ steps.common.outputs.CONFIG_YAML_ENV_VAR_NAME }}="${{ steps.common.outputs.CONFIG_YAML }}"
+
+          tox -- --cov="${{ steps.common.outputs.PACKAGE_NAME }}" --cov-report=xml
+
+      - name: Upload coverage to coveralls
+        id: coveralls
+        if: ${{ matrix.python-version == '3.12' }}
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |

@@ -5,23 +5,37 @@ on: push
 jobs:
   static-code-analysis:
     runs-on: ubuntu-latest
+
     name: Static Code Analysis
+
     steps:
-      - uses: actions/checkout@v3
+      - name: Checkout repository
+        id: checkout
+        uses: actions/checkout@v4
 
-      - id: common
-        uses: ghga-de/gh-action-common@v4
+      - name: Common steps
+        id: common
+        uses: ghga-de/gh-action-common@v5
+        with:
+          python-version: '3.12'
 
-      - uses: pre-commit/action@v3.0.0
+      - name: Run pre-commit
+        uses: pre-commit/action@v3.0.1
         env:
           SKIP: no-commit-to-branch
-      - name: ruff
+
+      - name: Run ruff
+        id: ruff
         run: |
           ruff check --output-format=github .
           ruff format --check .
-      - name: mypy
+
+      - name: Run mypy
+        id: mypy
         run: |
           mypy .
+
       - name: Check license header and file
+        id: license-checker
         run: |
           ./scripts/license_checker.py

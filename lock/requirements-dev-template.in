@@ -3,7 +3,6 @@
 pytest>=8.1
 pytest-asyncio>=0.23
 pytest-cov>=5
-pytest-profiling>=1.7
 snakeviz>=2.2
 logot>=1.3
 

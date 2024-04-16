@@ -2,9 +2,9 @@
 # See https://pre-commit.com/hooks.html for more hooks
 
 default_language_version:
-  python: python3.9
+  python: python3.12
 
-minimum_pre_commit_version: 3.0.0
+minimum_pre_commit_version: 3.7.0
 
 repos:
   - repo: local
