@@ -18,6 +18,7 @@
 
 import asyncio
 import os
+import site
 import subprocess
 import sys
 from pathlib import Path
@@ -42,7 +43,7 @@ async def test_cli(kafka_fixture: KafkaFixture, monkeypatch):  # noqa:F811
         name="STREAM_CALC_KAFKA_SERVERS", value=f'["{kafka_fixture.kafka_servers[0]}"]'
     )
     monkeypatch.setenv(
-        name="PYTHONPATH", value=(os.environ.get("PYTHONPATH", "") + f":{APP_DIR}")
+        name="PYTHONPATH", value=":".join([str(APP_DIR), *site.getsitepackages()])
     )
 
     await submit_test_problems(CASES, kafka_server=kafka_fixture.kafka_servers[0])
