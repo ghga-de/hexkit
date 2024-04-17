@@ -5,6 +5,7 @@
 .github/workflows/check_openapi_spec.yaml
 .github/workflows/check_readme.yaml
 .github/workflows/cd.yaml
+.github/workflows/static_code_analysis.yaml
 .github/workflows/tests.yaml
 .github/workflows/ci_release.yaml
 .github/workflows/ci_workflow_dispatch.yaml
@@ -17,5 +18,4 @@ scripts/update_all.py
 example_data/README.md
 
 .devcontainer/Dockerfile
-.devcontainer/dev_install
 .readme_generation/README.md

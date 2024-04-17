@@ -1,16 +1,25 @@
-name: Check if the config schema and the example are up to date.
+name: Check if pyproject.toml file is up to date
 
 on: push
 
 jobs:
   static-code-analysis:
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v3
+    name: Check pyproject file
 
-      - id: common
-        uses: ghga-de/gh-action-common@v4
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repository
+        id: checkout
+        uses: actions/checkout@v4
+
+      - name: Common steps
+        id: common
+        uses: ghga-de/gh-action-common@v5
+        with:
+          python-version: '3.12'
 
       - name: Check pyproject.toml
+        id: check-pyproject
         run: |
           ./scripts/update_pyproject.py --check

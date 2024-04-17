@@ -7,21 +7,24 @@ on:
 jobs:
   pypi-publish:
     name: Publish tagged release on PyPI
+
     runs-on: ubuntu-latest
+
     steps:
-      - uses: actions/checkout@v3
+      - name: Checkout repository
+        id: checkout
+        uses: actions/checkout@v4
 
-      - name: Set up Python 3.9
-        uses: actions/setup-python@v4
+      - name: Set up Python 3.12
+        uses: actions/setup-python@v5
         with:
-          python-version: "3.9"
+          python-version: '3.12'
 
-      - name: Ensure package version and tag are equal
+      - name: Ensure package version and tag name are equal
+        id: check-package
         run: |
-
           PKG_VER="$(grep -oP '^version = "\K[^"]+' pyproject.toml)"
           TAG_VER="${GITHUB_REF##*/}"
-
           echo "Package version is $PKG_VER" >&2
           echo "Tag version is $TAG_VER" >&2
           if [ "$PKG_VER" != "$TAG_VER" ]; then
@@ -30,6 +33,7 @@ jobs:
           fi
 
       - name: Install pypa/build
+        id: install-build
         run: >-
           python -m
           pip install
@@ -37,6 +41,7 @@ jobs:
           --user
 
       - name: Build a binary wheel and a source tarball
+        id: build
         run: >-
           python -m
           build
@@ -45,7 +50,8 @@ jobs:
           --outdir dist/
           .
 
-      - name: Install the newly built package with all extras
+      - name: Install the newly build package with all extras
+        id: install
         run: |
           TAR_PATH="$( realpath ./dist/*.tar.gz)"
           python -m \
@@ -53,22 +59,26 @@ jobs:
             "${TAR_PATH}[all]"
 
       - name: Install testing requirements
+        id: install-dev
         run: >-
           python -m
           pip install
           --no-deps -r ./lock/requirements-dev.txt
 
       - name: Run pytest on freshly installed package
+        id: test
         run: |
           pytest .
 
       - name: Publish distribution package to PyPI (test)
+        id: publish-test
         uses: pypa/gh-action-pypi-publish@release/v1
         with:
           password: ${{ secrets.TEST_PYPI_API_TOKEN }}
           repository-url: https://test.pypi.org/legacy/
 
       - name: Publish distribution package to PyPI (production)
+        id: publish
         uses: pypa/gh-action-pypi-publish@release/v1
         with:
           password: ${{ secrets.PYPI_API_TOKEN }}

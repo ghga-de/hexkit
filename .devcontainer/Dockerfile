@@ -1,14 +1,29 @@
-# See here for image contents: https://github.com/microsoft/vscode-dev-containers/tree/v0.177.0/containers/python-3/.devcontainer/base.Dockerfile
+FROM mcr.microsoft.com/vscode/devcontainers/python:3.9-bullseye
 
-# [Choice] Python version: 3, 3.9, 3.8, 3.7, 3.6
-ARG VARIANT="3.9"
-FROM mcr.microsoft.com/vscode/devcontainers/python:0-${VARIANT}
+ENV PYTHONUNBUFFERED 1
 
-# install dependencies:
-# (direct package dependencies are listed in the setup.py):
-# RUN apt install -y ...
+# Update args in docker-compose.yaml to set the UID/GID of the "vscode" user.
+ARG USER_UID=1000
+ARG USER_GID=$USER_UID
+RUN if [ "$USER_GID" != "1000" ] || [ "$USER_UID" != "1000" ]; then groupmod --gid $USER_GID vscode && usermod --uid $USER_UID --gid $USER_GID vscode; fi
 
-# Copy install script to bin:
+# Copy install script
 COPY ./dev_install /bin
+
+# Install secondary Python version
+USER vscode
+RUN <<EOF
+curl -sS https://pyenv.run | /bin/sh
+INIT_PYENV='
+export PYENV_ROOT="$HOME/.pyenv"
+[ -d "$PYENV_ROOT/bin" ] && export PATH="$PYENV_ROOT/bin:$PATH"
+eval "$(pyenv init -)"
+'
+echo "$INIT_PYENV" >> ~/.profile
+echo "$INIT_PYENV" >> ~/.bashrc
+. ~/.profile
+pyenv install --skip-existing 3.12
+pyenv global system 3.12
+EOF
 
 CMD ["sleep", "infinity"]
