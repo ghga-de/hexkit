@@ -16,4 +16,6 @@
 
 """An implementation of the DaoPublisherFactoryProtocol based on MongoDB and Apache Kafka."""
 
-from .provider import MongoKafkaConfig, MongoKafkaDaoPublisherFactory  # noqa: F401
+from .provider import MongoKafkaConfig, MongoKafkaDaoPublisherFactory
+
+__all__ = ["MongoKafkaConfig", "MongoKafkaDaoPublisherFactory"]
