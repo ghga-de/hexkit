@@ -1,4 +1,4 @@
-FROM mcr.microsoft.com/vscode/devcontainers/python:3.9-bullseye
+FROM mcr.microsoft.com/devcontainers/python:1-3.12-bullseye
 
 ENV PYTHONUNBUFFERED 1
 
@@ -22,8 +22,8 @@ eval "$(pyenv init -)"
 echo "$INIT_PYENV" >> ~/.profile
 echo "$INIT_PYENV" >> ~/.bashrc
 . ~/.profile
-pyenv install --skip-existing 3.12
-pyenv global system 3.12
+pyenv install --skip-existing 3.9
+pyenv global system 3.9
 EOF
 
 CMD ["sleep", "infinity"]

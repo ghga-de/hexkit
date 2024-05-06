@@ -38,6 +38,8 @@ from hexkit.custom_types import PytestScope
 from hexkit.protocols.objstorage import ObjectStorageProtocol, PresignedPostURL
 from hexkit.providers.s3.provider import S3Config, S3ObjectStorage
 
+LOCALSTACK_IMAGE = "localstack/localstack:0.14.5"
+
 TEST_FILE_DIR = Path(__file__).parent.resolve() / "test_files"
 
 TEST_FILE_PATHS = [
@@ -123,9 +125,7 @@ def s3_fixture_function() -> Generator[S3Fixture, None, None]:
 
     **Do not call directly** Instead, use get_s3_fixture()
     """
-    with LocalStackContainer(image="localstack/localstack:0.14.5").with_services(
-        "s3"
-    ) as localstack:
+    with LocalStackContainer(image=LOCALSTACK_IMAGE).with_services("s3") as localstack:
         config = config_from_localstack_container(localstack)
 
         storage = S3ObjectStorage(config=config)

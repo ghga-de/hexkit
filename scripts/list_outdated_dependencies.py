@@ -139,12 +139,14 @@ def print_table(
     header_lengths = [len(header) for header in headers]
 
     # Find the maximum length of each column
-    col_widths = [max(len(str(cell)) for cell in col) for col in zip(*rows)]
+    col_widths = [
+        max(len(str(cell)) for cell in col) for col in zip(*rows, strict=True)
+    ]
 
     # Create a row format based on the maximum column widths
     row_format = delimiter.join(
         f"{{:<{max(width, header_len)}}}"
-        for width, header_len in zip(col_widths, header_lengths)
+        for width, header_len in zip(col_widths, header_lengths, strict=True)
     )
 
     print("  " + row_format.format(*headers))

@@ -19,9 +19,9 @@
 """A script to update the pyproject.toml."""
 
 import sys
+import tomllib
 from pathlib import Path
 
-import tomli
 import tomli_w
 
 from script_utils import cli
@@ -37,33 +37,33 @@ PYPROJECT_TOML = REPO_ROOT_DIR / "pyproject.toml"
 def read_template_pyproject() -> dict[str, object]:
     """Read the pyproject_template.toml."""
     with open(PYPROJECT_TEMPLATE_PATH, "rb") as file:
-        return tomli.load(file)
+        return tomllib.load(file)
 
 
 def read_custom_pyproject() -> dict[str, object]:
     """Read the pyproject_custom.toml."""
     with open(PYPROJECT_CUSTOM_PATH, "rb") as file:
-        return tomli.load(file)
+        return tomllib.load(file)
 
 
 def read_current_pyproject() -> dict[str, object]:
     """Read the current pyproject.toml."""
     with open(PYPROJECT_TOML, "rb") as file:
-        return tomli.load(file)
+        return tomllib.load(file)
 
 
 def write_pyproject(pyproject: dict[str, object]) -> None:
     """Write the given pyproject dict into the pyproject.toml."""
     with open(PYPROJECT_TOML, "wb") as file:
-        tomli_w.dump(pyproject, file)
+        tomli_w.dump(pyproject, file, multiline_strings=True)
 
 
 def merge_fields(*, source: dict[str, object], dest: dict[str, object]):
     """Merge fields existing in both custom and template pyproject definitions.
 
     If a given field is a dictionary, merge or assign depending on if it's found in dest.
-    If the field is anything else either assign the value or exit with a message if a
-    conflict exists.
+    If the field is anything else either assign the value or exit with an error message
+    if the values have different types.
     """
     for field, value in source.items():
         if isinstance(value, dict):
@@ -72,11 +72,13 @@ def merge_fields(*, source: dict[str, object], dest: dict[str, object]):
             else:
                 dest[field] = value
         else:
-            if field in dest and value != dest[field]:
-                cli.echo_failure(f"Conflicting values for '{field}'")
-                exit(1)
-            elif field not in dest:
-                dest[field] = value
+            if field in dest:
+                if type(value) == type(dest[field]):
+                    cli.echo_warning(f"Overriding value for '{field}'...")
+                else:
+                    cli.echo_failure(f"Conflicting types for '{field}'...")
+                    sys.exit(1)
+            dest[field] = value
 
 
 def merge_pyprojects(inputs: list[dict[str, object]]) -> dict[str, object]:
@@ -85,10 +87,10 @@ def merge_pyprojects(inputs: list[dict[str, object]]) -> dict[str, object]:
 
     for input in inputs[1:]:
         for field, value in input.items():
-            if field not in pyproject:
-                pyproject[field] = value
-            else:
+            if field in pyproject:
                 merge_fields(source=value, dest=pyproject[field])  # type: ignore
+            else:
+                pyproject[field] = value
 
     return pyproject
 

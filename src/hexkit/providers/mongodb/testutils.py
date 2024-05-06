@@ -31,6 +31,8 @@ from testcontainers.mongodb import MongoDbContainer
 from hexkit.custom_types import PytestScope
 from hexkit.providers.mongodb.provider import MongoDbConfig, MongoDbDaoFactory
 
+MONGODB_IMAGE = "mongo:6.0.3"
+
 
 @dataclass(frozen=True)
 class MongoDbFixture:
@@ -77,7 +79,7 @@ def mongodb_fixture_function() -> Generator[MongoDbFixture, None, None]:
 
     **Do not call directly** Instead, use get_mongodb_fixture()
     """
-    with MongoDbContainer(image="mongo:6.0.3") as mongodb:
+    with MongoDbContainer(image=MONGODB_IMAGE) as mongodb:
         config = config_from_mongodb_container(mongodb)
         dao_factory = MongoDbDaoFactory(config=config)
         client = mongodb.get_connection_client()

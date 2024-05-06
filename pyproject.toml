@@ -23,7 +23,7 @@ classifiers = [
     "Intended Audience :: Developers",
 ]
 name = "hexkit"
-version = "3.0.0"
+version = "3.0.1"
 description = "A Toolkit for Building Microservices using the Hexagonal Architecture"
 dependencies = [
     "pydantic >=2, <3",
@@ -113,6 +113,7 @@ ignore = [
     "D107",
     "D206",
     "D300",
+    "UP040",
 ]
 select = [
     "C90",
@@ -183,4 +184,22 @@ source = [
 ]
 
 [tool.tox]
-legacy_tox_ini = "    [tox]\n    env_list = py3{9,12}\n\n    [gh-actions]\n    python =\n        3.9: py39\n        3.10: py310\n        3.11: py311\n        3.12: py312\n\n    [testenv]\n    pass_env =\n        TC_HOST\n        DOCKER_HOST\n    deps =\n        --no-deps -r ./lock/requirements-dev.txt\n    commands = pytest {posargs}\n"
+legacy_tox_ini = """
+    [tox]
+    env_list = py3{9,12}
+
+    [gh-actions]
+    python =
+        3.9: py39
+        3.10: py310
+        3.11: py311
+        3.12: py312
+
+    [testenv]
+    pass_env =
+        TC_HOST
+        DOCKER_HOST
+    deps =
+        --no-deps -r ./lock/requirements-dev.txt
+    commands = pytest {posargs}
+"""
