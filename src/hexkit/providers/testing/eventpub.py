@@ -67,7 +67,7 @@ class InMemEventPublisher(EventPublisherProtocol):
     """
     An in-memory EventPublisher for testing purposes.
     Please note, this only works when publisher and consumers are running in the same
-    thread. Not suitable for inter-thread or inter-process comminication.
+    thread. Not suitable for inter-thread or inter-process communication.
     """
 
     def __init__(self, event_store: Optional[InMemEventStore] = None):
