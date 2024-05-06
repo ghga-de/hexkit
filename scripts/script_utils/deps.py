@@ -15,12 +15,12 @@
 #
 """Contains utils for working with dependencies, lock files, etc."""
 
+import tomllib
 from copy import deepcopy
 from pathlib import Path
 from typing import Any
 
 import stringcase
-import tomllib
 
 
 def exclude_from_dependency_list(*, package_name: str, dependencies: list) -> list:
