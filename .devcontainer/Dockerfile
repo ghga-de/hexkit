@@ -23,7 +23,7 @@ echo "$INIT_PYENV" >> ~/.profile
 echo "$INIT_PYENV" >> ~/.bashrc
 . ~/.profile
 pyenv install --skip-existing 3.12
-pyenv global system 3.12
+pyenv global 3.12 system
 EOF
 
 CMD ["sleep", "infinity"]

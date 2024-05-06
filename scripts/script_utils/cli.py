@@ -26,6 +26,13 @@ def echo_success(message: str):
     typer.echo(styled_message)
 
 
+def echo_warning(message: str):
+    """Print a warning message."""
+
+    styled_message = typer.style(text=message, fg=typer.colors.YELLOW)
+    typer.echo(styled_message)
+
+
 def echo_failure(message: str):
     """Print a failure message."""
 

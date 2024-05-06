@@ -15,10 +15,12 @@
 
 scripts/script_utils/__init__.py
 scripts/script_utils/cli.py
+scripts/script_utils/deps.py
+scripts/script_utils/lock_deps.py
 
 scripts/__init__.py
 scripts/update_all.py
-scripts/license_checker.py
+scripts/check_license.py
 scripts/get_package_name.py
 scripts/update_config_docs.py
 scripts/update_template_files.py

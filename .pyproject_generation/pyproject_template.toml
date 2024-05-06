@@ -7,14 +7,12 @@ readme = "README.md"
 authors = [
     { name = "German Human Genome Phenome Archive (GHGA)", email = "contact@ghga.de" },
 ]
-requires-python = ">=3.9"
+requires-python = ">=3.12"
 license = { text = "Apache 2.0" }
 classifiers = [
     "Development Status :: 1 - Planning",
     "Operating System :: POSIX :: Linux",
-    "Programming Language :: Python :: 3.9",
-    "Programming Language :: Python :: 3.10",
-    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3",
     "Programming Language :: Python :: 3.12",
     "License :: OSI Approved :: Apache Software License",
     "Topic :: Internet :: WWW/HTTP :: HTTP Servers",
@@ -35,7 +33,7 @@ exclude = [
 ]
 line-length = 88
 src = ["src", "tests", "examples", "scripts"]
-target-version = "py39"
+target-version = "py312"
 
 [tool.ruff.lint]
 fixable = [
@@ -60,6 +58,7 @@ ignore = [
     "D107", # missing docstring in __init__
     "D206", # indent-with-spaces (for formatter)
     "D300", # triple-single-quotes (for formatter)
+    "UP040", # type statement (not yet supported by mypy)
 ]
 select = [
     "C90", # McCabe Complexity
@@ -105,7 +104,7 @@ asyncio_mode = "strict"
 
 [tool.coverage.paths]
 source = [
-  "src",
-  "/workspace/src",
-  "**/lib/python*/site-packages",
+    "src",
+    "/workspace/src",
+    "**/lib/python*/site-packages",
 ]

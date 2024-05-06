@@ -15,9 +15,7 @@ jobs:
 
       - name: Common steps
         id: common
-        uses: ghga-de/gh-action-common@v5
-        with:
-          python-version: '3.12'
+        uses: ghga-de/gh-action-common@v6
 
       - name: Check pyproject.toml
         id: check-pyproject

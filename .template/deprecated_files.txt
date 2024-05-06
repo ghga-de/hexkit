@@ -13,6 +13,7 @@
 .github/workflows/cd.yaml
 
 scripts/check_mandatory_and_static_files.py
+scripts/license_checker.py
 scripts/update_static_files.py
 
 docs

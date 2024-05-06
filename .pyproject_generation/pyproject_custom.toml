@@ -2,6 +2,19 @@
 name = "hexkit"
 version = "3.0.0"
 description = "A Toolkit for Building Microservices using the Hexagonal Architecture"
+requires-python = ">=3.9"
+classifiers = [
+    "Development Status :: 1 - Planning",
+    "Operating System :: POSIX :: Linux",
+    "Programming Language :: Python :: 3.9",
+    "Programming Language :: Python :: 3.10",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "License :: OSI Approved :: Apache Software License",
+    "Topic :: Internet :: WWW/HTTP :: HTTP Servers",
+    "Topic :: Software Development :: Libraries",
+    "Intended Audience :: Developers",
+]
 dependencies = [
     "pydantic >=2, <3",
     "pydantic_settings >=2, <3",
@@ -22,6 +35,9 @@ all = ["hexkit[test]"]
 
 [project.urls]
 Repository = "https://github.com/ghga-de/hexkit"
+
+[tool.ruff]
+target-version = "py39"
 
 [tool.tox]
 legacy_tox_ini = """

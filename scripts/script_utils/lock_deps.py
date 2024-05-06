@@ -17,14 +17,13 @@
 
 import re
 from pathlib import Path
-from typing import Optional
 
 from packaging.requirements import Requirement
 
 
 def get_lock_file_deps(
     lock_file_path: Path,
-    exclude: Optional[set[str]] = None,
+    exclude: set[str] | None = None,
 ) -> list[Requirement]:
     """Inspect the lock file to get the dependencies.
 
