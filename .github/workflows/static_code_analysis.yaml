@@ -38,4 +38,4 @@ jobs:
       - name: Check license header and file
         id: license-checker
         run: |
-          ./scripts/license_checker.py
+          ./scripts/check_license.py
