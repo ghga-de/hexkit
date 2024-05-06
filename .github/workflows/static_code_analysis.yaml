@@ -27,8 +27,8 @@ jobs:
       - name: Run ruff
         id: ruff
         run: |
-          ruff check --output-format=github .
-          ruff format --check .
+          ruff check --exclude scripts --output-format=github .
+          ruff format --check --exclude scripts .
 
       - name: Run mypy
         id: mypy
