@@ -233,8 +233,12 @@ class MongoKafkaDaoPublisher(Generic[Dto]):
             ResourceNotFoundError:
                 when resource with the id specified in the dto was not found
         """
-        with assert_not_deleted():
-            await self._dao.update(dto)
+        document = self._dao._dto_to_document(dto)
+        result = await self._collection.replace_one(
+            {"_id": document["_id"], "__metadata__.deleted": False}, document
+        )
+        if result.matched_count == 0:
+            raise ResourceNotFoundError(id_=document["_id"])
 
         if self._autopublish:
             await self._publish_change(dto)
@@ -252,7 +256,9 @@ class MongoKafkaDaoPublisher(Generic[Dto]):
             "_id": id_,
             "__metadata__": {"deleted": True, "published": False},
         }
-        result = await self._collection.replace_one({"_id": document["_id"]}, document)
+        result = await self._collection.replace_one(
+            {"_id": document["_id"], "__metadata__.deleted": False}, document
+        )
         if result.matched_count == 0:
             raise ResourceNotFoundError(id_=id_)
 

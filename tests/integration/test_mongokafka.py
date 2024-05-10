@@ -67,9 +67,8 @@ class DummyOutboxSubscriber(DaoSubscriberProtocol[ExampleDto]):
         self.received.append((resource_id, None))
 
 
-@pytest.mark.parametrize("operation", ["get", "update", "delete"])
 async def test_dao_outbox_with_non_existing_resource(
-    operation: str, kafka: KafkaFixture, mongo_kafka_config: MongoKafkaConfig
+    kafka: KafkaFixture, mongo_kafka_config: MongoKafkaConfig
 ):
     """Test operations on non-existing resources fail with MongoKafkaOutboxFactory."""
     async with MongoKafkaDaoPublisherFactory.construct(
@@ -85,19 +84,26 @@ async def test_dao_outbox_with_non_existing_resource(
 
         example = ExampleDto(id="test1", field_a="test", field_b=1, field_c=False)
 
-        async with kafka.expect_events(
-            events=[],
-            in_topic=EXAMPLE_TOPIC,
-        ):
+        # first try with non-existing resource
+        async with kafka.expect_events(events=[], in_topic=EXAMPLE_TOPIC):
             with pytest.raises(ResourceNotFoundError):
-                if operation == "get":
-                    await dao.get_by_id(example.id)
-                elif operation == "update":
-                    await dao.update(example)
-                elif operation == "delete":
-                    await dao.delete(example.id)
-                else:
-                    assert False, f"Invalid operation: {operation}"
+                await dao.get_by_id(example.id)
+            with pytest.raises(ResourceNotFoundError):
+                await dao.update(example)
+            with pytest.raises(ResourceNotFoundError):
+                await dao.delete(example.id)
+
+        # create and delete the resource and try again with that state
+        await dao.insert(example)
+        await dao.delete(example.id)
+
+        async with kafka.expect_events(events=[], in_topic=EXAMPLE_TOPIC):
+            with pytest.raises(ResourceNotFoundError):
+                await dao.get_by_id(example.id)
+            with pytest.raises(ResourceNotFoundError):
+                await dao.update(example)
+            with pytest.raises(ResourceNotFoundError):
+                await dao.delete(example.id)
 
 
 async def test_dao_outbox_happy(
