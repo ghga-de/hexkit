@@ -67,6 +67,39 @@ class DummyOutboxSubscriber(DaoSubscriberProtocol[ExampleDto]):
         self.received.append((resource_id, None))
 
 
+@pytest.mark.parametrize("operation", ["get", "update", "delete"])
+async def test_dao_outbox_with_non_existing_resource(
+    operation: str, kafka: KafkaFixture, mongo_kafka_config: MongoKafkaConfig
+):
+    """Test operations on non-existing resources fail with MongoKafkaOutboxFactory."""
+    async with MongoKafkaDaoPublisherFactory.construct(
+        config=mongo_kafka_config
+    ) as factory:
+        dao = await factory.get_dao(
+            name="example",
+            dto_model=ExampleDto,
+            id_field="id",
+            dto_to_event=lambda dto: dto.model_dump(),
+            event_topic=EXAMPLE_TOPIC,
+        )
+
+        example = ExampleDto(id="test1", field_a="test", field_b=1, field_c=False)
+
+        async with kafka.expect_events(
+            events=[],
+            in_topic=EXAMPLE_TOPIC,
+        ):
+            with pytest.raises(ResourceNotFoundError):
+                if operation == "get":
+                    await dao.get_by_id(example.id)
+                elif operation == "update":
+                    await dao.update(example)
+                elif operation == "delete":
+                    await dao.delete(id_=example.id)
+                else:
+                    assert False, f"Invalid operation: {operation}"
+
+
 async def test_dao_outbox_happy(
     kafka: KafkaFixture, mongo_kafka_config: MongoKafkaConfig
 ):
