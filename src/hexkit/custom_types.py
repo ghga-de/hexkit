@@ -22,7 +22,7 @@ from typing import Any, Literal, Union
 # This is intended to type objects that could be a potential output of `json.loads`.
 # (Scalar types as well as arrays are excluded from the above assumption.)
 JsonObject = Mapping[
-    str, Union[int, float, str, bool, Sequence[Any], Mapping[str, Any]]
+    str, Union[int, float, str, bool, Sequence[Any], Mapping[str, Any], None]
 ]
 
 
