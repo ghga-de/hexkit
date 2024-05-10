@@ -135,7 +135,7 @@ def get_delete_publish_func(
         )
 
         document = {"_id": id_, "__metadata__": {"deleted": True, "published": True}}
-        await collection.replace_one({"_id": document["_id"]}, document, upsert=True)
+        await collection.replace_one({"_id": document["_id"]}, document)
 
     return publish_deletion
 
@@ -233,13 +233,17 @@ class MongoKafkaDaoPublisher(Generic[Dto]):
             ResourceNotFoundError:
                 when resource with the id specified in the dto was not found
         """
-        with assert_not_deleted():
-            await self._dao.update(dto)
+        document = self._dao._dto_to_document(dto)
+        result = await self._collection.replace_one(
+            {"_id": document["_id"], "__metadata__.deleted": False}, document
+        )
+        if result.matched_count == 0:
+            raise ResourceNotFoundError(id_=document["_id"])
 
         if self._autopublish:
             await self._publish_change(dto)
 
-    async def delete(self, *, id_: str) -> None:
+    async def delete(self, id_: str) -> None:
         """Delete a resource by providing its ID.
 
         Args:
@@ -248,10 +252,15 @@ class MongoKafkaDaoPublisher(Generic[Dto]):
         Raises:
             ResourceNotFoundError: when resource with the specified id_ was not found
         """
-        document = {"_id": id_, "__metadata__": {"deleted": True, "published": False}}
-        await self._collection.replace_one(
-            {"_id": document["_id"]}, document, upsert=True
+        document = {
+            "_id": id_,
+            "__metadata__": {"deleted": True, "published": False},
+        }
+        result = await self._collection.replace_one(
+            {"_id": document["_id"], "__metadata__.deleted": False}, document
         )
+        if result.matched_count == 0:
+            raise ResourceNotFoundError(id_=id_)
 
         if self._autopublish:
             await self._publish_delete(id_)

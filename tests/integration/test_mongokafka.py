@@ -67,6 +67,45 @@ class DummyOutboxSubscriber(DaoSubscriberProtocol[ExampleDto]):
         self.received.append((resource_id, None))
 
 
+async def test_dao_outbox_with_non_existing_resource(
+    kafka: KafkaFixture, mongo_kafka_config: MongoKafkaConfig
+):
+    """Test operations on non-existing resources fail with MongoKafkaOutboxFactory."""
+    async with MongoKafkaDaoPublisherFactory.construct(
+        config=mongo_kafka_config
+    ) as factory:
+        dao = await factory.get_dao(
+            name="example",
+            dto_model=ExampleDto,
+            id_field="id",
+            dto_to_event=lambda dto: dto.model_dump(),
+            event_topic=EXAMPLE_TOPIC,
+        )
+
+        example = ExampleDto(id="test1", field_a="test", field_b=1, field_c=False)
+
+        # first try with non-existing resource
+        async with kafka.expect_events(events=[], in_topic=EXAMPLE_TOPIC):
+            with pytest.raises(ResourceNotFoundError):
+                await dao.get_by_id(example.id)
+            with pytest.raises(ResourceNotFoundError):
+                await dao.update(example)
+            with pytest.raises(ResourceNotFoundError):
+                await dao.delete(example.id)
+
+        # create and delete the resource and try again with that state
+        await dao.insert(example)
+        await dao.delete(example.id)
+
+        async with kafka.expect_events(events=[], in_topic=EXAMPLE_TOPIC):
+            with pytest.raises(ResourceNotFoundError):
+                await dao.get_by_id(example.id)
+            with pytest.raises(ResourceNotFoundError):
+                await dao.update(example)
+            with pytest.raises(ResourceNotFoundError):
+                await dao.delete(example.id)
+
+
 async def test_dao_outbox_happy(
     kafka: KafkaFixture, mongo_kafka_config: MongoKafkaConfig
 ):
@@ -178,7 +217,7 @@ async def test_dao_outbox_happy(
             ],
             in_topic=EXAMPLE_TOPIC,
         ):
-            await dao.delete(id_=example.id)
+            await dao.delete(example.id)
 
         # confirm that the resource was deleted:
         with pytest.raises(ResourceNotFoundError):
@@ -334,7 +373,7 @@ async def test_dao_pub_sub_happy(mongo_kafka_config: MongoKafkaConfig):
         await dao.update(example_update)
 
         # delete the resource again:
-        await dao.delete(id_=example.id)
+        await dao.delete(example.id)
 
     expected_events = [
         (example.id, example),

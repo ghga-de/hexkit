@@ -201,7 +201,7 @@ class MongoDbDaoBase(ABC, Generic[Dto]):
         # (trusting MongoDB that matching on the _id field can only yield one or
         # zero matches)
 
-    async def delete(self, *, id_: str) -> None:
+    async def delete(self, id_: str) -> None:
         """Delete a resource by providing its ID.
 
         Args:

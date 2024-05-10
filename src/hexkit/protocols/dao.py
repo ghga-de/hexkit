@@ -132,7 +132,7 @@ class DaoCommons(typing.Protocol[Dto]):
         """
         ...
 
-    async def delete(self, *, id_: str) -> None:
+    async def delete(self, id_: str) -> None:
         """Delete a resource by providing its ID.
 
         Args:
