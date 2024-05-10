@@ -187,7 +187,7 @@ async def test_dao_happy(mongodb: MongoDbFixture):
     assert obtained_hit == resource_updated
 
     # delete the resource:
-    await dao.delete(id_=resource_inserted.id)
+    await dao.delete(resource_inserted.id)
 
     # confirm that the resource was deleted:
     with pytest.raises(ResourceNotFoundError):
@@ -273,7 +273,7 @@ async def test_dao_delete_not_found(mongodb: MongoDbFixture):
     )
 
     with pytest.raises(ResourceNotFoundError):
-        await dao.delete(id_="my_non_existing_id_001")
+        await dao.delete("my_non_existing_id_001")
 
 
 async def test_dao_find_invalid_mapping(mongodb: MongoDbFixture):

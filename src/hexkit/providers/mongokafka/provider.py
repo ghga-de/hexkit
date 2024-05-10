@@ -239,7 +239,7 @@ class MongoKafkaDaoPublisher(Generic[Dto]):
         if self._autopublish:
             await self._publish_change(dto)
 
-    async def delete(self, *, id_: str) -> None:
+    async def delete(self, id_: str) -> None:
         """Delete a resource by providing its ID.
 
         Args:

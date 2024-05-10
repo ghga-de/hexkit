@@ -95,7 +95,7 @@ async def test_dao_outbox_with_non_existing_resource(
                 elif operation == "update":
                     await dao.update(example)
                 elif operation == "delete":
-                    await dao.delete(id_=example.id)
+                    await dao.delete(example.id)
                 else:
                     assert False, f"Invalid operation: {operation}"
 
@@ -211,7 +211,7 @@ async def test_dao_outbox_happy(
             ],
             in_topic=EXAMPLE_TOPIC,
         ):
-            await dao.delete(id_=example.id)
+            await dao.delete(example.id)
 
         # confirm that the resource was deleted:
         with pytest.raises(ResourceNotFoundError):
@@ -367,7 +367,7 @@ async def test_dao_pub_sub_happy(mongo_kafka_config: MongoKafkaConfig):
         await dao.update(example_update)
 
         # delete the resource again:
-        await dao.delete(id_=example.id)
+        await dao.delete(example.id)
 
     expected_events = [
         (example.id, example),
