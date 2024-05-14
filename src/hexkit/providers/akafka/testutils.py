@@ -48,6 +48,27 @@ from hexkit.providers.akafka.provider import (
 )
 from hexkit.providers.akafka.testcontainer import DEFAULT_IMAGE as KAFKA_IMAGE
 
+__all__ = [
+    "KAFKA_IMAGE",
+    "EventBase",
+    "ExpectedEvent",
+    "RecordedEvent",
+    "ValidationError",
+    "EventRecorder",
+    "KafkaContainer",
+    "KafkaConfig",
+    "KafkaEventPublisher",
+    "KafkaContainerFixture",
+    "get_kafka_container_fixture",
+    "KafkaFixture",
+    "kafka_container_fixture",
+    "get_persistent_kafka_fixture",
+    "persistent_kafka_fixture",
+    "get_clean_kafka_fixture",
+    "clean_kafka_fixture",
+    "kafka_fixture",
+]
+
 
 @dataclass(frozen=True)
 class EventBase:
@@ -521,7 +542,7 @@ def _kafka_container_fixture() -> Generator[KafkaContainerFixture, None, None]:
 def get_kafka_container_fixture(
     scope: PytestScope = "session", name: str = "kafka_container"
 ):
-    """Get a kafka test container fixture with desired scope and name.
+    """Get a Kafka test container fixture with desired scope and name.
 
     By default, the session scope is used for Kafka test containers.
     """
@@ -550,7 +571,7 @@ async def _persistent_kafka_fixture(
 
 
 def get_persistent_kafka_fixture(scope: PytestScope = "function", name: str = "kafka"):
-    """Get a kafka fixture with desired scope and name.
+    """Get a Kafka fixture with desired scope and name.
 
     The state of the Kafka test container is persisted across tests.
 
@@ -576,9 +597,9 @@ async def _clean_kafka_fixture(
 
 
 def get_clean_kafka_fixture(scope: PytestScope = "function", name: str = "kafka"):
-    """Get a kafka fixture with desired scope and name.
+    """Get a Kafka fixture with desired scope and name.
 
-    The state of Kafka is reset by clearing all topics before running every test.
+    The state of Kafka is reset by clearing all topics before running tests.
 
     By default, the function scope is used for this fixture,
     while the session scope is used for the underlying Kafka test container.

@@ -30,9 +30,13 @@ from hexkit.protocols.dao import (
     NoHitsFoundError,
     ResourceNotFoundError,
 )
-from hexkit.providers.mongodb.testutils import MongoDbFixture
+from hexkit.providers.mongodb.testutils import (
+    MongoDbFixture,
+    mongodb_container_fixture,  # noqa: F401
+    mongodb_fixture,  # noqa: F401
+)
 
-pytestmark = pytest.mark.asyncio(scope="session")
+pytestmark = pytest.mark.asyncio()
 
 
 class ExampleCreationDto(BaseModel):

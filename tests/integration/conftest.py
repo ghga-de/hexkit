@@ -24,7 +24,6 @@ from hexkit.providers.akafka.testutils import (
 )
 from hexkit.providers.mongodb.testutils import (
     MongoDbFixture,
-    get_mongodb_fixture,
 )
 from hexkit.providers.mongokafka import MongoKafkaConfig
 from hexkit.providers.s3.testutils import (
@@ -34,24 +33,12 @@ from hexkit.providers.s3.testutils import (
 )
 
 __all__ = [
-    "mongodb_fixture",
     "mongo_kafka_config_fixture",
     "s3_fixture",
     "file_fixture",
 ]
 
-mongodb_session_fixture = get_mongodb_fixture(scope="session")
 s3_session_fixture = get_s3_fixture(scope="session")
-
-
-@pytest.fixture(name="mongodb")
-def mongodb_fixture(mongodb_session_fixture: MongoDbFixture) -> MongoDbFixture:
-    """MongoDB fixture that reuses the same testcontainer.
-
-    Empties all colletions in case something was left in from a previous test case.
-    """
-    mongodb_session_fixture.empty_collections()
-    return mongodb_session_fixture
 
 
 @pytest.fixture(name="mongo_kafka_config")
