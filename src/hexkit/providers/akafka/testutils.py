@@ -536,7 +536,7 @@ async def _persistent_kafka_fixture(
 ) -> AsyncGenerator[KafkaFixture, None]:
     """Fixture function that gets a persistent Kafka fixture.
 
-    This fixture persists the state of Kafka across different tests.
+    The state of Kafka is not cleaned up by this function.
     """
     config = kafka_container.kafka_config
     async with KafkaEventPublisher.construct(config=config) as publisher:
@@ -568,7 +568,7 @@ async def _clean_kafka_fixture(
 ) -> AsyncGenerator[KafkaFixture, None]:
     """Fixture function that gets a clean Kafka fixture.
 
-    This fixture also clears all topics before running every test.
+    The clean state is achieved by clearing all Kafka topics upfront.
     """
     async for kafka_fixture in _persistent_kafka_fixture(kafka_container):
         await kafka_fixture.clear_topics()
