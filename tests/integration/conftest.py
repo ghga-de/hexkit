@@ -19,13 +19,6 @@ import asyncio
 
 import pytest
 
-from hexkit.providers.akafka.testutils import (
-    KafkaFixture,
-)
-from hexkit.providers.mongodb.testutils import (
-    MongoDbFixture,
-)
-from hexkit.providers.mongokafka import MongoKafkaConfig
 from hexkit.providers.s3.testutils import (
     S3Fixture,
     file_fixture,
@@ -33,20 +26,11 @@ from hexkit.providers.s3.testutils import (
 )
 
 __all__ = [
-    "mongo_kafka_config_fixture",
     "s3_fixture",
     "file_fixture",
 ]
 
 s3_session_fixture = get_s3_fixture(scope="session")
-
-
-@pytest.fixture(name="mongo_kafka_config")
-def mongo_kafka_config_fixture(
-    mongodb: MongoDbFixture, kafka: KafkaFixture
-) -> MongoKafkaConfig:
-    """Fixture to get the combined Mongo and Kafka configuration."""
-    return MongoKafkaConfig(**mongodb.config.model_dump(), **kafka.config.model_dump())
 
 
 @pytest.fixture(name="s3")

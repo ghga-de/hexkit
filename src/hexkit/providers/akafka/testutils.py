@@ -51,21 +51,20 @@ from hexkit.providers.akafka.testcontainer import DEFAULT_IMAGE as KAFKA_IMAGE
 __all__ = [
     "KAFKA_IMAGE",
     "EventBase",
+    "EventRecorder",
     "ExpectedEvent",
     "RecordedEvent",
     "ValidationError",
-    "EventRecorder",
-    "KafkaContainer",
     "KafkaConfig",
-    "KafkaEventPublisher",
     "KafkaContainerFixture",
-    "get_kafka_container_fixture",
+    "KafkaEventPublisher",
     "KafkaFixture",
-    "kafka_container_fixture",
-    "get_persistent_kafka_fixture",
-    "persistent_kafka_fixture",
+    "get_kafka_container_fixture",
     "get_clean_kafka_fixture",
+    "get_persistent_kafka_fixture",
+    "kafka_container_fixture",
     "clean_kafka_fixture",
+    "persistent_kafka_fixture",
     "kafka_fixture",
 ]
 
@@ -367,7 +366,7 @@ class EventRecorder:
 
 
 class KafkaFixture:
-    """A fixture with utility functions for tests that use Apache Kafka."""
+    """A fixture with utility methods for tests that use Apache Kafka."""
 
     def __init__(
         self,

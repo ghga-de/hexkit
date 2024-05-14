@@ -36,16 +36,16 @@ MONGODB_IMAGE = "mongo:6.0.3"
 
 __all__ = [
     "MONGODB_IMAGE",
-    "MongoDbContainer",
     "MongoClient",
     "MongoDbConfig",
+    "MongoDbContainerFixture",
     "MongoDbDaoFactory",
     "MongoDbFixture",
     "get_mongodb_container_fixture",
-    "mongodb_container_fixture",
     "get_persistent_mongodb_fixture",
-    "persistent_mongodb_fixture",
     "get_clean_mongodb_fixture",
+    "mongodb_container_fixture",
+    "persistent_mongodb_fixture",
     "clean_mongodb_fixture",
     "mongodb_fixture",
 ]
@@ -53,7 +53,7 @@ __all__ = [
 
 @dataclass(frozen=True)
 class MongoDbFixture:
-    """Yielded by the `mongodb_fixture` function"""
+    """A fixture with utility methods for tests that use MongoDB"""
 
     client: MongoClient
     config: MongoDbConfig
@@ -85,9 +85,20 @@ class MongoDbFixture:
             ) from error
 
 
-def _mongodb_container_fixture() -> Generator[MongoDbContainer, None, None]:
+class MongoDbContainerFixture(MongoDbContainer):
+    """Kafka test container with configuration and command execution."""
+
+    mongodb_config: MongoDbConfig
+
+
+def _mongodb_container_fixture() -> Generator[MongoDbContainerFixture, None, None]:
     """Fixture function for getting a running MongoDB test container."""
-    with MongoDbContainer(image=MONGODB_IMAGE) as mongodb_container:
+    with MongoDbContainerFixture(image=MONGODB_IMAGE) as mongodb_container:
+        db_connection_str = mongodb_container.get_connection_url()
+        mongodb_config = MongoDbConfig(
+            db_connection_str=SecretStr(db_connection_str), db_name="test"
+        )
+        mongodb_container.mongodb_config = mongodb_config
         yield mongodb_container
 
 
@@ -104,20 +115,14 @@ def get_mongodb_container_fixture(
 mongodb_container_fixture = get_mongodb_container_fixture()
 
 
-def config_from_mongodb_container(container: MongoDbContainer) -> MongoDbConfig:
-    """Prepares a MongoDbConfig from an instance of a MongoDbContainer container."""
-    db_connection_str = container.get_connection_url()
-    return MongoDbConfig(db_connection_str=SecretStr(db_connection_str), db_name="test")
-
-
 def _persistent_mongodb_fixture(
-    mongodb_container: MongoDbContainer,
+    mongodb_container: MongoDbContainerFixture,
 ) -> Generator[MongoDbFixture, None, None]:
     """Fxture fucnction that gets a persistent MongoDb fixture.
 
     The state of the MongoDB is not cleaned up by the function.
     """
-    config = config_from_mongodb_container(mongodb_container)
+    config = mongodb_container.mongodb_config
     dao_factory = MongoDbDaoFactory(config=config)
     client = mongodb_container.get_connection_client()
     mongodb_fixture = MongoDbFixture(
@@ -147,7 +152,7 @@ persistent_mongodb_fixture = get_persistent_mongodb_fixture()
 
 
 def _clean_mongodb_fixture(
-    mongodb_container: MongoDbContainer,
+    mongodb_container: MongoDbContainerFixture,
 ) -> Generator[MongoDbFixture, None, None]:
     """Fixture function that gets a clean MongoDB fixture.
 
