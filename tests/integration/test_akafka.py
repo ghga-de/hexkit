@@ -35,11 +35,16 @@ from hexkit.providers.akafka import (
     KafkaEventSubscriber,
 )
 from hexkit.providers.akafka.testcontainer import KafkaSSLContainer
-from hexkit.providers.akafka.testutils import ExpectedEvent, KafkaFixture
+from hexkit.providers.akafka.testutils import (
+    ExpectedEvent,
+    KafkaFixture,
+    kafka_container_fixture,  # noqa: F401
+    kafka_fixture,  # noqa: F401
+)
 
 from ..fixtures.kafka_secrets import KafkaSecrets
 
-pytestmark = pytest.mark.asyncio(scope="session")
+pytestmark = pytest.mark.asyncio()
 
 
 async def test_kafka_event_publisher(kafka: KafkaFixture):

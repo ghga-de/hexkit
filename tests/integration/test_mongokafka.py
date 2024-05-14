@@ -24,11 +24,16 @@ from pydantic import BaseModel, ConfigDict
 from hexkit.protocols.dao import ResourceNotFoundError
 from hexkit.protocols.daosub import DaoSubscriberProtocol, DtoValidationError
 from hexkit.providers.akafka import KafkaOutboxSubscriber
-from hexkit.providers.akafka.testutils import ExpectedEvent, KafkaFixture
+from hexkit.providers.akafka.testutils import (
+    ExpectedEvent,
+    KafkaFixture,
+    kafka_container_fixture,  # noqa: F401
+    kafka_fixture,  # noqa: F401
+)
 from hexkit.providers.mongokafka import MongoKafkaConfig, MongoKafkaDaoPublisherFactory
 from hexkit.providers.mongokafka.provider import CHANGE_EVENT_TYPE, DELETE_EVENT_TYPE
 
-pytestmark = pytest.mark.asyncio(scope="session")
+pytestmark = pytest.mark.asyncio()
 
 EXAMPLE_TOPIC = "example"
 

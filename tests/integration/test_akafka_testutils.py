@@ -35,9 +35,12 @@ from hexkit.providers.akafka.testutils import (
     KafkaFixture,
     RecordedEvent,
     ValidationError,
+    kafka_container_fixture,  # noqa: F401
+    kafka_fixture,  # noqa: F401
 )
 
-pytestmark = pytest.mark.asyncio(scope="session")
+pytestmark = pytest.mark.asyncio()
+
 
 TEST_TYPE = "test_type"
 
@@ -48,7 +51,7 @@ def make_payload(msg: str) -> JsonObject:
 
 
 class DummyTranslator(EventSubscriberProtocol):
-    """An event subscriber translator that simply tracks what it's consumed."""
+    """An event subscriber translator that simply tracks what it consumes."""
 
     def __init__(self, topics_of_interest: list[str]):
         self.topics_of_interest = topics_of_interest
@@ -64,7 +67,7 @@ class DummyTranslator(EventSubscriberProtocol):
 
 
 async def test_clear_topics_specific(kafka: KafkaFixture):
-    """Make sure the reset function works"""
+    """Make sure the reset function works."""
     topic_to_keep = "keep_topic"
     topic_to_clear = "clear_topic"
     partition_keep = TopicPartition(topic_to_keep, 0)

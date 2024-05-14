@@ -21,7 +21,6 @@ import pytest
 
 from hexkit.providers.akafka.testutils import (
     KafkaFixture,
-    get_kafka_fixture,
 )
 from hexkit.providers.mongodb.testutils import (
     MongoDbFixture,
@@ -35,28 +34,14 @@ from hexkit.providers.s3.testutils import (
 )
 
 __all__ = [
-    "kafka_fixture",
     "mongodb_fixture",
     "mongo_kafka_config_fixture",
     "s3_fixture",
     "file_fixture",
 ]
 
-kafka_session_fixture = get_kafka_fixture(scope="session")
 mongodb_session_fixture = get_mongodb_fixture(scope="session")
 s3_session_fixture = get_s3_fixture(scope="session")
-
-
-@pytest.fixture(name="kafka")
-def kafka_fixture(kafka_session_fixture: KafkaFixture) -> KafkaFixture:
-    """Kafka fixture that reuses the same testcontainer.
-
-    Clears all topics in case something was left in from a previous test case.
-    """
-    # we cannot make this an async fixture because it should have function scope
-    loop = asyncio.get_event_loop()
-    loop.run_until_complete(kafka_session_fixture.clear_topics(exclude_internal=False))
-    return kafka_session_fixture
 
 
 @pytest.fixture(name="mongodb")

@@ -25,7 +25,11 @@ from pathlib import Path
 
 import pytest
 
-from hexkit.providers.akafka.testutils import KafkaFixture, kafka_fixture  # noqa:F401
+from hexkit.providers.akafka.testutils import (
+    KafkaFixture,
+    kafka_container_fixture,  # noqa: F401
+    kafka_fixture,  # noqa: F401
+)
 from sc_tests.integration.test_event_api import (
     CASES,
     check_problem_outcomes,
@@ -35,27 +39,24 @@ from sc_tests.integration.test_event_api import (
 APP_DIR = Path(__file__).parent.parent.parent.absolute()
 
 
-@pytest.mark.asyncio
-async def test_cli(kafka_fixture: KafkaFixture, monkeypatch):  # noqa:F811
+@pytest.mark.asyncio()
+async def test_cli(kafka: KafkaFixture, monkeypatch: pytest.MonkeyPatch):
     """Test the stream_calc app via the CLI."""
     os.chdir(APP_DIR)
+    kafka_server = kafka.kafka_servers[0]
+    monkeypatch.setenv(name="STREAM_CALC_KAFKA_SERVERS", value=f'["{kafka_server}"]')
     monkeypatch.setenv(
-        name="STREAM_CALC_KAFKA_SERVERS", value=f'["{kafka_fixture.kafka_servers[0]}"]'
-    )
-    monkeypatch.setenv(
-        name="PYTHONPATH", value=":".join([str(APP_DIR), *site.getsitepackages()])
+        name="PYTHONPATH", value=":".join((str(APP_DIR), *site.getsitepackages()))
     )
 
-    await submit_test_problems(CASES, kafka_server=kafka_fixture.kafka_servers[0])
+    await submit_test_problems(CASES, kafka_server=kafka_server)
 
     with subprocess.Popen(
         args=["-m", "stream_calc"],
         executable=sys.executable,
     ) as process:
         await asyncio.wait_for(
-            check_problem_outcomes(
-                cases=CASES, kafka_server=kafka_fixture.kafka_servers[0]
-            ),
+            check_problem_outcomes(cases=CASES, kafka_server=kafka_server),
             10,
         )
         process.terminate()
