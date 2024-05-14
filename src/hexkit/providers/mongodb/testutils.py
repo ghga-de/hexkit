@@ -32,7 +32,7 @@ from testcontainers.mongodb import MongoDbContainer
 from hexkit.custom_types import PytestScope
 from hexkit.providers.mongodb.provider import MongoDbConfig, MongoDbDaoFactory
 
-MONGODB_IMAGE = "mongo:6.0.3"
+MONGODB_IMAGE = "mongo:7.0.9"
 
 __all__ = [
     "MONGODB_IMAGE",
