@@ -31,7 +31,7 @@ from hexkit.providers.akafka import (
     KafkaEventSubscriber,
 )
 
-pytestmark = pytest.mark.asyncio(scope="module")
+pytestmark = pytest.mark.asyncio()
 
 VALID_CORRELATION_ID = "7041eb31-7333-4b57-97d7-90f5562c3383"
 CORRELATION_ID_HEADER = (

@@ -45,8 +45,8 @@ __all__ = [
     "get_persistent_mongodb_fixture",
     "get_clean_mongodb_fixture",
     "mongodb_container_fixture",
-    "persistent_mongodb_fixture",
     "clean_mongodb_fixture",
+    "persistent_mongodb_fixture",
     "mongodb_fixture",
 ]
 
@@ -86,7 +86,7 @@ class MongoDbFixture:
 
 
 class MongoDbContainerFixture(MongoDbContainer):
-    """Kafka test container with configuration and command execution."""
+    """MongoDB test container with MongoDB configuration."""
 
     mongodb_config: MongoDbConfig
 
@@ -125,12 +125,11 @@ def _persistent_mongodb_fixture(
     config = mongodb_container.mongodb_config
     dao_factory = MongoDbDaoFactory(config=config)
     client = mongodb_container.get_connection_client()
-    mongodb_fixture = MongoDbFixture(
+    yield MongoDbFixture(
         client=client,
         config=config,
         dao_factory=dao_factory,
     )
-    yield mongodb_fixture
 
     client.close()
 

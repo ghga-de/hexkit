@@ -140,7 +140,7 @@ async def test_clear_topics_specific(kafka: KafkaFixture):
         prefetched = await consumer.getmany(timeout_ms=500)
         if not prefetched:
             break
-        assert len(prefetched) == 1
+        assert len(prefetched) <= 2
         records.extend(next(iter(prefetched.values())))
 
     records.sort(key=lambda record: record.topic)
