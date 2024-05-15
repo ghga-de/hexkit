@@ -23,13 +23,14 @@ Please note, only use for testing purposes.
 
 import hashlib
 import os
-from collections.abc import Generator
+from collections.abc import AsyncGenerator, Generator
 from contextlib import contextmanager
 from pathlib import Path
 from tempfile import NamedTemporaryFile
 from typing import Optional
 
 import pytest
+import pytest_asyncio
 import requests
 from pydantic import BaseModel, SecretStr, computed_field
 from testcontainers.localstack import LocalStackContainer
@@ -38,7 +39,26 @@ from hexkit.custom_types import PytestScope
 from hexkit.protocols.objstorage import ObjectStorageProtocol, PresignedPostURL
 from hexkit.providers.s3.provider import S3Config, S3ObjectStorage
 
-LOCALSTACK_IMAGE = "localstack/localstack:0.14.5"
+__all__ = [
+    "LOCALSTACK_IMAGE",
+    "MEBIBYTE",
+    "TEST_FILE_DIR",
+    "TEST_FILE_PATHS",
+    "calc_md5",
+    "FileObject",
+    "S3Fixture",
+    "S3ContainerFixture",
+    "get_s3_container_fixture",
+    "get_clean_s3_fixture",
+    "get_persistent_s3_fixture",
+    "clean_s3_fixture",
+    "persistent_s3_fixture",
+    "s3_fixture",
+    "file_fixture",
+]
+
+
+LOCALSTACK_IMAGE = "localstack/localstack:3.4.0"
 
 TEST_FILE_DIR = Path(__file__).parent.resolve() / "test_files"
 
@@ -81,7 +101,7 @@ class FileObject(BaseModel):
 
 
 class S3Fixture:
-    """Yielded by the `s3_fixture` function"""
+    """A fixture with utility methods for tests that use S3 file storage"""
 
     def __init__(self, config: S3Config, storage: S3ObjectStorage):
         """Initialize with config."""
@@ -120,24 +140,100 @@ class S3Fixture:
             buckets.discard(bucket)
 
 
-def s3_fixture_function() -> Generator[S3Fixture, None, None]:
-    """Pytest fixture for tests depending on the S3ObjectStorage DAO.
+class S3ContainerFixture(LocalStackContainer):
+    """LocalStack test container with S3 configuration."""
 
-    **Do not call directly** Instead, use get_s3_fixture()
+    s3_config: S3Config
+
+    _created_buckets: set[str]
+
+
+def _s3_container_fixture() -> Generator[S3ContainerFixture, None, None]:
+    """Fixture function for getting a running S3 test container."""
+    with S3ContainerFixture(image=LOCALSTACK_IMAGE) as s3_container:
+        s3_endpoint_url = s3_container.get_url()
+        s3_config = S3Config(  # type: ignore [call-arg]
+            s3_endpoint_url=s3_endpoint_url,
+            s3_access_key_id="test",
+            s3_secret_access_key=SecretStr("test"),
+        )
+        s3_container.s3_config = s3_config
+        s3_container._created_buckets = set()
+        yield s3_container
+
+
+def get_s3_container_fixture(
+    scope: PytestScope = "session", name: str = "s3_container"
+):
+    """Get a LocalStack test container fixture with desired scope and name.
+
+    By default, the session scope is used for LocalStack test containers.
     """
-    with LocalStackContainer(image=LOCALSTACK_IMAGE).with_services("s3") as localstack:
-        config = config_from_localstack_container(localstack)
-
-        storage = S3ObjectStorage(config=config)
-        yield S3Fixture(config=config, storage=storage)
+    return pytest.fixture(_s3_container_fixture, scope=scope, name=name)
 
 
-def get_s3_fixture(scope: PytestScope = "function"):
-    """Produce an S3 fixture with desired scope. Default is the function scope."""
-    return pytest.fixture(s3_fixture_function, scope=scope)
+s3_container_fixture = get_s3_container_fixture()
 
 
-s3_fixture = get_s3_fixture()
+def _persistent_s3_fixture(
+    s3_container: S3ContainerFixture,
+) -> Generator[S3Fixture, None, None]:
+    """Fixture function that gets a persistent S3 storage fixture.
+
+    The state of the S3 storage is not cleaned up by the function.
+    """
+    config = s3_container.s3_config
+    storage = S3ObjectStorage(config=config)
+    yield S3Fixture(config=config, storage=storage)
+
+
+def get_persistent_s3_fixture(scope: PytestScope = "function", name: str = "s3"):
+    """Get an S3 fixture with desired scope and name.
+
+    The state of the LocalStack test container is persisted across tests.
+
+    By default, the function scope is used for this fixture,
+    while the session scope is used for the underlying LocalStack test container.
+    """
+    return pytest.fixture(_persistent_s3_fixture, scope=scope, name=name)
+
+
+persistent_s3_fixture = get_persistent_s3_fixture()
+
+
+async def _clean_s3_fixture(
+    s3_container: S3ContainerFixture,
+) -> AsyncGenerator[S3Fixture, None]:
+    """Async fixture function that gets a clean S3 storage fixture.
+
+    The clean state is achieved by deleting all S3 buckets upfront.
+    """
+    for s3_fixture in _persistent_s3_fixture(s3_container):
+        container_buckets = s3_container._created_buckets
+        fixture_buckets = s3_fixture.storage._created_buckets
+        fixture_buckets.update(container_buckets)
+        fixture_buckets_before = fixture_buckets.copy()
+        await s3_fixture.storage.delete_created_buckets()
+        deleted_buckets = fixture_buckets_before - fixture_buckets
+        container_buckets.difference_update(deleted_buckets)
+
+        yield s3_fixture
+
+    container_buckets.update(fixture_buckets)
+
+
+def get_clean_s3_fixture(scope: PytestScope = "function", name: str = "s3"):
+    """Get an S3 storage fixture with desired scope and name.
+
+    The state of the S3 storage is reset by deleting all buckets before running tests.
+
+    By default, the function scope is used for this fixture,
+    while the session scope is used for the underlying LocalStack test container.
+    """
+    return pytest_asyncio.fixture(_clean_s3_fixture, scope=scope, name=name)
+
+
+s3_fixture = clean_s3_fixture = get_clean_s3_fixture()
 
 
 @contextmanager
@@ -146,7 +242,7 @@ def temp_file_object(
     object_id: str = "default-test-object",
     size: int = 5 * MEBIBYTE,
 ) -> Generator[FileObject, None, None]:
-    """Generates a file object with the specified size in bytes."""
+    """Generate a file object with the specified size in bytes."""
     chunk_size = 1024
     chunk = b"\0" * chunk_size
     current_size = 0

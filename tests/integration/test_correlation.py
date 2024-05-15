@@ -13,6 +13,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 #
+
 """Test to verify correlation ID functionality."""
 
 import asyncio
@@ -36,10 +37,14 @@ from hexkit.correlation import (
 from hexkit.custom_types import Ascii, JsonObject
 from hexkit.protocols.eventsub import EventSubscriberProtocol
 from hexkit.providers.akafka import KafkaConfig, KafkaEventSubscriber
-from hexkit.providers.akafka.testutils import KafkaFixture
+from hexkit.providers.akafka.testutils import (
+    KafkaFixture,
+    kafka_container_fixture,  # noqa: F401
+    kafka_fixture,  # noqa: F401
+)
 from hexkit.utils import set_context_var
 
-pytestmark = pytest.mark.asyncio(scope="session")
+pytestmark = pytest.mark.asyncio()
 
 # Set seed to avoid non-deterministic outcomes with random.random()
 random.seed(17)

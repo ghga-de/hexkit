@@ -27,7 +27,7 @@ from testcontainers.core.waiting_utils import wait_for_logs
 
 __all__ = ["KafkaSSLContainer"]
 
-DEFAULT_IMAGE = "confluentinc/cp-kafka:7.6.0"
+DEFAULT_IMAGE = "confluentinc/cp-kafka:7.6.1"
 
 DEFAULT_PORT = 9093  # default port for the Kafka container
 BROKER_PORT = 9092  # auxiliary port for inter broker listener

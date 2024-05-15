@@ -24,11 +24,24 @@ from pydantic import BaseModel, ConfigDict
 from hexkit.protocols.dao import ResourceNotFoundError
 from hexkit.protocols.daosub import DaoSubscriberProtocol, DtoValidationError
 from hexkit.providers.akafka import KafkaOutboxSubscriber
-from hexkit.providers.akafka.testutils import ExpectedEvent, KafkaFixture
-from hexkit.providers.mongokafka import MongoKafkaConfig, MongoKafkaDaoPublisherFactory
+from hexkit.providers.akafka.testutils import (
+    ExpectedEvent,
+    KafkaFixture,  # noqa: F401
+    kafka_container_fixture,  # noqa: F401
+    kafka_fixture,  # noqa: F401
+)
+from hexkit.providers.mongodb.testutils import (
+    mongodb_container_fixture,  # noqa: F401
+    mongodb_fixture,  # noqa: F401
+)
+from hexkit.providers.mongokafka import MongoKafkaDaoPublisherFactory
 from hexkit.providers.mongokafka.provider import CHANGE_EVENT_TYPE, DELETE_EVENT_TYPE
+from hexkit.providers.mongokafka.testutils import (
+    MongoKafkaFixture,
+    mongo_kafka_fixture,  # noqa: F401
+)
 
-pytestmark = pytest.mark.asyncio(scope="session")
+pytestmark = pytest.mark.asyncio()
 
 EXAMPLE_TOPIC = "example"
 
@@ -67,12 +80,11 @@ class DummyOutboxSubscriber(DaoSubscriberProtocol[ExampleDto]):
         self.received.append((resource_id, None))
 
 
-async def test_dao_outbox_with_non_existing_resource(
-    kafka: KafkaFixture, mongo_kafka_config: MongoKafkaConfig
-):
+async def test_dao_outbox_with_non_existing_resource(mongo_kafka: MongoKafkaFixture):
     """Test operations on non-existing resources fail with MongoKafkaOutboxFactory."""
+    kafka = mongo_kafka.kafka
     async with MongoKafkaDaoPublisherFactory.construct(
-        config=mongo_kafka_config
+        config=mongo_kafka.config
     ) as factory:
         dao = await factory.get_dao(
             name="example",
@@ -106,12 +118,11 @@ async def test_dao_outbox_with_non_existing_resource(
                 await dao.delete(example.id)
 
 
-async def test_dao_outbox_happy(
-    kafka: KafkaFixture, mongo_kafka_config: MongoKafkaConfig
-):
+async def test_dao_outbox_happy(mongo_kafka: MongoKafkaFixture):
     """Test the happy path of using the MongoKafkaOutboxFactory."""
+    kafka = mongo_kafka.kafka
     async with MongoKafkaDaoPublisherFactory.construct(
-        config=mongo_kafka_config
+        config=mongo_kafka.config
     ) as factory:
         dao = await factory.get_dao(
             name="example",
@@ -224,13 +235,11 @@ async def test_dao_outbox_happy(
             _ = await dao.get_by_id(example.id)
 
 
-async def test_delay_publishing(
-    kafka: KafkaFixture,
-    mongo_kafka_config: MongoKafkaConfig,
-):
+async def test_delay_publishing(mongo_kafka: MongoKafkaFixture):
     """Test delaying publishing of events."""
+    kafka = mongo_kafka.kafka
     async with MongoKafkaDaoPublisherFactory.construct(
-        config=mongo_kafka_config
+        config=mongo_kafka.config
     ) as factory:
         dao = await factory.get_dao(
             name="example",
@@ -263,11 +272,10 @@ async def test_delay_publishing(
             await dao.publish_pending()
 
 
-async def test_publishing_after_failure(
-    kafka: KafkaFixture,
-    mongo_kafka_config: MongoKafkaConfig,
-):
+async def test_publishing_after_failure(mongo_kafka: MongoKafkaFixture):
     """Test delaying publishing after the initial publishing failed."""
+    kafka = mongo_kafka.kafka
+
     # a dto to event function that fails the first time:
     fail = True
 
@@ -281,7 +289,7 @@ async def test_publishing_after_failure(
         return dto.model_dump()
 
     async with MongoKafkaDaoPublisherFactory.construct(
-        config=mongo_kafka_config
+        config=mongo_kafka.config
     ) as factory:
         dao = await factory.get_dao(
             name="example",
@@ -311,10 +319,11 @@ async def test_publishing_after_failure(
             await dao.publish_pending()
 
 
-async def test_republishing(kafka: KafkaFixture, mongo_kafka_config: MongoKafkaConfig):
+async def test_republishing(mongo_kafka: MongoKafkaFixture):
     """Test republishing already published events."""
+    kafka = mongo_kafka.kafka
     async with MongoKafkaDaoPublisherFactory.construct(
-        config=mongo_kafka_config
+        config=mongo_kafka.config
     ) as factory:
         dao = await factory.get_dao(
             name="example",
@@ -346,7 +355,7 @@ async def test_republishing(kafka: KafkaFixture, mongo_kafka_config: MongoKafkaC
             await dao.republish()
 
 
-async def test_dao_pub_sub_happy(mongo_kafka_config: MongoKafkaConfig):
+async def test_dao_pub_sub_happy(mongo_kafka: MongoKafkaFixture):
     """Test the happy path of transmitting resource changes or deletions between the
     MongoKafkaOutboxFactory and the KafkaOutboxSubscriber.
     """
@@ -354,7 +363,7 @@ async def test_dao_pub_sub_happy(mongo_kafka_config: MongoKafkaConfig):
 
     # publish some changes and deletions:
     async with MongoKafkaDaoPublisherFactory.construct(
-        config=mongo_kafka_config
+        config=mongo_kafka.config
     ) as factory:
         dao = await factory.get_dao(
             name="example",
@@ -383,7 +392,7 @@ async def test_dao_pub_sub_happy(mongo_kafka_config: MongoKafkaConfig):
 
     # consume events:
     async with KafkaOutboxSubscriber.construct(
-        config=mongo_kafka_config,
+        config=mongo_kafka.config,
         translators=[sub_translator],
     ) as subscriber:
         for _ in expected_events:
@@ -392,7 +401,7 @@ async def test_dao_pub_sub_happy(mongo_kafka_config: MongoKafkaConfig):
     assert sub_translator.received == expected_events
 
 
-async def test_dao_pub_sub_invalid_dto(mongo_kafka_config: MongoKafkaConfig):
+async def test_dao_pub_sub_invalid_dto(mongo_kafka: MongoKafkaFixture):
     """Test that using the KafkaOutboxSubscriber to consume an event with an
     unexpected payload raises a `DtoValidationError`.
     """
@@ -406,7 +415,7 @@ async def test_dao_pub_sub_invalid_dto(mongo_kafka_config: MongoKafkaConfig):
 
     # publish some changes and deletions:
     async with MongoKafkaDaoPublisherFactory.construct(
-        config=mongo_kafka_config
+        config=mongo_kafka.config
     ) as factory:
         dao = await factory.get_dao(
             name="example",
@@ -422,7 +431,7 @@ async def test_dao_pub_sub_invalid_dto(mongo_kafka_config: MongoKafkaConfig):
 
     # consume events:
     async with KafkaOutboxSubscriber.construct(
-        config=mongo_kafka_config,
+        config=mongo_kafka.config,
         translators=[sub_translator],
     ) as subscriber:
         with pytest.raises(DtoValidationError):

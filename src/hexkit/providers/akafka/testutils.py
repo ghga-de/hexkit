@@ -20,12 +20,19 @@ Please note, only use for testing purposes.
 """
 
 import json
-from collections.abc import AsyncGenerator, Sequence
+from collections.abc import AsyncGenerator, Generator, Sequence
 from contextlib import asynccontextmanager
 from dataclasses import dataclass
 from functools import partial
-from typing import Callable, Optional, Union
+from typing import Any, Callable, Optional, Union
 
+try:
+    from typing import Self
+except ImportError:  # Python < 3.11
+    from typing_extensions import Self
+
+
+import pytest
 import pytest_asyncio
 from aiokafka import AIOKafkaConsumer, TopicPartition
 from aiokafka.admin import AIOKafkaAdminClient
@@ -40,6 +47,26 @@ from hexkit.providers.akafka.provider import (
     headers_as_dict,
 )
 from hexkit.providers.akafka.testcontainer import DEFAULT_IMAGE as KAFKA_IMAGE
+
+__all__ = [
+    "KAFKA_IMAGE",
+    "EventBase",
+    "EventRecorder",
+    "ExpectedEvent",
+    "RecordedEvent",
+    "ValidationError",
+    "KafkaConfig",
+    "KafkaContainerFixture",
+    "KafkaEventPublisher",
+    "KafkaFixture",
+    "get_kafka_container_fixture",
+    "get_clean_kafka_fixture",
+    "get_persistent_kafka_fixture",
+    "kafka_container_fixture",
+    "clean_kafka_fixture",
+    "persistent_kafka_fixture",
+    "kafka_fixture",
+]
 
 
 @dataclass(frozen=True)
@@ -339,7 +366,7 @@ class EventRecorder:
 
 
 class KafkaFixture:
-    """Yielded by the `kafka_fixture` function"""
+    """A fixture with utility methods for tests that use Apache Kafka."""
 
     def __init__(
         self,
@@ -468,49 +495,115 @@ class KafkaFixture:
         )
 
 
-async def kafka_fixture_function() -> AsyncGenerator[KafkaFixture, None]:
-    """Pytest fixture for tests depending on the Kafka-base providers.
+class KafkaContainerFixture(KafkaContainer):
+    """Kafka test container with configuration and command execution."""
 
-    **Do not call directly** Instead, use get_kafka_fixture()
-    """
-    with KafkaContainer(image=KAFKA_IMAGE) as kafka:
-        kafka_servers = [kafka.get_bootstrap_server()]
-        config = KafkaConfig(
+    kafka_config: KafkaConfig
+
+    def __init__(self, port: int = 9093, **kwargs: Any) -> None:
+        """Initialize the container."""
+        super().__init__(image=KAFKA_IMAGE, port=port, **kwargs)
+
+    def __enter__(self) -> Self:
+        """Enter the container context."""
+        super().__enter__()
+        kafka_servers = [self.get_bootstrap_server()]
+        self.kafka_config = KafkaConfig(
             service_name="test_publisher",
             service_instance_id="001",
             kafka_servers=kafka_servers,
         )
+        return self
 
-        def wrapped_exec_run(command: str, run_in_shell: bool):
-            """Run the given command in the kafka testcontainer.
+    def wrapped_exec_run(self, command: str, run_in_shell: bool):
+        """Run the given command in the kafka testcontainer.
 
-            Args:
-              - `command`: The full command to run.
-              - `run_in_shell`: If True, will run the command in a shell.
+        Args:
+            - `command`: The full command to run.
+            - `run_in_shell`: If True, will run the command in a shell.
 
-            Raises:
-              - `RuntimeError`: when the exit code returned by the command is not zero.
-            """
-            cmd = ["sh", "-c", command] if run_in_shell else command
-            exit_code, output = kafka.get_wrapped_container().exec_run(cmd)
+        Raises:
+            - `RuntimeError`: when the exit code returned by the command is not zero.
+        """
+        cmd = ["sh", "-c", command] if run_in_shell else command
+        exit_code, output = self.get_wrapped_container().exec_run(cmd)
 
-            if exit_code != 0:
-                raise RuntimeError(
-                    f"result: {exit_code}, output: {output.decode('utf-8')}"
-                )
-
-        async with KafkaEventPublisher.construct(config=config) as publisher:
-            yield KafkaFixture(
-                config=config,
-                kafka_servers=kafka_servers,
-                publisher=publisher,
-                cmd_exec_func=wrapped_exec_run,
-            )
+        if exit_code != 0:
+            raise RuntimeError(f"result: {exit_code}, output: {output.decode('utf-8')}")
 
 
-def get_kafka_fixture(scope: PytestScope = "function"):
-    """Produce a kafka fixture with desired scope. Default is the function scope."""
-    return pytest_asyncio.fixture(kafka_fixture_function, scope=scope)
+def _kafka_container_fixture() -> Generator[KafkaContainerFixture, None, None]:
+    """Fixture function for getting a running Kafka test container."""
+    with KafkaContainerFixture() as kafka_container:
+        yield kafka_container
 
 
-kafka_fixture = get_kafka_fixture()
+def get_kafka_container_fixture(
+    scope: PytestScope = "session", name: str = "kafka_container"
+):
+    """Get a Kafka test container fixture with desired scope and name.
+
+    By default, the session scope is used for Kafka test containers.
+    """
+    return pytest.fixture(_kafka_container_fixture, scope=scope, name=name)
+
+
+kafka_container_fixture = get_kafka_container_fixture()
+
+
+async def _persistent_kafka_fixture(
+    kafka_container: KafkaContainerFixture,
+) -> AsyncGenerator[KafkaFixture, None]:
+    """Fixture function that gets a persistent Kafka fixture.
+
+    The state of Kafka is not cleaned up by this function.
+    """
+    config = kafka_container.kafka_config
+    async with KafkaEventPublisher.construct(config=config) as publisher:
+        kafka_fixture = KafkaFixture(
+            config=config,
+            kafka_servers=config.kafka_servers,
+            cmd_exec_func=kafka_container.wrapped_exec_run,
+            publisher=publisher,
+        )
+        yield kafka_fixture
+
+
+def get_persistent_kafka_fixture(scope: PytestScope = "function", name: str = "kafka"):
+    """Get a Kafka fixture with desired scope and name.
+
+    The state of the Kafka test container is persisted across tests.
+
+    By default, the function scope is used for this fixture,
+    while the session scope is used for the underlying Kafka test container.
+    """
+    return pytest_asyncio.fixture(_persistent_kafka_fixture, scope=scope, name=name)
+
+
+persistent_kafka_fixture = get_persistent_kafka_fixture()
+
+
+async def _clean_kafka_fixture(
+    kafka_container: KafkaContainerFixture,
+) -> AsyncGenerator[KafkaFixture, None]:
+    """Fixture function that gets a clean Kafka fixture.
+
+    The clean state is achieved by clearing all Kafka topics upfront.
+    """
+    async for kafka_fixture in _persistent_kafka_fixture(kafka_container):
+        await kafka_fixture.clear_topics()
+        yield kafka_fixture
+
+
+def get_clean_kafka_fixture(scope: PytestScope = "function", name: str = "kafka"):
+    """Get a Kafka fixture with desired scope and name.
+
+    The state of Kafka is reset by clearing all topics before running tests.
+
+    By default, the function scope is used for this fixture,
+    while the session scope is used for the underlying Kafka test container.
+    """
+    return pytest_asyncio.fixture(_clean_kafka_fixture, scope=scope, name=name)
+
+
+kafka_fixture = clean_kafka_fixture = get_clean_kafka_fixture()

@@ -30,33 +30,48 @@ aiokafka==0.10.0 \
     --hash=sha256:f4b22a31f40493cea50dddb4dfc92750dfb273635ccb094a16fde9678eb38958 \
     --hash=sha256:fafc95bdaed9e1810fcd80b02ac117e51c72681ffe50353e5d61e2170609e1fc \
     --hash=sha256:ffc30e4c6bfcb00356a002f623c93a51d8336ca67687ea069dd11822da07379c
+    # via
+    #   -c lock/requirements-dev.txt
+    #   hexkit (pyproject.toml)
 annotated-types==0.6.0 \
     --hash=sha256:0641064de18ba7a25dee8f96403ebc39113d0cb953a01429249d5c7564666a43 \
     --hash=sha256:563339e807e53ffd9c267e99fc6d9ea23eb8443c08f112651963e24e22f84a5d
-    # via pydantic
+    # via
+    #   -c lock/requirements-dev.txt
+    #   pydantic
 async-timeout==4.0.3 \
     --hash=sha256:4640d96be84d82d02ed59ea2b7105a0f7b33abe8703703cd0ab0bf87c427522f \
     --hash=sha256:7405140ff1230c310e51dc27b3145b9092d659ce68ff733fb0cefe3ee42be028
-    # via aiokafka
+    # via
+    #   -c lock/requirements-dev.txt
+    #   aiokafka
 attrs==23.2.0 \
     --hash=sha256:935dc3b529c262f6cf76e50877d35a4bd3c1de194fd41f47a2b7ae8f19971f30 \
     --hash=sha256:99b87a485a5820b23b879f04c2305b44b951b502fd64be915879d77a7e8fc6f1
     # via
+    #   -c lock/requirements-dev.txt
     #   jsonschema
     #   referencing
-boto3==1.34.102 \
-    --hash=sha256:1c1fb2884f85c0ec6b62e6e7ed5a2a6635e1188f3ab5d2b700f7db1cf8464484 \
-    --hash=sha256:65e4b9fb9ceefe19976e8822ac0cd68d28946d4697e538741d2bbdb5b45ae42f
-botocore==1.34.102 \
-    --hash=sha256:79ac7fc2729294395c70eff9c23510f00785ad2acd78d6130cb4379e9f27da86 \
-    --hash=sha256:e2f8a9f4bac6f7b568e6e981ac2a2500bc992329c85dde8546f0cae8605dd009
+boto3==1.34.105 \
+    --hash=sha256:b633e8fbf7145bdb995ce68a27d096bb89fd393185b0e773418d81cd78db5a03 \
+    --hash=sha256:f2c11635be0de7b7c06eb606ece1add125e02d6ed521592294a0a21af09af135
     # via
+    #   -c lock/requirements-dev.txt
+    #   hexkit (pyproject.toml)
+botocore==1.34.105 \
+    --hash=sha256:727d5d3e800ac8b705fca6e19b6fefa1e728a81d62a712df9bd32ed0117c740b \
+    --hash=sha256:a459d060b541beecb50681e6e8a39313cca981e146a59ba7c5229d62f631a016
+    # via
+    #   -c lock/requirements-dev.txt
+    #   hexkit (pyproject.toml)
     #   boto3
     #   s3transfer
 certifi==2024.2.2 \
     --hash=sha256:0569859f95fc761b18b45ef421b1290a0f65f147e92a1e5eb3e635f9a5e4e66f \
     --hash=sha256:dc383c07b76109f368f6106eee2b593b04a011ea4d55f652c6ca24a754d1cdd1
-    # via requests
+    # via
+    #   -c lock/requirements-dev.txt
+    #   requests
 charset-normalizer==3.3.2 \
     --hash=sha256:06435b539f889b1f6f4ac1758871aae42dc3a8c0e24ac9e60c2384973ad73027 \
     --hash=sha256:06a81e93cd441c56a9b65d8e1d043daeb97a3d0856d177d5c90ba85acb3db087 \
@@ -148,45 +163,66 @@ charset-normalizer==3.3.2 \
     --hash=sha256:fb69256e180cb6c8a894fee62b3afebae785babc1ee98b81cdf68bbca1987f33 \
     --hash=sha256:fd1abc0d89e30cc4e02e4064dc67fcc51bd941eb395c502aac3ec19fab46b519 \
     --hash=sha256:ff8fa367d09b717b2a17a052544193ad76cd49979c805768879cb63d9ca50561
-    # via requests
+    # via
+    #   -c lock/requirements-dev.txt
+    #   requests
 dnspython==2.6.1 \
     --hash=sha256:5ef3b9680161f6fa89daf8ad451b5f1a33b18ae8a1c6778cdf4b43f08c0a6e50 \
     --hash=sha256:e8f0f9c23a7b7cb99ded64e6c3a6f3e701d78f50c55e002b839dea7225cff7cc
-    # via pymongo
+    # via
+    #   -c lock/requirements-dev.txt
+    #   pymongo
 docker==7.0.0 \
     --hash=sha256:12ba681f2777a0ad28ffbcc846a69c31b4dfd9752b47eb425a274ee269c5e14b \
     --hash=sha256:323736fb92cd9418fc5e7133bc953e11a9da04f4483f828b527db553f1e7e5a3
-    # via testcontainers
+    # via
+    #   -c lock/requirements-dev.txt
+    #   testcontainers
 idna==3.7 \
     --hash=sha256:028ff3aadf0609c1fd278d8ea3089299412a7a8b9bd005dd08b9f8285bcb5cfc \
     --hash=sha256:82fee1fc78add43492d3a1898bfa6d8a904cc97d8427f683ed8e798d07761aa0
-    # via requests
+    # via
+    #   -c lock/requirements-dev.txt
+    #   requests
 jmespath==1.0.1 \
     --hash=sha256:02e2e4cc71b5bcab88332eebf907519190dd9e6e82107fa7f83b1003a6252980 \
     --hash=sha256:90261b206d6defd58fdd5e85f478bf633a2901798906be2ad389150c5c60edbe
     # via
+    #   -c lock/requirements-dev.txt
     #   boto3
     #   botocore
 jsonschema==4.22.0 \
     --hash=sha256:5b22d434a45935119af990552c862e5d6d564e8f6601206b305a61fdf661a2b7 \
     --hash=sha256:ff4cfd6b1367a40e7bc6411caec72effadd3db0bbe5017de188f2d6108335802
+    # via
+    #   -c lock/requirements-dev.txt
+    #   hexkit (pyproject.toml)
 jsonschema-specifications==2023.12.1 \
     --hash=sha256:48a76787b3e70f5ed53f1160d2b81f586e4ca6d1548c5de7085d1682674764cc \
     --hash=sha256:87e4fdf3a94858b8a2ba2778d9ba57d8a9cafca7c7489c46ba0d30a8bc6a9c3c
-    # via jsonschema
+    # via
+    #   -c lock/requirements-dev.txt
+    #   jsonschema
 motor==3.4.0 \
     --hash=sha256:4b1e1a0cc5116ff73be2c080a72da078f2bb719b53bc7a6bb9e9a2f7dcd421ed \
     --hash=sha256:c89b4e4eb2e711345e91c7c9b122cb68cce0e5e869ed0387dd0acb10775e3131
+    # via
+    #   -c lock/requirements-dev.txt
+    #   hexkit (pyproject.toml)
 packaging==24.0 \
     --hash=sha256:2ddfb553fdf02fb784c234c7ba6ccc288296ceabec964ad2eae3777778130bc5 \
     --hash=sha256:eb82c5e3e56209074766e6885bb04b8c38a0c015d0a30036ebe7ece34c9989e9
     # via
+    #   -c lock/requirements-dev.txt
     #   aiokafka
     #   docker
 pydantic==2.7.1 \
     --hash=sha256:e029badca45266732a9a79898a15ae2e8b14840b1eabbb25844be28f0b33f3d5 \
     --hash=sha256:e9dbb5eada8abe4d9ae5f46b9939aead650cd2b68f249bb3a8139dbe125803cc
-    # via pydantic-settings
+    # via
+    #   -c lock/requirements-dev.txt
+    #   hexkit (pyproject.toml)
+    #   pydantic-settings
 pydantic-core==2.18.2 \
     --hash=sha256:0098300eebb1c837271d3d1a2cd2911e7c11b396eac9661655ee524a7f10587b \
     --hash=sha256:042473b6280246b1dbf530559246f6842b56119c2926d1e52b631bdc46075f2a \
@@ -267,10 +303,15 @@ pydantic-core==2.18.2 \
     --hash=sha256:f459a5ce8434614dfd39bbebf1041952ae01da6bed9855008cb33b875cb024c0 \
     --hash=sha256:f93a8a2e3938ff656a7c1bc57193b1319960ac015b6e87d76c76bf14fe0244b4 \
     --hash=sha256:fb2bd7be70c0fe4dfd32c951bc813d9fe6ebcbfdd15a07527796c8204bd36242
-    # via pydantic
+    # via
+    #   -c lock/requirements-dev.txt
+    #   pydantic
 pydantic-settings==2.2.1 \
     --hash=sha256:00b9f6a5e95553590434c0fa01ead0b216c3e10bc54ae02e37f359948643c5ed \
     --hash=sha256:0235391d26db4d2190cb9b31051c4b46882d28a51533f97440867f012d4da091
+    # via
+    #   -c lock/requirements-dev.txt
+    #   hexkit (pyproject.toml)
 pymongo==4.7.2 \
     --hash=sha256:02efd1bb3397e24ef2af45923888b41a378ce00cb3a4259c5f4fc3c70497a22f \
     --hash=sha256:0d833651f1ba938bb7501f13e326b96cfbb7d98867b2d545ca6d69c7664903e0 \
@@ -332,15 +373,21 @@ pymongo==4.7.2 \
     --hash=sha256:fc5af24fcf5fc6f7f40d65446400d45dd12bea933d0299dc9e90c5b22197f1e9 \
     --hash=sha256:fcaf8c911cb29316a02356f89dbc0e0dfcc6a712ace217b6b543805690d2aefd \
     --hash=sha256:ffd4d7cb2e6c6e100e2b39606d38a9ffc934e18593dc9bb326196afc7d93ce3d
-    # via motor
+    # via
+    #   -c lock/requirements-dev.txt
+    #   motor
 python-dateutil==2.9.0.post0 \
     --hash=sha256:37dd54208da7e1cd875388217d5e00ebd4179249f90fb72437e91a35459a0ad3 \
     --hash=sha256:a8b2bc7bffae282281c8140a97d3aa9c14da0b136dfe83f850eea9a5f7470427
-    # via botocore
+    # via
+    #   -c lock/requirements-dev.txt
+    #   botocore
 python-dotenv==1.0.1 \
     --hash=sha256:e324ee90a023d808f1959c46bcbc04446a10ced277783dc6ee09987c37ec10ca \
     --hash=sha256:f7b63ef50f1b690dddf550d03497b66d609393b40b564ed0d674909a68ebf16a
-    # via pydantic-settings
+    # via
+    #   -c lock/requirements-dev.txt
+    #   pydantic-settings
 pyyaml==6.0.1 \
     --hash=sha256:04ac92ad1925b2cff1db0cfebffb6ffc43457495c9b3c39d3fcae417d7125dc5 \
     --hash=sha256:062582fca9fabdd2c8b54a3ef1c978d786e0f6b3a1510e0ac93ef59e0ddae2bc \
@@ -393,16 +440,22 @@ pyyaml==6.0.1 \
     --hash=sha256:fca0e3a251908a499833aa292323f32437106001d436eca0e6e7833256674585 \
     --hash=sha256:fd1592b3fdf65fff2ad0004b5e363300ef59ced41c2e6b3a99d4089fa8c5435d \
     --hash=sha256:fd66fc5d0da6d9815ba2cebeb4205f95818ff4b79c3ebe268e75d961704af52f
+    # via
+    #   -c lock/requirements-dev.txt
+    #   hexkit (pyproject.toml)
 referencing==0.35.1 \
     --hash=sha256:25b42124a6c8b632a425174f24087783efb348a6f1e0008e63cd4466fedf703c \
     --hash=sha256:eda6d3234d62814d1c64e305c1331c9a3a6132da475ab6382eaa997b21ee75de
     # via
+    #   -c lock/requirements-dev.txt
     #   jsonschema
     #   jsonschema-specifications
 requests==2.31.0 \
     --hash=sha256:58cd2187c01e70e6e26505bca751777aa9f2ee0b7f4300988b709f44e013003f \
     --hash=sha256:942c5a758f98d790eaed1a29cb6eefc7ffb0d1cf7af05c3d2791656dbd6ad1e1
-    # via docker
+    # via
+    #   -c lock/requirements-dev.txt
+    #   docker
 rpds-py==0.18.1 \
     --hash=sha256:05f3d615099bd9b13ecf2fc9cf2d839ad3f20239c678f461c753e93755d629ee \
     --hash=sha256:06d218939e1bf2ca50e6b0ec700ffe755e5216a8230ab3e87c059ebb4ea06afc \
@@ -504,30 +557,40 @@ rpds-py==0.18.1 \
     --hash=sha256:fa242ac1ff583e4ec7771141606aafc92b361cd90a05c30d93e343a0c2d82a89 \
     --hash=sha256:fab6ce90574645a0d6c58890e9bcaac8d94dff54fb51c69e5522a7358b80ab64
     # via
+    #   -c lock/requirements-dev.txt
     #   jsonschema
     #   referencing
 s3transfer==0.10.1 \
     --hash=sha256:5683916b4c724f799e600f41dd9e10a9ff19871bf87623cc8f491cb4f5fa0a19 \
     --hash=sha256:ceb252b11bcf87080fb7850a224fb6e05c8a776bab8f2b64b7f25b969464839d
-    # via boto3
+    # via
+    #   -c lock/requirements-dev.txt
+    #   boto3
 six==1.16.0 \
     --hash=sha256:1e61c37477a1626458e36f7b1d82aa5c9b094fa4802892072e49de9c60c4c926 \
     --hash=sha256:8abb2f1d86890a2dfb989f9a77cfcfd3e47c2a354b01111771326f8aa26e0254
-    # via python-dateutil
-testcontainers==4.4.0 \
-    --hash=sha256:455e0e28bbf9dcf2d66a342e3103b0d8889db3295a490c009a98848e08791837 \
-    --hash=sha256:f4e87c3831991f9b4d5b6544d0f438fbfd140a74c834b13efb15a2f7c89833c4
+    # via
+    #   -c lock/requirements-dev.txt
+    #   python-dateutil
+testcontainers==4.4.1 \
+    --hash=sha256:0ab41538d363576c30dcb9064bf50736d310da4ff99a8ab4f58bee9ac9e44cc6 \
+    --hash=sha256:fdc9e6cfb6f4b2d4ecf1f7ff286c76283cd5fe0f91f71baf9817f505fa14575d
+    # via
+    #   -c lock/requirements-dev.txt
+    #   hexkit (pyproject.toml)
 typing-extensions==4.11.0 \
     --hash=sha256:83f085bd5ca59c80295fc2a82ab5dac679cbe02b9f33f7d83af68e241bea51b0 \
     --hash=sha256:c1f94d72897edaf4ce775bb7558d5b79d8126906a14ea5ed1635921406c0387a
     # via
+    #   -c lock/requirements-dev.txt
     #   pydantic
     #   pydantic-core
     #   testcontainers
-urllib3==1.26.18 \
-    --hash=sha256:34b97092d7e0a3a8cf7cd10e386f401b3737364026c45e622aa02903dffe0f07 \
-    --hash=sha256:f8ecc1bba5667413457c529ab955bf8c67b45db799d159066261719e328580a0
+urllib3==2.2.1 \
+    --hash=sha256:450b20ec296a467077128bff42b73080516e71b56ff59a60a02bef2232c4fa9d \
+    --hash=sha256:d0570876c61ab9e520d776c38acbbb5b05a776d3f9ff98a5c8fd5162a444cf19
     # via
+    #   -c lock/requirements-dev.txt
     #   botocore
     #   docker
     #   requests
@@ -603,4 +666,6 @@ wrapt==1.16.0 \
     --hash=sha256:f6b2d0c6703c988d334f297aa5df18c45e97b0af3679bb75059e0e0bd8b1069d \
     --hash=sha256:f8212564d49c50eb4565e502814f694e240c55551a5f1bc841d4fcaabb0a9b8a \
     --hash=sha256:ffa565331890b90056c01db69c0fe634a776f8019c143a5ae265f9c6bc4bd6d4
-    # via testcontainers
+    # via
+    #   -c lock/requirements-dev.txt
+    #   testcontainers

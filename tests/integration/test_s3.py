@@ -25,8 +25,11 @@ from hexkit.providers.s3.testutils import (
     MEBIBYTE,
     FileObject,
     S3Fixture,
+    file_fixture,  # noqa: F401
     get_initialized_upload,
     prepare_non_completed_upload,
+    s3_container_fixture,  # noqa: F401
+    s3_fixture,  # noqa: F401
     temp_file_object,
     typical_workflow,
     upload_part,
@@ -38,7 +41,7 @@ EXAMPLE_BUCKETS = [
     "example-bucket-2",
 ]
 
-pytestmark = pytest.mark.asyncio(scope="session")
+pytestmark = pytest.mark.asyncio()
 
 
 async def test_delete_created_buckets(s3: S3Fixture, tmp_file: FileObject):
@@ -263,7 +266,7 @@ async def test_handling_non_existing_file_and_bucket(
 async def test_delete_non_empty_bucket(
     delete_content: bool, s3: S3Fixture, tmp_file: FileObject
 ):
-    """Test deleting an non-empty bucket."""
+    """Test deleting a non-empty bucket."""
     await s3.populate_file_objects([tmp_file])
 
     with (

@@ -30,7 +30,7 @@ from hexkit.protocols.dao import (
     DtoCreation,
 )
 
-pytestmark = pytest.mark.asyncio(scope="module")
+pytestmark = pytest.mark.asyncio()
 
 
 class FakeDaoFactory(DaoFactoryProtocol):

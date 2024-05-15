@@ -24,7 +24,7 @@ from hexkit.providers.testing.eventpub import (
     TopicExhaustedError,
 )
 
-pytestmark = pytest.mark.asyncio(scope="module")
+pytestmark = pytest.mark.asyncio()
 
 
 async def test_in_mem_publisher():

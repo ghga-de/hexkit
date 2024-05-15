@@ -517,16 +517,16 @@ class ObjectStorageProtocol(ABC):
         """Thrown when trying to access a bucket with an ID that doesn't exist."""
 
         def __init__(self, bucket_id: Optional[str]):
-            in_bucket = f" in bucket with ID '{bucket_id}'" if bucket_id else ""
-            message = f"The bucket{in_bucket} does not exist."
+            with_id = f" with ID '{bucket_id}'" if bucket_id else ""
+            message = f"The bucket{with_id} does not exist."
             super().__init__(message)
 
     class BucketAlreadyExistsError(BucketError):
         """Thrown when trying to create a bucket with an ID that already exists."""
 
         def __init__(self, bucket_id: Optional[str]):
-            in_bucket = f" in bucket with ID '{bucket_id}'" if bucket_id else ""
-            message = f"The bucket{in_bucket} already exists."
+            with_id = f" with ID '{bucket_id}'" if bucket_id else ""
+            message = f"The bucket{with_id} already exists."
             super().__init__(message)
 
     class BucketNotEmptyError(BucketError):
