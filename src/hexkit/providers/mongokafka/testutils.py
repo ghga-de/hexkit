@@ -28,9 +28,9 @@ from hexkit.providers.mongodb.testutils import MongoDbContainerFixture, MongoDbF
 from hexkit.providers.mongokafka import MongoKafkaConfig
 
 __all__ = [
-    "MongoKafkaConfig", 
+    "MongoKafkaConfig",
     "MongoKafkaFixture",
-    "mongo_kafka_config_fixture", 
+    "mongo_kafka_config_fixture",
     "mongo_kafka_fixture",
 ]
 
@@ -47,6 +47,8 @@ def mongo_kafka_config_fixture(
 
 
 class MongoKafkaFixture(NamedTuple):
+    """Combined MongoDB and Kafka fixture"""
+
     mongodb: MongoDbFixture
     kafka: KafkaFixture
     config: MongoKafkaConfig
@@ -58,7 +60,7 @@ def mongo_kafka_fixture(
 ) -> MongoKafkaFixture:
     """Get a MongoKafka fixture with desired scope and name.
 
-    The state of the MongoDb and Kafka is reset by empyting all MongoDB collections
+    The state of the MongoDb and Kafka is reset by emptying all MongoDB collections
     and clearing all Kafka topics before running tests.
 
     By default, the function scope is used for this fixture,
