@@ -149,7 +149,7 @@ class S3ContainerFixture(LocalStackContainer):
 
 
 def _s3_container_fixture() -> Generator[S3ContainerFixture, None, None]:
-    """Fixture function for getting a running MongoDB test container."""
+    """Fixture function for getting a running S3 test container."""
     with S3ContainerFixture(image=LOCALSTACK_IMAGE) as s3_container:
         s3_endpoint_url = s3_container.get_url()
         s3_config = S3Config(  # type: ignore [call-arg]
