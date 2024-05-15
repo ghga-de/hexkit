@@ -188,7 +188,7 @@ def _persistent_s3_fixture(
 
 
 def get_persistent_s3_fixture(scope: PytestScope = "function", name: str = "s3"):
-    """Get a S3 fixture with desired scope and name.
+    """Get an S3 fixture with desired scope and name.
 
     The state of the LocalStack test container is persisted across tests.
 
