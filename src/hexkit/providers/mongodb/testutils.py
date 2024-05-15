@@ -118,7 +118,7 @@ mongodb_container_fixture = get_mongodb_container_fixture()
 def _persistent_mongodb_fixture(
     mongodb_container: MongoDbContainerFixture,
 ) -> Generator[MongoDbFixture, None, None]:
-    """Fxture fucnction that gets a persistent MongoDb fixture.
+    """Fixture function that gets a persistent MongoDB fixture.
 
     The state of the MongoDB is not cleaned up by the function.
     """
