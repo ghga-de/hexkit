@@ -27,7 +27,12 @@ from hexkit.providers.akafka.testutils import KafkaContainerFixture, KafkaFixtur
 from hexkit.providers.mongodb.testutils import MongoDbContainerFixture, MongoDbFixture
 from hexkit.providers.mongokafka import MongoKafkaConfig
 
-__all__ = ["MongoKafkaConfig", "mongo_kafka_config_fixture"]
+__all__ = [
+    "MongoKafkaConfig", 
+    "MongoKafkaFixture",
+    "mongo_kafka_config_fixture", 
+    "mongo_kafka_fixture",
+]
 
 
 @pytest.fixture(name="mongo_kafka_config", scope="session")
