@@ -223,7 +223,7 @@ async def _clean_s3_fixture(
 
 
 def get_clean_s3_fixture(scope: PytestScope = "function", name: str = "s3"):
-    """Get a S3 storage fixture with desired scope and name.
+    """Get an S3 storage fixture with desired scope and name.
 
     The state of the S3 storage is reset by deleting all buckets before running tests.
 
