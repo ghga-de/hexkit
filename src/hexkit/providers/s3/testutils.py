@@ -178,7 +178,7 @@ s3_container_fixture = get_s3_container_fixture()
 def _persistent_s3_fixture(
     s3_container: S3ContainerFixture,
 ) -> Generator[S3Fixture, None, None]:
-    """Fxture fucnction that gets a persistent S3 storage fixture.
+    """Fixture function that gets a persistent S3 storage fixture.
 
     The state of the S3 storage is not cleaned up by the function.
     """
