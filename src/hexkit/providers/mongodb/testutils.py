@@ -165,7 +165,7 @@ def _clean_mongodb_fixture(
 def get_clean_mongodb_fixture(scope: PytestScope = "function", name: str = "mongodb"):
     """Get a MongoDB fixture with desired scope and name.
 
-    The state of the MongoDB is reset by emptying all collectionss before running tests.
+    The state of the MongoDB is reset by emptying all collections before running tests.
 
     By default, the function scope is used for this fixture,
     while the session scope is used for the underlying MongoDB test container.
