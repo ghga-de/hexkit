@@ -29,4 +29,4 @@ setuptools>=69.5
 # required since switch to pyproject.toml and pip-tools
 tomli_w>=1.0
 
-uv>=0.1.39
+uv>=0.1.44
