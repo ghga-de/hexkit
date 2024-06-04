@@ -307,6 +307,36 @@ async def test_delay_publishing(mongo_kafka: MongoKafkaFixture):
             await dao.publish_pending()
 
 
+async def test_suppress_publishing(mongo_kafka: MongoKafkaFixture):
+    """Test suppress publishing of events."""
+    kafka = mongo_kafka.kafka
+    async with MongoKafkaDaoPublisherFactory.construct(
+        config=mongo_kafka.config
+    ) as factory:
+        dao = await factory.get_dao(
+            name="example",
+            dto_model=ExampleDto,
+            id_field="id",
+            dto_to_event=lambda dto: dto.model_dump() if dto.field_c else None,
+            event_topic=EXAMPLE_TOPIC,
+            autopublish=True,
+        )
+
+        # insert some example resources:
+        examples = [
+            ExampleDto(id="test1", field_a="test1", field_b=27, field_c=True),
+            ExampleDto(id="test2", field_a="test2", field_b=28, field_c=False),
+            ExampleDto(id="test3", field_a="test3", field_b=29, field_c=True),
+        ]
+
+        async with kafka.record_events(in_topic=EXAMPLE_TOPIC) as recorder:
+            for example in examples:
+                await dao.insert(example)
+
+        assert len(recorder.recorded_events) == 2
+        assert all(event.payload["field_c"] for event in recorder.recorded_events)
+
+
 async def test_publishing_after_failure(mongo_kafka: MongoKafkaFixture):
     """Test delaying publishing after the initial publishing failed."""
     kafka = mongo_kafka.kafka
