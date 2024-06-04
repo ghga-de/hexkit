@@ -16,11 +16,18 @@
 
 """Test the DAO pub/sub functionality based on the mongokafka/kafka providers."""
 
+from contextlib import contextmanager
 from typing import Optional
 
 import pytest
 from pydantic import BaseModel, ConfigDict
+from pymongo.collection import Collection
 
+from hexkit.correlation import (
+    correlation_id_var,
+    get_correlation_id,
+    new_correlation_id,
+)
 from hexkit.protocols.dao import ResourceNotFoundError
 from hexkit.protocols.daosub import DaoSubscriberProtocol, DtoValidationError
 from hexkit.providers.akafka import KafkaOutboxSubscriber
@@ -35,7 +42,11 @@ from hexkit.providers.mongodb.testutils import (
     mongodb_fixture,  # noqa: F401
 )
 from hexkit.providers.mongokafka import MongoKafkaDaoPublisherFactory
-from hexkit.providers.mongokafka.provider import CHANGE_EVENT_TYPE, DELETE_EVENT_TYPE
+from hexkit.providers.mongokafka.provider import (
+    CHANGE_EVENT_TYPE,
+    DELETE_EVENT_TYPE,
+    document_to_dto,
+)
 from hexkit.providers.mongokafka.testutils import (
     MongoKafkaFixture,
     mongo_kafka_fixture,  # noqa: F401
@@ -44,6 +55,28 @@ from hexkit.providers.mongokafka.testutils import (
 pytestmark = pytest.mark.asyncio()
 
 EXAMPLE_TOPIC = "example"
+
+
+def use_correlation_id():
+    """Provides a new correlation ID for each test case."""
+    correlation_id = new_correlation_id()
+    token = correlation_id_var.set(correlation_id)
+    yield
+    correlation_id_var.reset(token)
+
+
+# This is automatically used for each test in here:
+function_scope_correlation_id_fixture = pytest.fixture(use_correlation_id, autouse=True)
+
+# This is used to help avoid false positives by supplying a different CID inside a test
+use_temp_correlation_id = contextmanager(use_correlation_id)
+
+
+def get_mongo_collection(mongo_kafka: MongoKafkaFixture, name: str) -> Collection:
+    """Get the MongoDB collection with the provided name."""
+    db_name = mongo_kafka.config.db_name
+    collection = mongo_kafka.mongodb.client.get_database(db_name).get_collection(name)
+    return collection
 
 
 class ExampleDto(BaseModel):
@@ -69,15 +102,17 @@ class DummyOutboxSubscriber(DaoSubscriberProtocol[ExampleDto]):
         It is a list of tuples, each containing the resource ID and, in case of a
         change event, the dto.
         """
-        self.received: list[tuple[str, Optional[ExampleDto]]] = []
+        self.received: list[tuple[str, str, Optional[ExampleDto]]] = []
 
     async def changed(self, resource_id: str, update: ExampleDto) -> None:
         """Consume change event (created or updated) for the given resource."""
-        self.received.append((resource_id, update))
+        correlation_id = get_correlation_id()
+        self.received.append((resource_id, correlation_id, update))
 
     async def deleted(self, resource_id: str) -> None:
         """Consume event indicating the deletion of the given resource."""
-        self.received.append((resource_id, None))
+        correlation_id = get_correlation_id()
+        self.received.append((resource_id, correlation_id, None))
 
 
 async def test_dao_outbox_with_non_existing_resource(mongo_kafka: MongoKafkaFixture):
@@ -358,8 +393,11 @@ async def test_republishing(mongo_kafka: MongoKafkaFixture):
 async def test_dao_pub_sub_happy(mongo_kafka: MongoKafkaFixture):
     """Test the happy path of transmitting resource changes or deletions between the
     MongoKafkaOutboxFactory and the KafkaOutboxSubscriber.
+
+    Also verify that the correlation ID is set on the event headers correctly.
     """
     sub_translator = DummyOutboxSubscriber()
+    initial_correlation_id = get_correlation_id()
 
     # publish some changes and deletions:
     async with MongoKafkaDaoPublisherFactory.construct(
@@ -376,29 +414,44 @@ async def test_dao_pub_sub_happy(mongo_kafka: MongoKafkaFixture):
         # insert an example resource:
         example = ExampleDto(id="test1", field_a="test1", field_b=27, field_c=True)
 
-        await dao.insert(example)
-        # update the resource:
-        example_update = example.model_copy(update={"field_c": False})
-        await dao.update(example_update)
+        with use_temp_correlation_id():
+            temp_correlation_id = get_correlation_id()
+            await dao.insert(example)
+            # update the resource:
+            example_update = example.model_copy(update={"field_c": False})
+            await dao.update(example_update)
 
-        # delete the resource again:
-        await dao.delete(example.id)
+            # delete the resource again:
+            await dao.delete(example.id)
 
-    expected_events = [
-        (example.id, example),
-        (example.id, example_update),
-        (example.id, None),
-    ]
+        expected_events = [
+            (example.id, temp_correlation_id, example),
+            (example.id, temp_correlation_id, example_update),
+            (example.id, temp_correlation_id, None),
+        ]
 
-    # consume events:
-    async with KafkaOutboxSubscriber.construct(
-        config=mongo_kafka.config,
-        translators=[sub_translator],
-    ) as subscriber:
-        for _ in expected_events:
+        # Verify that the context var is reverted to the initial correlation ID after
+        # using the temporary one to publish the events
+        assert get_correlation_id() == initial_correlation_id
+
+        # consume events:
+        async with KafkaOutboxSubscriber.construct(
+            config=mongo_kafka.config,
+            translators=[sub_translator],
+        ) as subscriber:
+            for _ in expected_events:
+                await subscriber.run(forever=False)
+            assert sub_translator.received == expected_events
+
+            # Clear out the received list
+            sub_translator.received.clear()
+
+            # Republish and verify that the initial correlation ID is maintained
+            await dao.republish()
+
+            # Consume the republished events and check them again
             await subscriber.run(forever=False)
-
-    assert sub_translator.received == expected_events
+            assert sub_translator.received == [expected_events[-1]]
 
 
 async def test_dao_pub_sub_invalid_dto(mongo_kafka: MongoKafkaFixture):
@@ -436,3 +489,100 @@ async def test_dao_pub_sub_invalid_dto(mongo_kafka: MongoKafkaFixture):
     ) as subscriber:
         with pytest.raises(DtoValidationError):
             await subscriber.run(forever=False)
+
+
+async def test_mongokafa_dao_correlation_id_upsert(mongo_kafka: MongoKafkaFixture):
+    """Make sure the correlation ID is set on the document metadata in upsertion.
+
+    Insert a new document and verify that the correct correlation ID is there.
+    Perform an update with a new correlation ID and verify that the correlation ID is
+    updated accordingly.
+    """
+    async with MongoKafkaDaoPublisherFactory.construct(
+        config=mongo_kafka.config
+    ) as factory:
+        dao = await factory.get_dao(
+            name="example",
+            dto_model=ExampleDto,
+            id_field="id",
+            dto_to_event=lambda dto: dto.model_dump(),
+            event_topic=EXAMPLE_TOPIC,
+        )
+
+        example = ExampleDto(id="test1", field_a="test", field_b=1, field_c=False)
+
+        await dao.insert(dto=example)
+
+        # Verify that the inserted document contains the correlation ID
+        correlation_id = get_correlation_id()
+        collection = get_mongo_collection(mongo_kafka, "example")
+        inserted = collection.find_one({"__metadata__.correlation_id": correlation_id})
+        assert inserted
+
+        # Remove the metadata field and restore the ID field name, check against original
+        inserted_as_dto = document_to_dto(inserted, id_field="id", dto_model=ExampleDto)
+        assert inserted_as_dto.model_dump() == example.model_dump()
+
+        # Create a new correlation ID to simulate a subsequent request
+        with use_temp_correlation_id():
+            temp_correlation_id = get_correlation_id()
+            assert temp_correlation_id != correlation_id
+
+            # Update, then verify old correlation ID is overwritten by the new one
+            updated_example = example.model_copy(update={"field_a": "test2"}, deep=True)
+            await dao.update(updated_example)
+
+            updated = collection.find_one(
+                {"__metadata__.correlation_id": temp_correlation_id}
+            )
+            assert updated
+
+            # Remove the metadata field and restore the ID field name
+            updated_as_dto = document_to_dto(
+                updated, id_field="id", dto_model=ExampleDto
+            )
+            assert updated_as_dto.model_dump() == updated_example.model_dump()
+
+            # Verify nothing exists in the collection with the old correlation ID
+            assert not collection.find_one(
+                {"__metadata__.correlation_id": correlation_id}
+            )
+
+
+async def test_mongokafa_dao_correlation_id_delete(mongo_kafka: MongoKafkaFixture):
+    """Make sure the correlation ID is set on the document metadata in deletion."""
+    async with MongoKafkaDaoPublisherFactory.construct(
+        config=mongo_kafka.config
+    ) as factory:
+        dao = await factory.get_dao(
+            name="example",
+            dto_model=ExampleDto,
+            id_field="id",
+            dto_to_event=lambda dto: dto.model_dump(),
+            event_topic=EXAMPLE_TOPIC,
+        )
+
+        example = ExampleDto(id="test1", field_a="test", field_b=1, field_c=False)
+
+        # Insert, then verify that the inserted document contains the correlation ID
+        await dao.insert(dto=example)
+        collection = get_mongo_collection(mongo_kafka, "example")
+        correlation_id = get_correlation_id()
+        inserted = collection.find_one({"__metadata__.correlation_id": correlation_id})
+        assert inserted
+
+        # Create a new correlation ID to simulate a subsequent request
+        with use_temp_correlation_id():
+            temp_correlation_id = get_correlation_id()
+            assert temp_correlation_id != correlation_id
+
+            await dao.delete(example.id)
+            deleted = collection.find_one(
+                {"__metadata__.correlation_id": temp_correlation_id}
+            )
+            assert deleted
+
+            search_for_inserted_again = collection.find_one(
+                {"__metadata__.correlation_id": correlation_id}
+            )
+            assert not search_for_inserted_again

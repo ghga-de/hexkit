@@ -28,6 +28,7 @@ from aiokafka import AIOKafkaProducer
 from motor.core import AgnosticCollection
 from motor.motor_asyncio import AsyncIOMotorClient
 
+from hexkit.correlation import get_correlation_id, set_correlation_id
 from hexkit.custom_types import JsonObject
 from hexkit.protocols.dao import (
     DaoNaturalId,
@@ -86,7 +87,13 @@ def dto_to_document(
     """
     document = json.loads(dto.model_dump_json())
     document["_id"] = document.pop(id_field)
-    document["__metadata__"] = {"deleted": False, "published": published}
+
+    correlation_id = get_correlation_id()
+    document["__metadata__"] = {
+        "deleted": False,
+        "published": published,
+        "correlation_id": correlation_id,
+    }
 
     return document
 
@@ -134,7 +141,15 @@ def get_delete_publish_func(
             topic=event_topic,
         )
 
-        document = {"_id": id_, "__metadata__": {"deleted": True, "published": True}}
+        correlation_id = get_correlation_id()  # Get active correlation first
+        document = {
+            "_id": id_,
+            "__metadata__": {
+                "deleted": True,
+                "published": True,
+                "correlation_id": correlation_id,
+            },
+        }
         await collection.replace_one({"_id": document["_id"]}, document)
 
     return publish_deletion
@@ -233,7 +248,9 @@ class MongoKafkaDaoPublisher(Generic[Dto]):
             ResourceNotFoundError:
                 when resource with the id specified in the dto was not found
         """
+        correlation_id = get_correlation_id()
         document = self._dao._dto_to_document(dto)
+        document["__metadata__.correlation_id"] = correlation_id
         result = await self._collection.replace_one(
             {"_id": document["_id"], "__metadata__.deleted": False}, document
         )
@@ -252,9 +269,14 @@ class MongoKafkaDaoPublisher(Generic[Dto]):
         Raises:
             ResourceNotFoundError: when resource with the specified id_ was not found
         """
+        correlation_id = get_correlation_id()
         document = {
             "_id": id_,
-            "__metadata__": {"deleted": True, "published": False},
+            "__metadata__": {
+                "deleted": True,
+                "published": False,
+                "correlation_id": correlation_id,
+            },
         }
         result = await self._collection.replace_one(
             {"_id": document["_id"], "__metadata__.deleted": False}, document
@@ -343,13 +365,15 @@ class MongoKafkaDaoPublisher(Generic[Dto]):
 
     async def publish_document(self, document: dict[str, Any]) -> None:
         """Publishes a document"""
-        if document.get("__metadata__", {}).get("deleted", False):
-            await self._publish_delete(document["_id"])
-        else:
-            dto = document_to_dto(
-                document, id_field=self._id_field, dto_model=self._dto_model
-            )
-            await self._publish_change(dto)
+        correlation_id = document.get("__metadata__", {}).get("correlation_id", "")
+        async with set_correlation_id(correlation_id=correlation_id):
+            if document.get("__metadata__", {}).get("deleted", False):
+                await self._publish_delete(document["_id"])
+            else:
+                dto = document_to_dto(
+                    document, id_field=self._id_field, dto_model=self._dto_model
+                )
+                await self._publish_change(dto)
 
     async def publish_pending(self) -> None:
         """Publishes all non-published changes."""
