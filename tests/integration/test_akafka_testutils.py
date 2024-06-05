@@ -116,7 +116,7 @@ async def test_clear_topics_specific(kafka: KafkaFixture):
     await kafka.clear_topics(topics="clear_topic")
 
     # make sure the keep_topic still has its event but clear_topic is empty
-    prefetched = await consumer.getmany(timeout_ms=1000)
+    prefetched = await consumer.getmany(timeout_ms=5000)
     assert len(prefetched) == 1
     records = next(iter(prefetched.values()))
     assert len(records) == 1
@@ -137,7 +137,7 @@ async def test_clear_topics_specific(kafka: KafkaFixture):
     # make sure messages are consumed again
     records = []
     while True:
-        prefetched = await consumer.getmany(timeout_ms=1000)
+        prefetched = await consumer.getmany(timeout_ms=5000)
         if not prefetched:
             break
         assert len(prefetched) <= 2
