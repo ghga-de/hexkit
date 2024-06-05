@@ -521,7 +521,7 @@ async def test_dao_pub_sub_invalid_dto(mongo_kafka: MongoKafkaFixture):
             await subscriber.run(forever=False)
 
 
-async def test_mongokafa_dao_correlation_id_upsert(mongo_kafka: MongoKafkaFixture):
+async def test_mongokafka_dao_correlation_id_upsert(mongo_kafka: MongoKafkaFixture):
     """Make sure the correlation ID is set on the document metadata in upsertion.
 
     Insert a new document and verify that the correct correlation ID is there.
@@ -579,7 +579,7 @@ async def test_mongokafa_dao_correlation_id_upsert(mongo_kafka: MongoKafkaFixtur
             )
 
 
-async def test_mongokafa_dao_correlation_id_delete(mongo_kafka: MongoKafkaFixture):
+async def test_mongokafka_dao_correlation_id_delete(mongo_kafka: MongoKafkaFixture):
     """Make sure the correlation ID is set on the document metadata in deletion."""
     async with MongoKafkaDaoPublisherFactory.construct(
         config=mongo_kafka.config
