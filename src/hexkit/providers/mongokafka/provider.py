@@ -101,7 +101,7 @@ def dto_to_document(
 def get_change_publish_func(
     id_field: str,
     event_topic: str,
-    dto_to_event: Callable[[Dto], JsonObject],
+    dto_to_event: Callable[[Dto], Optional[JsonObject]],
     event_publisher: EventPublisherProtocol,
     collection: AgnosticCollection,
 ) -> Callable[[Dto], Awaitable[None]]:
@@ -110,12 +110,13 @@ def get_change_publish_func(
     async def publish_change(dto: Dto) -> None:
         """Publishes a change event and marks the change as published."""
         payload = dto_to_event(dto)
-        await event_publisher.publish(
-            payload=payload,
-            type_=CHANGE_EVENT_TYPE,
-            key=getattr(dto, id_field),
-            topic=event_topic,
-        )
+        if payload is not None:
+            await event_publisher.publish(
+                payload=payload,
+                type_=CHANGE_EVENT_TYPE,
+                key=getattr(dto, id_field),
+                topic=event_topic,
+            )
 
         document = dto_to_document(dto, id_field=id_field, published=True)
         await collection.replace_one({"_id": document["_id"]}, document, upsert=True)
@@ -446,7 +447,7 @@ class MongoKafkaDaoPublisherFactory(DaoPublisherFactoryProtocol):
         dto_model: type[Dto],
         id_field: str,
         fields_to_index: Optional[Collection[str]],
-        dto_to_event: Callable[[Dto], JsonObject],
+        dto_to_event: Callable[[Dto], Optional[JsonObject]],
         event_topic: str,
         autopublish: bool,
     ) -> DaoPublisher[Dto]:

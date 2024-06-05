@@ -62,7 +62,7 @@ class DaoPublisherFactoryProtocol(DaoFactoryBase, ABC):
         dto_model: type[Dto],
         id_field: str,
         fields_to_index: Optional[Collection[str]] = None,
-        dto_to_event: Callable[[Dto], JsonObject],
+        dto_to_event: Callable[[Dto], Optional[JsonObject]],
         event_topic: str,
         autopublish: bool = True,
     ) -> DaoPublisher[Dto]:
@@ -82,6 +82,7 @@ class DaoPublisherFactoryProtocol(DaoFactoryBase, ABC):
                 `id_field`. Defaults to None.
             dto_to_event:
                 A function that takes a DTO and returns the payload for an event.
+                If the returned payload is None, the event will not be published.
             event_topic:
                 The topic to which events should be published.
             autopublish:
@@ -120,7 +121,7 @@ class DaoPublisherFactoryProtocol(DaoFactoryBase, ABC):
         dto_model: type[Dto],
         id_field: str,
         fields_to_index: Optional[Collection[str]],
-        dto_to_event: Callable[[Dto], JsonObject],
+        dto_to_event: Callable[[Dto], Optional[JsonObject]],
         event_topic: str,
         autopublish: bool,
     ) -> DaoPublisher[Dto]:
