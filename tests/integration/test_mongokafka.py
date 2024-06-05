@@ -333,6 +333,12 @@ async def test_suppress_publishing(mongo_kafka: MongoKafkaFixture):
             for example in examples:
                 await dao.insert(example)
 
+        # check that all resources were saved:
+        records = [record async for record in dao.find_all(mapping={})]
+        assert len(records) == 3
+        assert any(record.field_c for record in records)
+
+        # check that the second resource was not published:
         assert len(recorder.recorded_events) == 2
         assert all(event.payload["field_c"] for event in recorder.recorded_events)
 
