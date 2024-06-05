@@ -18,7 +18,6 @@
 
 import json
 from collections.abc import Sequence
-from contextlib import suppress
 
 import pytest
 from aiokafka import AIOKafkaConsumer
@@ -140,8 +139,7 @@ async def test_clear_topics_specific(kafka: KafkaFixture):
     while True:
         prefetched = await consumer.getmany(timeout_ms=500)
         if prefetched:
-            with suppress(StopIteration):
-                records.extend(next(iter(prefetched.values())))
+            records.extend(next(iter(prefetched.values())))
         if len(records) >= 2:
             break
 
