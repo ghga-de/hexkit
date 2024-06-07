@@ -136,14 +136,9 @@ async def test_clear_topics_specific(kafka: KafkaFixture):
 
     # make sure messages are consumed again
     records = []
-    for _ in range(10):
-        # use limit in case of changes that cause unintended infinite loop here
-        prefetched = await consumer.getmany(timeout_ms=500)
-        if prefetched:
-            for records_for_topic in prefetched.values():
-                records.extend(records_for_topic)
-        if len(records) >= 2:
-            break
+    while prefetched := await consumer.getmany(timeout_ms=500):
+        for records_for_topic in prefetched.values():
+            records.extend(records_for_topic)
 
     assert len(records) == 2
     records.sort(key=lambda record: record.topic)
