@@ -40,6 +40,9 @@ __all__ = [
 class CorrelationIdContextError(RuntimeError):
     """Raised when the correlation ID ContextVar is unexpectedly not set."""
 
+    def __init__(self):
+        super().__init__("No correlation ID has been set.")
+
 
 class InvalidCorrelationIdError(RuntimeError):
     """Raised when a correlation ID fails validation."""
