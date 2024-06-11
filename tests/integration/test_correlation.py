@@ -32,6 +32,7 @@ from hexkit.correlation import (
     correlation_id_var,
     get_correlation_id,
     set_correlation_id,
+    set_new_correlation_id,
     validate_correlation_id,
 )
 from hexkit.custom_types import Ascii, JsonObject
@@ -116,6 +117,12 @@ async def test_set_correlation_id(
     with pytest.raises(exception) if exception else nullcontext():
         async with set_correlation_id(correlation_id=correlation_id):
             pass
+
+
+async def test_set_new_correlation_id():
+    """Ensure a new correlation id can be set temporarily."""
+    async with set_new_correlation_id() as correlation_id:
+        validate_correlation_id(correlation_id)
 
 
 @pytest.mark.parametrize(

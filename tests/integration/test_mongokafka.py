@@ -16,6 +16,7 @@
 
 """Test the DAO pub/sub functionality based on the mongokafka/kafka providers."""
 
+from collections.abc import Generator
 from typing import Optional
 
 import pytest
@@ -58,12 +59,13 @@ EXAMPLE_TOPIC = "example"
 
 
 @pytest.fixture(autouse=True)
-def correlation_id_fixture():
+def correlation_id_fixture() -> Generator[str, None, None]:
     """Provides a new correlation ID for each test case."""
     # we cannot use an async fixture with set_new_correlation_id(),
     # because it would run in a different context from the test
-    token = correlation_id_var.set(new_correlation_id())
-    yield
+    correlation_id = new_correlation_id()
+    token = correlation_id_var.set(correlation_id)
+    yield correlation_id
     correlation_id_var.reset(token)
 
 
@@ -445,8 +447,7 @@ async def test_dao_pub_sub_happy(mongo_kafka: MongoKafkaFixture):
         # insert an example resource:
         example = ExampleDto(id="test1", field_a="test1", field_b=27, field_c=True)
 
-        async with set_new_correlation_id():
-            temp_correlation_id = get_correlation_id()
+        async with set_new_correlation_id() as temp_correlation_id:
             await dao.insert(example)
             # update the resource:
             example_update = example.model_copy(update={"field_c": False})
@@ -555,8 +556,7 @@ async def test_mongokafka_dao_correlation_id_upsert(mongo_kafka: MongoKafkaFixtu
         assert inserted_as_dto.model_dump() == example.model_dump()
 
         # Create a new correlation ID to simulate a subsequent request
-        async with set_new_correlation_id():
-            temp_correlation_id = get_correlation_id()
+        async with set_new_correlation_id() as temp_correlation_id:
             assert temp_correlation_id != correlation_id
 
             # Update, then verify old correlation ID is overwritten by the new one
@@ -603,8 +603,7 @@ async def test_mongokafka_dao_correlation_id_delete(mongo_kafka: MongoKafkaFixtu
         assert inserted
 
         # Create a new correlation ID to simulate a subsequent request
-        async with set_new_correlation_id():
-            temp_correlation_id = get_correlation_id()
+        async with set_new_correlation_id() as temp_correlation_id:
             assert temp_correlation_id != correlation_id
 
             await dao.delete(example.id)

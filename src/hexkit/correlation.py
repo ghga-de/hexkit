@@ -91,7 +91,7 @@ async def set_new_correlation_id():
 
     async with set_context_var(correlation_id_var, correlation_id):
         log.info("Set context correlation ID to %s", correlation_id)
-        yield
+        yield correlation_id
 
 
 def get_correlation_id() -> str:
