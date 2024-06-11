@@ -29,6 +29,7 @@ correlation_id_var: ContextVar[str] = ContextVar("correlation_id", default="")
 
 __all__ = [
     "set_correlation_id",
+    "set_new_correlation_id",
     "get_correlation_id",
     "new_correlation_id",
     "validate_correlation_id",
@@ -71,12 +72,22 @@ def validate_correlation_id(correlation_id: str):
 
 @asynccontextmanager
 async def set_correlation_id(correlation_id: str):
-    """Set the correlation ID for the life of the context.
+    """Set the given correlation ID for the life of the context.
 
     Raises:
         InvalidCorrelationIdError: when the correlation ID is empty or invalid.
     """
     validate_correlation_id(correlation_id)
+
+    async with set_context_var(correlation_id_var, correlation_id):
+        log.info("Set context correlation ID to %s", correlation_id)
+        yield
+
+
+@asynccontextmanager
+async def set_new_correlation_id():
+    """Set a new correlation ID for the life of the context."""
+    correlation_id = new_correlation_id()
 
     async with set_context_var(correlation_id_var, correlation_id):
         log.info("Set context correlation ID to %s", correlation_id)

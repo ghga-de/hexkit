@@ -16,7 +16,6 @@
 
 """Test the DAO pub/sub functionality based on the mongokafka/kafka providers."""
 
-from contextlib import contextmanager
 from typing import Optional
 
 import pytest
@@ -27,6 +26,7 @@ from hexkit.correlation import (
     correlation_id_var,
     get_correlation_id,
     new_correlation_id,
+    set_new_correlation_id,
 )
 from hexkit.protocols.dao import ResourceNotFoundError
 from hexkit.protocols.daosub import DaoSubscriberProtocol, DtoValidationError
@@ -57,19 +57,14 @@ pytestmark = pytest.mark.asyncio()
 EXAMPLE_TOPIC = "example"
 
 
-def use_correlation_id():
+@pytest.fixture(autouse=True)
+def correlation_id_fixture():
     """Provides a new correlation ID for each test case."""
-    correlation_id = new_correlation_id()
-    token = correlation_id_var.set(correlation_id)
+    # we cannot use an async fixture with set_new_correlation_id(),
+    # because it would run i a different context from the test
+    token = correlation_id_var.set(new_correlation_id())
     yield
     correlation_id_var.reset(token)
-
-
-# This is automatically used for each test in here:
-function_scope_correlation_id_fixture = pytest.fixture(use_correlation_id, autouse=True)
-
-# This is used to help avoid false positives by supplying a different CID inside a test
-use_temp_correlation_id = contextmanager(use_correlation_id)
 
 
 def get_mongo_collection(mongo_kafka: MongoKafkaFixture, name: str) -> Collection:
@@ -450,7 +445,7 @@ async def test_dao_pub_sub_happy(mongo_kafka: MongoKafkaFixture):
         # insert an example resource:
         example = ExampleDto(id="test1", field_a="test1", field_b=27, field_c=True)
 
-        with use_temp_correlation_id():
+        async with set_new_correlation_id():
             temp_correlation_id = get_correlation_id()
             await dao.insert(example)
             # update the resource:
@@ -560,7 +555,7 @@ async def test_mongokafka_dao_correlation_id_upsert(mongo_kafka: MongoKafkaFixtu
         assert inserted_as_dto.model_dump() == example.model_dump()
 
         # Create a new correlation ID to simulate a subsequent request
-        with use_temp_correlation_id():
+        async with set_new_correlation_id():
             temp_correlation_id = get_correlation_id()
             assert temp_correlation_id != correlation_id
 
@@ -608,7 +603,7 @@ async def test_mongokafka_dao_correlation_id_delete(mongo_kafka: MongoKafkaFixtu
         assert inserted
 
         # Create a new correlation ID to simulate a subsequent request
-        with use_temp_correlation_id():
+        async with set_new_correlation_id():
             temp_correlation_id = get_correlation_id()
             assert temp_correlation_id != correlation_id
 
