@@ -122,7 +122,7 @@ async def test_set_correlation_id(
 async def test_set_new_correlation_id():
     """Ensure a new correlation id can be set temporarily."""
     async with set_new_correlation_id() as correlation_id:
-        validate_correlation_id(correlation_id)
+        assert get_correlation_id() == correlation_id
 
 
 @pytest.mark.parametrize(
