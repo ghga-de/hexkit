@@ -61,7 +61,7 @@ EXAMPLE_TOPIC = "example"
 def correlation_id_fixture():
     """Provides a new correlation ID for each test case."""
     # we cannot use an async fixture with set_new_correlation_id(),
-    # because it would run i a different context from the test
+    # because it would run in a different context from the test
     token = correlation_id_var.set(new_correlation_id())
     yield
     correlation_id_var.reset(token)
