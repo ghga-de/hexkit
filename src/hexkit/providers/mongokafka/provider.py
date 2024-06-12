@@ -251,7 +251,7 @@ class MongoKafkaDaoPublisher(Generic[Dto]):
         """
         correlation_id = get_correlation_id()
         document = self._dao._dto_to_document(dto)
-        document["__metadata__.correlation_id"] = correlation_id
+        document.setdefault("__metadata__", {})["correlation_id"] = correlation_id
         result = await self._collection.replace_one(
             {"_id": document["_id"], "__metadata__.deleted": False}, document
         )
