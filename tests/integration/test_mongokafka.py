@@ -550,6 +550,11 @@ async def test_mongokafka_dao_correlation_id_upsert(mongo_kafka: MongoKafkaFixtu
         collection = get_mongo_collection(mongo_kafka, "example")
         inserted = collection.find_one({"__metadata__.correlation_id": correlation_id})
         assert inserted
+        assert inserted["__metadata__"] == {
+            "correlation_id": correlation_id,
+            "deleted": False,
+            "published": True,
+        }
 
         # Remove the metadata field and restore the ID field name, check against original
         inserted_as_dto = document_to_dto(inserted, id_field="id", dto_model=ExampleDto)
@@ -567,6 +572,11 @@ async def test_mongokafka_dao_correlation_id_upsert(mongo_kafka: MongoKafkaFixtu
                 {"__metadata__.correlation_id": temp_correlation_id}
             )
             assert updated
+            assert updated["__metadata__"] == {
+                "correlation_id": temp_correlation_id,
+                "deleted": False,
+                "published": True,
+            }
 
             # Remove the metadata field and restore the ID field name
             updated_as_dto = document_to_dto(
@@ -602,7 +612,12 @@ async def test_mongokafka_dao_correlation_id_delete(mongo_kafka: MongoKafkaFixtu
         inserted = collection.find_one({"__metadata__.correlation_id": correlation_id})
         assert inserted
         metadata = inserted.pop("__metadata__")
-        assert sorted(inserted) == ["_id", "field_a", "field_b", "field_c"]
+        assert inserted == {
+            "_id": "test1",
+            "field_a": "test",
+            "field_b": 1,
+            "field_c": False,
+        }
         assert metadata == {
             "correlation_id": correlation_id,
             "deleted": False,
@@ -618,6 +633,13 @@ async def test_mongokafka_dao_correlation_id_delete(mongo_kafka: MongoKafkaFixtu
                 {"__metadata__.correlation_id": temp_correlation_id}
             )
             assert deleted
+            metadata = deleted.pop("__metadata__")
+            assert deleted == {"_id": "test1"}
+            assert metadata == {
+                "correlation_id": temp_correlation_id,
+                "deleted": True,
+                "published": True,
+            }
 
             search_for_inserted_again = collection.find_one(
                 {"__metadata__.correlation_id": correlation_id}
