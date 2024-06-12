@@ -601,6 +601,13 @@ async def test_mongokafka_dao_correlation_id_delete(mongo_kafka: MongoKafkaFixtu
         correlation_id = get_correlation_id()
         inserted = collection.find_one({"__metadata__.correlation_id": correlation_id})
         assert inserted
+        metadata = inserted.pop("__metadata__")
+        assert sorted(inserted) == ["_id", "field_a", "field_b", "field_c"]
+        assert metadata == {
+            "correlation_id": correlation_id,
+            "deleted": False,
+            "published": True,
+        }
 
         # Create a new correlation ID to simulate a subsequent request
         async with set_new_correlation_id() as temp_correlation_id:
