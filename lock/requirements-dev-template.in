@@ -1,7 +1,7 @@
 # common requirements for development and testing of services
 
 pytest>=8.2
-pytest-asyncio>=0.23.6
+pytest-asyncio>=0.23.7
 pytest-cov>=5
 snakeviz>=2.2
 logot>=1.3
@@ -29,4 +29,4 @@ setuptools>=69.5
 # required since switch to pyproject.toml and pip-tools
 tomli_w>=1.0
 
-uv>=0.1.44
+uv>=0.2.13
