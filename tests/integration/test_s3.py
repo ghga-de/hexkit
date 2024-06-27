@@ -21,7 +21,6 @@ from typing import Optional
 import pytest
 
 from hexkit.protocols.objstorage import ObjectStorageProtocol
-from hexkit.providers.s3.test import typical_workflow
 from hexkit.providers.s3.testutils import (
     MEBIBYTE,
     FileObject,
@@ -30,6 +29,7 @@ from hexkit.providers.s3.testutils import (
     s3_fixture,  # noqa: F401
     temp_file_object,
     tmp_file,  # noqa: F401
+    typical_workflow,
     upload_part,
     upload_part_of_size,
 )

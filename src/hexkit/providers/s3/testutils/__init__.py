@@ -36,6 +36,7 @@ from .fixtures import (  # noqa: F401
     tmp_file,
     upload_file,
 )
+from .typical_workflow import typical_workflow  # noqa: F401
 from .utils import (  # noqa: F401
     check_part_size,
     download_and_check_test_file,

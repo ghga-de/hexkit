@@ -20,7 +20,8 @@
 from pathlib import Path
 
 from hexkit.protocols.objstorage import ObjectStorageProtocol
-from hexkit.providers.s3.testutils import (
+
+from .utils import (
     download_and_check_test_file,
     multipart_upload_file,
     upload_file,
