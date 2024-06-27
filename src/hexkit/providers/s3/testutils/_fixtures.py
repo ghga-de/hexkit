@@ -39,7 +39,7 @@ from testcontainers.localstack import LocalStackContainer
 from hexkit.custom_types import PytestScope
 from hexkit.providers.s3.provider import S3Config, S3ObjectStorage
 
-from .utils import FileObject, calc_md5, populate_storage, upload_file, upload_part
+from ._utils import FileObject, calc_md5, populate_storage, upload_file, upload_part
 
 __all__ = [
     "LOCALSTACK_IMAGE",

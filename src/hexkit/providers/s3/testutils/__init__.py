@@ -15,7 +15,7 @@
 
 """S3-related test fixtures and support functions."""
 
-from .fixtures import (  # noqa: F401
+from ._fixtures import (  # noqa: F401
     LOCALSTACK_IMAGE,
     MEBIBYTE,
     TEST_FILE_DIR,
@@ -36,8 +36,8 @@ from .fixtures import (  # noqa: F401
     tmp_file,
     upload_file,
 )
-from .typical_workflow import typical_workflow  # noqa: F401
-from .utils import (  # noqa: F401
+from ._typical_workflow import typical_workflow  # noqa: F401
+from ._utils import (  # noqa: F401
     check_part_size,
     download_and_check_test_file,
     multipart_upload_file,
