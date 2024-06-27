@@ -42,30 +42,6 @@ EXAMPLE_BUCKETS = [
 pytestmark = pytest.mark.asyncio()
 
 
-async def test_delete_created_buckets(s3: S3Fixture, tmp_file: FileObject):  # noqa: F811
-    """Make sure the delete_created_buckets() method works."""
-    bucket_id, object_id = tmp_file.bucket_id, tmp_file.object_id
-
-    # bucket should not exist in the beginning:
-    assert not await s3.storage.does_bucket_exist(bucket_id=bucket_id)
-
-    # add the corresponding bucket to the storage:
-    await s3.populate_buckets([bucket_id])
-
-    # now the bucket should exist:
-    assert await s3.storage.does_bucket_exist(bucket_id=bucket_id)
-
-    # add a file object to the bucket:
-    await s3.populate_file_objects(file_objects=[tmp_file])
-
-    # now the file object should exist:
-    assert await s3.storage.does_object_exist(bucket_id=bucket_id, object_id=object_id)
-
-    # delete_created_buckets() should remove the created bucket again
-    await s3.storage.delete_created_buckets()
-    assert not await s3.storage.does_bucket_exist(bucket_id=bucket_id)
-
-
 async def test_empty_buckets(s3: S3Fixture, tmp_file: FileObject):  # noqa: F811
     """Make sure the empty_buckets() method works."""
     bucket_id, object_id = tmp_file.bucket_id, tmp_file.object_id

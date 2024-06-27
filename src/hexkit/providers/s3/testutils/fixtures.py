@@ -87,15 +87,18 @@ class S3Fixture:
         """Initialize with config."""
         self.config = config
         self.storage = storage
-        self._buckets: set[str] = set()
+
+    def get_buckets(self) -> set[str]:
+        """Return a list of the buckets currently existing in the S3 object storage."""
+        response = self.storage._client.list_buckets()
+        buckets = set(bucket["Name"] for bucket in response["Buckets"])
+        return buckets
 
     async def populate_buckets(self, buckets: list[str]):
         """Populate the storage with buckets."""
         await populate_storage(
             self.storage, bucket_fixtures=buckets, object_fixtures=[]
         )
-
-        self._buckets.update(buckets)
 
     async def populate_file_objects(self, file_objects: list[FileObject]):
         """Populate the storage with file objects."""
@@ -105,7 +108,7 @@ class S3Fixture:
 
     async def empty_buckets(self, buckets_to_exclude: Optional[list[str]] = None):
         """Clean the test artifacts or files from the populated buckets."""
-        for bucket in self._buckets.difference(buckets_to_exclude or []):
+        for bucket in self.get_buckets().difference(buckets_to_exclude or []):
             # Get list of all objects in the bucket
             object_ids = await self.storage.list_all_object_ids(bucket_id=bucket)
             # Delete all of these objects
@@ -114,7 +117,7 @@ class S3Fixture:
 
     async def delete_buckets(self, buckets_to_exclude: Optional[list[str]] = None):
         """Delete the populated buckets."""
-        buckets = self._buckets
+        buckets = self.get_buckets()
         for bucket in list(buckets.difference(buckets_to_exclude or [])):
             await self.storage.delete_bucket(bucket, delete_content=True)
             buckets.discard(bucket)
@@ -169,8 +172,6 @@ class S3ContainerFixture(LocalStackContainer):
 
     s3_config: S3Config
 
-    _created_buckets: set[str]
-
     def __init__(
         self,
         port: int = 4566,
@@ -190,7 +191,6 @@ class S3ContainerFixture(LocalStackContainer):
             s3_secret_access_key=SecretStr("test"),
         )
         self.s3_config = s3_config
-        self._created_buckets = set()
         return self
 
 
@@ -222,6 +222,7 @@ def _persistent_s3_fixture(
     """
     config = s3_container.s3_config
     storage = S3ObjectStorage(config=config)
+
     yield S3Fixture(config=config, storage=storage)
 
 
@@ -247,17 +248,8 @@ async def _clean_s3_fixture(
     The clean state is achieved by deleting all S3 buckets upfront.
     """
     for s3_fixture in _persistent_s3_fixture(s3_container):
-        container_buckets = s3_container._created_buckets
-        fixture_buckets = s3_fixture.storage._created_buckets
-        fixture_buckets.update(container_buckets)
-        fixture_buckets_before = fixture_buckets.copy()
-        await s3_fixture.storage.delete_created_buckets()
-        deleted_buckets = fixture_buckets_before - fixture_buckets
-        container_buckets.difference_update(deleted_buckets)
-
+        await s3_fixture.delete_buckets()
         yield s3_fixture
-
-    container_buckets.update(fixture_buckets)
 
 
 def get_clean_s3_fixture(scope: PytestScope = "function", name: str = "s3"):
