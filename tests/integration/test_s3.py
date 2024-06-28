@@ -25,12 +25,10 @@ from hexkit.providers.s3.testutils import (
     MEBIBYTE,
     FileObject,
     S3Fixture,
-    file_fixture,  # noqa: F401
-    get_initialized_upload,
-    prepare_non_completed_upload,
     s3_container_fixture,  # noqa: F401
     s3_fixture,  # noqa: F401
     temp_file_object,
+    tmp_file,  # noqa: F401
     typical_workflow,
     upload_part,
     upload_part_of_size,
@@ -44,31 +42,7 @@ EXAMPLE_BUCKETS = [
 pytestmark = pytest.mark.asyncio()
 
 
-async def test_delete_created_buckets(s3: S3Fixture, tmp_file: FileObject):
-    """Make sure the delete_created_buckets() method works."""
-    bucket_id, object_id = tmp_file.bucket_id, tmp_file.object_id
-
-    # bucket should not exist in the beginning:
-    assert not await s3.storage.does_bucket_exist(bucket_id=bucket_id)
-
-    # add the corresponding bucket to the storage:
-    await s3.populate_buckets([bucket_id])
-
-    # now the bucket should exist:
-    assert await s3.storage.does_bucket_exist(bucket_id=bucket_id)
-
-    # add a file object to the bucket:
-    await s3.populate_file_objects(file_objects=[tmp_file])
-
-    # now the file object should exist:
-    assert await s3.storage.does_object_exist(bucket_id=bucket_id, object_id=object_id)
-
-    # delete_created_buckets() should remove the created bucket again
-    await s3.storage.delete_created_buckets()
-    assert not await s3.storage.does_bucket_exist(bucket_id=bucket_id)
-
-
-async def test_empty_buckets(s3: S3Fixture, tmp_file: FileObject):
+async def test_empty_buckets(s3: S3Fixture, tmp_file: FileObject):  # noqa: F811
     """Make sure the empty_buckets() method works."""
     bucket_id, object_id = tmp_file.bucket_id, tmp_file.object_id
     await s3.populate_buckets([bucket_id])
@@ -83,7 +57,7 @@ async def test_empty_buckets(s3: S3Fixture, tmp_file: FileObject):
     )
 
 
-async def test_delete_buckets(s3: S3Fixture, tmp_file: FileObject):
+async def test_delete_buckets(s3: S3Fixture, tmp_file: FileObject):  # noqa: F811
     """Make sure the delete_buckets() method works."""
     bucket_id = tmp_file.bucket_id
     await s3.populate_buckets([bucket_id])
@@ -111,7 +85,7 @@ async def test_typical_workflow(use_multipart_upload: bool, s3: S3Fixture):
         )
 
 
-async def test_object_existence_checks(s3: S3Fixture, tmp_file: FileObject):
+async def test_object_existence_checks(s3: S3Fixture, tmp_file: FileObject):  # noqa: F811
     """Test if the checks for existence of objects work correctly."""
     # object should not exist in the beginning:
     assert not await s3.storage.does_object_exist(
@@ -127,7 +101,7 @@ async def test_object_existence_checks(s3: S3Fixture, tmp_file: FileObject):
     )
 
 
-async def test_get_object_size(s3: S3Fixture, tmp_file: FileObject):
+async def test_get_object_size(s3: S3Fixture, tmp_file: FileObject):  # noqa: F811
     """Test if the get_object_size method returns the correct size."""
     expected_size = len(tmp_file.content)
 
@@ -139,7 +113,7 @@ async def test_get_object_size(s3: S3Fixture, tmp_file: FileObject):
     assert expected_size == observed_size
 
 
-async def test_list_all_object_ids(s3: S3Fixture, tmp_file: FileObject):
+async def test_list_all_object_ids(s3: S3Fixture, tmp_file: FileObject):  # noqa: F811
     """Test if listing all object IDs for a bucket works correctly."""
     file_fixture2 = tmp_file.model_copy(deep=True)
     file_fixture2.object_id = "mydefaulttestobject002"
@@ -166,7 +140,7 @@ async def test_bucket_existence_checks(s3: S3Fixture):
     assert await s3.storage.does_bucket_exist(bucket_id=bucket_id)
 
 
-async def test_object_and_bucket_collisions(s3: S3Fixture, tmp_file: FileObject):
+async def test_object_and_bucket_collisions(s3: S3Fixture, tmp_file: FileObject):  # noqa: F811
     """
     Tests whether overwriting (re-creation, re-upload, or copy to existing object)
     fails with the expected error.
@@ -194,7 +168,8 @@ async def test_object_and_bucket_collisions(s3: S3Fixture, tmp_file: FileObject)
 
 
 async def test_handling_non_existing_file_and_bucket(
-    s3: S3Fixture, tmp_file: FileObject
+    s3: S3Fixture,
+    tmp_file: FileObject,  # noqa: F811
 ):
     """
     Tests whether interacting with a non-existing bucket/file object fails with the
@@ -264,7 +239,9 @@ async def test_handling_non_existing_file_and_bucket(
 
 @pytest.mark.parametrize("delete_content", (True, False))
 async def test_delete_non_empty_bucket(
-    delete_content: bool, s3: S3Fixture, tmp_file: FileObject
+    delete_content: bool,
+    s3: S3Fixture,
+    tmp_file: FileObject,  # noqa: F811
 ):
     """Test deleting a non-empty bucket."""
     await s3.populate_file_objects([tmp_file])
@@ -299,9 +276,11 @@ async def test_using_non_existing_upload(
     throws the right error.
     """
     # prepare a non-completed upload:
-    real_upload_id, real_bucket_id, real_object_id = await prepare_non_completed_upload(
-        s3
-    )
+    (
+        real_upload_id,
+        real_bucket_id,
+        real_object_id,
+    ) = await s3.prepare_non_completed_upload()
 
     upload_id = real_upload_id if upload_id_correct else "wrong-upload"
     bucket_id = real_bucket_id if bucket_id_correct else "wrong-bucket"
@@ -335,7 +314,7 @@ async def test_invalid_part_number(
     part_number: int, exception: Optional[type[Exception]], s3: S3Fixture
 ):
     """Check that invalid part numbers are cached correctly."""
-    upload_id, bucket_id, object_id = await prepare_non_completed_upload(s3)
+    upload_id, bucket_id, object_id = await s3.prepare_non_completed_upload()
 
     with pytest.raises(exception) if exception else nullcontext():
         _ = await s3.storage.get_part_upload_url(
@@ -397,7 +376,7 @@ async def test_complete_multipart_upload(
     s3: S3Fixture,
 ):
     """Test the complete_multipart_upload method."""
-    upload_id, bucket_id, object_id = await get_initialized_upload(s3)
+    upload_id, bucket_id, object_id = await s3.get_initialized_upload()
     for part_idx, part_size in enumerate(part_sizes):
         await upload_part_of_size(
             storage_dao=s3.storage,
@@ -421,7 +400,7 @@ async def test_complete_multipart_upload(
 @pytest.mark.parametrize("empty_upload", (True, False))
 async def test_abort_multipart_upload(empty_upload: bool, s3: S3Fixture):
     """Test the abort_multipart_upload method."""
-    upload_id, bucket_id, object_id = await get_initialized_upload(s3)
+    upload_id, bucket_id, object_id = await s3.get_initialized_upload()
 
     async def upload_part_shortcut(part_number):
         await upload_part_of_size(
@@ -456,7 +435,7 @@ async def test_abort_multipart_upload(empty_upload: bool, s3: S3Fixture):
 async def test_multiple_active_uploads(s3: S3Fixture):
     """Test that multiple active uploads for the same object are not possible."""
     # initialize an upload:
-    _, bucket_id, object_id = await get_initialized_upload(s3)
+    _, bucket_id, object_id = await s3.get_initialized_upload()
 
     # initialize another upload for the same object:
     with pytest.raises(ObjectStorageProtocol.MultiPartUploadAlreadyExistsError):
@@ -471,7 +450,7 @@ async def test_handling_multiple_coexisting_uploads(s3: S3Fixture):
     is correctly handled.
     """
     # initialize an upload:
-    upload1_id, bucket_id, object_id = await get_initialized_upload(s3)
+    upload1_id, bucket_id, object_id = await s3.get_initialized_upload()
 
     # initialize another upload bypassing any checks:
     upload2_id = s3.storage._client.create_multipart_upload(
@@ -523,7 +502,7 @@ async def test_handling_multiple_subsequent_uploads(abort_first: bool, s3: S3Fix
           upload, uploads some parts, complete it (`abort_first` set to False)
     """
     # perform first upload:
-    upload1_id, bucket_id, object_id = await get_initialized_upload(s3)
+    upload1_id, bucket_id, object_id = await s3.get_initialized_upload()
 
     async def upload_part_shortcut(upload_id):
         await upload_part(
