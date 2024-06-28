@@ -52,15 +52,15 @@ attrs==23.2.0 \
     #   -c lock/requirements-dev.txt
     #   jsonschema
     #   referencing
-boto3==1.34.134 \
-    --hash=sha256:342782c02ff077aae118c9c61179eed95c585831fba666baacc5588ff04aa6e1 \
-    --hash=sha256:f6d6e5b0c9ab022a75373fa16c01f0cd54bc1bb64ef3b6ac64ac7cedd56cbe9c
+boto3==1.34.135 \
+    --hash=sha256:344f635233c85dbb509b87638232ff9132739f90bb5e6bf01fa0e0a521a9107e \
+    --hash=sha256:6f5d7a20afbe45e3f7c6b5e96071752d36c3942535b1f7924964f1fdf25376a7
     # via
     #   -c lock/requirements-dev.txt
     #   hexkit (pyproject.toml)
-botocore==1.34.134 \
-    --hash=sha256:45219e00639755f92569b29f8f279d5dde721494791412c1f7026a3779e8d9f4 \
-    --hash=sha256:e29c299599426ed16dd2d4c1e20eef784f96b15e1850ebbc59a3250959285b95
+botocore==1.34.135 \
+    --hash=sha256:2e72f37072f75cb1391fca9d7a4c32cecb52a3557d62431d0f59d5311dc7d0cf \
+    --hash=sha256:3aa9e85e7c479babefb5a590e844435449df418085f3c74d604277bc52dc3109
     # via
     #   -c lock/requirements-dev.txt
     #   hexkit (pyproject.toml)
@@ -561,9 +561,9 @@ six==1.16.0 \
     # via
     #   -c lock/requirements-dev.txt
     #   python-dateutil
-testcontainers==4.6.0 \
-    --hash=sha256:043c556b96de308ed1af8965515eb9dfb3dffc96dea0a0e4e1c08968693d56ce \
-    --hash=sha256:dbe8a6e6c5e7282d39cc26a0c294070461249dea21de42cc371c177420f38af8
+testcontainers==4.7.0 \
+    --hash=sha256:7c37dc610395940e5f0c67c97eeba1889ab7ec9b689f0c8b73d7fa7fe7baf3c9 \
+    --hash=sha256:89c11f02f98093e3811346556707209278a7b7a4d9e18170cdae80668909cb8b
     # via
     #   -c lock/requirements-dev.txt
     #   hexkit (pyproject.toml)
