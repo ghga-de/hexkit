@@ -83,16 +83,26 @@ class ExpectedEvent(EventBase):
 
     Please note, the key type is optional. If it is set to `None` (the default), the
     event key will be ignored when compared to the recording.
+
+    The `headers` value is treated the same as `key` -- it is ignored in comparison if
+    it is set to `None`.
     """
 
     key: Optional[Ascii] = None
+    headers: Optional[dict[str, str]] = None
 
 
 @dataclass(frozen=True)
 class RecordedEvent(EventBase):
-    """Used by the EventRecorder class to describe events recorded in a specific topic."""
+    """Used by the EventRecorder class to describe events recorded in a specific topic.
+
+    The event type information is stored in the header but extracted into its own field
+    because of its importance for the comparison. Because of this, it is also removed
+    from the headers.
+    """
 
     key: Ascii
+    headers: Optional[dict[str, str]] = None
 
 
 class ValidationError(RuntimeError):
@@ -138,7 +148,8 @@ def check_recorded_events(
     n_expected_events = len(expected_events)
     if n_recorded_events != n_expected_events:
         raise get_detailed_error(
-            details=f"expected {n_expected_events} events but recorded {n_recorded_events}"
+            details=f"expected {n_expected_events} events but recorded {
+                n_recorded_events}"
         )
 
     def get_field_mismatch_error(field, index):
@@ -156,6 +167,11 @@ def check_recorded_events(
             raise get_field_mismatch_error(field="type", index=index)
         if expected_event.key is not None and recorded_event.key != expected_event.key:
             raise get_field_mismatch_error(field="key", index=index)
+        if (
+            expected_event.headers is not None
+            and recorded_event.headers != expected_event.headers
+        ):
+            raise get_field_mismatch_error(field="headers", index=index)
 
 
 class EventRecorder:
@@ -302,19 +318,21 @@ class EventRecorder:
 
         # consume all the available events (but no more, as this would lead to infinite
         # waiting):
-        raw_events = [
+        raw_events: list[ConsumerEvent] = [
             await self._consume_event(consumer=consumer) for _ in range(event_count)
         ]
 
-        # discard all events that do not match the key of interest:
-        return [
-            RecordedEvent(
-                payload=raw_event.value,
-                type_=get_header_value("type", headers=headers_as_dict(raw_event)),
-                key=raw_event.key,
+        recorded_events: list[RecordedEvent] = []
+        for raw_event in raw_events:
+            type_ = get_header_value("type", headers=headers_as_dict(raw_event))
+            headers = headers_as_dict(raw_event)
+            headers.pop("type")
+
+            recorded_event = RecordedEvent(
+                payload=raw_event.value, type_=type_, key=raw_event.key, headers=headers
             )
-            for raw_event in raw_events
-        ]
+            recorded_events.append(recorded_event)
+        return recorded_events
 
     async def start_recording(self) -> None:
         """Start looking for the expected events from now on."""
@@ -529,7 +547,8 @@ class KafkaContainerFixture(KafkaContainer):
         exit_code, output = self.get_wrapped_container().exec_run(cmd)
 
         if exit_code != 0:
-            raise RuntimeError(f"result: {exit_code}, output: {output.decode('utf-8')}")
+            raise RuntimeError(f"result: {exit_code}, output: {
+                               output.decode('utf-8')}")
 
 
 def _kafka_container_fixture() -> Generator[KafkaContainerFixture, None, None]:

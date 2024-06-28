@@ -23,6 +23,7 @@ import pytest
 from aiokafka import AIOKafkaConsumer
 from aiokafka.structs import TopicPartition
 
+from hexkit.correlation import set_correlation_id
 from hexkit.custom_types import Ascii, JsonObject
 from hexkit.protocols.eventsub import EventSubscriberProtocol
 from hexkit.providers.akafka import (
@@ -43,6 +44,7 @@ pytestmark = pytest.mark.asyncio()
 
 
 TEST_TYPE = "test_type"
+TEST_CORRELATION_ID = "513ed283-478e-428e-8c2f-ff6da36a9527"
 
 
 def make_payload(msg: str) -> JsonObject:
@@ -199,10 +201,16 @@ async def test_clear_all_topics(kafka: KafkaFixture):
         [],
         [
             RecordedEvent(
-                payload={"test_content": "Hello"}, type_="test_hello", key="test_key"
+                payload={"test_content": "Hello"},
+                type_="test_hello",
+                key="test_key",
+                headers={"correlation_id": TEST_CORRELATION_ID},
             ),
             RecordedEvent(
-                payload={"test_content": "World"}, type_="test_world", key="test_key"
+                payload={"test_content": "World"},
+                type_="test_world",
+                key="test_key",
+                headers={"correlation_id": TEST_CORRELATION_ID},
             ),
         ],
     ),
@@ -219,15 +227,16 @@ async def test_event_recorder(
         kafka_servers=kafka.kafka_servers,
     )
 
-    async with kafka.record_events(in_topic=topic) as recorder:
-        async with KafkaEventPublisher.construct(config=config) as event_publisher:
-            for event in events_to_publish:
-                await event_publisher.publish(
-                    payload=event.payload,
-                    type_=event.type_,
-                    key=event.key,
-                    topic=topic,
-                )
+    async with set_correlation_id(TEST_CORRELATION_ID):
+        async with kafka.record_events(in_topic=topic) as recorder:
+            async with KafkaEventPublisher.construct(config=config) as event_publisher:
+                for event in events_to_publish:
+                    await event_publisher.publish(
+                        payload=event.payload,
+                        type_=event.type_,
+                        key=event.key,
+                        topic=topic,
+                    )
 
     assert recorder.recorded_events == events_to_publish
 
