@@ -64,7 +64,7 @@ __all__ = [
 ]
 
 
-LOCALSTACK_IMAGE = "localstack/localstack:3.4.0"
+LOCALSTACK_IMAGE = "localstack/localstack:3.5.0"
 
 TEST_FILE_DIR = Path(__file__).parent.parent.resolve() / "test_files"
 
@@ -96,7 +96,7 @@ class S3Fixture:
     def get_buckets(self) -> set[str]:
         """Return a list of the buckets currently existing in the S3 object storage."""
         response = self.storage._client.list_buckets()
-        buckets = set(bucket["Name"] for bucket in response["Buckets"])
+        buckets = {bucket["Name"] for bucket in response["Buckets"]}
         return buckets
 
     async def populate_buckets(self, buckets: list[str]):
@@ -122,10 +122,8 @@ class S3Fixture:
 
     async def delete_buckets(self, buckets_to_exclude: Optional[list[str]] = None):
         """Delete the populated buckets."""
-        buckets = self.get_buckets()
-        for bucket in list(buckets.difference(buckets_to_exclude or [])):
+        for bucket in self.get_buckets().difference(buckets_to_exclude or []):
             await self.storage.delete_bucket(bucket, delete_content=True)
-            buckets.discard(bucket)
 
     async def get_initialized_upload(self) -> UploadDetails:
         """Initialize a new empty multipart upload process.
