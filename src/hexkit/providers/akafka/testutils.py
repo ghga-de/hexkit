@@ -144,12 +144,11 @@ def check_recorded_events(
         expected_events=expected_events,
     )
 
-    n_recorded_events = len(recorded_events)
-    n_expected_events = len(expected_events)
-    if n_recorded_events != n_expected_events:
+    n_recorded = len(recorded_events)
+    n_expected = len(expected_events)
+    if n_recorded != n_expected:
         raise get_detailed_error(
-            details=f"expected {n_expected_events} events but recorded {
-                n_recorded_events}"
+            details=f"expected {n_expected} events but recorded {n_recorded}"
         )
 
     def get_field_mismatch_error(field, index):
