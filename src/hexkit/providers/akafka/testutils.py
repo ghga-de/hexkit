@@ -573,10 +573,10 @@ class KafkaContainerFixture(KafkaContainer):
         """
         cmd = ["sh", "-c", command] if run_in_shell else command
         exit_code, output = self.get_wrapped_container().exec_run(cmd)
+        output_str = output.decode("utf-8")
 
         if exit_code != 0:
-            raise RuntimeError(f"result: {exit_code}, output: {
-                               output.decode('utf-8')}")
+            raise RuntimeError(f"result: {exit_code}, output: {output_str}")
 
 
 def _kafka_container_fixture() -> Generator[KafkaContainerFixture, None, None]:
