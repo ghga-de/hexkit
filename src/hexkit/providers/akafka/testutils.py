@@ -331,7 +331,7 @@ class EventRecorder:
         for raw_event in raw_events:
             headers = headers_as_dict(raw_event)
             type_ = get_header_value("type", headers=headers)
-            headers.pop("type")
+            del headers["type"]
 
             recorded_event = RecordedEvent(
                 payload=raw_event.value,
@@ -573,9 +573,9 @@ class KafkaContainerFixture(KafkaContainer):
         """
         cmd = ["sh", "-c", command] if run_in_shell else command
         exit_code, output = self.get_wrapped_container().exec_run(cmd)
-        output_str = output.decode("utf-8")
 
         if exit_code != 0:
+            output_str = output.decode("utf-8")
             raise RuntimeError(f"result: {exit_code}, output: {output_str}")
 
 

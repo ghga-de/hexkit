@@ -510,15 +510,11 @@ async def test_capture_headers(
             topic=topic,
         )
 
-    # only time there should NOT be an error is:
-    # 1. Expected headers are not provided
-    # 2. Capture headers flag is set and expected/recorded headers match
-    error = True
-    if not expected_headers or (
-        capture_headers
-        and (expected_headers.get("correlation_id", "") == recorded_correlation_id)
-    ):
-        error = False
-
-    with pytest.raises(ValidationError) if error else nullcontext():
+    # only time there should be an error is when 1. expected headers are provided
+    # and 2. capture headers flag isn't set or expected/recorded headers don't match
+    expected_error = expected_headers and (
+        not capture_headers
+        or expected_headers.get("correlation_id", "") != recorded_correlation_id
+    )
+    with pytest.raises(ValidationError) if expected_error else nullcontext():
         await event_recorder.__aexit__(None, None, None)
