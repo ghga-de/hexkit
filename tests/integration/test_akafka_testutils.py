@@ -18,11 +18,14 @@
 
 import json
 from collections.abc import Sequence
+from contextlib import nullcontext
+from typing import Optional
 
 import pytest
 from aiokafka import AIOKafkaConsumer
 from aiokafka.structs import TopicPartition
 
+from hexkit.correlation import set_correlation_id
 from hexkit.custom_types import Ascii, JsonObject
 from hexkit.protocols.eventsub import EventSubscriberProtocol
 from hexkit.providers.akafka import (
@@ -43,6 +46,8 @@ pytestmark = pytest.mark.asyncio()
 
 
 TEST_TYPE = "test_type"
+DEFAULT_CORRELATION_ID = "513ed283-478e-428e-8c2f-ff6da36a9527"
+OTHER_CORRELATION_ID = "d4fd8051-293b-4cce-9970-6b78ca149bc0"
 
 
 def make_payload(msg: str) -> JsonObject:
@@ -194,21 +199,48 @@ async def test_clear_all_topics(kafka: KafkaFixture):
 
 
 @pytest.mark.parametrize(
-    "events_to_publish",
+    "events_to_publish,capture_headers",
     (
-        [],
-        [
-            RecordedEvent(
-                payload={"test_content": "Hello"}, type_="test_hello", key="test_key"
-            ),
-            RecordedEvent(
-                payload={"test_content": "World"}, type_="test_world", key="test_key"
-            ),
-        ],
+        ([], False),
+        ([], True),
+        (
+            [
+                RecordedEvent(
+                    payload={"test_content": "Hello"},
+                    type_="test_hello",
+                    key="test_key",
+                ),
+                RecordedEvent(
+                    payload={"test_content": "World"},
+                    type_="test_world",
+                    key="test_key",
+                ),
+            ],
+            False,
+        ),
+        (
+            [
+                RecordedEvent(
+                    payload={"test_content": "Hello"},
+                    type_="test_hello",
+                    key="test_key",
+                    headers={"correlation_id": DEFAULT_CORRELATION_ID},
+                ),
+                RecordedEvent(
+                    payload={"test_content": "World"},
+                    type_="test_world",
+                    key="test_key",
+                    headers={"correlation_id": DEFAULT_CORRELATION_ID},
+                ),
+            ],
+            True,
+        ),
     ),
 )
 async def test_event_recorder(
-    events_to_publish: Sequence[RecordedEvent], kafka: KafkaFixture
+    events_to_publish: Sequence[RecordedEvent],
+    capture_headers: bool,
+    kafka: KafkaFixture,
 ):
     """Test event recording using the EventRecorder class."""
     topic = "test_topic"
@@ -219,15 +251,20 @@ async def test_event_recorder(
         kafka_servers=kafka.kafka_servers,
     )
 
-    async with kafka.record_events(in_topic=topic) as recorder:
-        async with KafkaEventPublisher.construct(config=config) as event_publisher:
-            for event in events_to_publish:
-                await event_publisher.publish(
-                    payload=event.payload,
-                    type_=event.type_,
-                    key=event.key,
-                    topic=topic,
-                )
+    async with (
+        set_correlation_id(DEFAULT_CORRELATION_ID),
+        kafka.record_events(
+            in_topic=topic, capture_headers=capture_headers
+        ) as recorder,
+        KafkaEventPublisher.construct(config=config) as event_publisher,
+    ):
+        for event in events_to_publish:
+            await event_publisher.publish(
+                payload=event.payload,
+                type_=event.type_,
+                key=event.key,
+                topic=topic,
+            )
 
     assert recorder.recorded_events == events_to_publish
 
@@ -278,10 +315,14 @@ async def test_expect_events_happy(kafka: KafkaFixture):
     ]
     events_to_publish = [
         RecordedEvent(
-            payload={"test_content": "Hello"}, type_="test_hello", key="test_key"
+            payload={"test_content": "Hello"},
+            type_="test_hello",
+            key="test_key",
         ),
         RecordedEvent(
-            payload={"test_content": "World"}, type_="test_world", key="test_key"
+            payload={"test_content": "World"},
+            type_="test_world",
+            key="test_key",
         ),
     ]
     topic = "test_topic"
@@ -292,15 +333,17 @@ async def test_expect_events_happy(kafka: KafkaFixture):
         kafka_servers=kafka.kafka_servers,
     )
 
-    async with kafka.expect_events(events=expected_events, in_topic=topic):
-        async with KafkaEventPublisher.construct(config=config) as event_publisher:
-            for event in events_to_publish:
-                await event_publisher.publish(
-                    payload=event.payload,
-                    type_=event.type_,
-                    key=event.key,
-                    topic=topic,
-                )
+    async with (
+        kafka.expect_events(events=expected_events, in_topic=topic),
+        KafkaEventPublisher.construct(config=config) as event_publisher,
+    ):
+        for event in events_to_publish:
+            await event_publisher.publish(
+                payload=event.payload,
+                type_=event.type_,
+                key=event.key,
+                topic=topic,
+            )
 
 
 @pytest.mark.parametrize(
@@ -406,4 +449,72 @@ async def test_expect_events_mismatch(
             )
 
     with pytest.raises(ValidationError):
+        await event_recorder.__aexit__(None, None, None)
+
+
+@pytest.mark.parametrize(
+    "recorded_correlation_id", [DEFAULT_CORRELATION_ID, OTHER_CORRELATION_ID]
+)
+@pytest.mark.parametrize(
+    "expected_headers",
+    [
+        None,
+        {"correlation_id": OTHER_CORRELATION_ID},
+        {"correlation_id": DEFAULT_CORRELATION_ID},
+    ],
+)
+@pytest.mark.parametrize("capture_headers", [True, False])
+async def test_capture_headers(
+    expected_headers: Optional[dict[str, str]],
+    recorded_correlation_id: str,
+    capture_headers: bool,
+    kafka: KafkaFixture,
+):
+    """Test the handling of mismatches between recorded and expected events using the
+    expect_events method of the KafkaFixture, but specifically with the optional headers.
+    For now, the only header to be tested is the correlation_id.
+
+    The expected behavior is that the headers are compared when provided as expected
+    arguments, otherwise ignored.
+    """
+    topic = "test_topic"
+
+    config = KafkaConfig(
+        service_name="test_publisher",
+        service_instance_id="1",
+        kafka_servers=kafka.kafka_servers,
+    )
+    expected_event = ExpectedEvent(
+        payload={"test_content": "Hello"},
+        type_="test_type",
+        headers=expected_headers,
+    )
+
+    # Set up the event recorder with the expected event and the capture_headers flag
+    event_recorder = kafka.expect_events(
+        events=[expected_event], in_topic=topic, capture_headers=capture_headers
+    )
+
+    # start the recorder
+    await event_recorder.__aenter__()
+
+    # Set the correlation ID context var and publish the 'recorded' event
+    async with (
+        set_correlation_id(recorded_correlation_id),
+        KafkaEventPublisher.construct(config=config) as event_publisher,
+    ):
+        await event_publisher.publish(
+            payload=expected_event.payload,
+            type_=expected_event.type_,
+            key="",
+            topic=topic,
+        )
+
+    # only time there should be an error is when 1. expected headers are provided
+    # and 2. capture headers flag isn't set or expected/recorded headers don't match
+    expected_error = expected_headers and (
+        not capture_headers
+        or expected_headers.get("correlation_id", "") != recorded_correlation_id
+    )
+    with pytest.raises(ValidationError) if expected_error else nullcontext():
         await event_recorder.__aexit__(None, None, None)

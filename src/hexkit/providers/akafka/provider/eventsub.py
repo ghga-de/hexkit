@@ -124,7 +124,7 @@ class KafkaConsumerCompatible(Protocol):
         ...
 
     def __aiter__(self: KCC) -> KCC:
-        """Returns an async iterator for iterating through events."""  #
+        """Returns an async iterator for iterating through events."""
         ...
 
     async def __anext__(self) -> ConsumerEvent:

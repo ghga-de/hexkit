@@ -83,16 +83,26 @@ class ExpectedEvent(EventBase):
 
     Please note, the key type is optional. If it is set to `None` (the default), the
     event key will be ignored when compared to the recording.
+
+    The `headers` value is treated the same as `key` -- it is ignored in comparison if
+    it is set to `None`.
     """
 
     key: Optional[Ascii] = None
+    headers: Optional[dict[str, str]] = None
 
 
 @dataclass(frozen=True)
 class RecordedEvent(EventBase):
-    """Used by the EventRecorder class to describe events recorded in a specific topic."""
+    """Used by the EventRecorder class to describe events recorded in a specific topic.
+
+    The event type information is stored in the header but extracted into its own field
+    because of its importance for the comparison. Because of this, it is also removed
+    from the headers.
+    """
 
     key: Ascii
+    headers: Optional[dict[str, str]] = None
 
 
 class ValidationError(RuntimeError):
@@ -134,11 +144,11 @@ def check_recorded_events(
         expected_events=expected_events,
     )
 
-    n_recorded_events = len(recorded_events)
-    n_expected_events = len(expected_events)
-    if n_recorded_events != n_expected_events:
+    n_recorded = len(recorded_events)
+    n_expected = len(expected_events)
+    if n_recorded != n_expected:
         raise get_detailed_error(
-            details=f"expected {n_expected_events} events but recorded {n_recorded_events}"
+            details=f"expected {n_expected} events but recorded {n_recorded}"
         )
 
     def get_field_mismatch_error(field, index):
@@ -156,6 +166,11 @@ def check_recorded_events(
             raise get_field_mismatch_error(field="type", index=index)
         if expected_event.key is not None and recorded_event.key != expected_event.key:
             raise get_field_mismatch_error(field="key", index=index)
+        if (
+            expected_event.headers is not None
+            and recorded_event.headers != expected_event.headers
+        ):
+            raise get_field_mismatch_error(field="headers", index=index)
 
 
 class EventRecorder:
@@ -186,10 +201,16 @@ class EventRecorder:
         *,
         kafka_servers: list[str],
         topic: Ascii,
+        capture_headers: bool = False,
     ):
-        """Initialize with connection details."""
+        """Initialize with connection details.
+
+        Set `capture_headers` to `True` if you want to capture the headers of the
+        recorded events, otherwise they will be left empty.
+        """
         self._kafka_servers = kafka_servers
         self._topic = topic
+        self._capture_headers = capture_headers
 
         self._starting_offsets: Optional[dict[str, int]] = None
         self._recorded_events: Optional[Sequence[RecordedEvent]] = None
@@ -302,19 +323,24 @@ class EventRecorder:
 
         # consume all the available events (but no more, as this would lead to infinite
         # waiting):
-        raw_events = [
+        raw_events: list[ConsumerEvent] = [
             await self._consume_event(consumer=consumer) for _ in range(event_count)
         ]
 
-        # discard all events that do not match the key of interest:
-        return [
-            RecordedEvent(
+        recorded_events: list[RecordedEvent] = []
+        for raw_event in raw_events:
+            headers = headers_as_dict(raw_event)
+            type_ = get_header_value("type", headers=headers)
+            del headers["type"]
+
+            recorded_event = RecordedEvent(
                 payload=raw_event.value,
-                type_=get_header_value("type", headers=headers_as_dict(raw_event)),
+                type_=type_,
                 key=raw_event.key,
+                headers=headers if self._capture_headers else None,
             )
-            for raw_event in raw_events
-        ]
+            recorded_events.append(recorded_event)
+        return recorded_events
 
     async def start_recording(self) -> None:
         """Start looking for the expected events from now on."""
@@ -388,12 +414,21 @@ class KafkaFixture:
         """A convenience method to publish a test event."""
         await self.publisher.publish(payload=payload, type_=type_, key=key, topic=topic)
 
-    def record_events(self, *, in_topic: Ascii) -> EventRecorder:
+    def record_events(
+        self, *, in_topic: Ascii, capture_headers: bool = False
+    ) -> EventRecorder:
         """Constructs an EventRecorder object that can be used in an async with block to
         record events in the specified topic upon __aenter__ and stops the recording
         upon __aexit__.
+
+        Set `capture_events` to `True` if you want to capture the headers of the
+        recorded events, otherwise they will be left empty.
         """
-        return EventRecorder(kafka_servers=self.kafka_servers, topic=in_topic)
+        return EventRecorder(
+            kafka_servers=self.kafka_servers,
+            topic=in_topic,
+            capture_headers=capture_headers,
+        )
 
     def _build_record_deletion_config(self, partitions: JsonObject) -> JsonObject:
         """Build the config required to run the kafka-delete-records script."""
@@ -481,13 +516,24 @@ class KafkaFixture:
 
     @asynccontextmanager
     async def expect_events(
-        self, events: Sequence[ExpectedEvent], *, in_topic: Ascii
+        self,
+        events: Sequence[ExpectedEvent],
+        *,
+        in_topic: Ascii,
+        capture_headers: bool = False,
     ) -> AsyncGenerator[EventRecorder, None]:
         """Can be used in an async with block to record events in the specified topic
         (on __aenter__) and check that they match the specified sequence of expected
         events (on __aexit__).
+
+        Set `capture_headers` to `True` if you want to capture the headers of the
+        recorded events, otherwise they will be left empty. Providing the headers in the
+        expected events without setting `capture_headers` to will result in a
+        ValidationError.
         """
-        async with self.record_events(in_topic=in_topic) as event_recorder:
+        async with self.record_events(
+            in_topic=in_topic, capture_headers=capture_headers
+        ) as event_recorder:
             yield event_recorder
 
         check_recorded_events(
@@ -529,7 +575,8 @@ class KafkaContainerFixture(KafkaContainer):
         exit_code, output = self.get_wrapped_container().exec_run(cmd)
 
         if exit_code != 0:
-            raise RuntimeError(f"result: {exit_code}, output: {output.decode('utf-8')}")
+            output_str = output.decode("utf-8")
+            raise RuntimeError(f"result: {exit_code}, output: {output_str}")
 
 
 def _kafka_container_fixture() -> Generator[KafkaContainerFixture, None, None]:
