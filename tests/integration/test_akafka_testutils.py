@@ -173,6 +173,12 @@ async def test_clear_all_topics(kafka: KafkaFixture):
     # clear the above two topics
     await kafka.clear_topics()
 
+    # publish two new events
+    for topic in topics:
+        await kafka.publish_event(
+            payload=make_payload(f"msg 2 for {topic}"), type_=TEST_TYPE, topic=topic
+        )
+
     test_translator = DummyTranslator(topics)
     async with KafkaEventSubscriber.construct(
         config=KafkaConfig(
@@ -182,12 +188,6 @@ async def test_clear_all_topics(kafka: KafkaFixture):
         ),
         translator=test_translator,
     ) as subscriber:
-        # publish two new events
-        for topic in topics:
-            await kafka.publish_event(
-                payload=make_payload(f"msg 2 for {topic}"), type_=TEST_TYPE, topic=topic
-            )
-
         # Consume the events and verify that only the new, post-deletion events are found
         await subscriber.run(False)
         await subscriber.run(False)
