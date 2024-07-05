@@ -153,14 +153,23 @@ def test_record_compiler(caplog):
         assert key in record.__dict__
 
 
-def test_json_formatter(caplog):
+@pytest.mark.parametrize("exc_info", [False, True])
+@pytest.mark.parametrize("include_traceback", [False, True])
+def test_json_formatter(exc_info, include_traceback, caplog):
     """Test that the JsonFormatter works like expected"""
-    formatter = JsonFormatter()
+    formatter = JsonFormatter(include_traceback=include_traceback)
 
     assert not caplog.records
     log = logging.getLogger("test_json_formatter")
     log.setLevel("INFO")
-    log.error("This is a %s", "test")  # test with arg to make sure this isn't lost
+    try:
+        raise ValueError("This is a test exception")
+    except ValueError:
+        log.error(
+            "This is a %s",
+            "test",  # test with arg to make sure this isn't lost
+            exc_info=exc_info,
+        )
 
     assert len(caplog.records) == 1
     record = caplog.records[0]
@@ -181,8 +190,50 @@ def test_json_formatter(caplog):
     for key in ADDED_KEYS:
         assert key in json_log
 
+    if exc_info:
+        assert "exception_type" in json_log
+        assert json_log["exception_type"] == "ValueError"
+        assert "exception_message" in json_log
+        assert json_log["exception_message"] == "This is a test exception"
+        if include_traceback:
+            assert "exception_traceback" in json_log
+            exc_text = json_log["exception_traceback"]
+            assert exc_text
+            assert "Traceback (most recent call last):" in exc_text
+            assert "File" in exc_text
+            assert "tests/unit/test_logging.p" in exc_text
+            assert "line" in exc_text
+            assert "in test_json_formatter" in exc_text
+            assert 'raise ValueError("This is a test exception")' in exc_text
+            assert "ValueError: This is a test exception" in exc_text
+            assert exc_text.count("\n") == 3
+        else:
+            assert "exception_traceback" not in json_log
+    else:
+        assert "exception_type" not in json_log
+        assert "exception_message" not in json_log
+        assert "traceback" not in json_log
+
     # make sure the message is what we expected
     assert json_log["message"] == "This is a test"
+
+
+@pytest.mark.parametrize("log_traceback", [False, True])
+def test_configured_traceback(log_traceback, caplog, expect_json_log):
+    """Test configuring the traceback via the config."""
+    log = logging.getLogger(f"test_configured_traceback_{log_traceback}")
+    config = LoggingConfig(
+        service_name=VALID_SERVICE_NAME,
+        service_instance_id=VALID_INSTANCE_ID,
+        log_traceback=log_traceback,
+    )
+    configure_logging(config=config, logger=log)
+
+    handlers = log.handlers
+    assert len(handlers) == 1
+    formatter = handlers[0].formatter
+    assert isinstance(formatter, JsonFormatter)
+    assert formatter._include_traceback == log_traceback
 
 
 @pytest.mark.parametrize(
@@ -196,15 +247,16 @@ def test_formatter_selection(
     log_format: Optional[str], formatter_class: type[logging.Formatter]
 ):
     """Make sure the proper formatter is selected based on the config."""
+    log = logging.getLogger(f"test_formatter_selection_{log_format is None}")
     config = LoggingConfig(
         service_name=VALID_SERVICE_NAME,
         service_instance_id=VALID_INSTANCE_ID,
         log_format=log_format,
     )
-    log = logging.getLogger("test_formatter_selection")
     configure_logging(config=config, logger=log)
 
     handlers = log.handlers
+    assert len(handlers) == 1
     assert isinstance(handlers[0].formatter, formatter_class)
 
 
@@ -271,5 +323,5 @@ def test_secrets_logging_config(root_logger_reset, capsys):  # noqa: F811
     for key, value in config.model_dump().items():
         assert key in printed_log
         if not key.startswith("secret"):
-            json_value = "null" if value is None else str(value)
+            json_value = json.dumps(value)
             assert json_value in printed_log
