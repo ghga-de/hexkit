@@ -191,13 +191,16 @@ def test_json_formatter(exc_info, include_traceback, caplog):
         assert key in json_log
 
     if exc_info:
-        assert "exception_type" in json_log
-        assert json_log["exception_type"] == "ValueError"
-        assert "exception_message" in json_log
-        assert json_log["exception_message"] == "This is a test exception"
+        assert "exception" in json_log
+        exception = json_log["exception"]
+        assert isinstance(exception, dict)
+        assert "type" in exception
+        assert exception.pop("type") == "ValueError"
+        assert "message" in json_log
+        assert exception.pop("message") == "This is a test exception"
         if include_traceback:
-            assert "exception_traceback" in json_log
-            exc_text = json_log["exception_traceback"]
+            assert "traceback" in exception
+            exc_text = exception.pop("traceback")
             assert exc_text
             assert "Traceback (most recent call last):" in exc_text
             assert "File" in exc_text
@@ -207,12 +210,9 @@ def test_json_formatter(exc_info, include_traceback, caplog):
             assert 'raise ValueError("This is a test exception")' in exc_text
             assert "ValueError: This is a test exception" in exc_text
             assert exc_text.count("\n") == 3
-        else:
-            assert "exception_traceback" not in json_log
+        assert not exception  # no other properties should be present
     else:
-        assert "exception_type" not in json_log
-        assert "exception_message" not in json_log
-        assert "traceback" not in json_log
+        assert "exception" not in json_log
 
     # make sure the message is what we expected
     assert json_log["message"] == "This is a test"

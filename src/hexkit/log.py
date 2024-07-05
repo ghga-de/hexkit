@@ -17,10 +17,9 @@
 """Configurable logging tools with JSON output."""
 
 import json
-from collections import OrderedDict
 from datetime import datetime, timezone
 from logging import Formatter, Logger, LogRecord, StreamHandler, addLevelName, getLogger
-from typing import Literal, Optional
+from typing import Any, Literal, Optional
 
 from pydantic import Field
 from pydantic_settings import BaseSettings
@@ -103,10 +102,11 @@ class JsonFormatter(Formatter):
             - correlation_id: The correlation ID, if set, from the current context.
             - message: The message that was logged, formatted with any arguments.
             - details: Any additional values included at time of logging.
+            - exception: If an exception was logged, the exception info.
         """
         # Create a log record dictionary
         log_record = record.__dict__
-        output: OrderedDict[str, str] = OrderedDict()
+        output: dict[str, Any] = dict()
 
         output["timestamp"] = log_record["timestamp"]
         output["service"] = log_record["service"]
@@ -119,12 +119,15 @@ class JsonFormatter(Formatter):
 
         if log_record["exc_info"]:
             exc_type, exc_value = log_record["exc_info"][:2]
-            output["exception_type"] = exc_type.__name__
-            output["exception_message"] = str(exc_value)
+            exception = {
+                "type": exc_type.__name__,
+                "message": str(exc_value),
+            }
             if self._include_traceback:
                 exc_text = log_record["exc_text"]
                 if exc_text:
-                    output["exception_traceback"] = exc_text
+                    exception["traceback"] = exc_text
+            output["exception"] = exception
 
         # Convert to JSON string
         return json.dumps(output)
