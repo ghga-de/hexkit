@@ -24,7 +24,7 @@ from collections.abc import AsyncGenerator, Generator, Sequence
 from contextlib import asynccontextmanager
 from dataclasses import dataclass
 from functools import partial
-from typing import Any, Callable, Optional, Union
+from typing import Any, Optional, Union
 
 try:
     from typing import Self
@@ -35,7 +35,7 @@ except ImportError:  # Python < 3.11
 import pytest
 import pytest_asyncio
 from aiokafka import AIOKafkaConsumer, TopicPartition
-from aiokafka.admin import AIOKafkaAdminClient
+from aiokafka.admin import AIOKafkaAdminClient, RecordsToDelete
 from testcontainers.kafka import KafkaContainer
 
 from hexkit.custom_types import Ascii, JsonObject, PytestScope
@@ -400,13 +400,11 @@ class KafkaFixture:
         config: KafkaConfig,
         kafka_servers: list[str],
         publisher: KafkaEventPublisher,
-        cmd_exec_func: Callable[[str, bool], None],
     ):
         """Initialize with connection details and a ready-to-use publisher."""
         self.config = config
         self.kafka_servers = kafka_servers
         self.publisher = publisher
-        self._cmd_exec_func = cmd_exec_func
 
     async def publish_event(
         self, *, payload: JsonObject, type_: Ascii, topic: Ascii, key: Ascii = "test"
@@ -430,71 +428,6 @@ class KafkaFixture:
             capture_headers=capture_headers,
         )
 
-    def _build_record_deletion_config(self, partitions: JsonObject) -> JsonObject:
-        """Build the config required to run the kafka-delete-records script."""
-        # The required JSON config has a schema specified as follows:
-        deletion_config: dict[str, Union[list, int]] = {
-            "partitions": [],  # {topic:str, partition: int, offset: int}
-            "version": 1,
-        }
-
-        # Add the partition offset info for each topic
-        for item in partitions:
-            for partition in item["partitions"]:  # type: ignore
-                deletion_config["partitions"].append(  # type: ignore
-                    {
-                        "topic": item["topic"],  # type: ignore
-                        "partition": partition["partition"],  # type: ignore
-                        "offset": -1,  # -1 instructs kafka to delete all records
-                    }
-                )
-
-        return deletion_config
-
-    def _build_record_deletion_command(self, delete_config: JsonObject) -> str:
-        """Build the command string used to run kafka-delete-records.
-
-        The configuration is dumped to a file with an echo command, and then the
-        delete command is called using that file.
-        """
-        file_name = "record-deletion.json"
-        json_data = json.dumps(delete_config)
-
-        # Build the two command strings that write the config file and run the deletion
-        echo_command = f"echo '{json_data}' > {file_name}"
-        deletion_command = (
-            "kafka-delete-records --bootstrap-server localhost:9092 "
-            + f"--offset-json-file {file_name}"
-        )
-        return f"{echo_command} && {deletion_command}"
-
-    async def _get_topic_description(
-        self,
-        topics: Optional[Union[list[str], str]] = None,
-        exclude_internal: bool = True,
-    ) -> JsonObject:
-        """Get a description of the given topic(s).
-
-        If no topics are specified, all topics will be covered, except internal topics
-        unless otherwise specified.
-        """
-        admin_client = AIOKafkaAdminClient(bootstrap_servers=self.kafka_servers)
-        await admin_client.start()
-        try:
-            if topics is None:
-                # if topics is None, the admin client gets all topics
-                if exclude_internal:
-                    topics = [
-                        topic
-                        for topic in await admin_client.list_topics()
-                        if not topic.startswith("__")
-                    ]
-            elif isinstance(topics, str):
-                topics = [topics]
-            return await admin_client.describe_topics(topics)
-        finally:
-            await admin_client.close()
-
     async def clear_topics(
         self,
         topics: Optional[Union[str, list[str]]] = None,
@@ -505,14 +438,26 @@ class KafkaFixture:
         If no topics are specified, all topics will be cleared, except internal topics
         unless otherwise specified.
         """
-        # Get the description of the topics to be deleted
-        partition_info = await self._get_topic_description(topics, exclude_internal)
-
-        # Build the command line and then run it in a shell
-        deletion_config = self._build_record_deletion_config(partition_info)
-        command = self._build_record_deletion_command(deletion_config)
-
-        self._cmd_exec_func(command, True)
+        admin_client = AIOKafkaAdminClient(bootstrap_servers=self.kafka_servers)
+        await admin_client.start()
+        try:
+            if topics is None:
+                topics = await admin_client.list_topics()
+            elif isinstance(topics, str):
+                topics = [topics]
+            if exclude_internal:
+                topics = [topic for topic in topics if not topic.startswith("__")]
+            topics_info = await admin_client.describe_topics(topics)
+            records_to_delete = {
+                TopicPartition(
+                    topic=topic_info["topic"], partition=partition_info["partition"]
+                ): RecordsToDelete(before_offset=-1)
+                for topic_info in topics_info
+                for partition_info in topic_info["partitions"]
+            }
+            await admin_client.delete_records(records_to_delete, timeout_ms=10000)
+        finally:
+            await admin_client.close()
 
     @asynccontextmanager
     async def expect_events(
@@ -610,7 +555,6 @@ async def _persistent_kafka_fixture(
         kafka_fixture = KafkaFixture(
             config=config,
             kafka_servers=config.kafka_servers,
-            cmd_exec_func=kafka_container.wrapped_exec_run,
             publisher=publisher,
         )
         yield kafka_fixture
