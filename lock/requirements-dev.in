@@ -6,6 +6,6 @@
 # additional requirements can be listed her
 exceptiongroup>=1.2.1 # for Python<3.11
 tomli>=2.0.1 # for Python<3.11
-cryptography>=42.0.7
+cryptography>=42.0.8
 pytest-asyncio>=0.23.6
-tox>=4.15.0
+tox>=4.16.0
