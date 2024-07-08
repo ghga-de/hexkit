@@ -17,10 +17,9 @@
 """Configurable logging tools with JSON output."""
 
 import json
-from collections import OrderedDict
 from datetime import datetime, timezone
 from logging import Formatter, Logger, LogRecord, StreamHandler, addLevelName, getLogger
-from typing import Literal, Optional
+from typing import Any, Literal, Optional
 
 from pydantic import Field
 from pydantic_settings import BaseSettings
@@ -38,7 +37,7 @@ __all__ = [
 
 
 DUMMY_RECORD = LogRecord("dummy", 0, "dummy", 0, None, None, None, None, None)
-RESERVED_RECORD_KEYS = DUMMY_RECORD.__dict__.keys()
+RESERVED_RECORD_KEYS = set(DUMMY_RECORD.__dict__)
 
 # Add TRACE log level
 addLevelName(5, "TRACE")
@@ -77,10 +76,19 @@ class LoggingConfig(BaseSettings):
             + " correlation_id, and details"
         ),
     )
+    log_traceback: bool = Field(
+        default=True,
+        description="Whether to include exception tracebacks in log messages.",
+    )
 
 
 class JsonFormatter(Formatter):
     """A formatter class that outputs logs in JSON format."""
+
+    def __init__(self, include_traceback=True, *args, **kwargs):
+        """Initialize the formatter."""
+        super().__init__(*args, **kwargs)
+        self._include_traceback = include_traceback
 
     def format(self, record: LogRecord) -> str:
         """Format the specified record as a JSON string.
@@ -94,10 +102,11 @@ class JsonFormatter(Formatter):
             - correlation_id: The correlation ID, if set, from the current context.
             - message: The message that was logged, formatted with any arguments.
             - details: Any additional values included at time of logging.
+            - exception: If an exception was logged, the exception info.
         """
         # Create a log record dictionary
         log_record = record.__dict__
-        output: OrderedDict[str, str] = OrderedDict()
+        output: dict[str, Any] = dict()
 
         output["timestamp"] = log_record["timestamp"]
         output["service"] = log_record["service"]
@@ -107,6 +116,18 @@ class JsonFormatter(Formatter):
         output["correlation_id"] = log_record["correlation_id"]
         output["message"] = record.getMessage()  # construct msg str with any args
         output["details"] = log_record["details"]
+
+        if log_record["exc_info"]:
+            exc_type, exc_value = log_record["exc_info"][:2]
+            exception = {
+                "type": exc_type.__name__,
+                "message": str(exc_value),
+            }
+            if self._include_traceback:
+                exc_text = log_record["exc_text"]
+                if exc_text:
+                    exception["traceback"] = exc_text
+            output["exception"] = exception
 
         # Convert to JSON string
         return json.dumps(output)
@@ -149,7 +170,11 @@ def configure_logging(*, config: LoggingConfig, logger: Optional[Logger] = None)
     logger as well. Will also log the complete configuration of the service with
     secret values hidden, if it's passed to this function and inherits from LoggingConfig.
     """
-    formatter = Formatter(config.log_format) if config.log_format else JsonFormatter()
+    formatter = (
+        Formatter(config.log_format)
+        if config.log_format
+        else JsonFormatter(include_traceback=config.log_traceback)
+    )
 
     handler = RecordCompiler(config=config)
     handler.setLevel(config.log_level)

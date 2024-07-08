@@ -473,7 +473,7 @@ class KafkaFixture:
         topics: Optional[Union[list[str], str]] = None,
         exclude_internal: bool = True,
     ) -> JsonObject:
-        """Get a decription of the given topic(s).
+        """Get a description of the given topic(s).
 
         If no topics are specified, all topics will be covered, except internal topics
         unless otherwise specified.
