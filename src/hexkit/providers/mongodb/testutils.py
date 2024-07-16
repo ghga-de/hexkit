@@ -62,24 +62,29 @@ class MongoDbFixture:
     def empty_collections(
         self,
         *,
+        collections: Optional[Union[str, list[str]]] = None,
         exclude_collections: Optional[Union[str, list[str]]] = None,
     ):
-        """Drop all mongodb collections in the database.
+        """Drop the given mongodb collection(s) in the database.
 
+        If no collections are specified, all collections will be dropped.
         You can also specify collection(s) that should be excluded
         from the operation, i.e. collections that should be kept.
         """
         db_name = self.config.db_name
-        if exclude_collections is None:
-            exclude_collections = []
-        if isinstance(exclude_collections, str):
-            exclude_collections = [exclude_collections]
-        excluded_collections = set(exclude_collections)
         try:
-            collection_names = self.client[db_name].list_collection_names()
-            for collection_name in collection_names:
-                if collection_name not in excluded_collections:
-                    self.client[db_name].drop_collection(collection_name)
+            if collections is None:
+                collections = self.client[db_name].list_collection_names()
+            elif isinstance(collections, str):
+                collections = [collections]
+            if exclude_collections is None:
+                exclude_collections = []
+            elif isinstance(exclude_collections, str):
+                exclude_collections = [exclude_collections]
+            excluded_collections = set(exclude_collections)
+            for collection in collections:
+                if collection not in excluded_collections:
+                    self.client[db_name].drop_collection(collection)
         except (ExecutionTimeout, OperationFailure) as error:
             raise RuntimeError(
                 f"Could not drop collection(s) of Mongo database {db_name}"
