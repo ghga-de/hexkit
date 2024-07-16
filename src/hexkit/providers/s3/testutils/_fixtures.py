@@ -114,7 +114,7 @@ class S3Fixture:
         self,
         *,
         buckets: Optional[Union[str, list[str]]] = None,
-        exclude_buckets: Optional[list[str]] = None,
+        exclude_buckets: Optional[Union[str, list[str]]] = None,
     ):
         """Remove all test objects from the given bucket(s).
 
