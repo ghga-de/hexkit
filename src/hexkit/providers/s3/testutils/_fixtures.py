@@ -139,6 +139,10 @@ class S3Fixture:
             object_ids = await self.storage.list_all_object_ids(bucket_id=bucket)
             # Delete all of these objects
             for object_id in object_ids:
+                # Note that id validation errors can be raised here if the bucket
+                # was populated by other means than the S3 storage fixture.
+                # We intentionally do not catch these errors because they
+                # usually mean that you're operating on the wrong buckets.
                 await self.storage.delete_object(bucket_id=bucket, object_id=object_id)
 
     async def delete_buckets(
