@@ -149,7 +149,7 @@ class S3Fixture:
         self,
         *,
         buckets: Optional[Union[str, list[str]]] = None,
-        exclude_buckets: Optional[list[str]] = None,
+        exclude_buckets: Optional[Union[str, list[str]]] = None,
     ):
         """Delete the given bucket(s).
 
