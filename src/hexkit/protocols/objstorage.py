@@ -494,7 +494,7 @@ class ObjectStorageProtocol(ABC):
 
         Note that the default implementation does not allow object IDs to contain
         forward slashes (/) which are sometimes used to represent directories.
-        Providers can overwrite this method or the above constants to allow slashes,
+        Providers can override this method or the above constants to allow slashes,
         other characters or longer object names.
         """
         if not cls._re_object_id.match(object_id):
