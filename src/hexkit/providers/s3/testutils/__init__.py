@@ -15,7 +15,7 @@
 
 """S3-related test fixtures and support functions."""
 
-from ._fixtures import (  # noqa: F401
+from ._fixtures import (
     LOCALSTACK_IMAGE,
     MEBIBYTE,
     TEST_FILE_DIR,
@@ -36,8 +36,8 @@ from ._fixtures import (  # noqa: F401
     tmp_file,
     upload_file,
 )
-from ._typical_workflow import typical_workflow  # noqa: F401
-from ._utils import (  # noqa: F401
+from ._typical_workflow import typical_workflow
+from ._utils import (
     check_part_size,
     download_and_check_test_file,
     multipart_upload_file,
@@ -45,3 +45,32 @@ from ._utils import (  # noqa: F401
     upload_part_of_size,
     upload_part_via_url,
 )
+
+__all__ = [
+    "LOCALSTACK_IMAGE",
+    "MEBIBYTE",
+    "TEST_FILE_DIR",
+    "TEST_FILE_PATHS",
+    "FileObject",
+    "S3ContainerFixture",
+    "S3Fixture",
+    "calc_md5",
+    "clean_s3_fixture",
+    "get_clean_s3_fixture",
+    "get_persistent_s3_fixture",
+    "get_s3_container_fixture",
+    "persistent_s3_fixture",
+    "populate_storage",
+    "s3_container_fixture",
+    "s3_fixture",
+    "temp_file_object",
+    "tmp_file",
+    "upload_file",
+    "typical_workflow",
+    "check_part_size",
+    "download_and_check_test_file",
+    "multipart_upload_file",
+    "upload_part",
+    "upload_part_of_size",
+    "upload_part_via_url",
+]
