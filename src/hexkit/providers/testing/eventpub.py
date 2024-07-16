@@ -26,6 +26,8 @@ from typing import NamedTuple, Optional
 from hexkit.custom_types import JsonObject
 from hexkit.protocols.eventpub import EventPublisherProtocol
 
+__all__ = ["InMemEventStore", "InMemEventPublisher", "TopicExhaustedError"]
+
 
 class TopicExhaustedError(RuntimeError):
     """Thrown when now more event are queued in a topic."""
