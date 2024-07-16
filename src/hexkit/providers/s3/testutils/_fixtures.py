@@ -24,7 +24,7 @@ from collections.abc import AsyncGenerator, Generator
 from contextlib import contextmanager
 from pathlib import Path
 from tempfile import NamedTemporaryFile
-from typing import Any, NamedTuple, Optional
+from typing import Any, NamedTuple, Optional, Union
 
 try:
     from typing import Self
@@ -93,11 +93,10 @@ class S3Fixture:
         self.config = config
         self.storage = storage
 
-    def get_buckets(self) -> set[str]:
+    def get_buckets(self) -> list[str]:
         """Return a list of the buckets currently existing in the S3 object storage."""
         response = self.storage._client.list_buckets()
-        buckets = {bucket["Name"] for bucket in response["Buckets"]}
-        return buckets
+        return [bucket["Name"] for bucket in response["Buckets"]]
 
     async def populate_buckets(self, buckets: list[str]):
         """Populate the storage with buckets."""
@@ -111,19 +110,66 @@ class S3Fixture:
             self.storage, bucket_fixtures=[], object_fixtures=file_objects
         )
 
-    async def empty_buckets(self, buckets_to_exclude: Optional[list[str]] = None):
-        """Clean the test artifacts or files from the populated buckets."""
-        for bucket in self.get_buckets().difference(buckets_to_exclude or []):
+    async def empty_buckets(
+        self,
+        *,
+        buckets: Optional[Union[str, list[str]]] = None,
+        exclude_buckets: Optional[Union[str, list[str]]] = None,
+    ):
+        """Remove all test objects from the given bucket(s).
+
+        If no buckets are specified, all existing buckets will be emptied,
+        therefore we recommend to always specify a bucket list.
+        You can also specify bucket(s) that should be excluded
+        from the operation, i.e. buckets that should not be emptied.
+        """
+        if buckets is None:
+            buckets = self.get_buckets()
+        elif isinstance(buckets, str):
+            buckets = [buckets]
+        if exclude_buckets is None:
+            exclude_buckets = []
+        elif isinstance(exclude_buckets, str):
+            exclude_buckets = [exclude_buckets]
+        excluded_buckets = set(exclude_buckets)
+        for bucket in buckets:
+            if bucket in excluded_buckets:
+                continue
             # Get list of all objects in the bucket
             object_ids = await self.storage.list_all_object_ids(bucket_id=bucket)
             # Delete all of these objects
             for object_id in object_ids:
+                # Note that id validation errors can be raised here if the bucket
+                # was populated by other means than the S3 storage fixture.
+                # We intentionally do not catch these errors because they
+                # usually mean that you're operating on the wrong buckets.
                 await self.storage.delete_object(bucket_id=bucket, object_id=object_id)
 
-    async def delete_buckets(self, buckets_to_exclude: Optional[list[str]] = None):
-        """Delete the populated buckets."""
-        for bucket in self.get_buckets().difference(buckets_to_exclude or []):
-            await self.storage.delete_bucket(bucket, delete_content=True)
+    async def delete_buckets(
+        self,
+        *,
+        buckets: Optional[Union[str, list[str]]] = None,
+        exclude_buckets: Optional[Union[str, list[str]]] = None,
+    ):
+        """Delete the given bucket(s).
+
+        If no buckets are specified, all existing buckets will be deleted,
+        therefore we recommend to always specify a bucket list.
+        You can also specify bucket(s) that should be excluded
+        from the operation, i.e. buckets that should be kept.
+        """
+        if buckets is None:
+            buckets = self.get_buckets()
+        elif isinstance(buckets, str):
+            buckets = [buckets]
+        if exclude_buckets is None:
+            exclude_buckets = []
+        elif isinstance(exclude_buckets, str):
+            exclude_buckets = [exclude_buckets]
+        excluded_buckets = set(exclude_buckets)
+        for bucket in buckets:
+            if bucket not in excluded_buckets:
+                await self.storage.delete_bucket(bucket, delete_content=True)
 
     async def get_initialized_upload(self) -> UploadDetails:
         """Initialize a new empty multipart upload process.

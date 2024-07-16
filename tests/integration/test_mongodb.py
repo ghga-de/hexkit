@@ -126,17 +126,22 @@ async def test_dao_find_all_without_collection(mongodb: MongoDbFixture):
 async def test_empty_collections(mongodb: MongoDbFixture):
     """Make sure mongo reset function works"""
     db = mongodb.client[mongodb.config.db_name]
-    db.create_collection("test1")
-    db.create_collection("test2")
-    assert len(db.list_collection_names()) == 2
+    for i in range(1, 4):
+        db.create_collection(f"test{i}")
 
-    mongodb.empty_collections(exclude_collections=["test1"])
-    assert db.list_collection_names() == ["test1"]
+    assert len(db.list_collection_names()) == 3
+
+    mongodb.empty_collections(collections=["test3"])
+    assert set(db.list_collection_names()) == {"test1", "test2"}
+    mongodb.empty_collections(exclude_collections=["test2"])
+    assert db.list_collection_names() == ["test2"]
+    mongodb.empty_collections()
+    assert db.list_collection_names() == []
 
 
 async def test_dao_happy(mongodb: MongoDbFixture):
     """Test the happy path of performing basic CRUD database interactions using
-    the MongoDbDaoFactory in a surrograte ID setting.
+    the MongoDbDaoFactory in a surrogate ID setting.
     """
     dao = await mongodb.dao_factory.get_dao(
         name="example",

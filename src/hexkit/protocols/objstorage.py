@@ -457,7 +457,10 @@ class ObjectStorageProtocol(ABC):
 
     # Validation logic for input parameter:
     # (is typically only used by the protocol but may also be used in
-    # provider-specific code)
+    # provider-specific code or overwritten by the provider)
+
+    _re_bucket_id = re.compile(r"^[a-z0-9\-]{3,63}$")
+    _re_bucket_id_msg = "must consist of 3-63 lowercase letters, digits or hyphens"
 
     @classmethod
     def _validate_bucket_id(cls, bucket_id: str):
@@ -466,43 +469,43 @@ class ObjectStorageProtocol(ABC):
         https://docs.aws.amazon.com/AmazonS3/latest/userguide/bucketnamingrules.html
         Raises BucketIdValidationError if not valid.
         """
-        if not 3 <= len(bucket_id) < 64:
+        if not cls._re_bucket_id.match(bucket_id):
             raise cls.BucketIdValidationError(
                 bucket_id=bucket_id,
-                reason="must be between 3 and 63 characters long",
-            )
-        if not re.match(r"^[a-z0-9\-]*$", bucket_id):
-            raise cls.BucketIdValidationError(
-                bucket_id=bucket_id,
-                reason="only lowercase letters, digits and hyphens (-) are allowed",
+                reason=cls._re_bucket_id_msg,
             )
         if bucket_id.startswith("-") or bucket_id.endswith("-"):
             raise cls.BucketIdValidationError(
                 bucket_id=bucket_id,
-                reason="may not start or end with a hyphen (-).",
+                reason="may not start or end with a hyphen",
             )
+
+    _re_object_id = re.compile(r"^[a-zA-Z0-9\-_.]{3,255}$")
+    _re_object_id_msg = (
+        "must consist of 3-255 letters, digits, hyphens, underscores or dots"
+    )
 
     @classmethod
     def _validate_object_id(cls, object_id: str):
-        """Check whether a object id follows the recommended naming pattern.
+        """Check whether an object id follows the recommended naming pattern.
         This is roughly based on (plus some additional restrictions):
         https://docs.aws.amazon.com/AmazonS3/latest/userguide/object-keys.html
         Raises ObjectIdValidationError if not valid.
+
+        Note that the default implementation does not allow object IDs to contain
+        forward slashes (/) which are sometimes used to represent directories.
+        Providers can override this method or the above constants to allow slashes,
+        other characters or longer object names.
         """
-        if not 3 <= len(object_id) < 64:
+        if not cls._re_object_id.match(object_id):
             raise cls.ObjectIdValidationError(
                 object_id=object_id,
-                reason="must be between 3 and 63 characters long",
-            )
-        if not re.match(r"^[a-zA-Z0-9\-\.]*$", object_id):
-            raise cls.ObjectIdValidationError(
-                object_id=object_id,
-                reason="only letters, digits, hyphens (-) and dots (.) are allowed",
+                reason=cls._re_object_id_msg,
             )
         if object_id.startswith(("-", ".")) or object_id.endswith(("-", ".")):
             raise cls.ObjectIdValidationError(
                 object_id=object_id,
-                reason="may not start or end with a hyphen (-) or a dot (.).",
+                reason="object names may not start or end with a hyphen or a dot",
             )
 
     # Exceptions that may be used by implementation:

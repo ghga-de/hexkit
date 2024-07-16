@@ -430,6 +430,7 @@ class KafkaFixture:
 
     async def clear_topics(
         self,
+        *,
         topics: Optional[Union[str, list[str]]] = None,
         exclude_internal: bool = True,
     ):

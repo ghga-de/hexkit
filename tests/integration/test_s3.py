@@ -49,7 +49,9 @@ async def test_empty_buckets(s3: S3Fixture, tmp_file: FileObject):  # noqa: F811
     await s3.populate_file_objects(file_objects=[tmp_file])
 
     # test empty_buckets() with and without parameters
-    await s3.empty_buckets(buckets_to_exclude=[bucket_id])
+    await s3.empty_buckets(buckets=[])
+    assert await s3.storage.does_object_exist(bucket_id=bucket_id, object_id=object_id)
+    await s3.empty_buckets(exclude_buckets=[bucket_id])
     assert await s3.storage.does_object_exist(bucket_id=bucket_id, object_id=object_id)
     await s3.empty_buckets()
     assert not await s3.storage.does_object_exist(
@@ -64,7 +66,9 @@ async def test_delete_buckets(s3: S3Fixture, tmp_file: FileObject):  # noqa: F81
     await s3.populate_file_objects(file_objects=[tmp_file])
 
     # test delete_buckets() with and without parameters
-    await s3.delete_buckets(buckets_to_exclude=[bucket_id])
+    await s3.delete_buckets(buckets=[])
+    assert await s3.storage.does_bucket_exist(bucket_id=bucket_id)
+    await s3.delete_buckets(exclude_buckets=[bucket_id])
     assert await s3.storage.does_bucket_exist(bucket_id=bucket_id)
     await s3.delete_buckets()
     assert not await s3.storage.does_bucket_exist(bucket_id=bucket_id)
