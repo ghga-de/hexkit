@@ -111,7 +111,7 @@ class S3Fixture:
             self.storage, bucket_fixtures=[], object_fixtures=file_objects
         )
 
-    async def empty_buckets(self, buckets_to_exclude: Optional[list[str]] = None):
+    async def empty_buckets(self, *, buckets_to_exclude: Optional[list[str]] = None):
         """Clean the test artifacts or files from the populated buckets."""
         for bucket in self.get_buckets().difference(buckets_to_exclude or []):
             # Get list of all objects in the bucket
@@ -120,7 +120,7 @@ class S3Fixture:
             for object_id in object_ids:
                 await self.storage.delete_object(bucket_id=bucket, object_id=object_id)
 
-    async def delete_buckets(self, buckets_to_exclude: Optional[list[str]] = None):
+    async def delete_buckets(self, *, buckets_to_exclude: Optional[list[str]] = None):
         """Delete the populated buckets."""
         for bucket in self.get_buckets().difference(buckets_to_exclude or []):
             await self.storage.delete_bucket(bucket, delete_content=True)

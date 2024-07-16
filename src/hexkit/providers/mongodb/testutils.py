@@ -61,6 +61,7 @@ class MongoDbFixture:
 
     def empty_collections(
         self,
+        *,
         exclude_collections: Optional[Union[str, list[str]]] = None,
     ):
         """Drop all mongodb collections in the database.
