@@ -17,13 +17,13 @@
 
 import os
 from pathlib import Path
-from typing import Any, Callable, Final, Optional
+from typing import Callable, Final, Optional
 
-import yaml
 from pydantic_settings import (
     BaseSettings,
     PydanticBaseSettingsSource,
     SettingsConfigDict,
+    YamlConfigSettingsSource,
 )
 
 # Default config prefix:
@@ -79,29 +79,6 @@ def get_default_config_yaml(prefix: str) -> Optional[Path]:
     return None
 
 
-def yaml_settings_factory(
-    config_yaml: Optional[Path] = None,
-) -> Callable[[], dict[str, Any]]:
-    """
-    A factory of source methods for pydantic's BaseSettings Config that load
-    settings from a yaml file.
-
-    Args:
-        config_yaml (str, Optional):
-            Path to the yaml file to read from.
-    """
-
-    def yaml_settings() -> dict[str, Any]:
-        """Source method for loading pydantic BaseSettings from a yaml file"""
-        if config_yaml is None:
-            return {}
-
-        with open(config_yaml, encoding="utf8") as yaml_file:
-            return yaml.safe_load(yaml_file)
-
-    return yaml_settings
-
-
 def config_from_yaml(
     prefix: str = DEFAULT_CONFIG_PREFIX,
 ) -> Callable:
@@ -119,7 +96,7 @@ def config_from_yaml(
 
     Args:
         prefix: (str, optional):
-            When defining parameters via enviroment variables, all variables
+            When defining parameters via environment variables, all variables
             have to be prefixed with this string following this pattern
             "{prefix}_{actual_variable_name}". Moreover, this prefix is used
             to derive the default location for the config yaml file
@@ -161,7 +138,7 @@ def config_from_yaml(
                 raise ConfigYamlDoesNotExist(path=config_yaml)
 
             class ModSettings(settings):
-                """Modifies the orginal Settings class provided by the user"""
+                """Modifies the original Settings class provided by the user"""
 
                 model_config = SettingsConfigDict(frozen=True, env_prefix=f"{prefix}_")
 
@@ -174,12 +151,12 @@ def config_from_yaml(
                     dotenv_settings: PydanticBaseSettingsSource,
                     file_secret_settings: PydanticBaseSettingsSource,
                 ):
-                    """Add custom yaml source"""
+                    """Add custom yaml source, but maintain the priority of sources."""
                     return (
                         init_settings,
                         env_settings,
                         file_secret_settings,
-                        yaml_settings_factory(config_yaml),
+                        YamlConfigSettingsSource(settings_cls, config_yaml),
                     )
 
             # construct settings class:
