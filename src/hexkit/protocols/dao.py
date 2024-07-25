@@ -61,7 +61,7 @@ class ResourceAlreadyExistsError(RuntimeError):
     """Raised when a resource did unexpectedly exist."""
 
     def __init__(self, *, id_: str):
-        message = f'The resource with the id "{id_}" does already exist.'
+        message = f'The resource with the id "{id_}" already exists.'
         super().__init__(message)
 
 

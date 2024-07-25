@@ -180,7 +180,10 @@ async def test_dao_outbox_happy(mongo_kafka: MongoKafkaFixture):
             await dao.insert(example)
 
             # check error on duplicate
-            with pytest.raises(ResourceAlreadyExistsError):
+            with pytest.raises(
+                ResourceAlreadyExistsError,
+                match='The resource with the id "test1" already exists.',
+            ):
                 await dao.insert(example)
 
         # read the newly inserted resource:

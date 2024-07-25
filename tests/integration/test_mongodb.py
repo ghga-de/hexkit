@@ -220,7 +220,10 @@ async def test_dao_insert_natural_id_happy(mongodb: MongoDbFixture):
     assert resource == resource_observed
 
     # check error is raised correctly on trying to insert duplicate
-    with pytest.raises(ResourceAlreadyExistsError, match='The resource with the id "example_001" does already exist.'):
+    with pytest.raises(
+        ResourceAlreadyExistsError,
+        match='The resource with the id "example_001" already exists.',
+    ):
         await dao.insert(resource)
 
 
