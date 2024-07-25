@@ -16,9 +16,9 @@
 
 """Apache Kafka specific configuration."""
 
-from typing import Literal
+from typing import Literal, Self
 
-from pydantic import Field, PositiveInt, SecretStr
+from pydantic import Field, NonNegativeInt, PositiveInt, SecretStr, model_validator
 from pydantic_settings import BaseSettings
 
 
@@ -26,12 +26,12 @@ class KafkaConfig(BaseSettings):
     """Config parameters needed for connecting to Apache Kafka."""
 
     service_name: str = Field(
-        ...,
+        default=...,
         examples=["my-cool-special-service"],
         description="The name of the (micro-)service from which messages are published.",
     )
     service_instance_id: str = Field(
-        ...,
+        default=...,
         examples=["germany-bw-instance-001"],
         description=(
             "A string that uniquely identifies this instance across all instances of"
@@ -40,7 +40,7 @@ class KafkaConfig(BaseSettings):
         ),
     )
     kafka_servers: list[str] = Field(
-        ...,
+        default=...,
         examples=[["localhost:9092"]],
         description="A list of connection strings to connect to Kafka bootstrap servers.",
     )
@@ -82,3 +82,49 @@ class KafkaConfig(BaseSettings):
         + " services that have a need to send/receive larger messages should set this.",
         examples=[1024 * 1024, 16 * 1024 * 1024],
     )
+    kafka_dlq_topic: str = Field(
+        default="",
+        description="The name of the service-specific topic used for the dead letter queue.",
+        examples=["dcs-dlq", "ifrs-dlq", "mass-dlq"],
+    )
+    kafka_retry_topic: str = Field(
+        default="",
+        description=(
+            "The name of the service-specific topic used to retry previously failed events."
+        ),
+        examples=["dcs-dlq-retry", "ifrs-dlq-retry", "mass-dlq-retry"],
+    )
+    kafka_max_retries: NonNegativeInt = Field(
+        default=0,
+        description=(
+            "The maximum number of times to immediately retry consuming an event upon"
+            + " failure. Works independently of the dead letter queue."
+        ),
+        examples=[0, 1, 2, 3, 5],
+    )
+    kafka_enable_dlq: bool = Field(
+        default=False,
+        description=(
+            "A flag to toggle the dead letter queue. If set to False, the service will"
+            + " crash upon exhausting retries instead of publishing events to the DLQ."
+            + " If set to True, the service will publish events to the DLQ topic after"
+            + " exhausting all retries, and both `kafka_dlq_topic` and"
+            + " `kafka_retry_topic` must be set."
+        ),
+        examples=[True, False],
+    )
+
+    @model_validator(mode="after")
+    def validate_retry_topic(self) -> Self:
+        """Ensure that the retry topic is not the same as the DLQ topic."""
+        if self.kafka_retry_topic and self.kafka_retry_topic == self.kafka_dlq_topic:
+            raise ValueError(
+                "kafka_retry_topic and kafka_dlq_topic cannot be the same."
+            )
+        if self.kafka_enable_dlq and not (
+            self.kafka_dlq_topic and self.kafka_retry_topic
+        ):
+            raise ValueError(
+                "Both kafka_dlq_topic and kafka_retry_topic must be set when the DLQ is enabled."
+            )
+        return self
