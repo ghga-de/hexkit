@@ -31,6 +31,7 @@ from motor.core import AgnosticCollection
 from motor.motor_asyncio import AsyncIOMotorClient
 from pydantic import Field, SecretStr
 from pydantic_settings import BaseSettings
+from pymongo.errors import DuplicateKeyError
 
 from hexkit.protocols.dao import (
     DaoFactoryProtocol,
@@ -42,6 +43,7 @@ from hexkit.protocols.dao import (
     InvalidFindMappingError,
     MultipleHitsFoundError,
     NoHitsFoundError,
+    ResourceAlreadyExistsError,
     ResourceNotFoundError,
 )
 from hexkit.utils import FieldNotInModelError, validate_fields_in_model
@@ -386,7 +388,10 @@ class MongoDbDaoNaturalId(MongoDbDaoBase[Dto]):
                 when a resource with the ID specified in the dto does already exist.
         """
         document = self._dto_to_document(dto)
-        await self._collection.insert_one(document)
+        try:
+            await self._collection.insert_one(document)
+        except DuplicateKeyError as error:
+            raise ResourceAlreadyExistsError(id_=document["_id"]) from error
 
     async def upsert(self, dto: Dto) -> None:
         """Update the provided resource if it already exists, create it otherwise.
