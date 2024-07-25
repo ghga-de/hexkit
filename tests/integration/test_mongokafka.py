@@ -29,7 +29,7 @@ from hexkit.correlation import (
     new_correlation_id,
     set_new_correlation_id,
 )
-from hexkit.protocols.dao import ResourceNotFoundError
+from hexkit.protocols.dao import ResourceAlreadyExistsError, ResourceNotFoundError
 from hexkit.protocols.daosub import DaoSubscriberProtocol, DtoValidationError
 from hexkit.providers.akafka import KafkaOutboxSubscriber
 from hexkit.providers.akafka.testutils import (
@@ -178,6 +178,10 @@ async def test_dao_outbox_happy(mongo_kafka: MongoKafkaFixture):
             in_topic=EXAMPLE_TOPIC,
         ):
             await dao.insert(example)
+
+            # check error on duplicate
+            with pytest.raises(ResourceAlreadyExistsError):
+                await dao.insert(example)
 
         # read the newly inserted resource:
         resource_read = await dao.get_by_id(example.id)

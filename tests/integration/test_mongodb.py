@@ -28,6 +28,7 @@ from hexkit.protocols.dao import (
     InvalidFindMappingError,
     MultipleHitsFoundError,
     NoHitsFoundError,
+    ResourceAlreadyExistsError,
     ResourceNotFoundError,
 )
 from hexkit.providers.mongodb.testutils import (
@@ -217,6 +218,10 @@ async def test_dao_insert_natural_id_happy(mongodb: MongoDbFixture):
     # check the newly inserted resource:
     resource_observed = await dao.get_by_id(resource.id)
     assert resource == resource_observed
+
+    # check error is raised correctly on trying to insert duplicate
+    with pytest.raises(ResourceAlreadyExistsError):
+        await dao.insert(resource)
 
 
 async def test_dao_upsert_natural_id_happy(mongodb: MongoDbFixture):
