@@ -16,7 +16,7 @@
 
 """Apache Kafka specific configuration."""
 
-from typing import Literal, Self
+from typing import Literal
 
 from pydantic import Field, NonNegativeInt, PositiveInt, SecretStr, model_validator
 from pydantic_settings import BaseSettings
@@ -115,7 +115,7 @@ class KafkaConfig(BaseSettings):
     )
 
     @model_validator(mode="after")
-    def validate_retry_topic(self) -> Self:
+    def validate_retry_topic(self):
         """Ensure that the retry topic is not the same as the DLQ topic."""
         if self.kafka_retry_topic and self.kafka_retry_topic == self.kafka_dlq_topic:
             raise ValueError(
