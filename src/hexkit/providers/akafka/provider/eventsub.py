@@ -161,7 +161,8 @@ class OriginalTopicError(RuntimeError):
     """Raised when the original topic is missing from the event."""
 
     def __init__(self, *, event_label: str):
-        super().__init__(f"Unable to get original topic from event: {event_label}.")
+        msg = f"Unable to get original topic from event: {event_label}."
+        super().__init__(msg)
 
 
 class KafkaEventSubscriber(InboundProviderBase):
@@ -171,9 +172,8 @@ class KafkaEventSubscriber(InboundProviderBase):
         """Raised when an event has been retried the maximum number of times."""
 
         def __init__(self, *, event_type: str):
-            message = f"The maximum number of retries has been reached for '{
-                event_type}' event."
-            super().__init__(message)
+            msg = f"All retries exhausted for '{event_type}' event."
+            super().__init__(msg)
 
     @classmethod
     @asynccontextmanager
