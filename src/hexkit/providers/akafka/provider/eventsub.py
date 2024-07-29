@@ -64,8 +64,16 @@ class ConsumerEvent(Protocol):
 
 
 @dataclass
-class ExtractedEvent:
-    """A class encapsulating the data extracted from a `ConsumerEvent` instance."""
+class ExtractedEventInfo:
+    """A class encapsulating the data extracted from a `ConsumerEvent` instance.
+
+    This data includes the topic, type, payload, and key of the event.
+
+    `topic` is the original topic of the event, which may differ from the topic listed
+    on the ConsumerEvent instance if DLQ is used.
+    `type_` is extracted from the event headers.
+    `payload` is `ConsumerEvent.value`, and `key` is unchanged.
+    """
 
     topic: Ascii
     type_: Ascii
@@ -270,30 +278,21 @@ class KafkaEventSubscriber(InboundProviderBase):
         self._types_whitelist = translator.types_of_interest
         self._publisher = publisher
         self._dlq_topic = config.kafka_dlq_topic
-        self._dlq_retry_topic = config.kafka_retry_topic
+        self._retry_topic = config.kafka_retry_topic
         self._max_retries = config.kafka_max_retries
         self._enable_dlq = config.kafka_enable_dlq
 
     def _get_original_topic(self, event: ConsumerEvent) -> str:
-        """Get the topic to use -- either the given topic or the one from `_original_topic`.
-
-        Raises `OriginalTopicError` if the original topic name is missing for events in
-        the retry topic.
-        """
+        """Get the topic to use -- either the given topic or the one from `_original_topic`."""
         topic = event.topic
-        if topic == self._dlq_retry_topic:
+        if topic == self._retry_topic:
             topic = str(event.value.get(ORIGINAL_TOPIC_FIELD, ""))
-            if not topic:
-                event_label = get_event_label(event)
-                error = OriginalTopicError(event_label=event_label)
-                logging.error(error)
-                raise error
             logging.info(
                 "Received previously failed event from topic '%s' for retry.", topic
             )
         return topic
 
-    async def _publish_to_dlq(self, *, event: ExtractedEvent):
+    async def _publish_to_dlq(self, *, event: ExtractedEventInfo):
         """Publish the event to the DLQ topic."""
         dlq_payload = {**event.payload, ORIGINAL_TOPIC_FIELD: event.topic}
         logging.debug("Publishing failed event to DLQ topic '%s'.", self._dlq_topic)
@@ -305,7 +304,7 @@ class KafkaEventSubscriber(InboundProviderBase):
         )
         logging.info("Published event to DLQ topic '%s'", self._dlq_topic)
 
-    async def _retry_event(self, *, event: ExtractedEvent, retries_left: int):
+    async def _retry_event(self, *, event: ExtractedEventInfo, retries_left: int):
         """Retry the event until the maximum number of retries is reached."""
         retries_left -= 1
         try:
@@ -330,7 +329,7 @@ class KafkaEventSubscriber(InboundProviderBase):
             else:
                 raise self.RetriesExhaustedError(event_type=event.type_) from err
 
-    async def _handle_consumption(self, *, event: ExtractedEvent):
+    async def _handle_consumption(self, *, event: ExtractedEventInfo):
         """Try to pass the event to the consumer.
 
         If the event fails:
@@ -367,54 +366,79 @@ class KafkaEventSubscriber(InboundProviderBase):
             else:
                 raise  # re-raise Exception
 
-    async def _consume_event(self, event: ConsumerEvent) -> None:
-        """Consume an event by passing it down to the translator via the protocol."""
-        event_label = get_event_label(event)
+    def _extract_header_info(self, event: ConsumerEvent) -> tuple[Ascii, str]:
+        """Extract the type and correlation_id from the event headers."""
         headers = headers_as_dict(event)
+        type_ = headers.get("type", "")
+        correlation_id = headers.get("correlation_id", "")
+        return type_, correlation_id
 
-        try:
-            type_ = get_header_value(header_name="type", headers=headers)
-            correlation_id = get_header_value(
-                header_name="correlation_id", headers=headers
-            )
-        except EventHeaderNotFoundError as err:
-            logging.warning("Ignored an event: %s.  %s", event_label, err.args[0])
-            # acknowledge event receipt
-            await self._consumer.commit()
-            return
-
-        # If the event is from the DLQ retry topic, consume with the original topic
-        topic = self._get_original_topic(event=event)
+    def _extract_payload_and_topic(
+        self, event: ConsumerEvent
+    ) -> tuple[JsonObject, Ascii]:
+        """Extract the payload and topic from the event."""
+        topic = self._get_original_topic(event)
         payload = event.value
         if topic != event.topic:
             payload = {
                 k: v for k, v in event.value.items() if k != ORIGINAL_TOPIC_FIELD
             }
+        return payload, topic
 
-        if type_ in self._types_whitelist:
-            logging.info('Consuming event of type "%s": %s', type_, event_label)
-            extracted_event = ExtractedEvent(
-                type_=type_, topic=topic, payload=payload, key=event.key
+    def _validate_event(
+        self, event_info: ExtractedEventInfo, correlation_id: str
+    ) -> None:
+        """Validate event info, but leave payload validation to translator."""
+        errors = []
+        if not event_info.type_:
+            errors.append("type_ is empty")
+        elif event_info.type_ not in self._types_whitelist:
+            errors.append(f"type_ '{event_info.type_}' is not in the whitelist")
+        if not event_info.topic:
+            errors.append("topic is empty")
+        if not correlation_id:
+            errors.append("correlation_id is empty")
+        if errors:
+            error = RuntimeError(", ".join(errors))
+            raise error
+
+    async def _consume_event(self, event: ConsumerEvent) -> None:
+        """Consume an event by passing it down to the translator via the protocol."""
+        event_label = get_event_label(event)
+        type_, correlation_id = self._extract_header_info(event)
+        payload, topic = self._extract_payload_and_topic(event)
+        event_info = ExtractedEventInfo(
+            topic=topic, type_=type_, payload=payload, key=event.key
+        )
+
+        try:
+            self._validate_event(event_info, correlation_id)
+        except RuntimeError as err:
+            logging.info(
+                "Ignored event of type '%s': %s, errors: %s",
+                type_,
+                event_label,
+                str(err),
             )
-            try:
-                async with set_correlation_id(correlation_id):
-                    await self._handle_consumption(event=extracted_event)
-            except Exception:
-                logging.critical(
-                    "An error occurred while processing the event: %s. It was NOT"
-                    " placed in the DLQ topic ('%s')",
-                    event_label,
-                    self._dlq_topic,
-                )
-                raise
-            else:
-                # Only save consumed event offsets if it was successful or sent to DLQ
-                await self._consumer.commit()
-
-        else:
-            logging.info("Ignored event of type %s: %s", type_, event_label)
-
             # Always acknowledge event receipt for ignored events
+            await self._consumer.commit()
+            return
+
+        try:
+            logging.info("Consuming event of type '%s': %s", type_, event_label)
+            async with set_correlation_id(correlation_id):
+                await self._handle_consumption(event=event_info)
+        except Exception:
+            logging.critical(
+                "An error occurred while processing event of type '%s': %s. It was NOT"
+                " placed in the DLQ topic (%s)",
+                type_,
+                event_label,
+                self._dlq_topic if self._enable_dlq else "DLQ is disabled",
+            )
+            raise
+        else:
+            # Only save consumed event offsets if it was successful or sent to DLQ
             await self._consumer.commit()
 
     async def run(self, forever: bool = True) -> None:
