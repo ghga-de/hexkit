@@ -24,7 +24,6 @@ from .eventpub import KafkaEventPublisher
 from .eventsub import (
     ConsumerEvent,
     KafkaEventSubscriber,
-    get_header_value,
     headers_as_dict,
 )
 
@@ -32,7 +31,6 @@ __all__ = [
     "KafkaEventPublisher",
     "KafkaEventSubscriber",
     "ConsumerEvent",
-    "get_header_value",
     "headers_as_dict",
     "KafkaOutboxSubscriber",
 ]

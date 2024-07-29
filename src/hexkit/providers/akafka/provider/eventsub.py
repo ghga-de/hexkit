@@ -44,14 +44,6 @@ from hexkit.providers.akafka.provider.utils import (
 ORIGINAL_TOPIC_FIELD = "_original_topic"
 
 
-class EventHeaderNotFoundError(RuntimeError):
-    """Thrown when a given detail was not set in the headers of an event."""
-
-    def __init__(self, *, header_name):
-        message = f"No '{header_name}' was set in event header."
-        super().__init__(message)
-
-
 class ConsumerEvent(Protocol):
     """Duck type of an event as received from a KafkaConsumerCompatible."""
 
@@ -92,14 +84,6 @@ def get_event_label(event: ConsumerEvent) -> str:
 def headers_as_dict(event: ConsumerEvent) -> dict[str, str]:
     """Extract the headers from a ConsumerEvent object and return them as a dict."""
     return {name: value.decode("ascii") for name, value in event.headers}
-
-
-def get_header_value(header_name: str, headers: dict[str, str]) -> str:
-    """Extract the given value from the dict headers and raise an error if not found."""
-    try:
-        return headers[header_name]
-    except KeyError as err:
-        raise EventHeaderNotFoundError(header_name=header_name) from err
 
 
 KCC = TypeVar("KCC")
@@ -163,14 +147,6 @@ class KafkaConsumerCompatible(Protocol):
     async def __anext__(self) -> ConsumerEvent:
         """Used to get the next event."""
         ...
-
-
-class OriginalTopicError(RuntimeError):
-    """Raised when the original topic is missing from the event."""
-
-    def __init__(self, *, event_label: str):
-        msg = f"Unable to get original topic from event: {event_label}."
-        super().__init__(msg)
 
 
 class KafkaEventSubscriber(InboundProviderBase):
@@ -461,6 +437,13 @@ class KafkaDLQSubscriber(InboundProviderBase):
     discards each event or publishes it to the retry topic as instructed.
     """
 
+    class OriginalTopicError(RuntimeError):
+        """Raised when the original topic is missing from the event."""
+
+        def __init__(self, *, event_label: str):
+            msg = f"Unable to get original topic from event: {event_label}"
+            super().__init__(msg)
+
     @classmethod
     @asynccontextmanager
     async def construct(
@@ -533,27 +516,31 @@ class KafkaDLQSubscriber(InboundProviderBase):
         self._dlq_retry_topic = dlq_retry_topic
 
     async def _publish_to_retry(self, event: ConsumerEvent):
-        """Publish the event to the retry topic."""
+        """Publish the event to the retry topic.
+
+        Events that lack a type or correlation_id in their headers are ignored.
+
+        Raises:
+        - `OriginalTopicError`:
+            Raised when the original topic is missing from the event.
+        """
         event_label = get_event_label(event)
         headers = headers_as_dict(event)
 
         try:
-            type_ = get_header_value(header_name="type", headers=headers)
-            correlation_id = get_header_value(
-                header_name="correlation_id", headers=headers
-            )
-        except EventHeaderNotFoundError as err:
+            type_ = headers["type"]
+            correlation_id = headers["correlation_id"]
+        except KeyError as err:
             logging.warning("Ignored an event: %s. %s", event_label, err.args[0])
             # acknowledge event receipt
             await self._consumer.commit()
             return
 
+        # Raise an error if the original topic is missing, because that is crucial
+        # information for publishing to the retry topic
         original_topic = event.value.get(ORIGINAL_TOPIC_FIELD, "")
         if not original_topic:
-            error = RuntimeError(
-                "Tried to publish event to the retry topic, but the original topic was"
-                + " not found in the payload. This should be populated automatically."
-            )
+            error = self.OriginalTopicError(event_label=event_label)
             logging.critical(error, extra={"payload": event.value})
             raise error
 
