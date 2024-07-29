@@ -155,8 +155,8 @@ class KafkaEventSubscriber(InboundProviderBase):
     class RetriesExhaustedError(RuntimeError):
         """Raised when an event has been retried the maximum number of times."""
 
-        def __init__(self, *, event_type: str):
-            msg = f"All retries exhausted for '{event_type}' event."
+        def __init__(self, *, event_type: str, max_retries: int):
+            msg = f"All retries (total of {max_retries}) exhausted for '{event_type}' event."
             super().__init__(msg)
 
     @classmethod
@@ -271,7 +271,7 @@ class KafkaEventSubscriber(InboundProviderBase):
     async def _publish_to_dlq(self, *, event: ExtractedEventInfo):
         """Publish the event to the DLQ topic."""
         dlq_payload = {**event.payload, ORIGINAL_TOPIC_FIELD: event.topic}
-        logging.debug("Publishing failed event to DLQ topic '%s'.", self._dlq_topic)
+        logging.debug("About to publish an event to DLQ topic '%s'", self._dlq_topic)
         await self._publisher.publish(  # type: ignore
             payload=dlq_payload,
             type_=event.type_,
@@ -285,13 +285,12 @@ class KafkaEventSubscriber(InboundProviderBase):
         retries_left -= 1
         try:
             logging.info(
-                "Retrying event of type '%s' on topic '%s' with key '%s'.",
-                extra={
-                    "type": event.type_,
-                    "topic": event.topic,
-                    "key": event.key,
-                    "retries_left": retries_left,
-                },
+                "Retry %i of %i for event of type '%s' on topic '%s' with key '%s'.",
+                self._max_retries - retries_left,
+                self._max_retries,
+                event.type_,
+                event.topic,
+                event.key,
             )
             await self._translator.consume(
                 payload=event.payload,
@@ -303,7 +302,9 @@ class KafkaEventSubscriber(InboundProviderBase):
             if retries_left > 0:
                 await self._retry_event(event=event, retries_left=retries_left)
             else:
-                raise self.RetriesExhaustedError(event_type=event.type_) from err
+                raise self.RetriesExhaustedError(
+                    event_type=event.type_, max_retries=self._max_retries
+                ) from err
 
     async def _handle_consumption(self, *, event: ExtractedEventInfo):
         """Try to pass the event to the consumer.
@@ -332,11 +333,13 @@ class KafkaEventSubscriber(InboundProviderBase):
                 # Don't raise RetriesExhaustedError unless retries are actually attempted
                 try:
                     await self._retry_event(event=event, retries_left=self._max_retries)
-                except self.RetriesExhaustedError:
+                except self.RetriesExhaustedError as retry_error:
+                    # Publish to the DLQ or re-raise the exception
+                    logging.warning(retry_error)
                     if self._enable_dlq:
                         await self._publish_to_dlq(event=event)
                     else:
-                        raise
+                        raise retry_error
             elif self._enable_dlq:
                 await self._publish_to_dlq(event=event)
             else:
@@ -457,13 +460,13 @@ class KafkaDLQSubscriber(InboundProviderBase):
         Setup and teardown KafkaEventPublisher instance with some config params.
 
         Args:
-            config:
-                Config parameters needed for connecting to Apache Kafka.
-            publisher:
-                running instance of publishing provider that implements the
-                EventPublisherProtocol, such as KafkaEventPublisher.
-            kafka_consumer_cls:
-                Overwrite the used Kafka consumer class . Only intended for unit testing.
+        - `config`:
+            Config parameters needed for connecting to Apache Kafka.
+        - `publisher`:
+            running instance of publishing provider that implements the
+            EventPublisherProtocol, such as KafkaEventPublisher.
+        - `kafka_consumer_cls`:
+            Overwrite the used Kafka consumer class . Only intended for unit testing.
         """
         client_id = generate_client_id(
             service_name=config.service_name, instance_id=config.service_instance_id
@@ -489,7 +492,8 @@ class KafkaDLQSubscriber(InboundProviderBase):
             yield cls(
                 consumer=consumer,
                 publisher=publisher,
-                dlq_retry_topic=config.kafka_retry_topic,
+                dlq_topic=config.kafka_dlq_topic,
+                retry_topic=config.kafka_retry_topic,
             )
         finally:
             await consumer.stop()
@@ -499,21 +503,27 @@ class KafkaDLQSubscriber(InboundProviderBase):
         *,
         consumer: KafkaConsumerCompatible,
         publisher: EventPublisherProtocol,
-        dlq_retry_topic: str,
+        dlq_topic: str,
+        retry_topic: str,
     ):
         """Please do not call directly! Should be called by the `construct` method.
+
         Args:
-            consumer:
-                hands over a started AIOKafkaConsumer.
-            publisher:
-                running instance of publishing provider that implements the
-                EventPublisherProtocol, such as KafkaEventPublisher.
-            dlq_retry_topic:
-                The name of the topic used to requeue failed events.
+        - `consumer`:
+            hands over a started AIOKafkaConsumer.
+        - `publisher`:
+            running instance of publishing provider that implements the
+            EventPublisherProtocol, such as KafkaEventPublisher.
+        - `dlq_topic`:
+            The name of the topic used to store failed events, to which the
+            KafkaDLQSubscriber subscribes.
+        - `retry_topic`:
+            The name of the topic used to requeue failed events.
         """
         self._consumer = consumer
         self._publisher = publisher
-        self._dlq_retry_topic = dlq_retry_topic
+        self._dlq_topic = dlq_topic
+        self._retry_topic = retry_topic
 
     async def _publish_to_retry(self, event: ConsumerEvent):
         """Publish the event to the retry topic.
@@ -548,11 +558,13 @@ class KafkaDLQSubscriber(InboundProviderBase):
             await self._publisher.publish(
                 payload=event.value,
                 type_=type_,
-                topic=self._dlq_retry_topic,
+                topic=self._retry_topic,
                 key=event.key,
             )
             logging.info(
-                "Published an event to the retry topic '%s'", self._dlq_retry_topic
+                "Published an event with type '%s' to the retry topic '%s'",
+                type_,
+                self._retry_topic,
             )
 
     async def run(self, ignore: bool = False) -> None:
@@ -563,5 +575,12 @@ class KafkaDLQSubscriber(InboundProviderBase):
         Otherwise, the event will be published to the retry topic.
         """
         event = await self._consumer.__anext__()
-        if not ignore:
-            await self._publish_to_retry(event)
+        if ignore:
+            event_label = get_event_label(event)
+            logging.info(
+                "Ignored event from DLQ topic '%s': %s",
+                self._dlq_topic,
+                event_label,
+            )
+            return
+        await self._publish_to_retry(event)

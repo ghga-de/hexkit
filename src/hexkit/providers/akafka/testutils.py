@@ -43,7 +43,6 @@ from hexkit.providers.akafka import KafkaConfig
 from hexkit.providers.akafka.provider import (
     ConsumerEvent,
     KafkaEventPublisher,
-    get_header_value,
     headers_as_dict,
 )
 from hexkit.providers.akafka.testcontainer import DEFAULT_IMAGE as KAFKA_IMAGE
@@ -330,7 +329,7 @@ class EventRecorder:
         recorded_events: list[RecordedEvent] = []
         for raw_event in raw_events:
             headers = headers_as_dict(raw_event)
-            type_ = get_header_value("type", headers=headers)
+            type_ = headers.get("type", "")
             del headers["type"]
 
             recorded_event = RecordedEvent(
