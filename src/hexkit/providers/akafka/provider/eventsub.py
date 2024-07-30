@@ -167,7 +167,7 @@ class KafkaEventSubscriber(InboundProviderBase):
         config: KafkaConfig,
         translator: EventSubscriberProtocol,
         kafka_consumer_cls: type[KafkaConsumerCompatible] = AIOKafkaConsumer,
-        publisher: Optional[EventPublisherProtocol] = None,
+        dlq_publisher: Optional[EventPublisherProtocol] = None,
     ):
         """
         Setup and teardown KafkaRetrySubscriber instance with some config params.
@@ -179,10 +179,10 @@ class KafkaEventSubscriber(InboundProviderBase):
                 The translator that translates between the protocol (mentioned in the
                 type annotation) and an application-specific port
                 (according to the triple hexagonal architecture).
-            publisher:
+            dlq_publisher:
                 running instance of publishing provider that implements the
                 EventPublisherProtocol, such as KafkaEventPublisher. Can be None if
-                not using the dead letter queue.
+                not using the dead letter queue. It is used to publish events to the DLQ.
             kafka_consumer_cls:
                 Overwrite the used Kafka consumer class. Only intended for unit testing.
         """
@@ -193,7 +193,7 @@ class KafkaEventSubscriber(InboundProviderBase):
         topics = translator.topics_of_interest
 
         if config.kafka_enable_dlq:
-            if publisher is None:
+            if dlq_publisher is None:
                 error = ValueError("A publisher is required when the DLQ is enabled.")
                 logging.error(error)
                 raise error
@@ -220,7 +220,7 @@ class KafkaEventSubscriber(InboundProviderBase):
             yield cls(
                 consumer=consumer,
                 translator=translator,
-                publisher=publisher,
+                dlq_publisher=dlq_publisher,
                 config=config,
             )
         finally:
@@ -232,7 +232,7 @@ class KafkaEventSubscriber(InboundProviderBase):
         consumer: KafkaConsumerCompatible,
         translator: EventSubscriberProtocol,
         config: KafkaConfig,
-        publisher: Optional[EventPublisherProtocol] = None,
+        dlq_publisher: Optional[EventPublisherProtocol] = None,
     ):
         """Please do not call directly! Should be called by the `construct` method.
         Args:
@@ -242,17 +242,17 @@ class KafkaEventSubscriber(InboundProviderBase):
                 The translator that translates between the protocol (mentioned in the
                 type annotation) and an application-specific port
                 (according to the triple hexagonal architecture).
-            publisher:
+            dlq_publisher:
                 running instance of publishing provider that implements the
                 EventPublisherProtocol, such as KafkaEventPublisher. Can be None if
-                not using the dead letter queue.
+                not using the dead letter queue. It is used to publish events to the DLQ.
             config:
-                the KafkaRetryConfig instance containing dlq topics and retry allowance.
+                The KafkaConfig instance
         """
         self._consumer = consumer
         self._translator = translator
         self._types_whitelist = translator.types_of_interest
-        self._publisher = publisher
+        self._dlq_publisher = dlq_publisher
         self._dlq_topic = config.kafka_dlq_topic
         self._retry_topic = config.kafka_retry_topic
         self._max_retries = config.kafka_max_retries
@@ -272,7 +272,7 @@ class KafkaEventSubscriber(InboundProviderBase):
         """Publish the event to the DLQ topic."""
         dlq_payload = {**event.payload, ORIGINAL_TOPIC_FIELD: event.topic}
         logging.debug("About to publish an event to DLQ topic '%s'", self._dlq_topic)
-        await self._publisher.publish(  # type: ignore
+        await self._dlq_publisher.publish(  # type: ignore
             payload=dlq_payload,
             type_=event.type_,
             topic=self._dlq_topic,
@@ -454,7 +454,7 @@ class KafkaDLQSubscriber(InboundProviderBase):
         *,
         config: KafkaConfig,
         kafka_consumer_cls: type[KafkaConsumerCompatible] = AIOKafkaConsumer,
-        publisher: EventPublisherProtocol,
+        dlq_publisher: EventPublisherProtocol,
     ):
         """
         Setup and teardown KafkaEventPublisher instance with some config params.
@@ -462,7 +462,7 @@ class KafkaDLQSubscriber(InboundProviderBase):
         Args:
         - `config`:
             Config parameters needed for connecting to Apache Kafka.
-        - `publisher`:
+        - `dlq_publisher`:
             running instance of publishing provider that implements the
             EventPublisherProtocol, such as KafkaEventPublisher.
         - `kafka_consumer_cls`:
@@ -491,7 +491,7 @@ class KafkaDLQSubscriber(InboundProviderBase):
             await consumer.start()
             yield cls(
                 consumer=consumer,
-                publisher=publisher,
+                dlq_publisher=dlq_publisher,
                 dlq_topic=config.kafka_dlq_topic,
                 retry_topic=config.kafka_retry_topic,
             )
@@ -502,7 +502,7 @@ class KafkaDLQSubscriber(InboundProviderBase):
         self,
         *,
         consumer: KafkaConsumerCompatible,
-        publisher: EventPublisherProtocol,
+        dlq_publisher: EventPublisherProtocol,
         dlq_topic: str,
         retry_topic: str,
     ):
@@ -511,7 +511,7 @@ class KafkaDLQSubscriber(InboundProviderBase):
         Args:
         - `consumer`:
             hands over a started AIOKafkaConsumer.
-        - `publisher`:
+        - `dlq_publisher`:
             running instance of publishing provider that implements the
             EventPublisherProtocol, such as KafkaEventPublisher.
         - `dlq_topic`:
@@ -521,7 +521,7 @@ class KafkaDLQSubscriber(InboundProviderBase):
             The name of the topic used to requeue failed events.
         """
         self._consumer = consumer
-        self._publisher = publisher
+        self._publisher = dlq_publisher
         self._dlq_topic = dlq_topic
         self._retry_topic = retry_topic
 

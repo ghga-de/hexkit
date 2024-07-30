@@ -246,14 +246,14 @@ async def test_original_topic_is_preserved(kafka: KafkaFixture):
     )
     assert not translator.successes
     async with KafkaEventSubscriber.construct(
-        config=config, translator=translator, publisher=kafka.publisher
+        config=config, translator=translator, dlq_publisher=kafka.publisher
     ) as retry_sub:
         assert not translator.failures
         await retry_sub.run(forever=False)
 
         # Run the DLQ subscriber, telling it to publish the event to the retry topic
         async with KafkaDLQSubscriber.construct(
-            config=config, publisher=kafka.publisher
+            config=config, dlq_publisher=kafka.publisher
         ) as dlq_sub:
             await dlq_sub.run()
 
@@ -289,7 +289,7 @@ async def test_retries_exhausted(
         topics_of_interest=["test-topic"], types_of_interest=["test_type"], fail=True
     )
     async with KafkaEventSubscriber.construct(
-        config=config, translator=translator, publisher=dummy_publisher
+        config=config, translator=translator, dlq_publisher=dummy_publisher
     ) as retry_sub:
         with pytest.raises(RuntimeError) if not enable_dlq else nullcontext():
             await retry_sub.run(forever=False)
@@ -372,7 +372,7 @@ async def test_send_to_retry(kafka: KafkaFixture, caplog_debug):
     # Set up dummies and consume the event with the DLQ Subscriber
     dummy_publisher = DummyPublisher()
     async with KafkaDLQSubscriber.construct(
-        config=config, publisher=dummy_publisher
+        config=config, dlq_publisher=dummy_publisher
     ) as dlq_sub:
         assert not dummy_publisher.published
         await dlq_sub.run(ignore=False)
@@ -413,7 +413,7 @@ async def test_consume_dlq_without_og_topic(kafka: KafkaFixture, caplog_debug):
     # Set up dummy publisher and consume the event with the DLQ Subscriber
     dummy_publisher = DummyPublisher()
     async with KafkaDLQSubscriber.construct(
-        config=config, publisher=dummy_publisher
+        config=config, dlq_publisher=dummy_publisher
     ) as dlq_sub:
         # Expect to raise an error because the _original_topic field is missing
         text = r"Unable to get original topic from event: dlq - \d - key - \d"
@@ -447,7 +447,7 @@ async def test_consume_retry_without_og_topic(kafka: KafkaFixture, caplog_debug)
         topics_of_interest=["test-topic"], types_of_interest=["test_type"]
     )
     async with KafkaEventSubscriber.construct(
-        config=config, translator=translator, publisher=kafka.publisher
+        config=config, translator=translator, dlq_publisher=kafka.publisher
     ) as retry_subscriber:
         assert not translator.failures or translator.successes
 
@@ -481,7 +481,7 @@ async def test_dlq_subscriber_ignore(kafka: KafkaFixture, caplog_debug):
     # Set up dummies and consume the event with the DLQ Subscriber
     dummy_publisher = DummyPublisher()
     async with KafkaDLQSubscriber.construct(
-        config=config, publisher=dummy_publisher
+        config=config, dlq_publisher=dummy_publisher
     ) as dlq_sub:
         assert not dummy_publisher.published
         await dlq_sub.run(ignore=True)
@@ -512,7 +512,7 @@ async def test_no_retries_no_dlq_original_error(kafka: KafkaFixture, caplog_debu
         topics_of_interest=["test-topic"], types_of_interest=["test_type"], fail=True
     )
     async with KafkaEventSubscriber.construct(
-        config=config, translator=translator, publisher=kafka.publisher
+        config=config, translator=translator, dlq_publisher=kafka.publisher
     ) as retry_sub:
         assert not translator.successes
         with pytest.raises(RuntimeError, match="Destined to fail."):
@@ -557,7 +557,7 @@ async def test_outbox_with_dlq(kafka: KafkaFixture, event_type: str):
 
     # Run the outbox subscriber and expect it to fail
     async with KafkaOutboxSubscriber.construct(
-        config=config, publisher=kafka.publisher, translators=[translator]
+        config=config, dlq_publisher=kafka.publisher, translators=[translator]
     ) as outbox_sub:
         assert not list_to_check
         await outbox_sub.run(forever=False)
@@ -565,7 +565,7 @@ async def test_outbox_with_dlq(kafka: KafkaFixture, event_type: str):
 
         # Consume event from the DLQ topic, publish to retry topic
         async with KafkaDLQSubscriber.construct(
-            config=config, publisher=kafka.publisher
+            config=config, dlq_publisher=kafka.publisher
         ) as dlq_sub:
             await dlq_sub.run()
 

@@ -112,7 +112,7 @@ class KafkaOutboxSubscriber(InboundProviderBase):
         *,
         config: KafkaConfig,
         translators: Sequence[DaoSubscriberProtocol],
-        publisher: Optional[EventPublisherProtocol] = None,
+        dlq_publisher: Optional[EventPublisherProtocol] = None,
         kafka_consumer_cls: type[KafkaConsumerCompatible] = AIOKafkaConsumer,
     ):
         """Setup and teardown an instance of the provider.
@@ -121,8 +121,8 @@ class KafkaOutboxSubscriber(InboundProviderBase):
         - `config`: MongoDB-specific config parameters.
         - `translators`: A sequence of translators implementing the
             `DaoSubscriberProtocol`.
-        - `publisher`: An instance of the publisher to use for the DLQ. Can be None if
-            not using the dead letter queue.
+        - `dlq_publisher`: An instance of the publisher to use for the DLQ. Can be None
+            if not using the dead letter queue. It is used to publish events to the DLQ.
         - `kafka_consumer_cls`: The Kafka consumer class to use. Defaults to
             `AIOKafkaConsumer`.
 
@@ -131,7 +131,7 @@ class KafkaOutboxSubscriber(InboundProviderBase):
         """
         translator_converter = TranslatorConverter(translators=translators)
 
-        if config.kafka_enable_dlq and publisher is None:
+        if config.kafka_enable_dlq and dlq_publisher is None:
             error = ValueError("A publisher is required when the DLQ is enabled.")
             logging.error(error)
             raise error
@@ -139,7 +139,7 @@ class KafkaOutboxSubscriber(InboundProviderBase):
         async with KafkaEventSubscriber.construct(
             config=config,
             translator=translator_converter,
-            publisher=publisher,
+            dlq_publisher=dlq_publisher,
             kafka_consumer_cls=kafka_consumer_cls,
         ) as event_subscriber:
             yield cls(event_subscriber=event_subscriber)
