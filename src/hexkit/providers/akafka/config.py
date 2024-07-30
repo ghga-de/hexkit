@@ -86,12 +86,14 @@ class KafkaConfig(BaseSettings):
         default="",
         description="The name of the service-specific topic used for the dead letter queue.",
         examples=["dcs-dlq", "ifrs-dlq", "mass-dlq"],
+        title="Kafka DLQ Topic",
     )
     kafka_retry_topic: str = Field(
         default="",
         description=(
             "The name of the service-specific topic used to retry previously failed events."
         ),
+        title="Kafka Retry Topic",
         examples=["dcs-dlq-retry", "ifrs-dlq-retry", "mass-dlq-retry"],
     )
     kafka_max_retries: NonNegativeInt = Field(
@@ -100,6 +102,7 @@ class KafkaConfig(BaseSettings):
             "The maximum number of times to immediately retry consuming an event upon"
             + " failure. Works independently of the dead letter queue."
         ),
+        title="Kafka Max Retries",
         examples=[0, 1, 2, 3, 5],
     )
     kafka_enable_dlq: bool = Field(
@@ -111,6 +114,7 @@ class KafkaConfig(BaseSettings):
             + " exhausting all retries, and both `kafka_dlq_topic` and"
             + " `kafka_retry_topic` must be set."
         ),
+        title="Kafka Enable DLQ",
         examples=[True, False],
     )
 
