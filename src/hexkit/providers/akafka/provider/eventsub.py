@@ -170,7 +170,7 @@ class KafkaEventSubscriber(InboundProviderBase):
         dlq_publisher: Optional[EventPublisherProtocol] = None,
     ):
         """
-        Setup and teardown KafkaRetrySubscriber instance with some config params.
+        Setup and teardown KafkaEventSubscriber instance with some config params.
 
         Args:
             config:
@@ -457,7 +457,7 @@ class KafkaDLQSubscriber(InboundProviderBase):
         dlq_publisher: EventPublisherProtocol,
     ):
         """
-        Setup and teardown KafkaEventPublisher instance with some config params.
+        Setup and teardown KafkaDLQSubscriber instance with some config params.
 
         Args:
         - `config`:

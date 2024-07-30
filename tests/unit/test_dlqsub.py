@@ -230,7 +230,7 @@ def test_config_validation(
 @pytest.mark.asyncio()
 async def test_original_topic_is_preserved(kafka: KafkaFixture):
     """Ensure the original topic is preserved when it reaches the DLQ subscriber and
-    when it comes back to the Retry subscriber.
+    when it comes back to the subscriber.
 
     Consume a failing event, send to DLQ, consume from DLQ, send to Retry, consume from
     Retry, and check the original topic.
