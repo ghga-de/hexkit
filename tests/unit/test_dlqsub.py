@@ -215,7 +215,7 @@ def test_config_validation(
 
     Errors should occur:
     1. Anytime max_retries is < 0
-    2. If retry and dlq topics are the same (non-empty)
+    2. If retry and DLQ topics are the same (non-empty)
     3. If the DLQ is enabled but the topics are not set (either or both)
     """
     with pytest.raises(ValueError) if error else nullcontext():
@@ -500,7 +500,7 @@ async def test_dlq_subscriber_ignore(kafka: KafkaFixture, caplog_debug):
 
 @pytest.mark.asyncio()
 async def test_no_retries_no_dlq_original_error(kafka: KafkaFixture, caplog_debug):
-    """Test that not using the dlq and configuring 0 retries results in failures that
+    """Test that not using the DLQ and configuring 0 retries results in failures that
     propagate the underlying error to the provider.
     """
     config = make_config(kafka.config, enable_dlq=False)
@@ -580,7 +580,7 @@ async def test_outbox_with_dlq(kafka: KafkaFixture, event_type: str):
 @pytest.mark.asyncio
 async def test_kafka_event_subcriber_construction(caplog):
     """Test construction of the KafkaEventSubscriber, ensuring an error is raised if
-    the dlq is enabled but no provider is used.
+    the DLQ is enabled but no provider is used.
     """
     config = make_config()
     translator = FailSwitchTranslator(
