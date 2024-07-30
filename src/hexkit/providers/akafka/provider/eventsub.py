@@ -464,7 +464,8 @@ class KafkaDLQSubscriber(InboundProviderBase):
             Config parameters needed for connecting to Apache Kafka.
         - `dlq_publisher`:
             running instance of publishing provider that implements the
-            EventPublisherProtocol, such as KafkaEventPublisher.
+            EventPublisherProtocol, such as KafkaEventPublisher. It is used to publish
+            events to the configured retry topic.
         - `kafka_consumer_cls`:
             Overwrite the used Kafka consumer class . Only intended for unit testing.
         """
