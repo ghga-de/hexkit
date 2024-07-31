@@ -270,6 +270,35 @@ async def test_original_topic_is_preserved(kafka: KafkaFixture):
     assert translator.successes == [TEST_EVENT]
 
 
+@pytest.mark.asyncio()
+async def test_invalid_retries_left(kafka: KafkaFixture, caplog_debug):
+    """Ensure that the proper error is raised when retries_left is invalid."""
+    config = make_config(kafka.config, max_retries=2)
+    translator = FailSwitchTranslator(
+        topics_of_interest=["test-topic"], types_of_interest=["test_type"]
+    )
+    dummy_publisher = DummyPublisher()
+    async with KafkaEventSubscriber.construct(
+        config=config, translator=translator, dlq_publisher=dummy_publisher
+    ) as retry_sub:
+        with pytest.raises(ValueError):
+            await retry_sub._retry_event(event=TEST_EVENT, retries_left=-1)
+
+        with pytest.raises(ValueError):
+            await retry_sub._retry_event(event=TEST_EVENT, retries_left=3)
+
+    assert_logged(
+        "ERROR",
+        "Invalid value for retries_left: -1 (should be between 1 and 2)",
+        caplog_debug.records,
+    )
+    assert_logged(
+        "ERROR",
+        "Invalid value for retries_left: 3 (should be between 1 and 2)",
+        caplog_debug.records,
+    )
+
+
 @pytest.mark.parametrize("max_retries", [0, 1, 2])
 @pytest.mark.parametrize("enable_dlq", [True, False])
 @pytest.mark.asyncio()

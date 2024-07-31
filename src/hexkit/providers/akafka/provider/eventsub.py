@@ -283,7 +283,24 @@ class KafkaEventSubscriber(InboundProviderBase):
         logging.info("Published event to DLQ topic '%s'", self._dlq_topic)
 
     async def _retry_event(self, *, event: ExtractedEventInfo, retries_left: int):
-        """Retry the event until the maximum number of retries is reached."""
+        """Retry the event until the maximum number of retries is reached.
+
+        If the retry fails, this method is called again with `retries_left` decremented.
+
+        Raises:
+        - `RetriesExhaustedError`: If all retries are exhausted without success.
+        - `ValueError`: If `retries_left` is invalid.
+        """
+        # Check if retries_left is valid.
+        if not 0 < retries_left <= self._max_retries:
+            error = ValueError(
+                f"Invalid value for retries_left: {retries_left} (should be between"
+                + f" 1 and {self._max_retries})"
+            )
+            logging.error(error)
+            raise error
+
+        # Decrement retries_left and calculate backoff time, then wait and retry.
         retries_left -= 1
         retry_number = self._max_retries - retries_left
         backoff_time = self._retry_backoff * 2 ** (retry_number - 1)
@@ -329,28 +346,31 @@ class KafkaEventSubscriber(InboundProviderBase):
                 topic=event.topic,
                 key=event.key,
             )
-        except Exception:
+        except Exception as underlying_error:
             logging.warning(
                 "Failed initial attempt to consume event of type '%s' on topic '%s' with key '%s'.",
                 event.type_,
                 event.topic,
                 event.key,
             )
-            if self._max_retries > 0:
-                # Don't raise RetriesExhaustedError unless retries are actually attempted
-                try:
-                    await self._retry_event(event=event, retries_left=self._max_retries)
-                except self.RetriesExhaustedError as retry_error:
-                    # Publish to the DLQ or re-raise the exception
-                    logging.warning(retry_error)
-                    if self._enable_dlq:
-                        await self._publish_to_dlq(event=event)
-                    else:
-                        raise retry_error
-            elif self._enable_dlq:
+
+            if not self._max_retries:
+                if not self._enable_dlq:
+                    raise  # re-raise Exception
                 await self._publish_to_dlq(event=event)
-            else:
-                raise  # re-raise Exception
+                return
+
+            # Don't raise RetriesExhaustedError unless retries are actually attempted
+            try:
+                await self._retry_event(event=event, retries_left=self._max_retries)
+            except (self.RetriesExhaustedError, ValueError) as retry_error:
+                # In case of ValueError, proceed with flow because that error is
+                # likely due to a hexkit bug, not a config/event error.
+                # Publish to the DLQ or re-raise the exception
+                logging.warning(retry_error)
+                if not self._enable_dlq:
+                    raise retry_error from underlying_error
+                await self._publish_to_dlq(event=event)
 
     def _extract_header_info(self, event: ConsumerEvent) -> tuple[Ascii, str]:
         """Extract the type and correlation_id from the event headers."""
