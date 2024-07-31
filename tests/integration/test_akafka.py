@@ -16,6 +16,7 @@
 
 """Testing Apache Kafka based providers."""
 
+from contextlib import nullcontext
 from os import environ
 from pathlib import Path
 from typing import cast
@@ -24,6 +25,7 @@ from unittest.mock import AsyncMock
 import pytest
 from aiokafka import AIOKafkaConsumer
 from aiokafka.admin import AIOKafkaAdminClient
+from aiokafka.errors import MessageSizeTooLargeError
 from aiokafka.structs import TopicPartition
 from pydantic import SecretStr
 
@@ -253,3 +255,70 @@ async def test_consumer_commit_mode(kafka: KafkaFixture):
     assert broker_offsets[partition].offset == consumer_offset
 
     await client.close()
+
+
+@pytest.mark.parametrize(
+    "too_big",
+    [True, False],
+    ids=["TooBig", "AcceptableSize"],
+)
+async def test_publishing_with_size_limit(kafka: KafkaFixture, too_big: bool):
+    """Test sending messages above or below the configured size limit"""
+    # Either leave payload at ~message size or leave ample room for the rest of the event
+    max_message_size = 800 * 1024  # 800 KiB
+    payload = {"test_content": "a" * int(max_message_size * (1.1 if too_big else 0.9))}
+    type_ = "test_type"
+    key = "test_key"
+    topic = "test_topic"
+
+    producer_config = KafkaConfig(
+        service_name="test",
+        service_instance_id="1",
+        kafka_servers=kafka.kafka_servers,
+        kafka_max_message_size=max_message_size,
+    )
+
+    async with KafkaEventPublisher.construct(config=producer_config) as publisher:
+        with pytest.raises(MessageSizeTooLargeError) if too_big else nullcontext():
+            await publisher.publish(payload=payload, type_=type_, key=key, topic=topic)
+
+
+@pytest.mark.parametrize(
+    "too_big",
+    [True, False],
+    ids=["TooBig", "AcceptableSize"],
+)
+async def test_consuming_with_size_limit(kafka: KafkaFixture, too_big: bool):
+    """Test receiving messages above or below the configured limit"""
+    max_message_size = 800 * 1024  # 800 KiB
+    payload = {"test_content": "a" * int(max_message_size * (1.1 if too_big else 0.9))}
+    type_ = "test_type"
+    key = "test_key"
+    topic = "test_topic"
+
+    translator = AsyncMock()
+    translator.topics_of_interest = [topic]
+    translator.types_of_interest = [type_]
+
+    producer_config = KafkaConfig(
+        service_name="test",
+        service_instance_id="1",
+        kafka_servers=kafka.kafka_servers,
+        kafka_max_message_size=max_message_size
+        * 2,  # publish messages that are too large to consume
+    )
+
+    async with KafkaEventPublisher.construct(config=producer_config) as publisher:
+        await publisher.publish(payload=payload, type_=type_, key=key, topic=topic)
+
+    consumer_config = KafkaConfig(
+        service_name="test",
+        service_instance_id="1",
+        kafka_servers=kafka.kafka_servers,
+        kafka_max_message_size=max_message_size,
+    )
+
+    async with KafkaEventSubscriber.construct(
+        config=consumer_config, translator=translator
+    ) as subscriber:
+        await subscriber.run(forever=False)

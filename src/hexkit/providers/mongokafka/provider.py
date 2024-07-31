@@ -20,6 +20,7 @@ Require dependencies of the `akafka` and `mongodb` extras.
 """
 
 import json
+import logging
 from collections.abc import AsyncIterator, Awaitable, Collection, Mapping
 from contextlib import AbstractAsyncContextManager, asynccontextmanager, contextmanager
 from typing import Any, Callable, Generic, Optional
@@ -27,6 +28,7 @@ from typing import Any, Callable, Generic, Optional
 from aiokafka import AIOKafkaProducer
 from motor.core import AgnosticCollection
 from motor.motor_asyncio import AsyncIOMotorClient
+from pydantic import field_validator
 
 from hexkit.correlation import get_correlation_id, set_correlation_id
 from hexkit.custom_types import JsonObject
@@ -395,6 +397,16 @@ class MongoKafkaDaoPublisher(Generic[Dto]):
 
 class MongoKafkaConfig(MongoDbConfig, KafkaConfig):
     """Config parameters and their defaults."""
+
+    @field_validator("kafka_max_message_size", mode="after")
+    @classmethod
+    def validate_max_message_size(cls, value: int) -> int:
+        """Validate the maximum message size."""
+        if value > 2**24:  # 16 MiB
+            logging.warning(
+                f"Max message size ({value}) exceeds the 16 MiB document size limit for MongoDB!"
+            )
+        return value
 
 
 class MongoKafkaDaoPublisherFactory(DaoPublisherFactoryProtocol):
