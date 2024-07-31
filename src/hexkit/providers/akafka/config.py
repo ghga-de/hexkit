@@ -77,8 +77,8 @@ class KafkaConfig(BaseSettings):
         ),
     )
     kafka_max_message_size: PositiveInt = Field(
-        default=1048576,
+        default=1024 * 1024,  # 1 MiB
         description="The largest message size that can be transmitted, in bytes. Only"
         + " services that have a need to send/receive larger messages should set this.",
-        examples=[1048576, 16000000],
+        examples=[1024 * 1024, 16 * 1024 * 1024],
     )

@@ -265,9 +265,8 @@ async def test_consumer_commit_mode(kafka: KafkaFixture):
 async def test_publishing_with_size_limit(kafka: KafkaFixture, too_big: bool):
     """Test sending messages above or below the configured size limit"""
     # Either leave payload at ~message size or leave ample room for the rest of the event
-    max_message_size = 800000
-    modifier = 0 if too_big else -100000
-    payload = {"test_content": "a" * (max_message_size + modifier)}
+    max_message_size = 800 * 1024  # 800 KiB
+    payload = {"test_content": "a" * int(max_message_size * (1.1 if too_big else 0.9))}
     type_ = "test_type"
     key = "test_key"
     topic = "test_topic"
@@ -291,9 +290,8 @@ async def test_publishing_with_size_limit(kafka: KafkaFixture, too_big: bool):
 )
 async def test_consuming_with_size_limit(kafka: KafkaFixture, too_big: bool):
     """Test receiving messages above or below the configured limit"""
-    max_message_size = 800000
-    modifier = 0 if too_big else -100000
-    payload = {"test_content": "a" * (max_message_size + modifier)}
+    max_message_size = 800 * 1024  # 800 KiB
+    payload = {"test_content": "a" * int(max_message_size * (1.1 if too_big else 0.9))}
     type_ = "test_type"
     key = "test_key"
     topic = "test_topic"
@@ -306,7 +304,8 @@ async def test_consuming_with_size_limit(kafka: KafkaFixture, too_big: bool):
         service_name="test",
         service_instance_id="1",
         kafka_servers=kafka.kafka_servers,
-        kafka_max_message_size=max_message_size * 4,  # publish everything without error
+        kafka_max_message_size=max_message_size
+        * 2,  # publish messages that are too large to consume
     )
 
     async with KafkaEventPublisher.construct(config=producer_config) as publisher:

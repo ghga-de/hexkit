@@ -36,13 +36,14 @@ def make_mongokafka_config(kafka_max_message_size: int = 1048576) -> MongoKafkaC
 def test_max_message_size_too_high(caplog):
     """Test for log message when kafka_max_message_size is over 16 MiB."""
     caplog.clear()
-    config = make_mongokafka_config(16_777_217)
+    limit = 16 * 1024 * 1024
+    config = make_mongokafka_config(limit + 1)
     record = caplog.records[-1]
     assert record.levelno == logging.WARNING
     msg = "Max message size (16777217) exceeds the 16 MiB document size limit for MongoDB!"
     assert record.msg % record.args == msg
-    assert config.kafka_max_message_size == 16_777_217
+    assert config.kafka_max_message_size == limit + 1
 
     caplog.clear()
-    config = make_mongokafka_config(2**24)
+    config = make_mongokafka_config(limit)
     assert not caplog.records

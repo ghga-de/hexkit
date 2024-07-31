@@ -402,7 +402,7 @@ class MongoKafkaConfig(MongoDbConfig, KafkaConfig):
     @classmethod
     def validate_max_message_size(cls, value: int) -> int:
         """Validate the maximum message size."""
-        if value > 2**24:
+        if value > 2**24:  # 16 MiB
             logging.warning(
                 f"Max message size ({value}) exceeds the 16 MiB document size limit for MongoDB!"
             )
