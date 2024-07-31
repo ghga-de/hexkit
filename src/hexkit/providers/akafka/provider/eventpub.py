@@ -54,6 +54,7 @@ class KafkaProducerCompatible(Protocol):
         client_id: str,
         key_serializer: Callable[[Any], bytes],
         value_serializer: Callable[[Any], bytes],
+        max_request_size: int,
     ):
         """
         Initialize the producer with some config params.
@@ -67,6 +68,8 @@ class KafkaProducerCompatible(Protocol):
                 Function to serialize the keys into bytes.
             value_serializer:
                 Function to serialize the values into bytes.
+            max_request_size:
+                Maximum sendable message size.
         """
         ...
 
@@ -116,6 +119,7 @@ class KafkaEventPublisher(EventPublisherProtocol):
             value_serializer=lambda event_value: json.dumps(event_value).encode(
                 "ascii"
             ),
+            max_request_size=config.kafka_max_message_size,
         )
 
         try:

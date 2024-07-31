@@ -90,6 +90,7 @@ class KafkaConsumerCompatible(Protocol):
         enable_auto_commit: bool,
         key_deserializer: Callable[[bytes], str],
         value_deserializer: Callable[[bytes], str],
+        max_partition_fetch_bytes: int,
     ):
         """
         Initialize the consumer with some config params.
@@ -108,6 +109,8 @@ class KafkaConsumerCompatible(Protocol):
                 Function to deserialize the keys into strings.
             value_serializer:
                 Function to deserialize the values into strings.
+            max_partition_fetch_bytes:
+                Maximum receivable message size
         """
         ...
 
@@ -176,6 +179,7 @@ class KafkaEventSubscriber(InboundProviderBase):
             value_deserializer=lambda event_value: json.loads(
                 event_value.decode("ascii")
             ),
+            max_partition_fetch_bytes=config.kafka_max_message_size,
         )
         try:
             await consumer.start()
