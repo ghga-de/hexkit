@@ -117,6 +117,15 @@ class KafkaConfig(BaseSettings):
         title="Kafka Enable DLQ",
         examples=[True, False],
     )
+    kafka_retry_backoff: NonNegativeInt = Field(
+        default=0,
+        description=(
+            "The number of seconds to wait before retrying a failed event. The backoff"
+            + " time is doubled for each retry attempt."
+        ),
+        title="Kafka Retry Backoff",
+        examples=[0, 1, 2, 3, 5],
+    )
 
     @model_validator(mode="after")
     def validate_retry_topic(self):

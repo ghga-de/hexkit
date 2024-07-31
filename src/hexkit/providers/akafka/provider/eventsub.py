@@ -21,6 +21,7 @@ Apache Kafka-specific subscriber provider corresponding to the
 Require dependencies of the `akafka` extra. See the `setup.cfg`.
 """
 
+import asyncio
 import json
 import logging
 import ssl
@@ -257,6 +258,7 @@ class KafkaEventSubscriber(InboundProviderBase):
         self._retry_topic = config.kafka_retry_topic
         self._max_retries = config.kafka_max_retries
         self._enable_dlq = config.kafka_enable_dlq
+        self._retry_backoff = config.kafka_retry_backoff
 
     def _get_original_topic(self, event: ConsumerEvent) -> str:
         """Get the topic to use -- either the given topic or the one from `_original_topic`."""
@@ -283,15 +285,20 @@ class KafkaEventSubscriber(InboundProviderBase):
     async def _retry_event(self, *, event: ExtractedEventInfo, retries_left: int):
         """Retry the event until the maximum number of retries is reached."""
         retries_left -= 1
+        retry_number = self._max_retries - retries_left
+        backoff_time = self._retry_backoff * 2 ** (retry_number - 1)
         try:
             logging.info(
-                "Retry %i of %i for event of type '%s' on topic '%s' with key '%s'.",
-                self._max_retries - retries_left,
+                "Retry %i of %i for event of type '%s' on topic '%s' with key '%s',"
+                + " beginning in %i seconds.",
+                retry_number,
                 self._max_retries,
                 event.type_,
                 event.topic,
                 event.key,
+                backoff_time,
             )
+            await asyncio.sleep(backoff_time)
             await self._translator.consume(
                 payload=event.payload,
                 type_=event.type_,

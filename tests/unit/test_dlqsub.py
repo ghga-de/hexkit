@@ -175,6 +175,7 @@ def make_config(
     dlq_topic: str = "dlq",
     max_retries: int = 0,
     enable_dlq: bool = True,
+    retry_backoff: int = 0,
 ) -> KafkaConfig:
     """Convenience method to merge kafka fixture config with provided DLQ values."""
     return KafkaConfig(
@@ -185,6 +186,7 @@ def make_config(
         kafka_retry_topic=retry_topic,
         kafka_max_retries=max_retries,
         kafka_enable_dlq=enable_dlq,
+        kafka_retry_backoff=retry_backoff,
     )
 
 
@@ -278,7 +280,9 @@ async def test_retries_exhausted(
     the DLQ is enabled. If the DLQ is disabled, then the underlying error should be
     raised.
     """
-    config = make_config(kafka.config, max_retries=max_retries, enable_dlq=enable_dlq)
+    config = make_config(
+        kafka.config, max_retries=max_retries, enable_dlq=enable_dlq, retry_backoff=1
+    )
 
     # Publish test event
     await kafka.publisher.publish(**vars(TEST_EVENT))
@@ -307,10 +311,11 @@ async def test_retries_exhausted(
 
     # Make sure we see the expected number of retry logs
     for n in range(1, max_retries + 1):
+        backoff_time = config.kafka_retry_backoff * 2 ** (n - 1)
         assert_logged(
             "INFO",
             f"Retry {n} of {max_retries} for event of type 'test_type' on topic"
-            + " 'test-topic' with key 'key'.",
+            + f" 'test-topic' with key 'key', beginning in {backoff_time} seconds.",
             caplog_debug.records,
         )
 
