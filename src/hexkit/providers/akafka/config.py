@@ -18,7 +18,7 @@
 
 from typing import Literal
 
-from pydantic import Field, SecretStr
+from pydantic import Field, PositiveInt, SecretStr
 from pydantic_settings import BaseSettings
 
 
@@ -76,9 +76,9 @@ class KafkaConfig(BaseSettings):
             + " newly correlation ID will be generated and used in the event header."
         ),
     )
-    kafka_max_message_size: int = Field(
+    kafka_max_message_size: PositiveInt = Field(
         default=1048576,
         description="The largest message size that can be transmitted, in bytes. Only"
         + " services that have a need to send/receive larger messages should set this.",
-        examples=[0, 16000000],
+        examples=[1048576, 16000000],
     )
