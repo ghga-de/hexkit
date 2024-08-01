@@ -22,6 +22,7 @@ Apache Kafka-specific event publisher provider implementing the
 import json
 import logging
 import ssl
+from collections.abc import Mapping
 from contextlib import asynccontextmanager
 from typing import Any, Callable, Optional, Protocol
 
@@ -149,16 +150,23 @@ class KafkaEventPublisher(EventPublisherProtocol):
         self._producer = producer
         self._generate_correlation_id = generate_correlation_id
 
-    async def _publish_validated(
-        self, *, payload: JsonObject, type_: Ascii, key: Ascii, topic: Ascii
+    async def _publish_validated(  # noqa: PLR0913
+        self,
+        *,
+        payload: JsonObject,
+        type_: Ascii,
+        key: Ascii,
+        topic: Ascii,
+        headers: Mapping[str, str],
     ) -> None:
         """Publish an event with already validated topic and type.
 
         Args:
-            payload (JSON): The payload to ship with the event.
-            type_ (str): The event type. ASCII characters only.
-            key (str): The event type. ASCII characters only.
-            topic (str): The event type. ASCII characters only.
+        - `payload` (JSON): The payload to ship with the event.
+        - `type_` (str): The event type. ASCII characters only.
+        - `key` (str): The event type. ASCII characters only.
+        - `topic` (str): The event type. ASCII characters only.
+        - `headers`: Additional headers to attach to the event.
         """
         try:
             correlation_id = get_correlation_id()
@@ -171,10 +179,22 @@ class KafkaEventPublisher(EventPublisherProtocol):
 
         validate_correlation_id(correlation_id)
 
-        event_headers = [
-            ("type", type_.encode("ascii")),
-            ("correlation_id", correlation_id.encode("ascii")),
-        ]
+        # Create a shallow copy of the headers
+        headers_copy = dict(headers)
+
+        # Check and log warnings for forbidden headers
+        forbidden_headers = ["type", "correlation_id"]
+        for header in forbidden_headers:
+            log_msg = (
+                f"The '{header}' header shouldn't be supplied, but was. Overwriting."
+            )
+            if header in headers_copy:
+                logging.warning(log_msg, extra={header: headers_copy[header]})
+
+        headers_copy["type"] = type_
+        headers_copy["correlation_id"] = correlation_id
+        encoded_headers_list = [(k, v.encode("ascii")) for k, v in headers_copy.items()]
+
         await self._producer.send_and_wait(
-            topic, key=key, value=payload, headers=event_headers
+            topic, key=key, value=payload, headers=encoded_headers_list
         )

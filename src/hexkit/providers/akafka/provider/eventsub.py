@@ -260,25 +260,15 @@ class KafkaEventSubscriber(InboundProviderBase):
         self._enable_dlq = config.kafka_enable_dlq
         self._retry_backoff = config.kafka_retry_backoff
 
-    def _get_original_topic(self, event: ConsumerEvent) -> str:
-        """Get the topic to use -- either the given topic or the one from `_original_topic`."""
-        topic = event.topic
-        if topic == self._retry_topic:
-            topic = str(event.value.get(ORIGINAL_TOPIC_FIELD, ""))
-            logging.info(
-                "Received previously failed event from topic '%s' for retry.", topic
-            )
-        return topic
-
     async def _publish_to_dlq(self, *, event: ExtractedEventInfo):
         """Publish the event to the DLQ topic."""
-        dlq_payload = {**event.payload, ORIGINAL_TOPIC_FIELD: event.topic}
         logging.debug("About to publish an event to DLQ topic '%s'", self._dlq_topic)
         await self._dlq_publisher.publish(  # type: ignore
-            payload=dlq_payload,
+            payload=event.payload,
             type_=event.type_,
             topic=self._dlq_topic,
             key=event.key,
+            headers={ORIGINAL_TOPIC_FIELD: event.topic},
         )
         logging.info("Published event to DLQ topic '%s'", self._dlq_topic)
 
@@ -372,38 +362,37 @@ class KafkaEventSubscriber(InboundProviderBase):
                     raise retry_error from underlying_error
                 await self._publish_to_dlq(event=event)
 
-    def _extract_header_info(self, event: ConsumerEvent) -> tuple[Ascii, str]:
-        """Extract the type and correlation_id from the event headers."""
+    def _extract_info(self, event: ConsumerEvent) -> tuple[str, ExtractedEventInfo]:
+        """Validate the event, returning the correlation ID and the extracted info."""
         headers = headers_as_dict(event)
         type_ = headers.get("type", "")
         correlation_id = headers.get("correlation_id", "")
-        return type_, correlation_id
+        topic = event.topic
+        if topic == self._retry_topic:
+            topic = headers.get(ORIGINAL_TOPIC_FIELD, "")
+            logging.info(
+                "Received previously failed event from topic '%s' for retry.", topic
+            )
 
-    def _extract_payload_and_topic(
-        self, event: ConsumerEvent
-    ) -> tuple[JsonObject, Ascii]:
-        """Extract the payload and topic from the event."""
-        topic = self._get_original_topic(event)
-        payload = event.value
-        if topic != event.topic:
-            payload = {
-                k: v for k, v in event.value.items() if k != ORIGINAL_TOPIC_FIELD
-            }
-        return payload, topic
+        return correlation_id, ExtractedEventInfo(
+            topic=topic, type_=type_, payload=event.value, key=event.key
+        )
 
-    def _validate_event(
-        self, event_info: ExtractedEventInfo, correlation_id: str
-    ) -> None:
-        """Validate event info, but leave payload validation to translator."""
+    def _validate_extracted_info(self, correlation_id: str, event: ExtractedEventInfo):
+        """Extract and validate the event, returning the correlation ID and the extracted info."""
         errors = []
-        if not event_info.type_:
+        if not event.type_:
             errors.append("type_ is empty")
-        elif event_info.type_ not in self._types_whitelist:
-            errors.append(f"type_ '{event_info.type_}' is not in the whitelist")
-        if not event_info.topic:
-            errors.append("topic is empty")
+        elif event.type_ not in self._types_whitelist:
+            errors.append(f"type_ '{event.type_}' is not in the whitelist")
         if not correlation_id:
             errors.append("correlation_id is empty")
+        if event.topic in (self._retry_topic, self._dlq_topic):
+            errors.append(f"topic '{event.topic}' is reserved for internal use")
+        elif not event.topic:
+            errors.append(
+                "topic is empty"
+            )  # only occurs if original_topic header is empty
         if errors:
             error = RuntimeError(", ".join(errors))
             raise error
@@ -411,18 +400,14 @@ class KafkaEventSubscriber(InboundProviderBase):
     async def _consume_event(self, event: ConsumerEvent) -> None:
         """Consume an event by passing it down to the translator via the protocol."""
         event_label = get_event_label(event)
-        type_, correlation_id = self._extract_header_info(event)
-        payload, topic = self._extract_payload_and_topic(event)
-        event_info = ExtractedEventInfo(
-            topic=topic, type_=type_, payload=payload, key=event.key
-        )
+        correlation_id, event_info = self._extract_info(event)
 
         try:
-            self._validate_event(event_info, correlation_id)
+            self._validate_extracted_info(correlation_id, event_info)
         except RuntimeError as err:
             logging.info(
                 "Ignored event of type '%s': %s, errors: %s",
-                type_,
+                event_info.type_,
                 event_label,
                 str(err),
             )
@@ -431,14 +416,16 @@ class KafkaEventSubscriber(InboundProviderBase):
             return
 
         try:
-            logging.info("Consuming event of type '%s': %s", type_, event_label)
+            logging.info(
+                "Consuming event of type '%s': %s", event_info.type_, event_label
+            )
             async with set_correlation_id(correlation_id):
                 await self._handle_consumption(event=event_info)
         except Exception:
             logging.critical(
                 "An error occurred while processing event of type '%s': %s. It was NOT"
                 " placed in the DLQ topic (%s)",
-                type_,
+                event_info.type_,
                 event_label,
                 self._dlq_topic if self._enable_dlq else "DLQ is disabled",
             )
@@ -513,6 +500,7 @@ class KafkaDLQSubscriber(InboundProviderBase):
             value_deserializer=lambda event_value: json.loads(
                 event_value.decode("ascii")
             ),
+            max_partition_fetch_bytes=config.kafka_max_message_size,
         )
 
         try:
@@ -560,7 +548,7 @@ class KafkaDLQSubscriber(InboundProviderBase):
 
         Raises:
         - `OriginalTopicError`:
-            Raised when the original topic is missing from the event.
+            Raised when the original topic is missing from the event headers.
         """
         event_label = get_event_label(event)
         headers = headers_as_dict(event)
@@ -576,10 +564,10 @@ class KafkaDLQSubscriber(InboundProviderBase):
 
         # Raise an error if the original topic is missing, because that is crucial
         # information for publishing to the retry topic
-        original_topic = event.value.get(ORIGINAL_TOPIC_FIELD, "")
+        original_topic = headers.get(ORIGINAL_TOPIC_FIELD, "")
         if not original_topic:
             error = self.OriginalTopicError(event_label=event_label)
-            logging.critical(error, extra={"payload": event.value})
+            logging.critical(error)
             raise error
 
         async with set_correlation_id(correlation_id):
@@ -588,6 +576,7 @@ class KafkaDLQSubscriber(InboundProviderBase):
                 type_=type_,
                 topic=self._retry_topic,
                 key=event.key,
+                headers={ORIGINAL_TOPIC_FIELD: original_topic},
             )
             logging.info(
                 "Published an event with type '%s' to the retry topic '%s'",
