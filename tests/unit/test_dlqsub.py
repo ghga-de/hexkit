@@ -14,6 +14,7 @@
 # limitations under the License.
 """Tests for the Dead Letter Queue (DLQ) event subscribers"""
 
+from collections.abc import Mapping
 from contextlib import nullcontext
 from copy import deepcopy
 from typing import Optional
@@ -107,8 +108,7 @@ class FailSwitchTranslator(EventSubscriberProtocol):
 
         Raises RuntimeError if `fail` is True.
         """
-        if ORIGINAL_TOPIC_FIELD in payload:
-            raise RuntimeError("Original topic field should not be present.")
+        print(f"Consuming validated in dummy. {self.fail=}")
         event = ExtractedEventInfo(payload=payload, type_=type_, topic=topic, key=key)
         if self.fail:
             self.failures.append(event)
@@ -161,7 +161,13 @@ class DummyPublisher(EventPublisherProtocol):
         self.published = []
 
     async def _publish_validated(
-        self, *, payload: JsonObject, type_: Ascii, key: Ascii, topic: Ascii
+        self,
+        *,
+        payload: JsonObject,
+        type_: Ascii,
+        key: Ascii,
+        topic: Ascii,
+        headers: Mapping[str, str],
     ) -> None:
         self.published.append(
             ExtractedEventInfo(payload=payload, type_=type_, topic=topic, key=key)
@@ -249,20 +255,24 @@ async def test_original_topic_is_preserved(kafka: KafkaFixture):
     assert not translator.successes
     async with KafkaEventSubscriber.construct(
         config=config, translator=translator, dlq_publisher=kafka.publisher
-    ) as retry_sub:
+    ) as event_subscriber:
         assert not translator.failures
-        await retry_sub.run(forever=False)
+        await event_subscriber.run(forever=False)
+
+        print("\n\nevent consumed\n\n")
 
         # Run the DLQ subscriber, telling it to publish the event to the retry topic
         async with KafkaDLQSubscriber.construct(
             config=config, dlq_publisher=kafka.publisher
         ) as dlq_sub:
+            print("about to run DLQ sub")
             await dlq_sub.run()
+            print("\n\nevent published back to retry queue\n\n")
 
-        # Make sure the translator has nothing in the successful list, then run again
+        # Make sure the translator has nothing in the successes list, then run again
         assert not translator.successes
         translator.fail = False
-        await retry_sub.run(forever=False)
+        await event_subscriber.run(forever=False)
 
     # Make sure the event received by the translator is identical to the original
     # This means the original topic is preserved and `_original_topic` is removed
@@ -356,13 +366,11 @@ async def test_retries_exhausted(
         assert_not_logged("WARNING", retry_log, caplog_debug.records)
 
     # Put together the expected event with the original topic field appended
-    failed_event_payload = {**TEST_EVENT.payload}
-    failed_event_payload[ORIGINAL_TOPIC_FIELD] = TEST_EVENT.topic
     failed_event = ExtractedEventInfo(
         type_=TEST_EVENT.type_,
         topic=config.kafka_dlq_topic,
         key=TEST_EVENT.key,
-        payload=failed_event_payload,
+        payload=TEST_EVENT.payload,
     )
 
     # Verify that the event was sent to the DLQ topic just once and that it has
@@ -391,17 +399,16 @@ async def test_send_to_retry(kafka: KafkaFixture, caplog_debug):
     """
     config = make_config(kafka.config)
 
-    # Publish event directly to DLQ Topic
-    failed_event_payload = {"test_id": "123456", ORIGINAL_TOPIC_FIELD: "test-topic"}
-
-    failed_event = ExtractedEventInfo(
-        payload=failed_event_payload,
+    event_to_put_in_dlq = ExtractedEventInfo(
+        payload=TEST_EVENT.payload,
         type_="test_type",
         topic=config.kafka_dlq_topic,
         key="123456",
     )
 
-    await kafka.publisher.publish(**vars(failed_event))
+    await kafka.publisher.publish(
+        **vars(event_to_put_in_dlq), headers={ORIGINAL_TOPIC_FIELD: "test-topic"}
+    )
 
     # Set up dummies and consume the event with the DLQ Subscriber
     dummy_publisher = DummyPublisher()
@@ -417,15 +424,15 @@ async def test_send_to_retry(kafka: KafkaFixture, caplog_debug):
         caplog_debug.records,
     )
 
-    # Verify that the event was sent to the retry topic
-    expected_event = ExtractedEventInfo(
-        payload=failed_event_payload,
+    # Verify that the event was sent to the RETRY topic
+    event_to_put_in_retry = ExtractedEventInfo(
+        payload=TEST_EVENT.payload,
         type_="test_type",
         topic=config.kafka_retry_topic,
         key="123456",
     )
 
-    assert dummy_publisher.published == [expected_event]
+    assert dummy_publisher.published == [event_to_put_in_retry]
 
 
 @pytest.mark.asyncio()
@@ -433,7 +440,6 @@ async def test_consume_dlq_without_og_topic(kafka: KafkaFixture, caplog_debug):
     """Test for expected error when the _original_topic is missing from an event."""
     config = make_config(kafka.config)
 
-    # make an event without the _original_topic field in the payload
     event = ExtractedEventInfo(
         payload={"test_id": "123456"},
         type_="test_type",
@@ -441,7 +447,8 @@ async def test_consume_dlq_without_og_topic(kafka: KafkaFixture, caplog_debug):
         key="key",
     )
 
-    # Publish that event directly to DLQ Topic, as if it had already failed
+    # Publish that event directly to the RETRY Topic, as if it had already been requeued
+    # the original topic header is intentionally not included here
     await kafka.publisher.publish(**vars(event))
 
     # Set up dummy publisher and consume the event with the DLQ Subscriber
@@ -465,7 +472,6 @@ async def test_consume_retry_without_og_topic(kafka: KafkaFixture, caplog_debug)
     """
     config = make_config(kafka.config)
 
-    # make an event without the _original_topic field in the payload
     event = ExtractedEventInfo(
         payload={"test_id": "123456"},
         type_="test_type",
@@ -473,7 +479,8 @@ async def test_consume_retry_without_og_topic(kafka: KafkaFixture, caplog_debug)
         key="key",
     )
 
-    # Publish that event directly to DLQ Topic, as if it had already failed
+    # Publish that event directly to RETRY Topic, as if it had already been requeued
+    # the original topic header is intentionally not included here
     await kafka.publisher.publish(**vars(event))
 
     # Set up dummies and consume the event with the DLQ Subscriber
@@ -482,10 +489,10 @@ async def test_consume_retry_without_og_topic(kafka: KafkaFixture, caplog_debug)
     )
     async with KafkaEventSubscriber.construct(
         config=config, translator=translator, dlq_publisher=kafka.publisher
-    ) as retry_subscriber:
+    ) as event_subscriber:
         assert not translator.failures or translator.successes
 
-        await retry_subscriber.run(forever=False)
+        await event_subscriber.run(forever=False)
         parsed_log = assert_logged(
             "INFO",
             "Ignored event of type '%s': %s, errors: %s",
@@ -510,6 +517,7 @@ async def test_dlq_subscriber_ignore(kafka: KafkaFixture, caplog_debug):
     )
 
     # Publish that event directly to DLQ Topic, as if it had already failed
+    # the original topic header is not included here
     await kafka.publisher.publish(**vars(event))
 
     # Set up dummies and consume the event with the DLQ Subscriber
