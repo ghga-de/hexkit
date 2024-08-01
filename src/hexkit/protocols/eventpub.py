@@ -27,7 +27,7 @@ from hexkit.utils import check_ascii
 class EventPublisherProtocol(ABC):
     """A protocol for publishing events to an event broker."""
 
-    async def publish(  # noqa: PLR0913
+    async def publish(
         self,
         *,
         payload: JsonObject,
@@ -58,7 +58,7 @@ class EventPublisherProtocol(ABC):
         )
 
     @abstractmethod
-    async def _publish_validated(  # noqa: PLR0913
+    async def _publish_validated(
         self,
         *,
         payload: JsonObject,

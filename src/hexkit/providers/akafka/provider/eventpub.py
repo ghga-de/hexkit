@@ -150,7 +150,7 @@ class KafkaEventPublisher(EventPublisherProtocol):
         self._producer = producer
         self._generate_correlation_id = generate_correlation_id
 
-    async def _publish_validated(  # noqa: PLR0913
+    async def _publish_validated(
         self,
         *,
         payload: JsonObject,

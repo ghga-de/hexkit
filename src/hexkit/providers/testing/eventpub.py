@@ -77,7 +77,7 @@ class InMemEventPublisher(EventPublisherProtocol):
         """Initialize with existing event_store or let it create a new one."""
         self.event_store = event_store if event_store else InMemEventStore()
 
-    async def _publish_validated(  # noqa: PLR0913
+    async def _publish_validated(
         self,
         *,
         payload: JsonObject,
