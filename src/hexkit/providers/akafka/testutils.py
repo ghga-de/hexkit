@@ -20,7 +20,7 @@ Please note, only use for testing purposes.
 """
 
 import json
-from collections.abc import AsyncGenerator, Generator, Sequence
+from collections.abc import AsyncGenerator, Generator, Mapping, Sequence
 from contextlib import asynccontextmanager
 from dataclasses import dataclass
 from functools import partial
@@ -406,10 +406,18 @@ class KafkaFixture:
         self.publisher = publisher
 
     async def publish_event(
-        self, *, payload: JsonObject, type_: Ascii, topic: Ascii, key: Ascii = "test"
+        self,
+        *,
+        payload: JsonObject,
+        type_: Ascii,
+        topic: Ascii,
+        key: Ascii = "test",
+        headers: Optional[Mapping[str, str]] = None,
     ) -> None:
         """A convenience method to publish a test event."""
-        await self.publisher.publish(payload=payload, type_=type_, key=key, topic=topic)
+        await self.publisher.publish(
+            payload=payload, type_=type_, key=key, topic=topic, headers=headers
+        )
 
     def record_events(
         self, *, in_topic: Ascii, capture_headers: bool = False
