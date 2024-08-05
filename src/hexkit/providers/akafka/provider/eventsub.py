@@ -25,9 +25,16 @@ import asyncio
 import json
 import logging
 import ssl
+from collections.abc import Awaitable
 from contextlib import asynccontextmanager
 from dataclasses import dataclass
-from typing import Callable, Literal, Optional, Protocol, TypeVar
+from typing import (
+    Callable,
+    Literal,
+    Optional,
+    Protocol,
+    TypeVar,
+)
 
 from aiokafka import AIOKafkaConsumer
 
@@ -449,17 +456,70 @@ class KafkaEventSubscriber(InboundProviderBase):
             await self._consume_event(event)
 
 
+# Define function signature for the DLQ processor.
+DLQEventProcessor = Callable[[ConsumerEvent], Awaitable[Optional[ConsumerEvent]]]
+
+
+class DLQValidationError(RuntimeError):
+    """Raised when an event from the DLQ fails validation."""
+
+    def __init__(self, *, event_label: str, error: str):
+        msg = f"DLQ Event '{event_label}' is invalid: {error}"
+        super().__init__(msg)
+
+
+class DLQProcessingError(RuntimeError):
+    """Raised when an error occurs while processing an event from the DLQ."""
+
+    def __init__(self, *, event_label: str, error: str):
+        msg = f"DLQ Event '{event_label}' cannot be processed: {error}"
+        super().__init__(msg)
+
+
+def validate_dlq_headers(event: ConsumerEvent) -> None:
+    """Validate the headers that should be populated on every DLQ event.
+
+    Raises:
+    - `DLQValidationError`: If any headers are determined to be invalid.
+    """
+    event_label = get_event_label(event)
+    headers = headers_as_dict(event)
+
+    expected_headers = ["type", "correlation_id", ORIGINAL_TOPIC_FIELD]
+    invalid_headers = [
+        key for key in expected_headers if key not in headers or not headers[key]
+    ]
+    if invalid_headers:
+        error_msg = f"Missing or empty headers: {', '.join(invalid_headers)}"
+        raise DLQValidationError(event_label=event_label, error=error_msg)
+
+
+async def process_dlq_event(event: ConsumerEvent) -> Optional[ConsumerEvent]:
+    """
+    Simple 'processing' function for a message from a dead-letter queue that
+    adheres to the DLQEventProcessor callable definition.
+
+    Args:
+    - `event`: The event to process.
+
+    Returns:
+    - `ConsumerEvent`: The unaltered event to publish to the retry topic.
+    - `None`: A signal to discard the event.
+
+    Raises:
+    - `DLQValidationError`: If the event headers are invalid.
+    """
+    validate_dlq_headers(event)
+    return event
+
+
 class KafkaDLQSubscriber(InboundProviderBase):
     """A kafka event subscriber that subscribes to the configured DLQ topic and either
     discards each event or publishes it to the retry topic as instructed.
+    Further processing before requeuing is provided by a callable adhering to the
+    DLQEventProcessor definition.
+
     """
-
-    class OriginalTopicError(RuntimeError):
-        """Raised when the original topic is missing from the event."""
-
-        def __init__(self, *, event_label: str):
-            msg = f"Unable to get original topic from event: {event_label}"
-            super().__init__(msg)
 
     @classmethod
     @asynccontextmanager
@@ -467,11 +527,12 @@ class KafkaDLQSubscriber(InboundProviderBase):
         cls,
         *,
         config: KafkaConfig,
-        kafka_consumer_cls: type[KafkaConsumerCompatible] = AIOKafkaConsumer,
         dlq_publisher: EventPublisherProtocol,
+        process_dlq_event: DLQEventProcessor = process_dlq_event,
+        kafka_consumer_cls: type[KafkaConsumerCompatible] = AIOKafkaConsumer,
     ):
         """
-        Setup and teardown KafkaDLQSubscriber instance with some config params.
+        Setup and teardown KafkaDLQSubscriber instance.
 
         Args:
         - `config`:
@@ -482,6 +543,13 @@ class KafkaDLQSubscriber(InboundProviderBase):
             events to the configured retry topic.
         - `kafka_consumer_cls`:
             Overwrite the used Kafka consumer class . Only intended for unit testing.
+        - `process_dlq_event`:
+            An async callable adhering to the DLQEventProcessor definition that provides
+            validation and processing for events from the DLQ. It should return _either_
+            the event to publish to the retry topic (which may be altered) or `None` to
+            discard the event. The `KafkaDLQSubscriber` will log and interpret
+            `DLQValidationError` as a signal to discard/ignore the event, and all other
+            errors will be re-raised as a `DLQProcessingError`.
         """
         client_id = generate_client_id(
             service_name=config.service_name, instance_id=config.service_instance_id
@@ -506,10 +574,11 @@ class KafkaDLQSubscriber(InboundProviderBase):
         try:
             await consumer.start()
             yield cls(
-                consumer=consumer,
-                dlq_publisher=dlq_publisher,
                 dlq_topic=config.kafka_dlq_topic,
                 retry_topic=config.kafka_retry_topic,
+                consumer=consumer,
+                dlq_publisher=dlq_publisher,
+                process_dlq_event=process_dlq_event,
             )
         finally:
             await consumer.stop()
@@ -517,10 +586,11 @@ class KafkaDLQSubscriber(InboundProviderBase):
     def __init__(
         self,
         *,
-        consumer: KafkaConsumerCompatible,
-        dlq_publisher: EventPublisherProtocol,
         dlq_topic: str,
         retry_topic: str,
+        dlq_publisher: EventPublisherProtocol,
+        consumer: KafkaConsumerCompatible,
+        process_dlq_event: DLQEventProcessor,
     ):
         """Please do not call directly! Should be called by the `construct` method.
 
@@ -535,47 +605,39 @@ class KafkaDLQSubscriber(InboundProviderBase):
             KafkaDLQSubscriber subscribes.
         - `retry_topic`:
             The name of the topic used to requeue failed events.
+        - `process_dlq_event`:
+            An async callable adhering to the DLQEventProcessor definition that provides
+            validation and processing for events from the DLQ. It should return _either_
+            the event to publish to the retry topic (which may be altered) or `None` to
+            discard the event. The `KafkaDLQSubscriber` will log and interpret
+            `DLQValidationError` as a signal to discard/ignore the event, and all other
+            errors will be re-raised as a `DLQProcessingError`.
         """
         self._consumer = consumer
         self._publisher = dlq_publisher
         self._dlq_topic = dlq_topic
         self._retry_topic = retry_topic
+        self._process_dlq_event = process_dlq_event
 
-    async def _publish_to_retry(self, event: ConsumerEvent):
+    async def _publish_to_retry(
+        self,
+        *,
+        correlation_id: str,
+        payload: JsonObject,
+        type_: Ascii,
+        key: Ascii,
+        original_topic: Ascii,
+    ) -> None:
         """Publish the event to the retry topic.
 
         Events that lack a type or correlation_id in their headers are ignored.
-
-        Raises:
-        - `OriginalTopicError`:
-            Raised when the original topic is missing from the event headers.
         """
-        event_label = get_event_label(event)
-        headers = headers_as_dict(event)
-
-        try:
-            type_ = headers["type"]
-            correlation_id = headers["correlation_id"]
-        except KeyError as err:
-            logging.warning("Ignored an event: %s. %s", event_label, err.args[0])
-            # acknowledge event receipt
-            await self._consumer.commit()
-            return
-
-        # Raise an error if the original topic is missing, because that is crucial
-        # information for publishing to the retry topic
-        original_topic = headers.get(ORIGINAL_TOPIC_FIELD, "")
-        if not original_topic:
-            error = self.OriginalTopicError(event_label=event_label)
-            logging.critical(error)
-            raise error
-
         async with set_correlation_id(correlation_id):
             await self._publisher.publish(
-                payload=event.value,
+                payload=payload,
                 type_=type_,
                 topic=self._retry_topic,
-                key=event.key,
+                key=key,
                 headers={ORIGINAL_TOPIC_FIELD: original_topic},
             )
             logging.info(
@@ -584,20 +646,64 @@ class KafkaDLQSubscriber(InboundProviderBase):
                 self._retry_topic,
             )
 
+    async def _handle_dlq_event(self, *, event: ConsumerEvent) -> None:
+        """Process an event from the dead-letter queue.
+
+        The event is processed by `_process_dlq_event`, which validates the event
+        and determines whether to publish it to the retry topic or discard it.
+        """
+        try:
+            event_to_publish = await self._process_dlq_event(event)
+        except DLQValidationError as err:
+            logging.error("Ignoring event from DLQ due to validation failure: %s", err)
+            return
+
+        if event_to_publish:
+            headers = headers_as_dict(event_to_publish)
+            correlation_id = headers["correlation_id"]
+            original_topic = headers[ORIGINAL_TOPIC_FIELD]
+            type_ = headers["type"]
+
+            await self._publish_to_retry(
+                correlation_id=correlation_id,
+                payload=event_to_publish.value,
+                type_=type_,
+                key=event_to_publish.key,
+                original_topic=original_topic,
+            )
+
+    async def _ignore_event(self, event: ConsumerEvent) -> None:
+        """Ignore the event, log it, and commit offsets"""
+        event_label = get_event_label(event)
+        logging.info(
+            "Ignoring event from DLQ topic '%s': %s",
+            self._dlq_topic,
+            event_label,
+        )
+        await self._consumer.commit()
+
     async def run(self, ignore: bool = False) -> None:
         """
-        Start consuming events and passing them down to the translator.
-        It will return after handling one event.
-        If `ignore` is True, the event will be ignored.
-        Otherwise, the event will be published to the retry topic.
+        Handles one event and returns.
+        If `ignore` is True, the event will be ignored outright.
+        Otherwise, `_process_dlq_event` will be used to validate and determine what to
+        do with the event.
         """
         event = await self._consumer.__anext__()
         if ignore:
-            event_label = get_event_label(event)
-            logging.info(
-                "Ignored event from DLQ topic '%s': %s",
-                self._dlq_topic,
-                event_label,
-            )
+            await self._ignore_event(event)
             return
-        await self._publish_to_retry(event)
+
+        try:
+            await self._handle_dlq_event(event=event)
+            await self._consumer.commit()
+        except Exception as exc:
+            error = DLQProcessingError(
+                event_label=get_event_label(event), error=str(exc)
+            )
+            logging.critical(
+                "Failed to process event from DLQ topic '%s': '%s'",
+                self._dlq_topic,
+                exc,
+            )
+            raise error from exc

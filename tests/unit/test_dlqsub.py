@@ -22,6 +22,7 @@ from typing import Optional
 import pytest
 from pydantic import BaseModel
 
+from hexkit.correlation import new_correlation_id, set_correlation_id
 from hexkit.custom_types import Ascii, JsonObject
 from hexkit.protocols.daosub import DaoSubscriberProtocol
 from hexkit.protocols.eventpub import EventPublisherProtocol
@@ -30,9 +31,12 @@ from hexkit.providers.akafka import KafkaConfig
 from hexkit.providers.akafka.provider.daosub import KafkaOutboxSubscriber
 from hexkit.providers.akafka.provider.eventsub import (
     ORIGINAL_TOPIC_FIELD,
+    ConsumerEvent,
+    DLQProcessingError,
     ExtractedEventInfo,
     KafkaDLQSubscriber,
     KafkaEventSubscriber,
+    headers_as_dict,
 )
 from hexkit.providers.akafka.testutils import (  # noqa: F401
     KafkaFixture,
@@ -436,36 +440,6 @@ async def test_send_to_retry(kafka: KafkaFixture, caplog_debug):
 
 
 @pytest.mark.asyncio()
-async def test_consume_dlq_without_og_topic(kafka: KafkaFixture, caplog_debug):
-    """Test for expected error when the _original_topic is missing from an event."""
-    config = make_config(kafka.config)
-
-    event = ExtractedEventInfo(
-        payload={"test_id": "123456"},
-        type_="test_type",
-        topic=config.kafka_dlq_topic,
-        key="key",
-    )
-
-    # Publish that event directly to the RETRY Topic, as if it had already been requeued
-    # the original topic header is intentionally not included here
-    await kafka.publisher.publish(**vars(event))
-
-    # Set up dummy publisher and consume the event with the DLQ Subscriber
-    dummy_publisher = DummyPublisher()
-    async with KafkaDLQSubscriber.construct(
-        config=config, dlq_publisher=dummy_publisher
-    ) as dlq_sub:
-        # Expect to raise an error because the _original_topic field is missing
-        text = r"Unable to get original topic from event: dlq - \d - key - \d"
-        with pytest.raises(KafkaDLQSubscriber.OriginalTopicError, match=text) as err:
-            await dlq_sub.run(ignore=False)
-        assert not dummy_publisher.published
-
-    assert_logged("CRITICAL", err.value.args[0], caplog_debug.records)
-
-
-@pytest.mark.asyncio()
 async def test_consume_retry_without_og_topic(kafka: KafkaFixture, caplog_debug):
     """If the original topic is missing when consuming an event from the retry queue,
     the event should be ignored and the offset committed. The information should be logged.
@@ -530,11 +504,11 @@ async def test_dlq_subscriber_ignore(kafka: KafkaFixture, caplog_debug):
 
     parsed_log = assert_logged(
         "INFO",
-        "Ignored event from DLQ topic '%s': %s",
+        "Ignoring event from DLQ topic '%s': %s",
         caplog_debug.records,
         parse=False,
     )
-    assert parsed_log.startswith("Ignored event from DLQ topic 'dlq': dlq")
+    assert parsed_log.startswith("Ignoring event from DLQ topic 'dlq': dlq")
 
     # Assert that the event was not published to the retry topic
     assert not dummy_publisher.published
@@ -638,3 +612,105 @@ async def test_kafka_event_subcriber_construction(caplog):
         "A publisher is required when the DLQ is enabled.",
         caplog.records,
     )
+
+
+@pytest.mark.parametrize(
+    "validation_error", [True, False], ids=["validation_error", "no_validation_error"]
+)
+@pytest.mark.asyncio
+async def test_default_dlq_processor(
+    kafka: KafkaFixture, caplog, validation_error: bool
+):
+    """Verify that `process_dlq_event` behaves as expected.
+
+    Assert that the event is republished unchanged or ignored.
+    """
+    config = make_config(kafka.config)
+
+    dlq_test_event = ExtractedEventInfo(
+        payload=TEST_EVENT.payload,
+        type_=TEST_EVENT.type_,
+        topic=config.kafka_dlq_topic,
+        key=TEST_EVENT.key,
+    )
+
+    # Publish test event directly to DLQ with chosen correlation ID OR ignored
+    correlation_id = new_correlation_id()
+    async with set_correlation_id(correlation_id):
+        await kafka.publish_event(
+            **vars(dlq_test_event),
+            headers={
+                ORIGINAL_TOPIC_FIELD: "test-topic" if not validation_error else ""
+            },
+        )
+
+    dummy_publisher = DummyPublisher()
+    async with KafkaDLQSubscriber.construct(
+        config=config, dlq_publisher=dummy_publisher
+    ) as dlq_sub:
+        assert not dummy_publisher.published
+        caplog.clear()
+        await dlq_sub.run()
+        assert dummy_publisher.published == [] if validation_error else [dlq_test_event]
+
+    if validation_error:
+        assert len(caplog.records) > 0  # could be more, but should be at least 1
+        log = caplog.records[0]
+        assert log.msg.startswith("Ignoring event from DLQ due to validation failure:")
+
+
+@pytest.mark.parametrize(
+    "processing_error", [True, False], ids=["processing_error", "no_processing_error"]
+)
+@pytest.mark.asyncio
+async def test_custom_dlq_processors(kafka: KafkaFixture, processing_error: bool):
+    """Test that a custom DLQ processor can be used with the KafkaDLQSubscriber."""
+
+    class CustomDLQProcessor:
+        hits: list[ConsumerEvent]
+        fail: bool
+
+        def __init__(self):
+            self.hits = []
+            self.fail = processing_error
+
+        async def process(self, event: ConsumerEvent) -> Optional[ConsumerEvent]:
+            self.hits.append(event)
+            if self.fail:
+                raise RuntimeError("Destined to fail.")
+            return event
+
+    config = make_config(kafka.config)
+
+    # Publish test event directly to DLQ with chosen correlation ID
+    correlation_id = new_correlation_id()
+    async with set_correlation_id(correlation_id):
+        await kafka.publish_event(
+            payload=TEST_EVENT.payload,
+            type_=TEST_EVENT.type_,
+            topic=config.kafka_dlq_topic,
+            key=TEST_EVENT.key,
+            headers={ORIGINAL_TOPIC_FIELD: "test-topic"},
+        )
+
+    # Create custom processor instance and consume with the KafkaDLQSubscriber
+    custom_processor = CustomDLQProcessor()
+    async with KafkaDLQSubscriber.construct(
+        config=config,
+        dlq_publisher=DummyPublisher(),
+        process_dlq_event=custom_processor.process,
+    ) as dlq_sub:
+        assert not custom_processor.hits
+        with pytest.raises(DLQProcessingError) if processing_error else nullcontext():
+            await dlq_sub.run()
+
+        # verify that the event was received processed by the custom processor
+        assert len(custom_processor.hits)
+        event = custom_processor.hits[0]
+        headers = headers_as_dict(event)
+        assert headers["type"] == TEST_EVENT.type_
+        assert headers["correlation_id"] == correlation_id
+        assert headers[ORIGINAL_TOPIC_FIELD] == "test-topic"
+        assert event.value == TEST_EVENT.payload
+        assert event.topic == config.kafka_dlq_topic
+        assert event.key == TEST_EVENT.key
