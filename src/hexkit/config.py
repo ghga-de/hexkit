@@ -143,7 +143,7 @@ def config_from_yaml(
                 model_config = SettingsConfigDict(frozen=True, env_prefix=f"{prefix}_")
 
                 @classmethod
-                def settings_customise_sources(  # noqa: PLR0913
+                def settings_customise_sources(
                     cls,
                     settings_cls: type[BaseSettings],
                     init_settings: PydanticBaseSettingsSource,

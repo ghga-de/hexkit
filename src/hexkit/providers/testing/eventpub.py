@@ -21,6 +21,7 @@ ATTENTION: For testing purposes only.
 """
 
 from collections import defaultdict, deque
+from collections.abc import Mapping
 from typing import NamedTuple, Optional
 
 from hexkit.custom_types import JsonObject
@@ -77,7 +78,13 @@ class InMemEventPublisher(EventPublisherProtocol):
         self.event_store = event_store if event_store else InMemEventStore()
 
     async def _publish_validated(
-        self, *, payload: JsonObject, type_: str, key: str, topic: str
+        self,
+        *,
+        payload: JsonObject,
+        type_: str,
+        key: str,
+        topic: str,
+        headers: Mapping[str, str],
     ) -> None:
         """Publish an event with already validated topic and type.
 
