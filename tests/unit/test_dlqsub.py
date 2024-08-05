@@ -174,7 +174,9 @@ class DummyPublisher(EventPublisherProtocol):
         headers: Mapping[str, str],
     ) -> None:
         self.published.append(
-            ExtractedEventInfo(payload=payload, type_=type_, topic=topic, key=key)
+            ExtractedEventInfo(
+                payload=payload, type_=type_, topic=topic, key=key, headers=headers
+            )
         )
 
 
@@ -375,6 +377,7 @@ async def test_retries_exhausted(
         topic=config.kafka_dlq_topic,
         key=TEST_EVENT.key,
         payload=TEST_EVENT.payload,
+        headers={ORIGINAL_TOPIC_FIELD: "test-topic"},
     )
 
     # Verify that the event was sent to the DLQ topic just once and that it has
@@ -408,11 +411,10 @@ async def test_send_to_retry(kafka: KafkaFixture, caplog_debug):
         type_="test_type",
         topic=config.kafka_dlq_topic,
         key="123456",
+        headers={ORIGINAL_TOPIC_FIELD: "test-topic"},
     )
 
-    await kafka.publisher.publish(
-        **vars(event_to_put_in_dlq), headers={ORIGINAL_TOPIC_FIELD: "test-topic"}
-    )
+    await kafka.publisher.publish(**vars(event_to_put_in_dlq))
 
     # Set up dummies and consume the event with the DLQ Subscriber
     dummy_publisher = DummyPublisher()
@@ -429,14 +431,8 @@ async def test_send_to_retry(kafka: KafkaFixture, caplog_debug):
     )
 
     # Verify that the event was sent to the RETRY topic
-    event_to_put_in_retry = ExtractedEventInfo(
-        payload=TEST_EVENT.payload,
-        type_="test_type",
-        topic=config.kafka_retry_topic,
-        key="123456",
-    )
-
-    assert dummy_publisher.published == [event_to_put_in_retry]
+    event_to_put_in_dlq.topic = config.kafka_retry_topic
+    assert dummy_publisher.published == [event_to_put_in_dlq]
 
 
 @pytest.mark.asyncio()
@@ -632,17 +628,13 @@ async def test_default_dlq_processor(
         type_=TEST_EVENT.type_,
         topic=config.kafka_dlq_topic,
         key=TEST_EVENT.key,
+        headers={ORIGINAL_TOPIC_FIELD: "test-topic" if not validation_error else ""},
     )
 
     # Publish test event directly to DLQ with chosen correlation ID OR ignored
     correlation_id = new_correlation_id()
     async with set_correlation_id(correlation_id):
-        await kafka.publish_event(
-            **vars(dlq_test_event),
-            headers={
-                ORIGINAL_TOPIC_FIELD: "test-topic" if not validation_error else ""
-            },
-        )
+        await kafka.publish_event(**vars(dlq_test_event))
 
     dummy_publisher = DummyPublisher()
     async with KafkaDLQSubscriber.construct(
@@ -674,11 +666,11 @@ async def test_custom_dlq_processors(kafka: KafkaFixture, processing_error: bool
             self.hits = []
             self.fail = processing_error
 
-        async def process(self, event: ConsumerEvent) -> Optional[ConsumerEvent]:
+        async def process(self, event: ConsumerEvent) -> Optional[ExtractedEventInfo]:
             self.hits.append(event)
             if self.fail:
                 raise RuntimeError("Destined to fail.")
-            return event
+            return ExtractedEventInfo(event)
 
     config = make_config(kafka.config)
 

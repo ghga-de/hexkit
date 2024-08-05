@@ -28,13 +28,7 @@ import ssl
 from collections.abc import Awaitable
 from contextlib import asynccontextmanager
 from dataclasses import dataclass
-from typing import (
-    Callable,
-    Literal,
-    Optional,
-    Protocol,
-    TypeVar,
-)
+from typing import Callable, Literal, Optional, Protocol, TypeVar, cast
 
 from aiokafka import AIOKafkaConsumer
 
@@ -65,20 +59,30 @@ class ConsumerEvent(Protocol):
 
 @dataclass
 class ExtractedEventInfo:
-    """A class encapsulating the data extracted from a `ConsumerEvent` instance.
+    """A class encapsulating the data extracted from a `ConsumerEvent`-like object.
 
     This data includes the topic, type, payload, and key of the event.
-
-    `topic` is the original topic of the event, which may differ from the topic listed
-    on the ConsumerEvent instance if DLQ is used.
-    `type_` is extracted from the event headers.
-    `payload` is `ConsumerEvent.value`, and `key` is unchanged.
     """
 
     topic: Ascii
     type_: Ascii
     payload: JsonObject
     key: Ascii
+    headers: dict[str, str]
+
+    def __init__(self, event: Optional[ConsumerEvent] = None, **kwargs):
+        """Initialize an instance of ExtractedEventInfo."""
+        self.topic = kwargs.get("topic", event.topic if event else "")
+        self.payload = kwargs.get("payload", event.value if event else "")
+        self.key = kwargs.get("key", event.key if event else "")
+        self.headers = kwargs.get("headers", headers_as_dict(event) if event else {})
+        self.headers = cast(dict, self.headers)
+        self.type_ = kwargs.get("type_", self.headers.get("type", ""))
+
+    @property
+    def encoded_headers(self) -> list[tuple[str, bytes]]:
+        """Return the headers as a list of 2-tuples with the values encoded as bytes."""
+        return [(name, value.encode("ascii")) for name, value in self.headers.items()]
 
 
 def get_event_label(event: ConsumerEvent) -> str:
@@ -369,24 +373,20 @@ class KafkaEventSubscriber(InboundProviderBase):
                     raise retry_error from underlying_error
                 await self._publish_to_dlq(event=event)
 
-    def _extract_info(self, event: ConsumerEvent) -> tuple[str, ExtractedEventInfo]:
-        """Validate the event, returning the correlation ID and the extracted info."""
-        headers = headers_as_dict(event)
-        type_ = headers.get("type", "")
-        correlation_id = headers.get("correlation_id", "")
-        topic = event.topic
-        if topic == self._retry_topic:
-            topic = headers.get(ORIGINAL_TOPIC_FIELD, "")
+    def _extract_info(self, event: ConsumerEvent) -> ExtractedEventInfo:
+        """Validate the event, returning the extracted info."""
+        event_info = ExtractedEventInfo(event)
+        if event_info.topic == self._retry_topic:
+            event_info.topic = event_info.headers.get(ORIGINAL_TOPIC_FIELD, "")
             logging.info(
-                "Received previously failed event from topic '%s' for retry.", topic
+                "Received previously failed event from topic '%s' for retry.",
+                event_info.topic,
             )
+        return event_info
 
-        return correlation_id, ExtractedEventInfo(
-            topic=topic, type_=type_, payload=event.value, key=event.key
-        )
-
-    def _validate_extracted_info(self, correlation_id: str, event: ExtractedEventInfo):
+    def _validate_extracted_info(self, event: ExtractedEventInfo):
         """Extract and validate the event, returning the correlation ID and the extracted info."""
+        correlation_id = event.headers.get("correlation_id", "")
         errors = []
         if not event.type_:
             errors.append("type_ is empty")
@@ -407,10 +407,10 @@ class KafkaEventSubscriber(InboundProviderBase):
     async def _consume_event(self, event: ConsumerEvent) -> None:
         """Consume an event by passing it down to the translator via the protocol."""
         event_label = get_event_label(event)
-        correlation_id, event_info = self._extract_info(event)
+        event_info = self._extract_info(event)
 
         try:
-            self._validate_extracted_info(correlation_id, event_info)
+            self._validate_extracted_info(event_info)
         except RuntimeError as err:
             logging.info(
                 "Ignored event of type '%s': %s, errors: %s",
@@ -426,6 +426,7 @@ class KafkaEventSubscriber(InboundProviderBase):
             logging.info(
                 "Consuming event of type '%s': %s", event_info.type_, event_label
             )
+            correlation_id = event_info.headers["correlation_id"]
             async with set_correlation_id(correlation_id):
                 await self._handle_consumption(event=event_info)
         except Exception:
@@ -457,22 +458,22 @@ class KafkaEventSubscriber(InboundProviderBase):
 
 
 # Define function signature for the DLQ processor.
-DLQEventProcessor = Callable[[ConsumerEvent], Awaitable[Optional[ConsumerEvent]]]
+DLQEventProcessor = Callable[[ConsumerEvent], Awaitable[Optional[ExtractedEventInfo]]]
 
 
 class DLQValidationError(RuntimeError):
     """Raised when an event from the DLQ fails validation."""
 
-    def __init__(self, *, event_label: str, error: str):
-        msg = f"DLQ Event '{event_label}' is invalid: {error}"
+    def __init__(self, *, event: ConsumerEvent, error: str):
+        msg = f"DLQ Event '{get_event_label(event)}' is invalid: {error}"
         super().__init__(msg)
 
 
 class DLQProcessingError(RuntimeError):
     """Raised when an error occurs while processing an event from the DLQ."""
 
-    def __init__(self, *, event_label: str, error: str):
-        msg = f"DLQ Event '{event_label}' cannot be processed: {error}"
+    def __init__(self, *, event: ConsumerEvent, error: str):
+        msg = f"DLQ Event '{get_event_label(event)}' cannot be processed: {error}"
         super().__init__(msg)
 
 
@@ -482,19 +483,17 @@ def validate_dlq_headers(event: ConsumerEvent) -> None:
     Raises:
     - `DLQValidationError`: If any headers are determined to be invalid.
     """
-    event_label = get_event_label(event)
     headers = headers_as_dict(event)
-
     expected_headers = ["type", "correlation_id", ORIGINAL_TOPIC_FIELD]
     invalid_headers = [
         key for key in expected_headers if key not in headers or not headers[key]
     ]
     if invalid_headers:
         error_msg = f"Missing or empty headers: {', '.join(invalid_headers)}"
-        raise DLQValidationError(event_label=event_label, error=error_msg)
+        raise DLQValidationError(event=event, error=error_msg)
 
 
-async def process_dlq_event(event: ConsumerEvent) -> Optional[ConsumerEvent]:
+async def process_dlq_event(event: ConsumerEvent) -> Optional[ExtractedEventInfo]:
     """
     Simple 'processing' function for a message from a dead-letter queue that
     adheres to the DLQEventProcessor callable definition.
@@ -510,7 +509,7 @@ async def process_dlq_event(event: ConsumerEvent) -> Optional[ConsumerEvent]:
     - `DLQValidationError`: If the event headers are invalid.
     """
     validate_dlq_headers(event)
-    return event
+    return ExtractedEventInfo(event)
 
 
 class KafkaDLQSubscriber(InboundProviderBase):
@@ -619,30 +618,22 @@ class KafkaDLQSubscriber(InboundProviderBase):
         self._retry_topic = retry_topic
         self._process_dlq_event = process_dlq_event
 
-    async def _publish_to_retry(
-        self,
-        *,
-        correlation_id: str,
-        payload: JsonObject,
-        type_: Ascii,
-        key: Ascii,
-        original_topic: Ascii,
-    ) -> None:
-        """Publish the event to the retry topic.
+    async def _publish_to_retry(self, *, event: ExtractedEventInfo) -> None:
+        """Publish the event to the retry topic."""
+        correlation_id = event.headers["correlation_id"]
+        original_topic = event.headers[ORIGINAL_TOPIC_FIELD]
 
-        Events that lack a type or correlation_id in their headers are ignored.
-        """
         async with set_correlation_id(correlation_id):
             await self._publisher.publish(
-                payload=payload,
-                type_=type_,
+                payload=event.payload,
+                type_=event.type_,
+                key=event.key,
                 topic=self._retry_topic,
-                key=key,
                 headers={ORIGINAL_TOPIC_FIELD: original_topic},
             )
             logging.info(
                 "Published an event with type '%s' to the retry topic '%s'",
-                type_,
+                event.type_,
                 self._retry_topic,
             )
 
@@ -659,18 +650,7 @@ class KafkaDLQSubscriber(InboundProviderBase):
             return
 
         if event_to_publish:
-            headers = headers_as_dict(event_to_publish)
-            correlation_id = headers["correlation_id"]
-            original_topic = headers[ORIGINAL_TOPIC_FIELD]
-            type_ = headers["type"]
-
-            await self._publish_to_retry(
-                correlation_id=correlation_id,
-                payload=event_to_publish.value,
-                type_=type_,
-                key=event_to_publish.key,
-                original_topic=original_topic,
-            )
+            await self._publish_to_retry(event=event_to_publish)
 
     async def _ignore_event(self, event: ConsumerEvent) -> None:
         """Ignore the event, log it, and commit offsets"""
@@ -698,9 +678,7 @@ class KafkaDLQSubscriber(InboundProviderBase):
             await self._handle_dlq_event(event=event)
             await self._consumer.commit()
         except Exception as exc:
-            error = DLQProcessingError(
-                event_label=get_event_label(event), error=str(exc)
-            )
+            error = DLQProcessingError(event=event, error=str(exc))
             logging.critical(
                 "Failed to process event from DLQ topic '%s': '%s'",
                 self._dlq_topic,

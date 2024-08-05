@@ -23,14 +23,22 @@ from .daosub import KafkaOutboxSubscriber
 from .eventpub import KafkaEventPublisher
 from .eventsub import (
     ConsumerEvent,
+    ExtractedEventInfo,
+    KafkaDLQSubscriber,
     KafkaEventSubscriber,
     headers_as_dict,
+    process_dlq_event,
+    validate_dlq_headers,
 )
 
 __all__ = [
     "KafkaEventPublisher",
+    "ExtractedEventInfo",
     "KafkaEventSubscriber",
     "ConsumerEvent",
     "headers_as_dict",
     "KafkaOutboxSubscriber",
+    "KafkaDLQSubscriber",
+    "process_dlq_event",
+    "validate_dlq_headers",
 ]
