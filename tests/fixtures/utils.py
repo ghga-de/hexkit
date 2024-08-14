@@ -69,7 +69,8 @@ def assert_logged(
     - `records`: The log records to check (usually `caplog.records`)
     - `parse`: Whether to parse the message with the arguments from the log record.
 
-    If a match is found, the parsed message is returned (regardless of the value of `parse`).
+    If a match is found, the parsed message is returned (regardless of the value of
+    `parse`) and removed from the records list.
     """
     for i, record in enumerate(records):
         msg_to_inspect = str(record.msg) % record.args if parse else record.msg

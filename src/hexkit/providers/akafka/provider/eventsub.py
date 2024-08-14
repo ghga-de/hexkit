@@ -192,7 +192,7 @@ class KafkaEventSubscriber(InboundProviderBase):
                 type annotation) and an application-specific port
                 (according to the triple hexagonal architecture).
             dlq_publisher:
-                running instance of publishing provider that implements the
+                A running instance of a publishing provider that implements the
                 EventPublisherProtocol, such as KafkaEventPublisher. Can be None if
                 not using the dead letter queue. It is used to publish events to the DLQ.
             kafka_consumer_cls:
@@ -255,7 +255,7 @@ class KafkaEventSubscriber(InboundProviderBase):
                 type annotation) and an application-specific port
                 (according to the triple hexagonal architecture).
             dlq_publisher:
-                running instance of publishing provider that implements the
+                A running instance of a publishing provider that implements the
                 EventPublisherProtocol, such as KafkaEventPublisher. Can be None if
                 not using the dead letter queue. It is used to publish events to the DLQ.
             config:
@@ -537,11 +537,11 @@ class KafkaDLQSubscriber(InboundProviderBase):
         - `config`:
             Config parameters needed for connecting to Apache Kafka.
         - `dlq_publisher`:
-            running instance of publishing provider that implements the
+            A running instance of a publishing provider that implements the
             EventPublisherProtocol, such as KafkaEventPublisher. It is used to publish
             events to the configured retry topic.
         - `kafka_consumer_cls`:
-            Overwrite the used Kafka consumer class . Only intended for unit testing.
+            Overwrite the used Kafka consumer class. Only intended for unit testing.
         - `process_dlq_event`:
             An async callable adhering to the DLQEventProcessor definition that provides
             validation and processing for events from the DLQ. It should return _either_
@@ -597,7 +597,7 @@ class KafkaDLQSubscriber(InboundProviderBase):
         - `consumer`:
             hands over a started AIOKafkaConsumer.
         - `dlq_publisher`:
-            running instance of publishing provider that implements the
+            A running instance of a publishing provider that implements the
             EventPublisherProtocol, such as KafkaEventPublisher.
         - `dlq_topic`:
             The name of the topic used to store failed events, to which the
