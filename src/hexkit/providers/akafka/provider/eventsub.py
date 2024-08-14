@@ -389,9 +389,9 @@ class KafkaEventSubscriber(InboundProviderBase):
         correlation_id = event.headers.get("correlation_id", "")
         errors = []
         if not event.type_:
-            errors.append("type_ is empty")
+            errors.append("event type is empty")
         elif event.type_ not in self._types_whitelist:
-            errors.append(f"type_ '{event.type_}' is not in the whitelist")
+            errors.append(f"event type '{event.type_}' is not in the whitelist")
         if not correlation_id:
             errors.append("correlation_id is empty")
         if event.topic in (self._retry_topic, self._dlq_topic):
