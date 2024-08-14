@@ -227,8 +227,8 @@ class KafkaEventSubscriber(InboundProviderBase):
             max_partition_fetch_bytes=config.kafka_max_message_size,
         )
 
+        await consumer.start()
         try:
-            await consumer.start()
             yield cls(
                 consumer=consumer,
                 translator=translator,
@@ -570,8 +570,8 @@ class KafkaDLQSubscriber(InboundProviderBase):
             max_partition_fetch_bytes=config.kafka_max_message_size,
         )
 
+        await consumer.start()
         try:
-            await consumer.start()
             yield cls(
                 dlq_topic=config.kafka_dlq_topic,
                 retry_topic=config.kafka_retry_topic,
