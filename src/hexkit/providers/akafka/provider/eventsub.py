@@ -171,6 +171,16 @@ class KafkaEventSubscriber(InboundProviderBase):
             msg = f"All retries (total of {max_retries}) exhausted for '{event_type}' event."
             super().__init__(msg)
 
+    class RetriesLeftError(ValueError):
+        """Raised when the value for `retries_left` is invalid."""
+
+        def __init__(self, *, retries_left: int, max_retries: int):
+            msg = (
+                f"Invalid value for retries_left: {retries_left} (should be between"
+                + f" 1 and {max_retries}, inclusive)."
+            )
+            super().__init__(msg)
+
     @classmethod
     @asynccontextmanager
     async def construct(
@@ -290,13 +300,12 @@ class KafkaEventSubscriber(InboundProviderBase):
 
         Raises:
         - `RetriesExhaustedError`: If all retries are exhausted without success.
-        - `ValueError`: If `retries_left` is invalid.
+        - `RetriesLeftError`: If the value for `retries_left` is invalid.
         """
         # Check if retries_left is valid.
         if not 0 < retries_left <= self._max_retries:
-            error = ValueError(
-                f"Invalid value for retries_left: {retries_left} (should be between"
-                + f" 1 and {self._max_retries})"
+            error = self.RetriesLeftError(
+                retries_left=retries_left, max_retries=self._max_retries
             )
             logging.error(error)
             raise error
@@ -364,10 +373,10 @@ class KafkaEventSubscriber(InboundProviderBase):
             # Don't raise RetriesExhaustedError unless retries are actually attempted
             try:
                 await self._retry_event(event=event, retries_left=self._max_retries)
-            except (self.RetriesExhaustedError, ValueError) as retry_error:
-                # In case of ValueError, proceed with flow because that error is
-                # likely due to a hexkit bug, not a config/event error.
-                # Publish to the DLQ or re-raise the exception
+            except (self.RetriesExhaustedError, self.RetriesLeftError) as retry_error:
+                # If the value for retries_left was invalid, we still want to handle it
+                # the same way as if all retries were exhausted. The separate error is
+                # for better traceability.
                 logging.warning(retry_error)
                 if not self._enable_dlq:
                     raise retry_error from underlying_error

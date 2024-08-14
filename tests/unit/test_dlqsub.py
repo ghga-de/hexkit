@@ -297,20 +297,20 @@ async def test_invalid_retries_left(kafka: KafkaFixture, caplog_debug):
     async with KafkaEventSubscriber.construct(
         config=config, translator=translator, dlq_publisher=dummy_publisher
     ) as retry_sub:
-        with pytest.raises(ValueError):
+        with pytest.raises(KafkaEventSubscriber.RetriesLeftError):
             await retry_sub._retry_event(event=TEST_EVENT, retries_left=-1)
 
-        with pytest.raises(ValueError):
+        with pytest.raises(KafkaEventSubscriber.RetriesLeftError):
             await retry_sub._retry_event(event=TEST_EVENT, retries_left=3)
 
     assert_logged(
         "ERROR",
-        "Invalid value for retries_left: -1 (should be between 1 and 2)",
+        "Invalid value for retries_left: -1 (should be between 1 and 2, inclusive).",
         caplog_debug.records,
     )
     assert_logged(
         "ERROR",
-        "Invalid value for retries_left: 3 (should be between 1 and 2)",
+        "Invalid value for retries_left: 3 (should be between 1 and 2, inclusive).",
         caplog_debug.records,
     )
 
