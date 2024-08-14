@@ -54,7 +54,7 @@ class EventPublisherProtocol(ABC):
             type_=type_,
             key=key,
             topic=topic,
-            headers=headers if headers is not None else {},
+            headers=headers,
         )
 
     @abstractmethod
