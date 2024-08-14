@@ -494,7 +494,7 @@ def validate_dlq_headers(event: ConsumerEvent) -> None:
     """
     headers = headers_as_dict(event)
     expected_headers = ["type", "correlation_id", ORIGINAL_TOPIC_FIELD]
-    invalid_headers = [key for key in expected_headers if not headers.get(key, None)]
+    invalid_headers = [key for key in expected_headers if not headers.get(key)]
     if invalid_headers:
         error_msg = f"Missing or empty headers: {', '.join(invalid_headers)}"
         raise DLQValidationError(event=event, error=error_msg)
