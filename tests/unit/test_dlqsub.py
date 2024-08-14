@@ -281,7 +281,7 @@ async def test_original_topic_is_preserved(kafka: KafkaFixture):
         await event_subscriber.run(forever=False)
 
     # Make sure the event received by the translator is identical to the original
-    # This means the original topic is preserved and `_original_topic` is removed
+    # This means the original topic is preserved and `original_topic` is removed
     assert translator.failures == [TEST_EVENT]
     assert translator.successes == [TEST_EVENT]
 
@@ -478,7 +478,7 @@ async def test_dlq_subscriber_ignore(kafka: KafkaFixture, caplog_debug):
     """Test what happens when a DLQ Subscriber is instructed to ignore an event."""
     config = make_config(kafka.config)
 
-    # make an event without the _original_topic field in the payload
+    # make an event without the original_topic field in the payload
     event = ExtractedEventInfo(
         payload={"test_id": "123456", ORIGINAL_TOPIC_FIELD: "test-topic"},
         type_="test_type",

@@ -42,6 +42,8 @@ from hexkit.providers.akafka.provider.utils import (
     generate_ssl_context,
 )
 
+RESERVED_HEADERS = ["type", "correlation_id"]
+
 
 class KafkaProducerCompatible(Protocol):
     """A python duck type protocol describing an AIOKafkaProducer or equivalent."""
@@ -182,9 +184,8 @@ class KafkaEventPublisher(EventPublisherProtocol):
         # Create a shallow copy of the headers
         headers_copy = dict(headers)
 
-        # Check and log warnings for forbidden headers
-        forbidden_headers = ["type", "correlation_id"]
-        for header in forbidden_headers:
+        # Check and log warnings for reserved headers
+        for header in RESERVED_HEADERS:
             log_msg = (
                 f"The '{header}' header shouldn't be supplied, but was. Overwriting."
             )

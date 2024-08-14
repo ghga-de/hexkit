@@ -43,7 +43,7 @@ from hexkit.providers.akafka.provider.utils import (
     generate_ssl_context,
 )
 
-ORIGINAL_TOPIC_FIELD = "_original_topic"
+ORIGINAL_TOPIC_FIELD = "original_topic"
 
 
 class ConsumerEvent(Protocol):
