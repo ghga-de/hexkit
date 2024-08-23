@@ -404,7 +404,10 @@ class KafkaEventSubscriber(InboundProviderBase):
         if not correlation_id:
             errors.append("correlation_id is empty")
         if event.topic in (self._retry_topic, self._dlq_topic):
-            errors.append(f"topic '{event.topic}' is reserved for internal use")
+            errors.append(
+                f"original_topic header cannot be {self._retry_topic} or"
+                + f" {self._dlq_topic}. Value: '{event.topic}'"
+            )
         elif not event.topic:
             errors.append(
                 "topic is empty"
