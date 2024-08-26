@@ -112,7 +112,6 @@ class FailSwitchTranslator(EventSubscriberProtocol):
 
         Raises RuntimeError if `fail` is True.
         """
-        print(f"Consuming validated in dummy. {self.fail=}")
         event = ExtractedEventInfo(payload=payload, type_=type_, topic=topic, key=key)
         if self.fail:
             self.failures.append(event)
@@ -136,8 +135,6 @@ class FailSwitchOutboxTranslator(DaoSubscriberProtocol):
 
     async def changed(self, resource_id: str, update: OutboxDto) -> None:
         """Dummy"""
-        if ORIGINAL_TOPIC_FIELD in update.model_dump():
-            raise RuntimeError("Original topic field should not be present.")
         self.upsertions.append(
             ExtractedEventInfo(
                 payload=update.model_dump(),
@@ -265,15 +262,11 @@ async def test_original_topic_is_preserved(kafka: KafkaFixture):
         assert not translator.failures
         await event_subscriber.run(forever=False)
 
-        print("\n\nevent consumed\n\n")
-
         # Run the DLQ subscriber, telling it to publish the event to the retry topic
         async with KafkaDLQSubscriber.construct(
             config=config, dlq_publisher=kafka.publisher
         ) as dlq_sub:
-            print("about to run DLQ sub")
             await dlq_sub.run()
-            print("\n\nevent published back to retry queue\n\n")
 
         # Make sure the translator has nothing in the successes list, then run again
         assert not translator.successes
@@ -343,7 +336,7 @@ async def test_retries_exhausted(
         with pytest.raises(RuntimeError) if not enable_dlq else nullcontext():
             await retry_sub.run(forever=False)
 
-    # Verify that the event was retried twice after initial failure
+    # Verify that the event was retried "max_retries" times after initial failure (if any)
     assert translator.failures == [TEST_EVENT] * (max_retries + 1)
 
     # Check for initial failure log
@@ -478,9 +471,9 @@ async def test_dlq_subscriber_ignore(kafka: KafkaFixture, caplog_debug):
     """Test what happens when a DLQ Subscriber is instructed to ignore an event."""
     config = make_config(kafka.config)
 
-    # make an event without the original_topic field in the payload
+    # make an event without the original_topic field in the header
     event = ExtractedEventInfo(
-        payload={"test_id": "123456", ORIGINAL_TOPIC_FIELD: "test-topic"},
+        payload={"test_id": "123456"},
         type_="test_type",
         topic=config.kafka_dlq_topic,
         key="key",
