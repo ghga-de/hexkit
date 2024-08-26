@@ -10,6 +10,7 @@
 scripts/script_utils/fastapi_app_location.py
 
 Dockerfile
+Dockerfile.debian
 config_schema.json
 example_config.yaml
 

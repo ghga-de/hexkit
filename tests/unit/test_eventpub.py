@@ -31,7 +31,7 @@ class FakePublisher(EventPublisherProtocol):
     any logic.
     """
 
-    async def _publish_validated(self, *, payload, type_, key, topic) -> None:
+    async def _publish_validated(self, *, payload, type_, key, topic, headers) -> None:
         pass
 
 

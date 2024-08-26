@@ -27,12 +27,12 @@ JsonObject = Mapping[
 
 
 # A type indicating that a string should be ascii-compatible.
-# Technically it is an alias for `str` so it only serves documention purposes.
+# Technically it is an alias for `str` so it only serves documentation purposes.
 Ascii = str
 
 
 # A AsyncConstructable is a class with a async (class-)method `construct` that is used when
-# asynchronous constuction/instantiation logic is needed (which cannot be handeled in
+# asynchronous construction/instantiation logic is needed (which cannot be handled in
 # a synchronous __init__ method).
 # With the current typing features of Python, it seems not possible to correctly type
 # a class with that signature.

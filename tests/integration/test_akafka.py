@@ -174,7 +174,7 @@ async def test_consumer_commit_mode(kafka: KafkaFixture):
     """Verify the consumer implementation behavior matches expectations."""
     type_ = "test_type"
     topic = "test_topic"
-    type_ = "test_type"
+
     partition = TopicPartition(topic, 0)
 
     error_message = "Consumer crashed successfully."

@@ -21,6 +21,7 @@
 import logging
 from collections.abc import Sequence
 from contextlib import asynccontextmanager
+from typing import Optional
 
 from aiokafka import AIOKafkaConsumer
 from pydantic import ValidationError
@@ -31,6 +32,7 @@ from hexkit.protocols.daosub import (
     DaoSubscriberProtocol,
     DtoValidationError,
 )
+from hexkit.protocols.eventpub import EventPublisherProtocol
 from hexkit.protocols.eventsub import EventSubscriberProtocol
 from hexkit.providers.akafka.config import KafkaConfig
 from hexkit.providers.akafka.provider.eventsub import (
@@ -85,8 +87,8 @@ class TranslatorConverter(EventSubscriberProtocol):
                 dto = translator.dto_model.model_validate(payload)
             except ValidationError as error:
                 message = (
-                    f"The event of type {type_} on topic {topic} was not valid wrt. the"
-                    + " DTO model."
+                    f"The event of type {type_} on topic {topic}"
+                    + " was not valid wrt. the DTO model."
                 )
                 logging.error(message)
                 raise DtoValidationError(message) from error
@@ -110,21 +112,34 @@ class KafkaOutboxSubscriber(InboundProviderBase):
         *,
         config: KafkaConfig,
         translators: Sequence[DaoSubscriberProtocol],
+        dlq_publisher: Optional[EventPublisherProtocol] = None,
         kafka_consumer_cls: type[KafkaConsumerCompatible] = AIOKafkaConsumer,
     ):
         """Setup and teardown an instance of the provider.
 
         Args:
-            config: MongoDB-specific config parameters.
+        - `config`: MongoDB-specific config parameters.
+        - `translators`: A sequence of translators implementing the
+            `DaoSubscriberProtocol`.
+        - `dlq_publisher`: An instance of the publisher to use for the DLQ. Can be None
+            if not using the dead letter queue. It is used to publish events to the DLQ.
+        - `kafka_consumer_cls`: The Kafka consumer class to use. Defaults to
+            `AIOKafkaConsumer`.
 
         Returns:
             An instance of the provider.
         """
         translator_converter = TranslatorConverter(translators=translators)
 
+        if config.kafka_enable_dlq and dlq_publisher is None:
+            error = ValueError("A publisher is required when the DLQ is enabled.")
+            logging.error(error)
+            raise error
+
         async with KafkaEventSubscriber.construct(
             config=config,
             translator=translator_converter,
+            dlq_publisher=dlq_publisher,
             kafka_consumer_cls=kafka_consumer_cls,
         ) as event_subscriber:
             yield cls(event_subscriber=event_subscriber)
