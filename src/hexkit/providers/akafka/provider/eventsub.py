@@ -476,16 +476,16 @@ DLQEventProcessor = Callable[[ConsumerEvent], Awaitable[Optional[ExtractedEventI
 class DLQValidationError(RuntimeError):
     """Raised when an event from the DLQ fails validation."""
 
-    def __init__(self, *, event: ConsumerEvent, error: str):
-        msg = f"DLQ Event '{get_event_label(event)}' is invalid: {error}"
+    def __init__(self, *, event: ConsumerEvent, reason: str):
+        msg = f"DLQ Event '{get_event_label(event)}' is invalid: {reason}"
         super().__init__(msg)
 
 
 class DLQProcessingError(RuntimeError):
     """Raised when an error occurs while processing an event from the DLQ."""
 
-    def __init__(self, *, event: ConsumerEvent, error: str):
-        msg = f"DLQ Event '{get_event_label(event)}' cannot be processed: {error}"
+    def __init__(self, *, event: ConsumerEvent, reason: str):
+        msg = f"DLQ Event '{get_event_label(event)}' cannot be processed: {reason}"
         super().__init__(msg)
 
 
@@ -500,7 +500,7 @@ def validate_dlq_headers(event: ConsumerEvent) -> None:
     invalid_headers = [key for key in expected_headers if not headers.get(key)]
     if invalid_headers:
         error_msg = f"Missing or empty headers: {', '.join(invalid_headers)}"
-        raise DLQValidationError(event=event, error=error_msg)
+        raise DLQValidationError(event=event, reason=error_msg)
 
 
 async def process_dlq_event(event: ConsumerEvent) -> Optional[ExtractedEventInfo]:
@@ -527,7 +527,6 @@ class KafkaDLQSubscriber(InboundProviderBase):
     discards each event or publishes it to the retry topic as instructed.
     Further processing before requeuing is provided by a callable adhering to the
     DLQEventProcessor definition.
-
     """
 
     @classmethod
@@ -688,7 +687,7 @@ class KafkaDLQSubscriber(InboundProviderBase):
             await self._handle_dlq_event(event=event)
             await self._consumer.commit()
         except Exception as exc:
-            error = DLQProcessingError(event=event, error=str(exc))
+            error = DLQProcessingError(event=event, reason=str(exc))
             logging.critical(
                 "Failed to process event from DLQ topic '%s': '%s'",
                 self._dlq_topic,

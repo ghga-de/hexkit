@@ -166,8 +166,8 @@ class KafkaEventPublisher(EventPublisherProtocol):
         Args:
         - `payload` (JSON): The payload to ship with the event.
         - `type_` (str): The event type. ASCII characters only.
-        - `key` (str): The event type. ASCII characters only.
-        - `topic` (str): The event type. ASCII characters only.
+        - `key` (str): The event key. ASCII characters only.
+        - `topic` (str): The event topic. ASCII characters only.
         - `headers`: Additional headers to attach to the event.
         """
         try:
