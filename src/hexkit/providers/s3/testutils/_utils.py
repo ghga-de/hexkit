@@ -44,7 +44,7 @@ class FileObject(BaseModel):
     bucket_id: str
     object_id: str
 
-    @computed_field  # type: ignore [misc]
+    @computed_field  # type: ignore [prop-decorator]
     @property
     def content(self) -> bytes:
         """Extract the content from the file at the provided path"""
@@ -53,7 +53,7 @@ class FileObject(BaseModel):
         with open(self.file_path, "rb") as file:
             return file.read()
 
-    @computed_field  # type: ignore [misc]
+    @computed_field  # type: ignore [prop-decorator]
     @property
     def md5(self) -> str:
         """Calculate the md5 hash of the content"""
