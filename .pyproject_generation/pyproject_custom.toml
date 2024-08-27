@@ -1,6 +1,6 @@
 [project]
 name = "hexkit"
-version = "3.5.0"
+version = "3.5.1"
 description = "A Toolkit for Building Microservices using the Hexagonal Architecture"
 requires-python = ">=3.9"
 classifiers = [
