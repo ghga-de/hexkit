@@ -22,7 +22,7 @@ with the database.
 
 import typing
 from abc import ABC, abstractmethod
-from collections.abc import AsyncIterator, Collection, Generator, Mapping
+from collections.abc import AsyncIterator, Collection, Mapping
 from contextlib import AbstractAsyncContextManager
 from typing import Any, Optional, TypeVar
 from uuid import uuid4
@@ -38,7 +38,6 @@ __all__ = [
     "MultipleHitsFoundError",
     "Dao",
     "DaoFactoryProtocol",
-    "uuid4_id_generator",
     "BaseModelWithId",
 ]
 
@@ -222,12 +221,6 @@ class Dao(typing.Protocol[Dto]):
                 resource ID.
         """
         ...
-
-
-def uuid4_id_generator() -> Generator[str, None]:
-    """Generates a new ID using the UUID4 algorithm."""
-    while True:
-        yield str(uuid4())
 
 
 class DaoFactoryBase:
