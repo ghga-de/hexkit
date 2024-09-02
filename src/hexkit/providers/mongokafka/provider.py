@@ -32,11 +32,7 @@ from pydantic import field_validator
 
 from hexkit.correlation import get_correlation_id, set_correlation_id
 from hexkit.custom_types import JsonObject
-from hexkit.protocols.dao import (
-    DaoNaturalId,
-    Dto,
-    ResourceNotFoundError,
-)
+from hexkit.protocols.dao import Dao, Dto, ResourceNotFoundError
 from hexkit.protocols.daopub import DaoPublisher, DaoPublisherFactoryProtocol
 from hexkit.protocols.eventpub import EventPublisherProtocol
 from hexkit.providers.akafka import KafkaConfig, KafkaEventPublisher
@@ -44,7 +40,7 @@ from hexkit.providers.akafka.provider.daosub import CHANGE_EVENT_TYPE, DELETE_EV
 from hexkit.providers.akafka.provider.eventpub import KafkaProducerCompatible
 from hexkit.providers.mongodb.provider import (
     MongoDbConfig,
-    MongoDbDaoNaturalId,
+    MongoDbDao,
     get_single_hit,
     replace_id_field_in_find_mapping,
     validate_find_mapping,
@@ -168,10 +164,10 @@ def assert_not_deleted():
 
 
 class MongoKafkaDaoPublisher(Generic[Dto]):
-    """A DAO that uses a natural resource ID provided by the client."""
+    """A MongoDB DAO that uses Kafka to publish document upsertions and deletions."""
 
     @classmethod
-    def with_transaction(cls) -> AbstractAsyncContextManager["DaoNaturalId[Dto]"]:
+    def with_transaction(cls) -> AbstractAsyncContextManager["Dao[Dto]"]:
         """Creates a transaction manager that uses an async context manager interface:
 
         Upon __aenter__, pens a new transactional scope. Returns a transaction-scoped
@@ -189,7 +185,7 @@ class MongoKafkaDaoPublisher(Generic[Dto]):
         id_field: str,
         dto_model: type[Dto],
         collection: AgnosticCollection,
-        dao: MongoDbDaoNaturalId[Dto],
+        dao: MongoDbDao[Dto],
         publish_change: Callable[[Dto], Awaitable[None]],
         publish_delete: Callable[[str], Awaitable[None]],
         autopublish: bool,
@@ -481,7 +477,7 @@ class MongoKafkaDaoPublisherFactory(DaoPublisherFactoryProtocol):
         )
         dto_to_document_ = lambda dto: dto_to_document(dto=dto, id_field=id_field)
 
-        dao = MongoDbDaoNaturalId(
+        dao = MongoDbDao(
             collection=collection,
             dto_model=dto_model,
             id_field=id_field,
