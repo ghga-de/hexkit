@@ -16,8 +16,6 @@
 
 """Test MongoDB-based providers."""
 
-import itertools
-from collections.abc import AsyncGenerator
 from datetime import datetime
 from pathlib import Path
 
@@ -25,6 +23,7 @@ import pytest
 from pydantic import BaseModel, ConfigDict
 
 from hexkit.protocols.dao import (
+    BaseModelWithId,
     InvalidFindMappingError,
     MultipleHitsFoundError,
     NoHitsFoundError,
@@ -40,20 +39,13 @@ from hexkit.providers.mongodb.testutils import (
 pytestmark = pytest.mark.asyncio()
 
 
-class ExampleCreationDto(BaseModel):
-    """Example DTO creation model."""
+class ExampleDto(BaseModelWithId):
+    """Example DTO with an auto-generated ID."""
 
     model_config = ConfigDict(frozen=True)
-
     field_a: str
     field_b: int
     field_c: bool
-
-
-class ExampleDto(ExampleCreationDto):
-    """Example DTO model."""
-
-    id: str
 
 
 async def test_dao_find_all_with_id(mongodb: MongoDbFixture):
@@ -61,25 +53,17 @@ async def test_dao_find_all_with_id(mongodb: MongoDbFixture):
     dao = await mongodb.dao_factory.get_dao(
         name="example",
         dto_model=ExampleDto,
-        dto_creation_model=ExampleCreationDto,
         id_field="id",
     )
 
     # insert an example resource:
-    resource_to_create = ExampleCreationDto(field_a="test1", field_b=27, field_c=True)
-    resource_inserted = await dao.insert(resource_to_create)
-
-    assert isinstance(resource_inserted, ExampleDto)
-    assert (
-        resource_inserted.model_dump(exclude={"id"}) == resource_to_create.model_dump()
-    )
+    resource = ExampleDto(field_a="test1", field_b=27, field_c=True)
+    await dao.insert(resource)
 
     # retrieve the resource with find_all
-    resources_read = [
-        x async for x in dao.find_all(mapping={"id": resource_inserted.id})
-    ]
+    resources_read = [x async for x in dao.find_all(mapping={"id": resource.id})]
     assert len(resources_read) == 1
-    assert resources_read[0].id == resource_inserted.id
+    assert resources_read[0].id == resource.id
 
     # make sure the previous check wasn't a false positive
     no_results = [x async for x in dao.find_all(mapping={"id": "noresults"})]
@@ -87,25 +71,22 @@ async def test_dao_find_all_with_id(mongodb: MongoDbFixture):
 
     # make sure other fields beside ID aren't getting ignored
     no_results_multifield = [
-        x
-        async for x in dao.find_all(
-            mapping={"id": resource_inserted.id, "field_b": 134293487}
-        )
+        x async for x in dao.find_all(mapping={"id": resource.id, "field_b": 134293487})
     ]
     assert len(no_results_multifield) == 0
 
     multifield_found = [
         x
         async for x in dao.find_all(
-            mapping={"id": resource_inserted.id, "field_b": resource_inserted.field_b}
+            mapping={"id": resource.id, "field_b": resource.field_b}
         )
     ]
     assert len(multifield_found) == 1
-    assert multifield_found[0] == resource_inserted
+    assert multifield_found[0] == resource
 
     # find_one calls find_all, so double check that it works there too
-    result = await dao.find_one(mapping={"id": resource_inserted.id})
-    assert result == resource_inserted
+    result = await dao.find_one(mapping={"id": resource.id})
+    assert result == resource
 
 
 async def test_dao_find_all_without_collection(mongodb: MongoDbFixture):
@@ -140,72 +121,8 @@ async def test_empty_collections(mongodb: MongoDbFixture):
     assert db.list_collection_names() == []
 
 
-async def test_dao_happy(mongodb: MongoDbFixture):
-    """Test the happy path of performing basic CRUD database interactions using
-    the MongoDbDaoFactory in a surrogate ID setting.
-    """
-    dao = await mongodb.dao_factory.get_dao(
-        name="example",
-        dto_model=ExampleDto,
-        dto_creation_model=ExampleCreationDto,
-        id_field="id",
-    )
-
-    # insert an example resource:
-    resource_to_create = ExampleCreationDto(field_a="test1", field_b=27, field_c=True)
-    resource_inserted = await dao.insert(resource_to_create)
-
-    assert isinstance(resource_inserted, ExampleDto)
-    assert (
-        resource_inserted.model_dump(exclude={"id"}) == resource_to_create.model_dump()
-    )
-
-    # read the newly inserted resource:
-    resource_read = await dao.get_by_id(resource_inserted.id)
-
-    assert resource_read == resource_inserted
-
-    # update the resource:
-    resource_update = resource_inserted.model_copy(update={"field_c": False})
-    await dao.update(resource_update)
-
-    # read the updated resource again:
-    resource_updated = await dao.get_by_id(resource_inserted.id)
-
-    assert resource_update == resource_updated
-
-    # insert additional resources:
-    add_resources_to_create = (
-        ExampleCreationDto(field_a="test2", field_b=27, field_c=True),
-        ExampleCreationDto(field_a="test3", field_b=27, field_c=False),
-    )
-    add_resources_inserted = [
-        await dao.insert(resource) for resource in add_resources_to_create
-    ]
-
-    # perform a search for multiple resources:
-    obtained_hits = {
-        hit async for hit in dao.find_all(mapping={"field_b": 27, "field_c": False})
-    }
-
-    expected_hits = {resource_updated, add_resources_inserted[1]}
-    assert obtained_hits == expected_hits
-
-    # find a single resource:
-    obtained_hit = await dao.find_one(mapping={"field_a": "test1"})
-
-    assert obtained_hit == resource_updated
-
-    # delete the resource:
-    await dao.delete(resource_inserted.id)
-
-    # confirm that the resource was deleted:
-    with pytest.raises(ResourceNotFoundError):
-        _ = await dao.get_by_id(resource_inserted.id)
-
-
-async def test_dao_insert_natural_id_happy(mongodb: MongoDbFixture):
-    """Tests the happy path of inserting a new resource in a natural ID setting."""
+async def test_dao_insert_happy(mongodb: MongoDbFixture):
+    """Tests the happy path of inserting a new resource."""
     dao = await mongodb.dao_factory.get_dao(
         name="example",
         dto_model=ExampleDto,
@@ -228,16 +145,14 @@ async def test_dao_insert_natural_id_happy(mongodb: MongoDbFixture):
 
 
 async def test_dao_upsert_natural_id_happy(mongodb: MongoDbFixture):
-    """Tests the happy path of upserting new and existing resources in a natural ID
-    setting.
-    """
+    """Tests the happy path of upserting new and existing resources."""
     dao = await mongodb.dao_factory.get_dao(
         name="example",
         dto_model=ExampleDto,
         id_field="id",
     )
 
-    resource = ExampleDto(id="example_001", field_a="test1", field_b=27, field_c=True)
+    resource = ExampleDto(field_a="test1", field_b=27, field_c=True)
     await dao.upsert(resource)
 
     # check the newly inserted resource:
@@ -262,7 +177,7 @@ async def test_dao_get_not_found(mongodb: MongoDbFixture):
     )
 
     with pytest.raises(ResourceNotFoundError):
-        _ = await dao.get_by_id("my_non_existing_id_001")
+        await dao.get_by_id("my_non_existing_id_001")
 
 
 async def test_dao_update_not_found(mongodb: MongoDbFixture):
@@ -273,9 +188,7 @@ async def test_dao_update_not_found(mongodb: MongoDbFixture):
         id_field="id",
     )
 
-    resource = ExampleDto(
-        id="my_non_existing_id_001", field_a="test1", field_b=27, field_c=True
-    )
+    resource = ExampleDto(field_a="test1", field_b=27, field_c=True)
 
     with pytest.raises(ResourceNotFoundError):
         await dao.update(resource)
@@ -330,52 +243,15 @@ async def test_dao_find_one_with_multiple_hits(mongodb: MongoDbFixture):
     dao = await mongodb.dao_factory.get_dao(
         name="example",
         dto_model=ExampleDto,
-        dto_creation_model=ExampleCreationDto,
         id_field="id",
     )
 
-    # insert three identical resources (we are in a surrogate ID setting so the
-    # created resources will differ in ID):
-    resource_blueprint = ExampleCreationDto(field_a="test1", field_b=27, field_c=True)
+    # insert three identical resources (only the IDs will differ)
     for _ in range(3):
-        _ = await dao.insert(resource_blueprint)
+        await dao.insert(ExampleDto(field_a="test1", field_b=27, field_c=True))
 
     with pytest.raises(MultipleHitsFoundError):
         _ = await dao.find_one(mapping={"field_b": 27})
-
-
-async def test_custom_id_generator(mongodb: MongoDbFixture):
-    """Tests find_one with a mapping that results in multiple hits."""
-
-    # define a custom generator:
-    async def prefixed_count_id_generator(
-        prefix: str, count_offset: int = 1
-    ) -> AsyncGenerator[str, None]:
-        """A generator that yields IDs by counting upwards und prefixing that counts
-        with a predefined string.
-        """
-        for count in itertools.count(start=count_offset):
-            yield f"{prefix}-{count}"
-
-    count_offset = 10
-    prefix = "my-test-id"
-    my_test_id_generator = prefixed_count_id_generator(
-        prefix=prefix, count_offset=count_offset
-    )
-
-    # use that custom generator for inserting 3 resources:
-    dao = await mongodb.dao_factory.get_dao(
-        name="example",
-        dto_model=ExampleDto,
-        dto_creation_model=ExampleCreationDto,
-        id_field="id",
-        id_generator=my_test_id_generator,
-    )
-
-    resource_blueprint = ExampleCreationDto(field_a="test1", field_b=27, field_c=True)
-    for count in range(3):
-        resource_inserted = await dao.insert(resource_blueprint)
-        assert resource_inserted.id == f"{prefix}-{count_offset+count}"
 
 
 async def test_complex_models(mongodb: MongoDbFixture):
