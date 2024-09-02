@@ -41,7 +41,7 @@ def storage_aliases():
 async def test_get_configs_by_alias(federated_s3: FederatedS3Fixture):
     """Test that `get_configs_by_alias` returns the configs of each storage by name."""
     configs = federated_s3.get_configs_by_alias()
-    assert configs.keys() == set(STORAGE_ALIASES)
+    assert set(configs) == set(STORAGE_ALIASES)
     for config in configs.values():
         assert isinstance(config, S3Config)
 
@@ -78,7 +78,7 @@ async def test_multi_container_fixture(
     s3_multi_container: S3MultiContainerFixture,
 ):
     """Test that the multi container fixture actually uses separate S3 instances."""
-    assert s3_multi_container.s3_containers.keys() == set(STORAGE_ALIASES)
+    assert set(s3_multi_container.s3_containers) == set(STORAGE_ALIASES)
     storage1 = s3_multi_container.s3_containers[PRIMARY_STORAGE_ALIAS]
     storage2 = s3_multi_container.s3_containers[SECONDARY_STORAGE_ALIAS]
     assert storage1.s3_config != storage2.s3_config
