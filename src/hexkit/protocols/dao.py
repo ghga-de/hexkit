@@ -21,6 +21,7 @@ with the database.
 # ruff: noqa: PLR0913
 
 import typing
+import warnings
 from abc import ABC, abstractmethod
 from collections.abc import AsyncGenerator, AsyncIterator, Collection, Mapping
 from contextlib import AbstractAsyncContextManager
@@ -29,6 +30,7 @@ from typing import Any, Optional, TypeVar, Union, overload
 from uuid import uuid4
 
 from pydantic import BaseModel
+from typing_extensions import deprecated
 
 from hexkit.utils import FieldNotInModelError, validate_fields_in_model
 
@@ -259,6 +261,9 @@ class DaoNaturalId(DaoCommons[Dto], typing.Protocol[Dto]):
         ...
 
 
+@deprecated(
+    "uuid4_id_generator is deprecated as of v3.6 and will be removed in hexkit v4."
+)
 async def uuid4_id_generator() -> AsyncGenerator[str, None]:
     """Generates a new ID using the UUID4 algorithm.
     This is an AsyncGenerator to be compliant with the id_generator requirements of the
@@ -440,6 +445,15 @@ class DaoFactoryProtocol(DaoFactoryBase, ABC):
         if id_generator is None:
             # instantiate the default ID generator:
             id_generator = uuid4_id_generator()
+
+        if dto_creation_model is not None:
+            dep_msg = (
+                "The DAO API (and existing providers) are deprecated as of v3.6."
+                + " They will be simplified in hexkit v4."
+                + " Please plan to provide IDs during resource creation. The same model"
+                + " should be used for both creation and retrieval."
+            )
+            warnings.warn(dep_msg, category=DeprecationWarning, stacklevel=2)
 
         return await self._get_dao(
             name=name,
