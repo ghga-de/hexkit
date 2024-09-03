@@ -14,7 +14,7 @@
 # limitations under the License.
 #
 
-"""Testing the dao factory protocol."""
+"""Testing the DAO factory protocol."""
 
 from collections.abc import Collection
 from typing import Optional
