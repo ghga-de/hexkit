@@ -136,6 +136,18 @@ async def test_dao_insert_happy(mongodb: MongoDbFixture):
     resource_observed = await dao.get_by_id(resource.id)
     assert resource == resource_observed
 
+
+async def test_dao_insert_unhappy(mongodb: MongoDbFixture):
+    """Test the situation where the ID already exists in the DB."""
+    dao = await mongodb.dao_factory.get_dao(
+        name="example",
+        dto_model=ExampleDto,
+        id_field="id",
+    )
+
+    resource = ExampleDto(id="example_001", field_a="test1", field_b=27, field_c=True)
+    await dao.insert(resource)
+
     # check error is raised correctly on trying to insert duplicate
     with pytest.raises(
         ResourceAlreadyExistsError,
