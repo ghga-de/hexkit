@@ -144,7 +144,7 @@ async def test_dao_insert_happy(mongodb: MongoDbFixture):
         await dao.insert(resource)
 
 
-async def test_dao_upsert_natural_id_happy(mongodb: MongoDbFixture):
+async def test_dao_upsert_happy(mongodb: MongoDbFixture):
     """Tests the happy path of upserting new and existing resources."""
     dao = await mongodb.dao_factory.get_dao(
         name="example",
