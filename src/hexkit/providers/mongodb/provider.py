@@ -22,6 +22,7 @@ Utilities for testing are located in `./testutils.py`.
 # ruff: noqa: PLR0913
 
 import json
+import warnings
 from abc import ABC
 from collections.abc import AsyncGenerator, AsyncIterator, Collection, Mapping
 from contextlib import AbstractAsyncContextManager
@@ -162,6 +163,17 @@ class MongoDbDaoBase(ABC, Generic[Dto]):
         self._id_field = id_field
         self._document_to_dto = document_to_dto
         self._dto_to_document = dto_to_document
+
+        warnings.warn(
+            "The MongoDbDaoBase class and subclasses are deprecated as of v3.6 and will"
+            + " be replaced in hexkit v4 with the new MongoDbDao class. To replace the"
+            + " MongoDbDaoNaturalId: just use the new class. To replace the"
+            + " MongoDbDaoSurrogateId: use the new class, remove the creation model and"
+            + " id_generator parameters, and make sure the supplied DTO model includes"
+            + " the ID field.",
+            category=DeprecationWarning,
+            stacklevel=2,
+        )
 
     async def get_by_id(self, id_: str) -> Dto:
         """Get a resource by providing its ID.
