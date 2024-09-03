@@ -24,6 +24,7 @@ import typing
 from abc import ABC, abstractmethod
 from collections.abc import AsyncIterator, Collection, Mapping
 from contextlib import AbstractAsyncContextManager
+from functools import partial
 from typing import Any, Optional, TypeVar
 from uuid import uuid4
 
@@ -38,7 +39,7 @@ __all__ = [
     "MultipleHitsFoundError",
     "Dao",
     "DaoFactoryProtocol",
-    "BaseModelWithId",
+    "UUID4Field",
 ]
 
 # Type variable for handling Data Transfer Objects:
@@ -95,16 +96,13 @@ class NoHitsFoundError(FindError):
         super().__init__(message)
 
 
-class BaseModelWithId(BaseModel):
-    """A convenience base class for DTOs that have an ID field and require automatic ID
-    generation. When the model is created, a new UUID4 is generated and assigned to the
-    ID field.
-    """
+def get_uuid4_str() -> str:
+    """Generate a UUID4 string."""
+    return str(uuid4())
 
-    id: str = Field(
-        default_factory=lambda: str(uuid4()),
-        description="The unique identifier of the resource.",
-    )
+
+# provide standardized default factory for UUID4 fields
+UUID4Field = partial(Field, default_factory=get_uuid4_str)
 
 
 class Dao(typing.Protocol[Dto]):

@@ -23,12 +23,12 @@ import pytest
 from pydantic import BaseModel, ConfigDict
 
 from hexkit.protocols.dao import (
-    BaseModelWithId,
     InvalidFindMappingError,
     MultipleHitsFoundError,
     NoHitsFoundError,
     ResourceAlreadyExistsError,
     ResourceNotFoundError,
+    UUID4Field,
 )
 from hexkit.providers.mongodb.testutils import (
     MongoDbFixture,
@@ -39,10 +39,14 @@ from hexkit.providers.mongodb.testutils import (
 pytestmark = pytest.mark.asyncio()
 
 
-class ExampleDto(BaseModelWithId):
-    """Example DTO with an auto-generated ID."""
+class ExampleDto(BaseModel):
+    """Example DTO with an auto-generated ID.
+
+    Does not use `UUID4` type in order to facilitate testing.
+    """
 
     model_config = ConfigDict(frozen=True)
+    id: str = UUID4Field(description="The ID of the resource.")
     field_a: str
     field_b: int
     field_c: bool

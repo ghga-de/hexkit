@@ -20,8 +20,9 @@ from collections.abc import Collection
 from typing import Optional
 
 import pytest
+from pydantic import BaseModel
 
-from hexkit.protocols.dao import BaseModelWithId, Dao, DaoFactoryProtocol, Dto
+from hexkit.protocols.dao import Dao, DaoFactoryProtocol, Dto, UUID4Field
 
 pytestmark = pytest.mark.asyncio()
 
@@ -43,9 +44,10 @@ class FakeDaoFactory(DaoFactoryProtocol):
         raise NotImplementedError()
 
 
-class ExampleDto(BaseModelWithId):
+class ExampleDto(BaseModel):
     """Example DTO model."""
 
+    id: str = UUID4Field(description="The ID of the resource.")
     some_param: str
     another_param: int
 
