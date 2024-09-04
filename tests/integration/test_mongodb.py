@@ -21,7 +21,7 @@ from datetime import datetime
 from pathlib import Path
 
 import pytest
-from pydantic import UUID4, BaseModel, ConfigDict
+from pydantic import UUID4, BaseModel, ConfigDict, Field
 
 from hexkit.protocols.dao import (
     InvalidFindMappingError,
@@ -302,3 +302,38 @@ async def test_complex_models(mongodb: MongoDbFixture):
     resource_read = await dao.get_by_id(resource_to_create.id)
 
     assert resource_read == resource_to_create
+
+
+async def test_duplicate_uuid(mongodb: MongoDbFixture):
+    """Test to illustrate how to handle duplicate UUIDs."""
+
+    class SmallDto(BaseModel):
+        """Small Dto class that produces a predictable UUID."""
+
+        id: UUID4 = Field(default_factory=lambda: EXAMPLE_ID1)
+        field: str
+
+    dao = await mongodb.dao_factory.get_dao(
+        name="example",
+        dto_model=SmallDto,
+        id_field="id",
+    )
+
+    resource = SmallDto(field="test1")
+    assert resource.id == EXAMPLE_ID1
+    await dao.insert(resource)
+
+    # check the newly inserted resource:
+    resource_observed = await dao.get_by_id(resource.id)
+    assert resource_observed == resource
+
+    # insert a new resource with the same ID:
+    resource2 = SmallDto(field="test2")
+    assert resource2.id == EXAMPLE_ID1
+    with pytest.raises(ResourceAlreadyExistsError):
+        await dao.insert(resource2)
+
+    # Generate new ID
+    resource2 = SmallDto(id=uuid.uuid4(), field="test2")
+    assert resource2.id != EXAMPLE_ID1
+    await dao.insert(resource2)
