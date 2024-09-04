@@ -23,7 +23,8 @@ import json
 import logging
 from collections.abc import AsyncIterator, Awaitable, Collection, Mapping
 from contextlib import AbstractAsyncContextManager, asynccontextmanager, contextmanager
-from typing import Any, Callable, Generic, Optional
+from typing import Any, Callable, Generic, Optional, Union
+from uuid import UUID
 
 from aiokafka import AIOKafkaProducer
 from motor.core import AgnosticCollection
@@ -220,7 +221,7 @@ class MongoKafkaDaoPublisher(Generic[Dto]):
         self._publish_delete = publish_delete
         self._autopublish = autopublish
 
-    async def get_by_id(self, id_: str) -> Dto:
+    async def get_by_id(self, id_: Union[str, UUID]) -> Dto:
         """Get a resource by providing its ID.
 
         Args:
@@ -232,6 +233,9 @@ class MongoKafkaDaoPublisher(Generic[Dto]):
         Raises:
             ResourceNotFoundError: when resource with the specified id_ was not found
         """
+        if isinstance(id_, UUID):
+            id_ = str(id_)
+
         with assert_not_deleted():
             return await self._dao.get_by_id(id_)
 
