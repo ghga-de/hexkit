@@ -170,7 +170,7 @@ class MongoDbDaoBase(ABC, Generic[Dto]):
             + " MongoDbDaoNaturalId: just use the new class. To replace the"
             + " MongoDbDaoSurrogateId: use the new class, remove the creation model and"
             + " id_generator parameters, and make sure the supplied DTO model includes"
-            + " the ID field.",
+            + " the ID field with a default factory for generating new IDs.",
             category=DeprecationWarning,
             stacklevel=2,
         )
