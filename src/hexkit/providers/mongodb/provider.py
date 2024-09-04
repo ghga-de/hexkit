@@ -24,7 +24,8 @@ Utilities for testing are located in `./testutils.py`.
 import json
 from collections.abc import AsyncIterator, Collection, Mapping
 from contextlib import AbstractAsyncContextManager
-from typing import Any, Callable, Generic, Optional
+from typing import Any, Callable, Generic, Optional, Union
+from uuid import UUID
 
 from motor.core import AgnosticCollection
 from motor.motor_asyncio import AsyncIOMotorClient
@@ -157,7 +158,7 @@ class MongoDbDao(Generic[Dto]):
         self._document_to_dto = document_to_dto
         self._dto_to_document = dto_to_document
 
-    async def get_by_id(self, id_: str) -> Dto:
+    async def get_by_id(self, id_: Union[str, UUID]) -> Dto:
         """Get a resource by providing its ID.
 
         Args:
@@ -169,6 +170,9 @@ class MongoDbDao(Generic[Dto]):
         Raises:
             ResourceNotFoundError: when resource with the specified id_ was not found
         """
+        if isinstance(id_, UUID):
+            id_ = str(id_)
+
         document = await self._collection.find_one({"_id": id_})
 
         if document is None:

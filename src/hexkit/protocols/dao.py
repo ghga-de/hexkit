@@ -25,8 +25,8 @@ from abc import ABC, abstractmethod
 from collections.abc import AsyncIterator, Collection, Mapping
 from contextlib import AbstractAsyncContextManager
 from functools import partial
-from typing import Any, Optional, TypeVar
-from uuid import uuid4
+from typing import Any, Optional, TypeVar, Union
+from uuid import UUID, uuid4
 
 from pydantic import BaseModel, Field
 
@@ -96,13 +96,8 @@ class NoHitsFoundError(FindError):
         super().__init__(message)
 
 
-def get_uuid4_str() -> str:
-    """Generate a UUID4 string."""
-    return str(uuid4())
-
-
 # provide standardized default factory for UUID4 fields
-UUID4Field = partial(Field, default_factory=get_uuid4_str)
+UUID4Field = partial(Field, default_factory=uuid4)
 
 
 class Dao(typing.Protocol[Dto]):
@@ -121,7 +116,7 @@ class Dao(typing.Protocol[Dto]):
         """
         ...
 
-    async def get_by_id(self, id_: str) -> Dto:
+    async def get_by_id(self, id_: Union[str, UUID]) -> Dto:
         """Get a resource by providing its ID.
 
         Args:
