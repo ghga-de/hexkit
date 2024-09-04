@@ -16,11 +16,12 @@
 
 """Test MongoDB-based providers."""
 
+import uuid
 from datetime import datetime
 from pathlib import Path
 
 import pytest
-from pydantic import BaseModel, ConfigDict
+from pydantic import UUID4, BaseModel, ConfigDict
 
 from hexkit.protocols.dao import (
     InvalidFindMappingError,
@@ -38,15 +39,14 @@ from hexkit.providers.mongodb.testutils import (
 
 pytestmark = pytest.mark.asyncio()
 
+EXAMPLE_ID1 = uuid.UUID("73ab9fd9-edce-4c7a-89fa-f31f7cabbd0b", version=4)
+
 
 class ExampleDto(BaseModel):
-    """Example DTO with an auto-generated ID.
-
-    Does not use `UUID4` type in order to facilitate testing.
-    """
+    """Example DTO with an auto-generated ID."""
 
     model_config = ConfigDict(frozen=True)
-    id: str = UUID4Field(description="The ID of the resource.")
+    id: UUID4 = UUID4Field(description="The ID of the resource.")
     field_a: str
     field_b: int
     field_c: bool
@@ -64,8 +64,10 @@ async def test_dao_find_all_with_id(mongodb: MongoDbFixture):
     resource = ExampleDto(field_a="test1", field_b=27, field_c=True)
     await dao.insert(resource)
 
+    str_id = str(resource.id)
+
     # retrieve the resource with find_all
-    resources_read = [x async for x in dao.find_all(mapping={"id": resource.id})]
+    resources_read = [x async for x in dao.find_all(mapping={"id": str_id})]
     assert len(resources_read) == 1
     assert resources_read[0].id == resource.id
 
@@ -75,21 +77,19 @@ async def test_dao_find_all_with_id(mongodb: MongoDbFixture):
 
     # make sure other fields beside ID aren't getting ignored
     no_results_multifield = [
-        x async for x in dao.find_all(mapping={"id": resource.id, "field_b": 134293487})
+        x async for x in dao.find_all(mapping={"id": str_id, "field_b": 134293487})
     ]
     assert len(no_results_multifield) == 0
 
     multifield_found = [
         x
-        async for x in dao.find_all(
-            mapping={"id": resource.id, "field_b": resource.field_b}
-        )
+        async for x in dao.find_all(mapping={"id": str_id, "field_b": resource.field_b})
     ]
     assert len(multifield_found) == 1
     assert multifield_found[0] == resource
 
     # find_one calls find_all, so double check that it works there too
-    result = await dao.find_one(mapping={"id": resource.id})
+    result = await dao.find_one(mapping={"id": str_id})
     assert result == resource
 
 
@@ -133,7 +133,7 @@ async def test_dao_insert_happy(mongodb: MongoDbFixture):
         id_field="id",
     )
 
-    resource = ExampleDto(id="example_001", field_a="test1", field_b=27, field_c=True)
+    resource = ExampleDto(id=EXAMPLE_ID1, field_a="test1", field_b=27, field_c=True)
     await dao.insert(resource)
 
     # check the newly inserted resource:
@@ -141,7 +141,7 @@ async def test_dao_insert_happy(mongodb: MongoDbFixture):
     assert resource == resource_observed
 
 
-async def test_dao_insert_unhappy(mongodb: MongoDbFixture):
+async def test_dao_insert_duplicate_id(mongodb: MongoDbFixture):
     """Test the situation where the ID already exists in the DB."""
     dao = await mongodb.dao_factory.get_dao(
         name="example",
@@ -149,13 +149,13 @@ async def test_dao_insert_unhappy(mongodb: MongoDbFixture):
         id_field="id",
     )
 
-    resource = ExampleDto(id="example_001", field_a="test1", field_b=27, field_c=True)
+    resource = ExampleDto(id=EXAMPLE_ID1, field_a="test1", field_b=27, field_c=True)
     await dao.insert(resource)
 
     # check error is raised correctly on trying to insert duplicate
     with pytest.raises(
         ResourceAlreadyExistsError,
-        match='The resource with the id "example_001" already exists.',
+        match=f'The resource with the id "{EXAMPLE_ID1}" already exists.',
     ):
         await dao.insert(resource)
 
@@ -293,7 +293,7 @@ async def test_complex_models(mongodb: MongoDbFixture):
         some_date=datetime(2022, 10, 18, 16, 41, 34, 780735),
         some_path=Path(__file__).resolve(),
         some_nested_data=ExampleDto(
-            id="nested_data", field_a="a", field_b=2, field_c=True
+            id=EXAMPLE_ID1, field_a="a", field_b=2, field_c=True
         ),
     )
     await dao.insert(resource_to_create)

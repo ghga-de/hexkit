@@ -20,7 +20,7 @@ from collections.abc import Collection
 from typing import Optional
 
 import pytest
-from pydantic import BaseModel
+from pydantic import UUID4, BaseModel
 
 from hexkit.protocols.dao import Dao, DaoFactoryProtocol, Dto, UUID4Field
 
@@ -47,7 +47,7 @@ class FakeDaoFactory(DaoFactoryProtocol):
 class ExampleDto(BaseModel):
     """Example DTO model."""
 
-    id: str = UUID4Field(description="The ID of the resource.")
+    id: UUID4 = UUID4Field(description="The ID of the resource.")
     some_param: str
     another_param: int
 
