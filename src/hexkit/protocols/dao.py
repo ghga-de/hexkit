@@ -188,7 +188,7 @@ class Dao(typing.Protocol[Dto]):
 
         The values in the mapping are used to filter the resources, these are
         assumed to be standard JSON scalar types. Particularly, UUIDs and datetimes
-        must be represented as strings. The behavior for non-scalars types depends
+        must be represented as strings. The behavior for non-scalar types depends
         on the specific provider.
 
         Args:
