@@ -25,6 +25,7 @@ import pytest
 from pydantic import UUID4, BaseModel, ConfigDict, Field
 
 from hexkit.protocols.dao import (
+    Dao,
     InvalidFindMappingError,
     MultipleHitsFoundError,
     NoHitsFoundError,
@@ -42,15 +43,40 @@ pytestmark = pytest.mark.asyncio()
 
 
 class ExampleDto(BaseModel):
-    """Example DTO model with an auto-generated ID."""
+    """Example DTO model without an auto-generated UUID4 ID field."""
 
     model_config = ConfigDict(frozen=True)
 
     id: UUID4 = UUID4Field(description="The ID of the resource.")
+
     field_a: str = Field(default="test")
     field_b: int = Field(default=42)
     field_c: bool = Field(default=True)
     field_d: datetime = Field(default_factory=datetime.now)
+
+
+class CustomIdGenerator:
+    """A custom string based ID generator."""
+
+    def __init__(self) -> None:
+        self.last_id = 0
+
+    def id_factory(self) -> str:
+        """Factory that can be used to generate new IDs."""
+        self.last_id += 1
+        return f"id-{self.last_id}"
+
+
+CUSTOM_ID_FACTORY = CustomIdGenerator().id_factory
+
+
+class ExampleDtoWithCustomID(ExampleDto):
+    """Example DTO model with a custom string based ID."""
+
+    str_id: str = Field(
+        default_factory=CUSTOM_ID_FACTORY,
+        description="Custom string based ID of the resource.",
+    )
 
 
 async def test_dao_find_all_with_id(mongodb: MongoDbFixture):
@@ -372,20 +398,27 @@ async def test_duplicate_uuid(mongodb: MongoDbFixture):
     assert resource2_observed.field == "test2"
 
 
-async def test_dao_crud_happy(mongodb: MongoDbFixture):
-    """Test the happy path of a typical CRUD database interactions in sequence."""
-    dao = await mongodb.dao_factory.get_dao(
+@pytest.mark.parametrize("use_custom_id", [False, True], ids=["UUID4", "Custom ID"])
+async def test_dao_crud_happy(use_custom_id: bool, mongodb: MongoDbFixture):
+    """Test the happy path of a typical CRUD database interaction in sequence.
+
+    This tests both a UUID4 based and a custom string based ID generator.
+    """
+    dto = ExampleDtoWithCustomID if use_custom_id else ExampleDto
+    id_field = "str_id" if use_custom_id else "id"
+    dao: Dao[ExampleDto] = await mongodb.dao_factory.get_dao(
         name="example",
-        dto_model=ExampleDto,
-        id_field="id",
+        dto_model=dto,  # type: ignore
+        id_field=id_field,
     )
 
     # insert an example resource:
-    resource = ExampleDto()
+    resource = dto()
+    assert hasattr(resource, "str_id") == use_custom_id
     await dao.insert(resource)
 
     # read the newly inserted resource:
-    resource_read = await dao.get_by_id(resource.id)
+    resource_read = await dao.get_by_id(getattr(resource, id_field))
 
     assert resource_read == resource
 
@@ -394,14 +427,14 @@ async def test_dao_crud_happy(mongodb: MongoDbFixture):
     await dao.update(resource_updated)
 
     # read the updated resource again:
-    resource_updated_read = await dao.get_by_id(resource_updated.id)
+    resource_updated_read = await dao.get_by_id(getattr(resource_updated, id_field))
 
     assert resource_updated_read == resource_updated
 
     # insert additional resources:
-    resource2 = ExampleDto(field_a="test2", field_b=27)
+    resource2 = dto(field_a="test2", field_b=27)
     await dao.insert(resource2)
-    resource3 = ExampleDto(field_a="test3", field_c=False)
+    resource3 = dto(field_a="test3", field_c=False)
     await dao.upsert(resource3)  # upsert should work here as well
 
     # perform a search for multiple resources:
@@ -411,13 +444,21 @@ async def test_dao_crud_happy(mongodb: MongoDbFixture):
 
     assert obtained_hits == {resource_updated, resource3}
 
+    # make sure that 3 resources with different IDs were inserted:
+    obtained_ids = {getattr(hit, id_field) async for hit in dao.find_all(mapping={})}
+    if use_custom_id:
+        assert obtained_ids == {"id-1", "id-2", "id-3"}
+    else:
+        assert len(obtained_ids) == 3
+        assert all(isinstance(obtained_id, uuid.UUID) for obtained_id in obtained_ids)
+
     # find a single resource:
     obtained_hit = await dao.find_one(mapping={"field_a": "test3"})
 
     assert obtained_hit == resource3
 
     # delete the resource:
-    await dao.delete(resource3.id)
+    await dao.delete(getattr(resource3, id_field))
 
     # confirm that the resource was deleted:
     with pytest.raises(NoHitsFoundError):
