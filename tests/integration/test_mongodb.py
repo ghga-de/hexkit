@@ -67,14 +67,11 @@ class CustomIdGenerator:
         return f"id-{self.last_id}"
 
 
-CUSTOM_ID_FACTORY = CustomIdGenerator().id_factory
-
-
 class ExampleDtoWithCustomID(ExampleDto):
     """Example DTO model with a custom string based ID."""
 
     str_id: str = Field(
-        default_factory=CUSTOM_ID_FACTORY,
+        default_factory=CustomIdGenerator().id_factory,
         description="Custom string based ID of the resource.",
     )
 
