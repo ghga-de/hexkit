@@ -23,6 +23,7 @@ from typing import Any, Optional
 
 import pytest
 from pydantic import UUID4, BaseModel
+from pymongo import MongoClient
 from pymongo.collection import Collection
 
 from hexkit.correlation import (
@@ -45,6 +46,7 @@ from hexkit.providers.akafka.testutils import (
     kafka_container_fixture,  # noqa: F401
     kafka_fixture,  # noqa: F401
 )
+from hexkit.providers.mongodb.provider import dto_to_document
 from hexkit.providers.mongodb.testutils import (
     mongodb_container_fixture,  # noqa: F401
     mongodb_fixture,  # noqa: F401
@@ -816,3 +818,65 @@ async def test_mongokafka_dao_correlation_id_delete(mongo_kafka: MongoKafkaFixtu
                 {"__metadata__.correlation_id": correlation_id}
             )
             assert not search_for_inserted_again
+
+
+async def test_documents_without_metadata(mongo_kafka: MongoKafkaFixture):
+    """Test that when an Outbox Dao updates or deletes documents with no metadata, the
+    metadata is added and the documents published.
+
+    The pre-patch behavior would result in an ResourceNotFoundError.
+    """
+    id1 = uuid.uuid4()
+    id2 = uuid.uuid4()
+    example = ExampleDto(id=id1)
+    doc1 = dto_to_document(example, id_field="id")
+    doc2 = dto_to_document(ExampleDto(id=id2), id_field="id")
+
+    # Insert two documents without metadata
+    db_name = mongo_kafka.config.db_name
+    connection_str = str(mongo_kafka.config.mongo_dsn.get_secret_value())
+    mongo_client: MongoClient = MongoClient(connection_str)
+    mongo_client[db_name]["example"].insert_one(doc1)
+    mongo_client[db_name]["example"].insert_one(doc2)
+
+    # Attempt to interact with the document via MongoKafka
+    async with MongoKafkaDaoPublisherFactory.construct(
+        config=mongo_kafka.config
+    ) as factory:
+        dao = await factory.get_dao(
+            name="example",
+            dto_model=ExampleDto,
+            id_field="id",
+            dto_to_event=lambda dto: dto.model_dump(),
+            event_topic=EXAMPLE_TOPIC,
+        )
+
+        async with mongo_kafka.kafka.record_events(in_topic=EXAMPLE_TOPIC) as recorder:
+            # Attempt to update the document
+            await dao.update(example)
+
+        assert len(recorder.recorded_events) == 1
+        assert recorder.recorded_events[0].type_ == CHANGE_EVENT_TYPE
+
+        # Verify that the document now has metadata
+        correlation_id = get_correlation_id()
+        document = mongo_client[db_name]["example"].find_one({"_id": doc1["_id"]})
+        assert document is not None and "__metadata__" in document
+        assert document["__metadata__"] == {
+            "correlation_id": correlation_id,
+            "deleted": False,
+            "published": True,
+        }
+
+        async with mongo_kafka.kafka.record_events(in_topic=EXAMPLE_TOPIC) as recorder:
+            await dao.delete(id2)
+        assert len(recorder.recorded_events) == 1
+        assert recorder.recorded_events[0].type_ == DELETE_EVENT_TYPE
+
+        deleted_doc = mongo_client[db_name]["example"].find_one({"_id": doc2["_id"]})
+        assert deleted_doc is not None and "__metadata__" in deleted_doc
+        assert deleted_doc["__metadata__"] == {
+            "correlation_id": correlation_id,
+            "deleted": True,
+            "published": True,
+        }

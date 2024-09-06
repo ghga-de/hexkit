@@ -262,7 +262,14 @@ class MongoKafkaDaoPublisher(Generic[Dto]):
         document.setdefault("__metadata__", {})["correlation_id"] = correlation_id
         with translate_pymongo_errors():
             result = await self._collection.replace_one(
-                {"_id": document["_id"], "__metadata__.deleted": False}, document
+                {
+                    "_id": document["_id"],
+                    "$or": [
+                        {"__metadata__": {"$exists": False}},
+                        {"__metadata__.deleted": False},
+                    ],
+                },
+                document,
             )
         if result.matched_count == 0:
             raise ResourceNotFoundError(id_=document["_id"])
@@ -292,7 +299,14 @@ class MongoKafkaDaoPublisher(Generic[Dto]):
         }
         with translate_pymongo_errors():
             result = await self._collection.replace_one(
-                {"_id": document["_id"], "__metadata__.deleted": False}, document
+                {
+                    "_id": document["_id"],
+                    "$or": [
+                        {"__metadata__": {"$exists": False}},
+                        {"__metadata__.deleted": False},
+                    ],
+                },
+                document,
             )
         if result.matched_count == 0:
             raise ResourceNotFoundError(id_=id_)

@@ -41,6 +41,8 @@ from hexkit.providers.mongodb.testutils import (
 
 pytestmark = pytest.mark.asyncio()
 
+EXAMPLE_ID1 = uuid.UUID("73ab9fd9-edce-4c7a-89fa-f31f7cabbd0b", version=4)
+
 
 class ExampleDto(BaseModel):
     """Example DTO model with an auto-generated UUID4 ID field."""
