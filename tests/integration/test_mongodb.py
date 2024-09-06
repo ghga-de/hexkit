@@ -19,6 +19,7 @@
 import uuid
 from datetime import datetime
 from pathlib import Path
+from typing import Optional
 
 import pytest
 from pydantic import UUID4, BaseModel, ConfigDict, Field
@@ -42,17 +43,32 @@ pytestmark = pytest.mark.asyncio()
 EXAMPLE_ID1 = uuid.UUID("73ab9fd9-edce-4c7a-89fa-f31f7cabbd0b", version=4)
 
 
-class ExampleDto(BaseModel):
-    """Example DTO with an auto-generated ID."""
+class ExampleDtoBase(BaseModel):
+    """Example DTO model with an auto-generated ID."""
 
     model_config = ConfigDict(frozen=True)
-    id: UUID4 = UUID4Field(description="The ID of the resource.")
-    field_a: str
-    field_b: int
-    field_c: bool
+    field_a: str = Field(default="test")
+    field_b: int = Field(default="42")
+    field_c: bool = Field(default=True)
+    field_d: datetime = Field(default_factory=datetime.now)
 
 
-async def test_dao_find_all_with_id(mongodb: MongoDbFixture):
+class ExampleDtoWithTypedId(ExampleDtoBase):
+    """Example DTO model with a typed UUID4 ID."""
+
+    id: UUID4 = UUID4Field()
+
+
+class ExampleDtoWithUntypedId(ExampleDtoBase):
+    """Example DTO model with an untyped UUID4 ID."""
+
+    id: str = Field(default_factory=uuid.uuid4)
+
+
+ExampleDto = ExampleDtoWithTypedId
+
+
+async def test_dao_find_all_with_id(mongodb: MongoDbFixture, dto_model):
     """Test using the id field as part of the mapping in find_all()"""
     dao = await mongodb.dao_factory.get_dao(
         name="example",
@@ -61,7 +77,7 @@ async def test_dao_find_all_with_id(mongodb: MongoDbFixture):
     )
 
     # insert an example resource:
-    resource = ExampleDto(field_a="test1", field_b=27, field_c=True)
+    resource = ExampleDto()
     await dao.insert(resource)
 
     str_id = str(resource.id)
@@ -306,11 +322,23 @@ async def test_complex_models(mongodb: MongoDbFixture):
 
 async def test_duplicate_uuid(mongodb: MongoDbFixture):
     """Test to illustrate how to handle duplicate UUIDs."""
+    last_id: Optional[UUID4] = None
+
+    def bad_id_factory():
+        """Bad ID factory that generates duplicate IDs."""
+        nonlocal last_id
+        id_ = last_id
+        if id_ is None:
+            id_ = last_id = uuid.uuid4()
+        else:
+            last_id = None
+        print("RETURNING", id_)
+        return id_
 
     class SmallDto(BaseModel):
-        """Small Dto class that produces a predictable UUID."""
+        """Small DTO class that uses a bad id generator."""
 
-        id: UUID4 = Field(default_factory=lambda: EXAMPLE_ID1)
+        id: UUID4 = Field(default_factory=bad_id_factory)
         field: str
 
     dao = await mongodb.dao_factory.get_dao(
@@ -320,20 +348,27 @@ async def test_duplicate_uuid(mongodb: MongoDbFixture):
     )
 
     resource = SmallDto(field="test1")
-    assert resource.id == EXAMPLE_ID1
     await dao.insert(resource)
 
     # check the newly inserted resource:
     resource_observed = await dao.get_by_id(resource.id)
-    assert resource_observed == resource
+    assert resource_observed.id == resource.id
+    assert resource_observed.field == "test1"
 
     # insert a new resource with the same ID:
     resource2 = SmallDto(field="test2")
-    assert resource2.id == EXAMPLE_ID1
+    assert resource2.id == resource.id
     with pytest.raises(ResourceAlreadyExistsError):
         await dao.insert(resource2)
 
-    # Generate new ID
-    resource2 = SmallDto(id=uuid.uuid4(), field="test2")
-    assert resource2.id != EXAMPLE_ID1
+    # regenerate the resource so that it gets a new ID
+    resource2 = SmallDto(**resource2.model_dump(exclude={"id"}))
+
+    # now it should be possible to insert the new resource:
     await dao.insert(resource2)
+
+    # check the newly inserted resource:
+    resource2_observed = await dao.get_by_id(resource2.id)
+    assert resource2_observed.id == resource2.id
+    assert resource2_observed.id != resource.id
+    assert resource2_observed.field == "test2"
