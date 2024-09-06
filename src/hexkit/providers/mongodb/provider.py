@@ -222,9 +222,15 @@ class MongoDbDao(Generic[Dto]):
         # zero matches)
 
     async def find_one(self, *, mapping: Mapping[str, Any]) -> Dto:
-        """Find the resource that matches the specified mapping. It is expected that
-        at most one resource matches the constraints. An exception is raised if no or
-        multiple hits are found.
+        """Find the resource that matches the specified mapping.
+
+        It is expected that at most one resource matches the constraints.
+        An exception is raised if no or multiple hits are found.
+
+        The values in the mapping are used to filter the resources, these are
+        assumed to be standard JSON scalar types. Particularly, UUIDs and datetimes
+        must be represented as strings. Dictionaries can be passed as values to
+        specify more complex MongoDB queries.
 
         Args:
             mapping:
@@ -246,6 +252,11 @@ class MongoDbDao(Generic[Dto]):
 
     async def find_all(self, *, mapping: Mapping[str, Any]) -> AsyncIterator[Dto]:
         """Find all resources that match the specified mapping.
+
+        The values in the mapping are used to filter the resources, these are
+        assumed to be standard JSON scalar types. Particularly, UUIDs and datetimes
+        must be represented as strings. Dictionaries can be passed as values to
+        specify more complex MongoDB queries.
 
         Args:
             mapping:
