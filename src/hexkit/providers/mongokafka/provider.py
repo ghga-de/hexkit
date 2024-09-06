@@ -263,7 +263,7 @@ class MongoKafkaDaoPublisher(Generic[Dto]):
         if self._autopublish:
             await self._publish_change(dto)
 
-    async def delete(self, id_: str) -> None:
+    async def delete(self, id_: Union[str, UUID]) -> None:
         """Delete a resource by providing its ID.
 
         Args:
@@ -272,6 +272,9 @@ class MongoKafkaDaoPublisher(Generic[Dto]):
         Raises:
             ResourceNotFoundError: when resource with the specified id_ was not found
         """
+        if isinstance(id_, UUID):
+            id_ = str(id_)
+
         correlation_id = get_correlation_id()
         document = {
             "_id": id_,

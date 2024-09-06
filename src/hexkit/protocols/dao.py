@@ -144,7 +144,7 @@ class Dao(typing.Protocol[Dto]):
         """
         ...
 
-    async def delete(self, id_: str) -> None:
+    async def delete(self, id_: Union[str, UUID]) -> None:
         """Delete a resource by providing its ID.
 
         Args:
