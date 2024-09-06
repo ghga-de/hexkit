@@ -43,7 +43,7 @@ pytestmark = pytest.mark.asyncio()
 
 
 class ExampleDto(BaseModel):
-    """Example DTO model without an auto-generated UUID4 ID field."""
+    """Example DTO model with an auto-generated UUID4 ID field."""
 
     model_config = ConfigDict(frozen=True)
 
