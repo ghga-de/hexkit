@@ -42,13 +42,15 @@ pytestmark = pytest.mark.asyncio()
 
 
 class ExampleDto(BaseModel):
-    """Example DTO with an auto-generated ID."""
+    """Example DTO model with an auto-generated ID."""
 
     model_config = ConfigDict(frozen=True)
+
     id: UUID4 = UUID4Field(description="The ID of the resource.")
-    field_a: str
-    field_b: int
-    field_c: bool
+    field_a: str = Field(default="test")
+    field_b: int = Field(default=42)
+    field_c: bool = Field(default=True)
+    field_d: datetime = Field(default_factory=datetime.now)
 
 
 async def test_dao_find_all_with_id(mongodb: MongoDbFixture):
@@ -60,7 +62,7 @@ async def test_dao_find_all_with_id(mongodb: MongoDbFixture):
     )
 
     # insert an example resource:
-    resource = ExampleDto(field_a="test1", field_b=27, field_c=True)
+    resource = ExampleDto()
     await dao.insert(resource)
 
     str_id = str(resource.id)
@@ -132,7 +134,7 @@ async def test_dao_insert_happy(mongodb: MongoDbFixture):
         id_field="id",
     )
 
-    resource = ExampleDto(field_a="test1", field_b=27, field_c=True)
+    resource = ExampleDto()
     await dao.insert(resource)
 
     # check the newly inserted resource:
@@ -148,7 +150,7 @@ async def test_dao_insert_duplicate_id(mongodb: MongoDbFixture):
         id_field="id",
     )
 
-    resource = ExampleDto(field_a="test1", field_b=27, field_c=True)
+    resource = ExampleDto()
     await dao.insert(resource)
 
     # check error is raised correctly on trying to insert duplicate
@@ -167,7 +169,7 @@ async def test_dao_upsert_happy(mongodb: MongoDbFixture):
         id_field="id",
     )
 
-    resource = ExampleDto(field_a="test1", field_b=27, field_c=True)
+    resource = ExampleDto()
     await dao.upsert(resource)
 
     # check the newly inserted resource:
@@ -203,7 +205,7 @@ async def test_dao_update_not_found(mongodb: MongoDbFixture):
         id_field="id",
     )
 
-    resource = ExampleDto(field_a="test1", field_b=27, field_c=True)
+    resource = ExampleDto()
 
     with pytest.raises(ResourceNotFoundError):
         await dao.update(resource)
@@ -217,7 +219,7 @@ async def test_dao_delete_happy(mongodb: MongoDbFixture):
         id_field="id",
     )
 
-    resource = ExampleDto(field_a="test1", field_b=27, field_c=True)
+    resource = ExampleDto()
     await dao.insert(resource)
     assert await dao.get_by_id(resource.id) == resource
     await dao.delete(resource.id)
@@ -279,10 +281,10 @@ async def test_dao_find_one_with_multiple_hits(mongodb: MongoDbFixture):
 
     # insert three identical resources (only the IDs will differ)
     for _ in range(3):
-        await dao.insert(ExampleDto(field_a="test1", field_b=27, field_c=True))
+        await dao.insert(ExampleDto())
 
     with pytest.raises(MultipleHitsFoundError):
-        await dao.find_one(mapping={"field_b": 27})
+        await dao.find_one(mapping={"field_b": 42})
 
 
 async def test_complex_models(mongodb: MongoDbFixture):
@@ -307,7 +309,7 @@ async def test_complex_models(mongodb: MongoDbFixture):
         id="complex_data",
         some_date=datetime(2022, 10, 18, 16, 41, 34, 780735),
         some_path=Path(__file__).resolve(),
-        some_nested_data=ExampleDto(field_a="a", field_b=2, field_c=True),
+        some_nested_data=ExampleDto(),
     )
     await dao.insert(resource_to_create)
 
@@ -379,7 +381,7 @@ async def test_dao_crud_happy(mongodb: MongoDbFixture):
     )
 
     # insert an example resource:
-    resource = ExampleDto(field_a="test1", field_b=27, field_c=True)
+    resource = ExampleDto()
     await dao.insert(resource)
 
     # read the newly inserted resource:
@@ -397,26 +399,26 @@ async def test_dao_crud_happy(mongodb: MongoDbFixture):
     assert resource_updated_read == resource_updated
 
     # insert additional resources:
-    resource2 = ExampleDto(field_a="test2", field_b=27, field_c=True)
+    resource2 = ExampleDto(field_a="test2", field_b=27)
     await dao.insert(resource2)
-    resource3 = ExampleDto(field_a="test3", field_b=27, field_c=False)
+    resource3 = ExampleDto(field_a="test3", field_c=False)
     await dao.upsert(resource3)  # upsert should work here as well
 
     # perform a search for multiple resources:
     obtained_hits = {
-        hit async for hit in dao.find_all(mapping={"field_b": 27, "field_c": False})
+        hit async for hit in dao.find_all(mapping={"field_b": 42, "field_c": False})
     }
 
     assert obtained_hits == {resource_updated, resource3}
 
     # find a single resource:
-    obtained_hit = await dao.find_one(mapping={"field_a": "test1"})
+    obtained_hit = await dao.find_one(mapping={"field_a": "test3"})
 
-    assert obtained_hit == resource_updated
+    assert obtained_hit == resource3
 
     # delete the resource:
-    await dao.delete(resource.id)
+    await dao.delete(resource3.id)
 
     # confirm that the resource was deleted:
     with pytest.raises(NoHitsFoundError):
-        obtained_hit = await dao.find_one(mapping={"field_a": "test1"})
+        obtained_hit = await dao.find_one(mapping={"field_a": "test3"})
