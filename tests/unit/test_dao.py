@@ -14,21 +14,15 @@
 # limitations under the License.
 #
 
-"""Testing the dao factory protocol."""
+"""Testing the DAO factory protocol."""
 
-from collections.abc import AsyncGenerator, Collection
-from typing import Optional, Union, overload
+from collections.abc import Collection
+from typing import Optional
 
 import pytest
-from pydantic import BaseModel
+from pydantic import UUID4, BaseModel
 
-from hexkit.protocols.dao import (
-    DaoFactoryProtocol,
-    DaoNaturalId,
-    DaoSurrogateId,
-    Dto,
-    DtoCreation,
-)
+from hexkit.protocols.dao import Dao, DaoFactoryProtocol, Dto, UUID4Field
 
 pytestmark = pytest.mark.asyncio()
 
@@ -36,65 +30,26 @@ pytestmark = pytest.mark.asyncio()
 class FakeDaoFactory(DaoFactoryProtocol):
     """Implements the DaoFactoryProtocol without providing any logic."""
 
-    @overload
     async def _get_dao(
         self,
         *,
         name: str,
         dto_model: type[Dto],
         id_field: str,
-        dto_creation_model: None,
         fields_to_index: Optional[Collection[str]],
-        id_generator: AsyncGenerator[str, None],
-    ) -> DaoNaturalId[Dto]: ...
-
-    @overload
-    async def _get_dao(
-        self,
-        *,
-        name: str,
-        dto_model: type[Dto],
-        id_field: str,
-        dto_creation_model: type[DtoCreation],
-        fields_to_index: Optional[Collection[str]],
-        id_generator: AsyncGenerator[str, None],
-    ) -> DaoSurrogateId[Dto, DtoCreation]: ...
-
-    async def _get_dao(
-        self,
-        *,
-        name: str,
-        dto_model: type[Dto],
-        id_field: str,
-        dto_creation_model: Optional[type[DtoCreation]],
-        fields_to_index: Optional[Collection[str]],
-        id_generator: AsyncGenerator[str, None],
-    ) -> Union[DaoSurrogateId[Dto, DtoCreation], DaoNaturalId[Dto]]:
+    ) -> Dao[Dto]:
         """*To be implemented by the provider. Input validation is done outside of this
         method.*
         """
         raise NotImplementedError()
 
 
-class ExampleCreationDto(BaseModel):
-    """Example DTO creation model."""
-
-    some_param: str
-    another_param: int
-
-
-class ExampleInvalidCreationDto(ExampleCreationDto):
-    """Example for a DTO creation model that is invalid because it contains a
-    parameter that the main DTO model is missing.
-    """
-
-    unexpected_param: str
-
-
-class ExampleDto(ExampleCreationDto):
+class ExampleDto(BaseModel):
     """Example DTO model."""
 
-    id: str
+    id: UUID4 = UUID4Field(description="The ID of the resource.")
+    some_param: str
+    another_param: int
 
 
 async def test_get_dto_valid():
@@ -107,7 +62,6 @@ async def test_get_dto_valid():
             dto_model=ExampleDto,
             id_field="id",
             fields_to_index={"some_param"},
-            dto_creation_model=ExampleCreationDto,
         )
 
 
@@ -123,23 +77,6 @@ async def test_get_dto_invalid_id():
         )
 
 
-@pytest.mark.parametrize(
-    "dto_creation_model",
-    [ExampleDto, ExampleInvalidCreationDto],
-)
-async def test_get_dto_invalid_creation_model(dto_creation_model: type[BaseModel]):
-    """Use the get_dao method of the DaoFactory with an invalid creation model."""
-    dao_factory = FakeDaoFactory()
-
-    with pytest.raises(DaoFactoryProtocol.CreationModelInvalidError):
-        _ = await dao_factory.get_dao(
-            name="test_dao",
-            dto_model=ExampleDto,
-            id_field="id",
-            dto_creation_model=dto_creation_model,
-        )
-
-
 async def test_get_dto_invalid_fields_to_index():
     """Use the get_dao method of the DaoFactory with an invalid list of fields to index."""
     dao_factory = FakeDaoFactory()
@@ -150,5 +87,4 @@ async def test_get_dto_invalid_fields_to_index():
             dto_model=ExampleDto,
             id_field="id",
             fields_to_index={"some_param", "non_existing_param"},
-            dto_creation_model=ExampleCreationDto,
         )
