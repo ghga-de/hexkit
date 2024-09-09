@@ -201,6 +201,7 @@ async def test_dao_upsert_happy(mongodb: MongoDbFixture):
 
     # update the resource:
     resource_update = resource.model_copy(update={"field_c": False})
+    assert resource_update != resource
     await dao.upsert(resource_update)
 
     # check the updated resource:
@@ -441,13 +442,25 @@ async def test_dao_crud_happy(use_custom_id: bool, mongodb: MongoDbFixture):
 
     assert obtained_hits == {resource_updated, resource3}
 
+    # perform a search using values with non-standard data types
+    # (note that in this case we need to serialize these values manually):
+    mapping = {
+        id_field: str(getattr(resource, id_field)),
+        "field_d": resource.field_d.isoformat(),
+    }
+    obtained_hit = await dao.find_one(mapping=mapping)
+    assert obtained_hit == resource_updated
+    obtained_hits = {hit async for hit in dao.find_all(mapping=mapping)}
+    assert obtained_hits == {resource_updated}
+
     # make sure that 3 resources with different IDs were inserted:
     obtained_ids = {getattr(hit, id_field) async for hit in dao.find_all(mapping={})}
-    if use_custom_id:
-        assert obtained_ids == {"id-1", "id-2", "id-3"}
-    else:
-        assert len(obtained_ids) == 3
-        assert all(isinstance(obtained_id, uuid.UUID) for obtained_id in obtained_ids)
+    assert len(obtained_ids) == 3
+    for obtained_id in obtained_ids:
+        if use_custom_id:
+            assert isinstance(obtained_id, str) and obtained_id.startswith("id-")
+        else:
+            assert isinstance(obtained_id, uuid.UUID)
 
     # find a single resource:
     obtained_hit = await dao.find_one(mapping={"field_a": "test3"})
@@ -460,3 +473,7 @@ async def test_dao_crud_happy(use_custom_id: bool, mongodb: MongoDbFixture):
     # confirm that the resource was deleted:
     with pytest.raises(NoHitsFoundError):
         obtained_hit = await dao.find_one(mapping={"field_a": "test3"})
+
+    # make sure that only 2 resources are left:
+    obtained_hits = {hit async for hit in dao.find_all(mapping={})}
+    assert len(obtained_hits) == 2

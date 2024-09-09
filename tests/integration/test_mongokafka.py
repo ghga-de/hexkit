@@ -16,11 +16,12 @@
 
 """Test the DAO pub/sub functionality based on the mongokafka/kafka providers."""
 
+import uuid
 from collections.abc import Generator
 from typing import Optional
 
 import pytest
-from pydantic import BaseModel, ConfigDict
+from pydantic import UUID4, BaseModel
 from pymongo.collection import Collection
 
 from hexkit.correlation import (
@@ -29,7 +30,11 @@ from hexkit.correlation import (
     new_correlation_id,
     set_new_correlation_id,
 )
-from hexkit.protocols.dao import ResourceAlreadyExistsError, ResourceNotFoundError
+from hexkit.protocols.dao import (
+    ResourceAlreadyExistsError,
+    ResourceNotFoundError,
+    UUID4Field,
+)
 from hexkit.protocols.daosub import DaoSubscriberProtocol, DtoValidationError
 from hexkit.providers.akafka import KafkaOutboxSubscriber
 from hexkit.providers.akafka.testutils import (
@@ -53,6 +58,8 @@ from hexkit.providers.mongokafka.testutils import (
     mongo_kafka_fixture,  # noqa: F401
 )
 
+from .test_mongodb import ExampleDto, ExampleDtoWithCustomID
+
 pytestmark = pytest.mark.asyncio()
 
 EXAMPLE_TOPIC = "example"
@@ -74,18 +81,6 @@ def get_mongo_collection(mongo_kafka: MongoKafkaFixture, name: str) -> Collectio
     db_name = mongo_kafka.config.db_name
     collection = mongo_kafka.mongodb.client.get_database(db_name).get_collection(name)
     return collection
-
-
-class ExampleDto(BaseModel):
-    """Example DTO model."""
-
-    id: str
-
-    field_a: str
-    field_b: int
-    field_c: bool
-
-    model_config = ConfigDict(frozen=True)
 
 
 class DummyOutboxSubscriber(DaoSubscriberProtocol[ExampleDto]):
@@ -126,7 +121,7 @@ async def test_dao_outbox_with_non_existing_resource(mongo_kafka: MongoKafkaFixt
             event_topic=EXAMPLE_TOPIC,
         )
 
-        example = ExampleDto(id="test1", field_a="test", field_b=1, field_c=False)
+        example = ExampleDto()
 
         # first try with non-existing resource
         async with kafka.expect_events(events=[], in_topic=EXAMPLE_TOPIC):
@@ -150,29 +145,34 @@ async def test_dao_outbox_with_non_existing_resource(mongo_kafka: MongoKafkaFixt
                 await dao.delete(example.id)
 
 
-async def test_dao_outbox_happy(mongo_kafka: MongoKafkaFixture):
+@pytest.mark.parametrize("use_custom_id", [False, True], ids=["UUID4", "Custom ID"])
+async def test_dao_outbox_happy(use_custom_id: bool, mongo_kafka: MongoKafkaFixture):
     """Test the happy path of using the MongoKafkaOutboxFactory."""
     kafka = mongo_kafka.kafka
+    dto_model = ExampleDtoWithCustomID if use_custom_id else ExampleDto
+    id_field = "str_id" if use_custom_id else "id"
     async with MongoKafkaDaoPublisherFactory.construct(
         config=mongo_kafka.config
     ) as factory:
         dao = await factory.get_dao(
             name="example",
-            dto_model=ExampleDto,
-            id_field="id",
+            dto_model=dto_model,
+            id_field=id_field,
             dto_to_event=lambda dto: dto.model_dump(),
             event_topic=EXAMPLE_TOPIC,
         )
 
         # insert an example resource:
-        example = ExampleDto(id="test1", field_a="test1", field_b=27, field_c=True)
+        example = dto_model()
+        assert hasattr(example, "str_id") == use_custom_id
+        example_id = getattr(example, id_field)
 
         async with kafka.expect_events(
             events=[
                 ExpectedEvent(
                     payload=example.model_dump(),
                     type_=CHANGE_EVENT_TYPE,
-                    key=example.id,
+                    key=str(example_id),
                 )
             ],
             in_topic=EXAMPLE_TOPIC,
@@ -182,22 +182,23 @@ async def test_dao_outbox_happy(mongo_kafka: MongoKafkaFixture):
             # check error on duplicate
             with pytest.raises(
                 ResourceAlreadyExistsError,
-                match='The resource with the id "test1" already exists.',
+                match=f'The resource with the id "{example_id}" already exists.',
             ):
                 await dao.insert(example)
 
         # read the newly inserted resource:
-        resource_read = await dao.get_by_id(example.id)
+        resource_read = await dao.get_by_id(example_id)
         assert resource_read == example
 
         # update the resource:
         example_update = example.model_copy(update={"field_c": False})
+        assert example_update != example
         async with kafka.expect_events(
             events=[
                 ExpectedEvent(
                     payload=example_update.model_dump(),
                     type_=CHANGE_EVENT_TYPE,
-                    key=example.id,
+                    key=str(example_id),
                 )
             ],
             in_topic=EXAMPLE_TOPIC,
@@ -205,7 +206,7 @@ async def test_dao_outbox_happy(mongo_kafka: MongoKafkaFixture):
             await dao.update(example_update)
 
         # read the updated resource again:
-        resource_updated = await dao.get_by_id(example.id)
+        resource_updated = await dao.get_by_id(example_id)
         assert resource_updated == example_update
 
         # upsert the original state of the resource:
@@ -214,7 +215,7 @@ async def test_dao_outbox_happy(mongo_kafka: MongoKafkaFixture):
                 ExpectedEvent(
                     payload=example.model_dump(),
                     type_=CHANGE_EVENT_TYPE,
-                    key=example.id,
+                    key=str(example_id),
                 )
             ],
             in_topic=EXAMPLE_TOPIC,
@@ -222,21 +223,20 @@ async def test_dao_outbox_happy(mongo_kafka: MongoKafkaFixture):
             await dao.upsert(example)
 
         # read the upserted resource:
-        resource_read = await dao.get_by_id(example.id)
+        resource_read = await dao.get_by_id(example_id)
         assert resource_read == example
 
         # insert additional resources:
-        add_examples = (
-            ExampleDto(id="test2", field_a="test2", field_b=27, field_c=True),
-            ExampleDto(id="test3", field_a="test3", field_b=27, field_c=False),
-        )
-        for add_example in add_examples:
+        example2 = dto_model(field_a="test2", field_b=27)
+        example3 = dto_model(field_a="test3", field_c=True)
+        example4 = dto_model(field_a="test4", field_c=False)
+        for add_example in (example2, example3, example4):
             async with kafka.expect_events(
                 events=[
                     ExpectedEvent(
                         payload=add_example.model_dump(),
                         type_=CHANGE_EVENT_TYPE,
-                        key=add_example.id,
+                        key=str(getattr(add_example, id_field)),
                     )
                 ],
                 in_topic=EXAMPLE_TOPIC,
@@ -245,14 +245,35 @@ async def test_dao_outbox_happy(mongo_kafka: MongoKafkaFixture):
 
         # perform a search for multiple resources:
         obtained_hits = {
-            hit async for hit in dao.find_all(mapping={"field_b": 27, "field_c": True})
+            hit async for hit in dao.find_all(mapping={"field_b": 42, "field_c": True})
         }
 
-        expected_hits = {example, add_examples[0]}
-        assert obtained_hits == expected_hits
+        assert obtained_hits == {example, example3}
+
+        # perform a search using values with non-standard data types
+        # (note that in this case we need to serialize these values manually):
+        mapping = {
+            id_field: str(example_id),
+            "field_d": example.field_d.isoformat(),
+        }
+        obtained_hit = await dao.find_one(mapping=mapping)
+        assert obtained_hit == example
+        obtained_hits = {hit async for hit in dao.find_all(mapping=mapping)}
+        assert obtained_hits == {example}
+
+        # make sure that 4 resources with different IDs were inserted:
+        obtained_ids = {
+            getattr(hit, id_field) async for hit in dao.find_all(mapping={})
+        }
+        assert len(obtained_ids) == 4
+        for obtained_id in obtained_ids:
+            if use_custom_id:
+                assert isinstance(obtained_id, str) and obtained_id.startswith("id-")
+            else:
+                assert isinstance(obtained_id, uuid.UUID)
 
         # find a single resource:
-        obtained_hit = await dao.find_one(mapping={"field_a": "test1"})
+        obtained_hit = await dao.find_one(mapping={"field_a": "test"})
 
         assert obtained_hit == example
 
@@ -262,16 +283,20 @@ async def test_dao_outbox_happy(mongo_kafka: MongoKafkaFixture):
                 ExpectedEvent(
                     payload={},
                     type_=DELETE_EVENT_TYPE,
-                    key=example.id,
+                    key=str(example_id),
                 )
             ],
             in_topic=EXAMPLE_TOPIC,
         ):
-            await dao.delete(example.id)
+            await dao.delete(example_id)
 
         # confirm that the resource was deleted:
         with pytest.raises(ResourceNotFoundError):
-            _ = await dao.get_by_id(example.id)
+            await dao.get_by_id(example_id)
+
+        # make sure that only 3 resources are left:
+        obtained_hits = {hit async for hit in dao.find_all(mapping={})}
+        assert len(obtained_hits) == 3
 
 
 async def test_delay_publishing(mongo_kafka: MongoKafkaFixture):
@@ -290,7 +315,7 @@ async def test_delay_publishing(mongo_kafka: MongoKafkaFixture):
         )
 
         # insert an example resource:
-        example = ExampleDto(id="test1", field_a="test1", field_b=27, field_c=True)
+        example = ExampleDto()
 
         async with kafka.record_events(in_topic=EXAMPLE_TOPIC) as recorder:
             await dao.insert(example)
@@ -303,7 +328,7 @@ async def test_delay_publishing(mongo_kafka: MongoKafkaFixture):
                 ExpectedEvent(
                     payload=example.model_dump(),
                     type_=CHANGE_EVENT_TYPE,
-                    key=example.id,
+                    key=str(example.id),
                 )
             ],
             in_topic=EXAMPLE_TOPIC,
@@ -328,9 +353,9 @@ async def test_suppress_publishing(mongo_kafka: MongoKafkaFixture):
 
         # insert some example resources:
         examples = [
-            ExampleDto(id="test1", field_a="test1", field_b=27, field_c=True),
-            ExampleDto(id="test2", field_a="test2", field_b=28, field_c=False),
-            ExampleDto(id="test3", field_a="test3", field_b=29, field_c=True),
+            ExampleDto(field_a="test1"),
+            ExampleDto(field_a="test2", field_c=False),
+            ExampleDto(field_a="test3"),
         ]
 
         async with kafka.record_events(in_topic=EXAMPLE_TOPIC) as recorder:
@@ -375,7 +400,7 @@ async def test_publishing_after_failure(mongo_kafka: MongoKafkaFixture):
         )
 
         # insert an example resource:
-        example = ExampleDto(id="test1", field_a="test1", field_b=27, field_c=True)
+        example = ExampleDto()
 
         with pytest.raises(RuntimeError):
             await dao.insert(example)
@@ -386,7 +411,7 @@ async def test_publishing_after_failure(mongo_kafka: MongoKafkaFixture):
                 ExpectedEvent(
                     payload=example.model_dump(),
                     type_=CHANGE_EVENT_TYPE,
-                    key=example.id,
+                    key=str(example.id),
                 )
             ],
             in_topic=EXAMPLE_TOPIC,
@@ -409,11 +434,11 @@ async def test_republishing(mongo_kafka: MongoKafkaFixture):
         )
 
         # insert an example resource:
-        example = ExampleDto(id="test1", field_a="test1", field_b=27, field_c=True)
+        example = ExampleDto()
         expected_event = ExpectedEvent(
             payload=example.model_dump(),
             type_=CHANGE_EVENT_TYPE,
-            key=example.id,
+            key=str(example.id),
         )
 
         async with kafka.expect_events(
@@ -452,7 +477,7 @@ async def test_dao_pub_sub_happy(mongo_kafka: MongoKafkaFixture):
         )
 
         # insert an example resource:
-        example = ExampleDto(id="test1", field_a="test1", field_b=27, field_c=True)
+        example = ExampleDto()
 
         async with set_new_correlation_id() as temp_correlation_id:
             await dao.insert(example)
@@ -463,10 +488,11 @@ async def test_dao_pub_sub_happy(mongo_kafka: MongoKafkaFixture):
             # delete the resource again:
             await dao.delete(example.id)
 
+        example_id = str(example.id)
         expected_events = [
-            (example.id, temp_correlation_id, example),
-            (example.id, temp_correlation_id, example_update),
-            (example.id, temp_correlation_id, None),
+            (example_id, temp_correlation_id, example),
+            (example_id, temp_correlation_id, example_update),
+            (example_id, temp_correlation_id, None),
         ]
 
         # Verify that the context var is reverted to the initial correlation ID after
@@ -480,6 +506,7 @@ async def test_dao_pub_sub_happy(mongo_kafka: MongoKafkaFixture):
         ) as subscriber:
             for _ in expected_events:
                 await subscriber.run(forever=False)
+            print("EXPECTED EVENTS", expected_events)
             assert sub_translator.received == expected_events
 
             # Clear out the received list
@@ -499,11 +526,12 @@ async def test_dao_pub_sub_invalid_dto(mongo_kafka: MongoKafkaFixture):
     """
     sub_translator = DummyOutboxSubscriber()
 
-    class ProducerDTO(BaseModel):
-        """producer DTO that differs from the DTO expected by the TestOutboxSubscriber"""
+    class ProducerDto(BaseModel):
+        """Producer DTO that differs from the DTO expected by TestOutboxSubscriber"""
 
-        id: str
-        field_a: str
+        id: UUID4 = UUID4Field()
+
+        field_a: int  # this is a string field in the expected DTO
 
     # publish some changes and deletions:
     async with MongoKafkaDaoPublisherFactory.construct(
@@ -511,14 +539,14 @@ async def test_dao_pub_sub_invalid_dto(mongo_kafka: MongoKafkaFixture):
     ) as factory:
         dao = await factory.get_dao(
             name="example",
-            dto_model=ProducerDTO,
+            dto_model=ProducerDto,
             id_field="id",
             dto_to_event=lambda dto: dto.model_dump(),
             event_topic=EXAMPLE_TOPIC,
         )
 
         # insert an example resource:
-        example = ProducerDTO(id="test1", field_a="test1")
+        example = ProducerDto(field_a=42)
         await dao.insert(example)
 
     # consume events:
@@ -548,7 +576,7 @@ async def test_mongokafka_dao_correlation_id_upsert(mongo_kafka: MongoKafkaFixtu
             event_topic=EXAMPLE_TOPIC,
         )
 
-        example = ExampleDto(id="test1", field_a="test", field_b=1, field_c=False)
+        example = ExampleDto()
 
         await dao.insert(dto=example)
 
@@ -610,7 +638,7 @@ async def test_mongokafka_dao_correlation_id_delete(mongo_kafka: MongoKafkaFixtu
             event_topic=EXAMPLE_TOPIC,
         )
 
-        example = ExampleDto(id="test1", field_a="test", field_b=1, field_c=False)
+        example = ExampleDto()
 
         # Insert, then verify that the inserted document contains the correlation ID
         await dao.insert(dto=example)
@@ -620,10 +648,11 @@ async def test_mongokafka_dao_correlation_id_delete(mongo_kafka: MongoKafkaFixtu
         assert inserted
         metadata = inserted.pop("__metadata__")
         assert inserted == {
-            "_id": "test1",
+            "_id": str(example.id),
             "field_a": "test",
-            "field_b": 1,
-            "field_c": False,
+            "field_b": 42,
+            "field_c": True,
+            "field_d": example.field_d.isoformat(),
         }
         assert metadata == {
             "correlation_id": correlation_id,
@@ -641,7 +670,7 @@ async def test_mongokafka_dao_correlation_id_delete(mongo_kafka: MongoKafkaFixtu
             )
             assert deleted
             metadata = deleted.pop("__metadata__")
-            assert deleted == {"_id": "test1"}
+            assert deleted == {"_id": str(example.id)}
             assert metadata == {
                 "correlation_id": temp_correlation_id,
                 "deleted": True,

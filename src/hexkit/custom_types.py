@@ -17,12 +17,27 @@
 """Module collecting custom types."""
 
 from collections.abc import Mapping, Sequence
+from datetime import date, datetime
 from typing import Any, Literal, Union
+from uuid import UUID
 
-# This is intended to type objects that could be a potential output of `json.loads`.
-# (Scalar types as well as arrays are excluded from the above assumption.)
+# This is intended to type objects that are assumed to be JSON serializable.
+# (Scalar types as well as arrays are excluded from the above assumption,
+# and we serialize date, datetime and UUID objects to JSON as strings.)
 JsonObject = Mapping[
-    str, Union[int, float, str, bool, Sequence[Any], Mapping[str, Any], None]
+    str,
+    Union[
+        int,
+        float,
+        str,
+        bool,
+        date,
+        datetime,
+        UUID,
+        Sequence[Any],
+        Mapping[str, Any],
+        None,
+    ],
 ]
 
 

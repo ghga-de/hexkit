@@ -113,7 +113,7 @@ def get_change_publish_func(
             await event_publisher.publish(
                 payload=payload,
                 type_=CHANGE_EVENT_TYPE,
-                key=getattr(dto, id_field),
+                key=str(getattr(dto, id_field)),
                 topic=event_topic,
             )
 

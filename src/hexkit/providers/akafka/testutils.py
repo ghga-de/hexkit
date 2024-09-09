@@ -159,7 +159,14 @@ def check_recorded_events(
     for index, (recorded_event, expected_event) in enumerate(
         zip(recorded_events, expected_events)
     ):
-        if recorded_event.payload != expected_event.payload:
+        # Convert the expected payload to use only basic data types
+        expected_payload = json.loads(
+            json.dumps(
+                expected_event.payload,
+                default=KafkaEventPublisher._default_json_serializer,
+            )
+        )
+        if recorded_event.payload != expected_payload:
             raise get_field_mismatch_error(field="payload", index=index)
         if recorded_event.type_ != expected_event.type_:
             raise get_field_mismatch_error(field="type", index=index)
