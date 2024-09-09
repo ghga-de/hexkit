@@ -89,32 +89,6 @@ async def test_kafka_event_publisher(kafka: KafkaFixture):
             )
 
 
-async def test_kafka_event_publisher_with_non_standard_types(kafka: KafkaFixture):
-    """Test the KafkaEventPublisher."""
-    payload: JsonObject = {"test_content": "Hello World"}
-    type_ = "test_type"
-    key = "test_key"
-    topic = "test_topic"
-
-    config = KafkaConfig(
-        service_name="test_publisher",
-        service_instance_id="1",
-        kafka_servers=kafka.kafka_servers,
-    )
-
-    async with kafka.expect_events(
-        events=[ExpectedEvent(payload=payload, type_=type_, key=key)],
-        in_topic=topic,
-    ):
-        async with KafkaEventPublisher.construct(config=config) as event_publisher:
-            await event_publisher.publish(
-                payload=payload,
-                type_=type_,
-                key=key,
-                topic=topic,
-            )
-
-
 async def test_kafka_event_subscriber(kafka: KafkaFixture):
     """Test the KafkaEventSubscriber with mocked EventSubscriber."""
     payload = {"test_content": "Hello World"}
