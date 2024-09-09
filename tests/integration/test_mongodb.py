@@ -19,11 +19,13 @@
 import uuid
 from datetime import datetime
 from pathlib import Path
+from typing import Optional
 
 import pytest
 from pydantic import UUID4, BaseModel, ConfigDict, Field
 
 from hexkit.protocols.dao import (
+    Dao,
     InvalidFindMappingError,
     MultipleHitsFoundError,
     NoHitsFoundError,
@@ -39,17 +41,39 @@ from hexkit.providers.mongodb.testutils import (
 
 pytestmark = pytest.mark.asyncio()
 
-EXAMPLE_ID1 = uuid.UUID("73ab9fd9-edce-4c7a-89fa-f31f7cabbd0b", version=4)
-
 
 class ExampleDto(BaseModel):
-    """Example DTO with an auto-generated ID."""
+    """Example DTO model with an auto-generated UUID4 ID field."""
 
     model_config = ConfigDict(frozen=True)
+
     id: UUID4 = UUID4Field(description="The ID of the resource.")
-    field_a: str
-    field_b: int
-    field_c: bool
+
+    field_a: str = Field(default="test")
+    field_b: int = Field(default=42)
+    field_c: bool = Field(default=True)
+    field_d: datetime = Field(default_factory=datetime.now)
+
+
+class CustomIdGenerator:
+    """A custom string based ID generator."""
+
+    def __init__(self) -> None:
+        self.last_id = 0
+
+    def id_factory(self) -> str:
+        """Factory that can be used to generate new IDs."""
+        self.last_id += 1
+        return f"id-{self.last_id}"
+
+
+class ExampleDtoWithCustomID(ExampleDto):
+    """Example DTO model with a custom string based ID."""
+
+    str_id: str = Field(
+        default_factory=CustomIdGenerator().id_factory,
+        description="Custom string based ID of the resource.",
+    )
 
 
 async def test_dao_find_all_with_id(mongodb: MongoDbFixture):
@@ -61,7 +85,7 @@ async def test_dao_find_all_with_id(mongodb: MongoDbFixture):
     )
 
     # insert an example resource:
-    resource = ExampleDto(field_a="test1", field_b=27, field_c=True)
+    resource = ExampleDto()
     await dao.insert(resource)
 
     str_id = str(resource.id)
@@ -133,7 +157,7 @@ async def test_dao_insert_happy(mongodb: MongoDbFixture):
         id_field="id",
     )
 
-    resource = ExampleDto(id=EXAMPLE_ID1, field_a="test1", field_b=27, field_c=True)
+    resource = ExampleDto()
     await dao.insert(resource)
 
     # check the newly inserted resource:
@@ -149,13 +173,13 @@ async def test_dao_insert_duplicate_id(mongodb: MongoDbFixture):
         id_field="id",
     )
 
-    resource = ExampleDto(id=EXAMPLE_ID1, field_a="test1", field_b=27, field_c=True)
+    resource = ExampleDto()
     await dao.insert(resource)
 
     # check error is raised correctly on trying to insert duplicate
     with pytest.raises(
         ResourceAlreadyExistsError,
-        match=f'The resource with the id "{EXAMPLE_ID1}" already exists.',
+        match=f'The resource with the id "{resource.id}" already exists.',
     ):
         await dao.insert(resource)
 
@@ -168,7 +192,7 @@ async def test_dao_upsert_happy(mongodb: MongoDbFixture):
         id_field="id",
     )
 
-    resource = ExampleDto(field_a="test1", field_b=27, field_c=True)
+    resource = ExampleDto()
     await dao.upsert(resource)
 
     # check the newly inserted resource:
@@ -204,10 +228,26 @@ async def test_dao_update_not_found(mongodb: MongoDbFixture):
         id_field="id",
     )
 
-    resource = ExampleDto(field_a="test1", field_b=27, field_c=True)
+    resource = ExampleDto()
 
     with pytest.raises(ResourceNotFoundError):
         await dao.update(resource)
+
+
+async def test_dao_delete_happy(mongodb: MongoDbFixture):
+    """Tests deleting an existing resource via its ID."""
+    dao = await mongodb.dao_factory.get_dao(
+        name="example",
+        dto_model=ExampleDto,
+        id_field="id",
+    )
+
+    resource = ExampleDto()
+    await dao.insert(resource)
+    assert await dao.get_by_id(resource.id) == resource
+    await dao.delete(resource.id)
+    with pytest.raises(ResourceNotFoundError):
+        await dao.get_by_id(resource.id)
 
 
 async def test_dao_delete_not_found(mongodb: MongoDbFixture):
@@ -232,10 +272,10 @@ async def test_dao_find_invalid_mapping(mongodb: MongoDbFixture):
     mapping = {"non_existing_field": 28}
 
     with pytest.raises(InvalidFindMappingError):
-        _ = await dao.find_one(mapping=mapping)
+        await dao.find_one(mapping=mapping)
 
     with pytest.raises(InvalidFindMappingError):
-        _ = [hit async for hit in dao.find_all(mapping=mapping)]
+        [hit async for hit in dao.find_all(mapping=mapping)]
 
 
 async def test_dao_find_no_hits(mongodb: MongoDbFixture):
@@ -248,7 +288,7 @@ async def test_dao_find_no_hits(mongodb: MongoDbFixture):
     mapping = {"field_c": 28}
 
     with pytest.raises(NoHitsFoundError):
-        _ = await dao.find_one(mapping=mapping)
+        await dao.find_one(mapping=mapping)
 
     resources = [hit async for hit in dao.find_all(mapping=mapping)]
     assert len(resources) == 0
@@ -264,10 +304,10 @@ async def test_dao_find_one_with_multiple_hits(mongodb: MongoDbFixture):
 
     # insert three identical resources (only the IDs will differ)
     for _ in range(3):
-        await dao.insert(ExampleDto(field_a="test1", field_b=27, field_c=True))
+        await dao.insert(ExampleDto())
 
     with pytest.raises(MultipleHitsFoundError):
-        _ = await dao.find_one(mapping={"field_b": 27})
+        await dao.find_one(mapping={"field_b": 42})
 
 
 async def test_complex_models(mongodb: MongoDbFixture):
@@ -292,9 +332,7 @@ async def test_complex_models(mongodb: MongoDbFixture):
         id="complex_data",
         some_date=datetime(2022, 10, 18, 16, 41, 34, 780735),
         some_path=Path(__file__).resolve(),
-        some_nested_data=ExampleDto(
-            id=EXAMPLE_ID1, field_a="a", field_b=2, field_c=True
-        ),
+        some_nested_data=ExampleDto(),
     )
     await dao.insert(resource_to_create)
 
@@ -306,11 +344,22 @@ async def test_complex_models(mongodb: MongoDbFixture):
 
 async def test_duplicate_uuid(mongodb: MongoDbFixture):
     """Test to illustrate how to handle duplicate UUIDs."""
+    last_id: Optional[UUID4] = None
+
+    def bad_id_factory():
+        """Bad ID factory that generates duplicate IDs."""
+        nonlocal last_id
+        id_ = last_id
+        if id_ is None:
+            id_ = last_id = uuid.uuid4()
+        else:
+            last_id = None
+        return id_
 
     class SmallDto(BaseModel):
-        """Small Dto class that produces a predictable UUID."""
+        """Small DTO class that uses a bad id generator."""
 
-        id: UUID4 = Field(default_factory=lambda: EXAMPLE_ID1)
+        id: UUID4 = Field(default_factory=bad_id_factory)
         field: str
 
     dao = await mongodb.dao_factory.get_dao(
@@ -320,20 +369,94 @@ async def test_duplicate_uuid(mongodb: MongoDbFixture):
     )
 
     resource = SmallDto(field="test1")
-    assert resource.id == EXAMPLE_ID1
     await dao.insert(resource)
 
     # check the newly inserted resource:
     resource_observed = await dao.get_by_id(resource.id)
-    assert resource_observed == resource
+    assert resource_observed.id == resource.id
+    assert resource_observed.field == "test1"
 
     # insert a new resource with the same ID:
     resource2 = SmallDto(field="test2")
-    assert resource2.id == EXAMPLE_ID1
+    assert resource2.id == resource.id
     with pytest.raises(ResourceAlreadyExistsError):
         await dao.insert(resource2)
 
-    # Generate new ID
-    resource2 = SmallDto(id=uuid.uuid4(), field="test2")
-    assert resource2.id != EXAMPLE_ID1
+    # regenerate the resource so that it gets a new ID
+    resource2 = SmallDto(**resource2.model_dump(exclude={"id"}))
+
+    # now it should be possible to insert the new resource:
     await dao.insert(resource2)
+
+    # check the newly inserted resource:
+    resource2_observed = await dao.get_by_id(resource2.id)
+    assert resource2_observed.id == resource2.id
+    assert resource2_observed.id != resource.id
+    assert resource2_observed.field == "test2"
+
+
+@pytest.mark.parametrize("use_custom_id", [False, True], ids=["UUID4", "Custom ID"])
+async def test_dao_crud_happy(use_custom_id: bool, mongodb: MongoDbFixture):
+    """Test the happy path of a typical CRUD database interaction in sequence.
+
+    This tests both a UUID4 based and a custom string based ID generator.
+    """
+    dto = ExampleDtoWithCustomID if use_custom_id else ExampleDto
+    id_field = "str_id" if use_custom_id else "id"
+    dao: Dao[ExampleDto] = await mongodb.dao_factory.get_dao(
+        name="example",
+        dto_model=dto,  # type: ignore
+        id_field=id_field,
+    )
+
+    # insert an example resource:
+    resource = dto()
+    assert hasattr(resource, "str_id") == use_custom_id
+    await dao.insert(resource)
+
+    # read the newly inserted resource:
+    resource_read = await dao.get_by_id(getattr(resource, id_field))
+
+    assert resource_read == resource
+
+    # update the resource:
+    resource_updated = resource.model_copy(update={"field_c": False})
+    await dao.update(resource_updated)
+
+    # read the updated resource again:
+    resource_updated_read = await dao.get_by_id(getattr(resource_updated, id_field))
+
+    assert resource_updated_read == resource_updated
+
+    # insert additional resources:
+    resource2 = dto(field_a="test2", field_b=27)
+    await dao.insert(resource2)
+    resource3 = dto(field_a="test3", field_c=False)
+    await dao.upsert(resource3)  # upsert should work here as well
+
+    # perform a search for multiple resources:
+    obtained_hits = {
+        hit async for hit in dao.find_all(mapping={"field_b": 42, "field_c": False})
+    }
+
+    assert obtained_hits == {resource_updated, resource3}
+
+    # make sure that 3 resources with different IDs were inserted:
+    obtained_ids = {getattr(hit, id_field) async for hit in dao.find_all(mapping={})}
+    if use_custom_id:
+        assert obtained_ids == {"id-1", "id-2", "id-3"}
+    else:
+        assert len(obtained_ids) == 3
+        assert all(isinstance(obtained_id, uuid.UUID) for obtained_id in obtained_ids)
+
+    # find a single resource:
+    obtained_hit = await dao.find_one(mapping={"field_a": "test3"})
+
+    assert obtained_hit == resource3
+
+    # delete the resource:
+    await dao.delete(getattr(resource3, id_field))
+
+    # confirm that the resource was deleted:
+    with pytest.raises(NoHitsFoundError):
+        obtained_hit = await dao.find_one(mapping={"field_a": "test3"})

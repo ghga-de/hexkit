@@ -263,7 +263,7 @@ class MongoKafkaDaoPublisher(Generic[Dto]):
         if self._autopublish:
             await self._publish_change(dto)
 
-    async def delete(self, id_: str) -> None:
+    async def delete(self, id_: Union[str, UUID]) -> None:
         """Delete a resource by providing its ID.
 
         Args:
@@ -272,6 +272,9 @@ class MongoKafkaDaoPublisher(Generic[Dto]):
         Raises:
             ResourceNotFoundError: when resource with the specified id_ was not found
         """
+        if isinstance(id_, UUID):
+            id_ = str(id_)
+
         correlation_id = get_correlation_id()
         document = {
             "_id": id_,
@@ -291,9 +294,15 @@ class MongoKafkaDaoPublisher(Generic[Dto]):
             await self._publish_delete(id_)
 
     async def find_one(self, *, mapping: Mapping[str, Any]) -> Dto:
-        """Find the resource that matches the specified mapping. It is expected that
-        at most one resource matches the constraints. An exception is raised if no or
-        multiple hits are found.
+        """Find the resource that matches the specified mapping.
+
+        It is expected that at most one resource matches the constraints.
+        An exception is raised if no or multiple hits are found.
+
+        The values in the mapping are used to filter the resources, these are
+        assumed to be standard JSON scalar types. Particularly, UUIDs and datetimes
+        must be represented as strings. Dictionaries can be passed as values to
+        specify more complex MongoDB queries.
 
         Args:
             mapping:
@@ -315,6 +324,11 @@ class MongoKafkaDaoPublisher(Generic[Dto]):
 
     async def find_all(self, *, mapping: Mapping[str, Any]) -> AsyncIterator[Dto]:
         """Find all resources that match the specified mapping.
+
+        The values in the mapping are used to filter the resources, these are
+        assumed to be standard JSON scalar types. Particularly, UUIDs and datetimes
+        must be represented as strings. Dictionaries can be passed as values to
+        specify more complex MongoDB queries.
 
         Args:
             mapping:
