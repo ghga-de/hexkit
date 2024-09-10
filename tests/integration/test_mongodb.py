@@ -61,18 +61,32 @@ class CustomIdGenerator:
     def __init__(self) -> None:
         self.last_id = 0
 
-    def id_factory(self) -> str:
-        """Factory that can be used to generate new IDs."""
+    def str_id_factory(self) -> str:
+        """Factory that can be used to generate new str based IDs."""
         self.last_id += 1
         return f"id-{self.last_id}"
 
+    def int_id_factory(self) -> int:
+        """Factory that can be used to generate new int based IDs."""
+        self.last_id += 1
+        return self.last_id
 
-class ExampleDtoWithCustomID(ExampleDto):
+
+class ExampleDtoWithStrID(ExampleDto):
     """Example DTO model with a custom string based ID."""
 
-    str_id: str = Field(
-        default_factory=CustomIdGenerator().id_factory,
+    custom_id: str = Field(
+        default_factory=CustomIdGenerator().str_id_factory,
         description="Custom string based ID of the resource.",
+    )
+
+
+class ExampleDtoWithIntID(ExampleDto):
+    """Example DTO model with a custom int based ID."""
+
+    custom_id: int = Field(
+        default_factory=CustomIdGenerator().int_id_factory,
+        description="Custom int based ID of the resource.",
     )
 
 
@@ -396,27 +410,30 @@ async def test_duplicate_uuid(mongodb: MongoDbFixture):
     assert resource2_observed.field == "test2"
 
 
-@pytest.mark.parametrize("use_custom_id", [False, True], ids=["UUID4", "Custom ID"])
-async def test_dao_crud_happy(use_custom_id: bool, mongodb: MongoDbFixture):
+@pytest.mark.parametrize(
+    "dto_model", [ExampleDto, ExampleDtoWithIntID, ExampleDtoWithStrID]
+)
+async def test_dao_crud_happy(dto_model: type, mongodb: MongoDbFixture):
     """Test the happy path of a typical CRUD database interaction in sequence.
 
-    This tests both a UUID4 based and a custom string based ID generator.
+    This tests UUID4 based as well as custom int and string based ID generators.
     """
-    dto = ExampleDtoWithCustomID if use_custom_id else ExampleDto
-    id_field = "str_id" if use_custom_id else "id"
+    assert issubclass(dto_model, ExampleDto)
+    id_field = "id" if dto_model is ExampleDto else "custom_id"
     dao: Dao[ExampleDto] = await mongodb.dao_factory.get_dao(
         name="example",
-        dto_model=dto,  # type: ignore
+        dto_model=dto_model,  # type: ignore
         id_field=id_field,
     )
 
     # insert an example resource:
-    resource = dto()
-    assert hasattr(resource, "str_id") == use_custom_id
+    resource = dto_model()
+    resource_id = getattr(resource, id_field)
+    assert hasattr(resource, "custom_id") == (dto_model is not ExampleDto)
     await dao.insert(resource)
 
     # read the newly inserted resource:
-    resource_read = await dao.get_by_id(getattr(resource, id_field))
+    resource_read = await dao.get_by_id(resource_id)
 
     assert resource_read == resource
 
@@ -425,14 +442,14 @@ async def test_dao_crud_happy(use_custom_id: bool, mongodb: MongoDbFixture):
     await dao.update(resource_updated)
 
     # read the updated resource again:
-    resource_updated_read = await dao.get_by_id(getattr(resource_updated, id_field))
+    resource_updated_read = await dao.get_by_id(resource_id)
 
     assert resource_updated_read == resource_updated
 
     # insert additional resources:
-    resource2 = dto(field_a="test2", field_b=27)
+    resource2 = dto_model(field_a="test2", field_b=27)
     await dao.insert(resource2)
-    resource3 = dto(field_a="test3", field_c=False)
+    resource3 = dto_model(field_a="test3", field_c=False)
     await dao.upsert(resource3)  # upsert should work here as well
 
     # perform a search for multiple resources:
@@ -444,9 +461,13 @@ async def test_dao_crud_happy(use_custom_id: bool, mongodb: MongoDbFixture):
 
     # perform a search using values with non-standard data types
     # (note that in this case we need to serialize these values manually):
+    id_value = resource_id
+    if isinstance(id_value, uuid.UUID):
+        id_value = str(id_value)
+    field_d_value = resource.field_d.isoformat()
     mapping = {
-        id_field: str(getattr(resource, id_field)),
-        "field_d": resource.field_d.isoformat(),
+        id_field: id_value,
+        "field_d": field_d_value,
     }
     obtained_hit = await dao.find_one(mapping=mapping)
     assert obtained_hit == resource_updated
@@ -456,8 +477,11 @@ async def test_dao_crud_happy(use_custom_id: bool, mongodb: MongoDbFixture):
     # make sure that 3 resources with different IDs were inserted:
     obtained_ids = {getattr(hit, id_field) async for hit in dao.find_all(mapping={})}
     assert len(obtained_ids) == 3
+    assert resource_id in obtained_ids
     for obtained_id in obtained_ids:
-        if use_custom_id:
+        if dto_model is ExampleDtoWithIntID:
+            assert isinstance(obtained_id, int)
+        elif dto_model is ExampleDtoWithStrID:
             assert isinstance(obtained_id, str) and obtained_id.startswith("id-")
         else:
             assert isinstance(obtained_id, uuid.UUID)

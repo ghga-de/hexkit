@@ -49,7 +49,7 @@ Dto = TypeVar("Dto", bound=BaseModel)
 class ResourceNotFoundError(RuntimeError):
     """Raised when a requested resource did not exist."""
 
-    def __init__(self, *, id_: str):
+    def __init__(self, *, id_: Union[int, str, UUID]):
         message = f'The resource with the id "{id_}" does not exist.'
         super().__init__(message)
 
@@ -57,7 +57,7 @@ class ResourceNotFoundError(RuntimeError):
 class ResourceAlreadyExistsError(RuntimeError):
     """Raised when a resource did unexpectedly exist."""
 
-    def __init__(self, *, id_: str):
+    def __init__(self, *, id_: Union[int, str, UUID]):
         message = f'The resource with the id "{id_}" already exists.'
         super().__init__(message)
 
@@ -116,7 +116,7 @@ class Dao(typing.Protocol[Dto]):
         """
         ...
 
-    async def get_by_id(self, id_: Union[str, UUID]) -> Dto:
+    async def get_by_id(self, id_: Union[int, str, UUID]) -> Dto:
         """Get a resource by providing its ID.
 
         Args:
@@ -144,7 +144,7 @@ class Dao(typing.Protocol[Dto]):
         """
         ...
 
-    async def delete(self, id_: Union[str, UUID]) -> None:
+    async def delete(self, id_: Union[int, str, UUID]) -> None:
         """Delete a resource by providing its ID.
 
         Args:

@@ -158,7 +158,7 @@ class MongoDbDao(Generic[Dto]):
         self._document_to_dto = document_to_dto
         self._dto_to_document = dto_to_document
 
-    async def get_by_id(self, id_: Union[str, UUID]) -> Dto:
+    async def get_by_id(self, id_: Union[int, str, UUID]) -> Dto:
         """Get a resource by providing its ID.
 
         Args:
@@ -201,7 +201,7 @@ class MongoDbDao(Generic[Dto]):
         # (trusting MongoDB that matching on the _id field can only yield one or
         # zero matches)
 
-    async def delete(self, id_: Union[str, UUID]) -> None:
+    async def delete(self, id_: Union[int, str, UUID]) -> None:
         """Delete a resource by providing its ID.
 
         Args:

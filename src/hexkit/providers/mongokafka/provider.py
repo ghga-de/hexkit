@@ -51,7 +51,7 @@ from hexkit.providers.mongodb.provider import (
 class ResourceDeletedError(RuntimeError):
     """Raised when trying to interact with a resource that has been deleted."""
 
-    def __init__(self, id_: str):
+    def __init__(self, id_: Union[int, str, UUID]):
         """Initialize the exception."""
         super().__init__(f"Resource with ID {id_} has been deleted.")
         self.id_ = id_
@@ -113,6 +113,7 @@ def get_change_publish_func(
             await event_publisher.publish(
                 payload=payload,
                 type_=CHANGE_EVENT_TYPE,
+                # here we assume that the ID is a string, an int or a UUID
                 key=str(getattr(dto, id_field)),
                 topic=event_topic,
             )
@@ -127,17 +128,17 @@ def get_delete_publish_func(
     event_topic: str,
     event_publisher: EventPublisherProtocol,
     collection: AgnosticCollection,
-) -> Callable[[str], Awaitable[None]]:
+) -> Callable[[Union[int, str]], Awaitable[None]]:
     """Generate a function that publishes deletion events for a specific type of
     resource.
     """
 
-    async def publish_deletion(id_: str) -> None:
+    async def publish_deletion(id_: Union[int, str]) -> None:
         """Publishes a deletion event and marks the deletion as published."""
         await event_publisher.publish(
             payload={},
             type_=DELETE_EVENT_TYPE,
-            key=id_,
+            key=str(id_),
             topic=event_topic,
         )
 
@@ -188,7 +189,7 @@ class MongoKafkaDaoPublisher(Generic[Dto]):
         collection: AgnosticCollection,
         dao: MongoDbDao[Dto],
         publish_change: Callable[[Dto], Awaitable[None]],
-        publish_delete: Callable[[str], Awaitable[None]],
+        publish_delete: Callable[[Union[int, str]], Awaitable[None]],
         autopublish: bool,
     ):
         """Initialize the DAO.
@@ -221,7 +222,7 @@ class MongoKafkaDaoPublisher(Generic[Dto]):
         self._publish_delete = publish_delete
         self._autopublish = autopublish
 
-    async def get_by_id(self, id_: Union[str, UUID]) -> Dto:
+    async def get_by_id(self, id_: Union[int, str, UUID]) -> Dto:
         """Get a resource by providing its ID.
 
         Args:
@@ -263,7 +264,7 @@ class MongoKafkaDaoPublisher(Generic[Dto]):
         if self._autopublish:
             await self._publish_change(dto)
 
-    async def delete(self, id_: Union[str, UUID]) -> None:
+    async def delete(self, id_: Union[int, str, UUID]) -> None:
         """Delete a resource by providing its ID.
 
         Args:

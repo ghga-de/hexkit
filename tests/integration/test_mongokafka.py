@@ -58,7 +58,7 @@ from hexkit.providers.mongokafka.testutils import (
     mongo_kafka_fixture,  # noqa: F401
 )
 
-from .test_mongodb import ExampleDto, ExampleDtoWithCustomID
+from .test_mongodb import ExampleDto, ExampleDtoWithIntID, ExampleDtoWithStrID
 
 pytestmark = pytest.mark.asyncio()
 
@@ -145,12 +145,17 @@ async def test_dao_outbox_with_non_existing_resource(mongo_kafka: MongoKafkaFixt
                 await dao.delete(example.id)
 
 
-@pytest.mark.parametrize("use_custom_id", [False, True], ids=["UUID4", "Custom ID"])
-async def test_dao_outbox_happy(use_custom_id: bool, mongo_kafka: MongoKafkaFixture):
-    """Test the happy path of using the MongoKafkaOutboxFactory."""
+@pytest.mark.parametrize(
+    "dto_model", [ExampleDto, ExampleDtoWithIntID, ExampleDtoWithStrID]
+)
+async def test_dao_outbox_happy(dto_model: type, mongo_kafka: MongoKafkaFixture):
+    """Test the happy path of using the MongoKafkaOutboxFactory.
+
+    This tests UUID4 based as well as custom int and string based ID generators.
+    """
     kafka = mongo_kafka.kafka
-    dto_model = ExampleDtoWithCustomID if use_custom_id else ExampleDto
-    id_field = "str_id" if use_custom_id else "id"
+    assert issubclass(dto_model, ExampleDto)
+    id_field = "id" if dto_model is ExampleDto else "custom_id"
     async with MongoKafkaDaoPublisherFactory.construct(
         config=mongo_kafka.config
     ) as factory:
@@ -164,7 +169,7 @@ async def test_dao_outbox_happy(use_custom_id: bool, mongo_kafka: MongoKafkaFixt
 
         # insert an example resource:
         example = dto_model()
-        assert hasattr(example, "str_id") == use_custom_id
+        assert hasattr(example, "custom_id") == (dto_model is not ExampleDto)
         example_id = getattr(example, id_field)
 
         async with kafka.expect_events(
@@ -252,9 +257,13 @@ async def test_dao_outbox_happy(use_custom_id: bool, mongo_kafka: MongoKafkaFixt
 
         # perform a search using values with non-standard data types
         # (note that in this case we need to serialize these values manually):
+        id_value = example_id
+        if isinstance(id_value, uuid.UUID):
+            id_value = str(id_value)
+        field_d_value = example.field_d.isoformat()
         mapping = {
-            id_field: str(example_id),
-            "field_d": example.field_d.isoformat(),
+            id_field: id_value,
+            "field_d": field_d_value,
         }
         obtained_hit = await dao.find_one(mapping=mapping)
         assert obtained_hit == example
@@ -266,8 +275,11 @@ async def test_dao_outbox_happy(use_custom_id: bool, mongo_kafka: MongoKafkaFixt
             getattr(hit, id_field) async for hit in dao.find_all(mapping={})
         }
         assert len(obtained_ids) == 4
+        assert example_id in obtained_ids
         for obtained_id in obtained_ids:
-            if use_custom_id:
+            if dto_model is ExampleDtoWithIntID:
+                assert isinstance(obtained_id, int)
+            elif dto_model is ExampleDtoWithStrID:
                 assert isinstance(obtained_id, str) and obtained_id.startswith("id-")
             else:
                 assert isinstance(obtained_id, uuid.UUID)
