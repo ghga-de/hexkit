@@ -24,6 +24,8 @@ Utilities for testing are located in `./testutils.py`.
 import json
 from collections.abc import AsyncIterator, Collection, Mapping
 from contextlib import AbstractAsyncContextManager
+from datetime import date, datetime
+from functools import partial
 from typing import Any, Callable, Generic, Optional, Union
 from uuid import UUID
 
@@ -68,8 +70,21 @@ def dto_to_document(dto: Dto, *, id_field: str) -> dict[str, Any]:
     return document
 
 
+def value_to_document(value: Any) -> Any:
+    """Converts the value of a DTO field to the value used in the database.
+
+    This should be compatible with the conversion done in 'dto_to_document'.
+    """
+    if isinstance(value, UUID):
+        return str(value)
+    if isinstance(value, (date, datetime)):
+        return value.isoformat()
+    return value
+
+
 def validate_find_mapping(mapping: Mapping[str, Any], *, dto_model: type[Dto]):
-    """Validates a key/value mapping used in find methods against the provided DTO model by checking if the mapping keys exist as model fields.
+    """Validates a key/value mapping used in find methods against the provided DTO model
+    by checking if the mapping keys exist as model fields.
 
     Raises:
         InvalidMappingError: If validation fails.
@@ -134,6 +149,7 @@ class MongoDbDao(Generic[Dto]):
         collection: AgnosticCollection,
         document_to_dto: Callable[[dict[str, Any]], Dto],
         dto_to_document: Callable[[Dto], dict[str, Any]],
+        value_to_document: Callable[[Any], Any],
     ):
         """Initialize the DAO.
 
@@ -151,14 +167,19 @@ class MongoDbDao(Generic[Dto]):
             dto_to_document:
                 A callable that takes a DTO model and returns a representation that is
                 a compatible document for a MongoDB database.
+            value_to_document:
+                A callable that takes a single DTO value and returns the representation
+                of the value that is stored in the MongoDB database.
+                This must be compatible with the conversion done by 'dto_to_document'.
         """
         self._collection = collection
         self._dto_model = dto_model
         self._id_field = id_field
         self._document_to_dto = document_to_dto
         self._dto_to_document = dto_to_document
+        self._value_to_document = value_to_document
 
-    async def get_by_id(self, id_: Union[int, str, UUID]) -> Dto:
+    async def get_by_id(self, id_: Any) -> Dto:
         """Get a resource by providing its ID.
 
         Args:
@@ -170,8 +191,7 @@ class MongoDbDao(Generic[Dto]):
         Raises:
             ResourceNotFoundError: when resource with the specified id_ was not found
         """
-        if isinstance(id_, UUID):
-            id_ = str(id_)
+        id_ = self._value_to_document(id_)
 
         document = await self._collection.find_one({"_id": id_})
 
@@ -210,8 +230,7 @@ class MongoDbDao(Generic[Dto]):
         Raises:
             ResourceNotFoundError: when resource with the specified id_ was not found
         """
-        if isinstance(id_, UUID):
-            id_ = str(id_)
+        id_ = self._value_to_document(id_)
 
         result = await self._collection.delete_one({"_id": id_})
 
@@ -270,10 +289,23 @@ class MongoDbDao(Generic[Dto]):
         validate_find_mapping(mapping, dto_model=self._dto_model)
         mapping = replace_id_field_in_find_mapping(mapping, self._id_field)
 
-        cursor = self._collection.find(filter=mapping)
+        cursor = self._collection.find(filter=self._convert_filter_values(mapping))
 
         async for document in cursor:
             yield self._document_to_dto(document)
+
+    def _convert_filter_values(self, value: Any) -> Any:
+        """Convert UUID, date and datetime filter values.
+
+        This makes the values findable in the database where they are stored
+        in standard JSON format (i.e. UUID, date and datetime object as strings).
+
+        The passed object can be a scalar value or a dictionary which can be nested.
+        """
+        if isinstance(value, dict):  # recursively convert all values
+            convert = self._convert_filter_values
+            return {k: convert(v) for k, v in value.items()}
+        return self._value_to_document(value)
 
     @classmethod
     def with_transaction(cls) -> AbstractAsyncContextManager["Dao[Dto]"]:
@@ -391,15 +423,13 @@ class MongoDbDaoFactory(DaoFactoryProtocol):
 
         collection = self._db[name]
 
-        document_to_dto_ = lambda document: document_to_dto(
-            document=document, id_field=id_field, dto_model=dto_model
-        )
-        dto_to_document_ = lambda dto: dto_to_document(dto=dto, id_field=id_field)
-
         return MongoDbDao(
             collection=collection,
             dto_model=dto_model,
             id_field=id_field,
-            document_to_dto=document_to_dto_,
-            dto_to_document=dto_to_document_,
+            document_to_dto=partial(
+                document_to_dto, id_field=id_field, dto_model=dto_model
+            ),
+            dto_to_document=partial(dto_to_document, id_field=id_field),
+            value_to_document=value_to_document,
         )

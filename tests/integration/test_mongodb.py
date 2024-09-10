@@ -422,7 +422,7 @@ async def test_dao_crud_happy(dto_model: type, mongodb: MongoDbFixture):
     id_field = "id" if dto_model is ExampleDto else "custom_id"
     dao: Dao[ExampleDto] = await mongodb.dao_factory.get_dao(
         name="example",
-        dto_model=dto_model,  # type: ignore
+        dto_model=dto_model,
         id_field=id_field,
     )
 
@@ -460,15 +460,7 @@ async def test_dao_crud_happy(dto_model: type, mongodb: MongoDbFixture):
     assert obtained_hits == {resource_updated, resource3}
 
     # perform a search using values with non-standard data types
-    # (note that in this case we need to serialize these values manually):
-    id_value = resource_id
-    if isinstance(id_value, uuid.UUID):
-        id_value = str(id_value)
-    field_d_value = resource.field_d.isoformat()
-    mapping = {
-        id_field: id_value,
-        "field_d": field_d_value,
-    }
+    mapping = {id_field: resource_id, "field_d": resource.field_d}
     obtained_hit = await dao.find_one(mapping=mapping)
     assert obtained_hit == resource_updated
     obtained_hits = {hit async for hit in dao.find_all(mapping=mapping)}

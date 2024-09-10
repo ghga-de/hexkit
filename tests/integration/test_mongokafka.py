@@ -257,14 +257,7 @@ async def test_dao_outbox_happy(dto_model: type, mongo_kafka: MongoKafkaFixture)
 
         # perform a search using values with non-standard data types
         # (note that in this case we need to serialize these values manually):
-        id_value = example_id
-        if isinstance(id_value, uuid.UUID):
-            id_value = str(id_value)
-        field_d_value = example.field_d.isoformat()
-        mapping = {
-            id_field: id_value,
-            "field_d": field_d_value,
-        }
+        mapping = {id_field: example_id, "field_d": example.field_d}
         obtained_hit = await dao.find_one(mapping=mapping)
         assert obtained_hit == example
         obtained_hits = {hit async for hit in dao.find_all(mapping=mapping)}

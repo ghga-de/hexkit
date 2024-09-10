@@ -23,6 +23,7 @@ import json
 import logging
 from collections.abc import AsyncIterator, Awaitable, Collection, Mapping
 from contextlib import AbstractAsyncContextManager, asynccontextmanager, contextmanager
+from functools import partial
 from typing import Any, Callable, Generic, Optional, Union
 from uuid import UUID
 
@@ -45,6 +46,7 @@ from hexkit.providers.mongodb.provider import (
     get_single_hit,
     replace_id_field_in_find_mapping,
     validate_find_mapping,
+    value_to_document,
 )
 
 
@@ -343,7 +345,7 @@ class MongoKafkaDaoPublisher(Generic[Dto]):
         validate_find_mapping(mapping, dto_model=self._dto_model)
         mapping = replace_id_field_in_find_mapping(mapping, self._id_field)
 
-        cursor = self._collection.find(filter=mapping)
+        cursor = self._collection.find(filter=self._convert_filter_values(mapping))
 
         async for document in cursor:
             if document.get("__metadata__", {}).get("deleted", False):
@@ -351,6 +353,19 @@ class MongoKafkaDaoPublisher(Generic[Dto]):
             yield document_to_dto(
                 document, id_field=self._id_field, dto_model=self._dto_model
             )
+
+    def _convert_filter_values(self, value: Any) -> Any:
+        """Convert UUID, date and datetime filter values.
+
+        This makes the values findable in the database where they are stored
+        in standard JSON format (i.e. UUID, date and datetime object as strings).
+
+        The passed object can be a scalar value or a dictionary which can be nested.
+        """
+        if isinstance(value, dict):  # recursively convert all values
+            convert = self._convert_filter_values
+            return {k: convert(v) for k, v in value.items()}
+        return value_to_document(value)
 
     async def insert(self, dto: Dto) -> None:
         """Create a new resource.
@@ -491,17 +506,15 @@ class MongoKafkaDaoPublisherFactory(DaoPublisherFactoryProtocol):
 
         collection = self._db[name]
 
-        document_to_dto_ = lambda document: document_to_dto(
-            document=document, id_field=id_field, dto_model=dto_model
-        )
-        dto_to_document_ = lambda dto: dto_to_document(dto=dto, id_field=id_field)
-
         dao = MongoDbDao(
             collection=collection,
             dto_model=dto_model,
             id_field=id_field,
-            document_to_dto=document_to_dto_,
-            dto_to_document=dto_to_document_,
+            document_to_dto=partial(
+                document_to_dto, id_field=id_field, dto_model=dto_model
+            ),
+            dto_to_document=partial(dto_to_document, id_field=id_field),
+            value_to_document=value_to_document,
         )
 
         publish_change = get_change_publish_func(

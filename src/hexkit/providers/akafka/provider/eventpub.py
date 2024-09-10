@@ -159,8 +159,8 @@ class KafkaEventPublisher(EventPublisherProtocol):
 
     @classmethod
     def _default_json_serializer(cls, value: Any) -> str:
-        """Method used as default JSON serializer."""
-        if isinstance(value, (UUID)):
+        """Method used as default JSON serializer for events."""
+        if isinstance(value, UUID):
             return str(value)
         if isinstance(value, (date, datetime)):
             return value.isoformat()
