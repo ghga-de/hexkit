@@ -24,7 +24,7 @@ import logging
 from collections.abc import AsyncIterator, Awaitable, Collection, Mapping
 from contextlib import AbstractAsyncContextManager, asynccontextmanager, contextmanager
 from functools import partial
-from typing import Any, Callable, Generic, Optional, Union
+from typing import Any, Callable, Generic, Optional
 from uuid import UUID
 
 from aiokafka import AIOKafkaProducer
@@ -53,7 +53,7 @@ from hexkit.providers.mongodb.provider import (
 class ResourceDeletedError(RuntimeError):
     """Raised when trying to interact with a resource that has been deleted."""
 
-    def __init__(self, id_: Union[int, str, UUID]):
+    def __init__(self, id_: Any):
         """Initialize the exception."""
         super().__init__(f"Resource with ID {id_} has been deleted.")
         self.id_ = id_
@@ -130,12 +130,12 @@ def get_delete_publish_func(
     event_topic: str,
     event_publisher: EventPublisherProtocol,
     collection: AgnosticCollection,
-) -> Callable[[Union[int, str]], Awaitable[None]]:
+) -> Callable[[Any], Awaitable[None]]:
     """Generate a function that publishes deletion events for a specific type of
     resource.
     """
 
-    async def publish_deletion(id_: Union[int, str]) -> None:
+    async def publish_deletion(id_: Any) -> None:
         """Publishes a deletion event and marks the deletion as published."""
         await event_publisher.publish(
             payload={},
@@ -146,7 +146,7 @@ def get_delete_publish_func(
 
         correlation_id = get_correlation_id()  # Get active correlation first
         document = {
-            "_id": id_,
+            "_id": value_to_document(id_),
             "__metadata__": {
                 "deleted": True,
                 "published": True,
@@ -191,7 +191,7 @@ class MongoKafkaDaoPublisher(Generic[Dto]):
         collection: AgnosticCollection,
         dao: MongoDbDao[Dto],
         publish_change: Callable[[Dto], Awaitable[None]],
-        publish_delete: Callable[[Union[int, str]], Awaitable[None]],
+        publish_delete: Callable[[Any], Awaitable[None]],
         autopublish: bool,
     ):
         """Initialize the DAO.
@@ -224,7 +224,7 @@ class MongoKafkaDaoPublisher(Generic[Dto]):
         self._publish_delete = publish_delete
         self._autopublish = autopublish
 
-    async def get_by_id(self, id_: Union[int, str, UUID]) -> Dto:
+    async def get_by_id(self, id_: Any) -> Dto:
         """Get a resource by providing its ID.
 
         Args:
@@ -266,7 +266,7 @@ class MongoKafkaDaoPublisher(Generic[Dto]):
         if self._autopublish:
             await self._publish_change(dto)
 
-    async def delete(self, id_: Union[int, str, UUID]) -> None:
+    async def delete(self, id_: Any) -> None:
         """Delete a resource by providing its ID.
 
         Args:

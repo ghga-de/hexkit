@@ -26,7 +26,7 @@ from collections.abc import AsyncIterator, Collection, Mapping
 from contextlib import AbstractAsyncContextManager
 from datetime import date, datetime
 from functools import partial
-from typing import Any, Callable, Generic, Optional, Union
+from typing import Any, Callable, Generic, Optional
 from uuid import UUID
 
 from motor.core import AgnosticCollection
@@ -221,7 +221,7 @@ class MongoDbDao(Generic[Dto]):
         # (trusting MongoDB that matching on the _id field can only yield one or
         # zero matches)
 
-    async def delete(self, id_: Union[int, str, UUID]) -> None:
+    async def delete(self, id_: Any) -> None:
         """Delete a resource by providing its ID.
 
         Args:

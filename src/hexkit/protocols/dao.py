@@ -25,8 +25,8 @@ from abc import ABC, abstractmethod
 from collections.abc import AsyncIterator, Collection, Mapping
 from contextlib import AbstractAsyncContextManager
 from functools import partial
-from typing import Any, Optional, TypeVar, Union
-from uuid import UUID, uuid4
+from typing import Any, Optional, TypeVar
+from uuid import uuid4
 
 from pydantic import BaseModel, Field
 
@@ -49,7 +49,7 @@ Dto = TypeVar("Dto", bound=BaseModel)
 class ResourceNotFoundError(RuntimeError):
     """Raised when a requested resource did not exist."""
 
-    def __init__(self, *, id_: Union[int, str, UUID]):
+    def __init__(self, *, id_: Any):
         message = f'The resource with the id "{id_}" does not exist.'
         super().__init__(message)
 
@@ -57,7 +57,7 @@ class ResourceNotFoundError(RuntimeError):
 class ResourceAlreadyExistsError(RuntimeError):
     """Raised when a resource did unexpectedly exist."""
 
-    def __init__(self, *, id_: Union[int, str, UUID]):
+    def __init__(self, *, id_: Any):
         message = f'The resource with the id "{id_}" already exists.'
         super().__init__(message)
 
@@ -116,7 +116,7 @@ class Dao(typing.Protocol[Dto]):
         """
         ...
 
-    async def get_by_id(self, id_: Union[int, str, UUID]) -> Dto:
+    async def get_by_id(self, id_: Any) -> Dto:
         """Get a resource by providing its ID.
 
         Args:
@@ -144,7 +144,7 @@ class Dao(typing.Protocol[Dto]):
         """
         ...
 
-    async def delete(self, id_: Union[int, str, UUID]) -> None:
+    async def delete(self, id_: Any) -> None:
         """Delete a resource by providing its ID.
 
         Args:
