@@ -19,7 +19,7 @@
 import uuid
 from datetime import datetime
 from pathlib import Path
-from typing import Optional
+from typing import Any, Optional, Union
 
 import pytest
 from pydantic import UUID4, BaseModel, ConfigDict, Field
@@ -53,6 +53,7 @@ class ExampleDto(BaseModel):
     field_b: int = Field(default=42)
     field_c: bool = Field(default=True)
     field_d: datetime = Field(default_factory=datetime.now)
+    field_e: Path = Field(default_factory=Path.cwd)
 
 
 class CustomIdGenerator:
@@ -61,18 +62,52 @@ class CustomIdGenerator:
     def __init__(self) -> None:
         self.last_id = 0
 
-    def id_factory(self) -> str:
-        """Factory that can be used to generate new IDs."""
+    def str_id_factory(self) -> str:
+        """Factory that can be used to generate new str based IDs."""
         self.last_id += 1
         return f"id-{self.last_id}"
 
+    def int_id_factory(self) -> int:
+        """Factory that can be used to generate new int based IDs."""
+        self.last_id += 1
+        return self.last_id
 
-class ExampleDtoWithCustomID(ExampleDto):
+    def composite_id_factory(self) -> tuple[str, int]:
+        """Factory that can be used to generate new composite IDs."""
+        return ("composite", self.int_id_factory())
+
+
+class ExampleDtoWithStrID(ExampleDto):
     """Example DTO model with a custom string based ID."""
 
-    str_id: str = Field(
-        default_factory=CustomIdGenerator().id_factory,
+    custom_id: str = Field(
+        default_factory=CustomIdGenerator().str_id_factory,
         description="Custom string based ID of the resource.",
+    )
+
+
+class ExampleDtoWithIntID(ExampleDto):
+    """Example DTO model with a custom int based ID."""
+
+    custom_id: int = Field(
+        default_factory=CustomIdGenerator().int_id_factory,
+        description="Custom int based ID of the resource.",
+    )
+
+
+class ComplexDto(BaseModel):
+    """A more complex, nested DTO."""
+
+    id: UUID4 = UUID4Field()
+    sub: ExampleDto = Field(default_factory=ExampleDto)
+    sub_tuple: tuple[str, ExampleDto] = Field(
+        default_factory=lambda: ("test-tuple", ExampleDto())
+    )
+    sub_list: list[Union[str, ExampleDto]] = Field(
+        default_factory=lambda: ["test-list", ExampleDto()]
+    )
+    sub_dict: dict[str, ExampleDto] = Field(
+        default_factory=lambda: {"test-dict": ExampleDto()}
     )
 
 
@@ -201,6 +236,7 @@ async def test_dao_upsert_happy(mongodb: MongoDbFixture):
 
     # update the resource:
     resource_update = resource.model_copy(update={"field_c": False})
+    assert resource_update != resource
     await dao.upsert(resource_update)
 
     # check the updated resource:
@@ -312,34 +348,74 @@ async def test_dao_find_one_with_multiple_hits(mongodb: MongoDbFixture):
 
 async def test_complex_models(mongodb: MongoDbFixture):
     """Tests whether complex pydantic models are correctly saved and retrieved."""
-
-    # a complex model:
-    class ComplexModel(BaseModel):
-        model_config = ConfigDict(frozen=True)
-        id: str
-        some_date: datetime
-        some_path: Path
-        some_nested_data: ExampleDto
-
     dao = await mongodb.dao_factory.get_dao(
-        name="example",
-        dto_model=ComplexModel,
+        name="complex",
+        dto_model=ComplexDto,
         id_field="id",
     )
 
-    # insert an example resource:
-    resource_to_create = ComplexModel(
-        id="complex_data",
-        some_date=datetime(2022, 10, 18, 16, 41, 34, 780735),
-        some_path=Path(__file__).resolve(),
-        some_nested_data=ExampleDto(),
-    )
-    await dao.insert(resource_to_create)
+    resources = []
+    for i in range(3):
+        nested = ExampleDto()
+        resource = ComplexDto(
+            sub=nested,
+            sub_tuple=("test-tuple", nested),
+            sub_list=["test-list", nested],
+            sub_dict={"test-dict": nested},
+        )
+        await dao.insert(resource)
+        nested_updated = ExampleDto(field_a=f"test-{i}", field_e=Path(f"/path-{i}"))
+        assert nested_updated != nested
+        resource_updated = ComplexDto(
+            id=resource.id,
+            sub=nested_updated,
+            sub_tuple=("test-tuple", nested_updated),
+            sub_list=["test-list", nested_updated],
+            sub_dict={"test-dict": nested_updated},
+        )
+        await dao.update(resource_updated)
+        resources.append(resource_updated)
 
-    # read the newly inserted resource:
-    resource_read = await dao.get_by_id(resource_to_create.id)
+    for i in range(3):
+        resource = resources[i]
 
-    assert resource_read == resource_to_create
+        # fetch one newly inserted resource by its ID:
+        resource_read = await dao.get_by_id(resource.id)
+        assert resource_read == resource
+
+        # fetch the resource by filtering via complex mappings:
+        nested = resource.sub
+        mapping_sub = {
+            "id": nested.id,
+            "field_a": nested.field_a,
+            "field_b": nested.field_b,
+            "field_c": nested.field_c,
+            "field_d": nested.field_d,
+            "field_e": nested.field_e,
+        }
+        mappings: list[dict[str, Any]] = [
+            {"id": resource.id},
+            {"sub": mapping_sub},
+            {"sub_tuple": ("test-tuple", mapping_sub)},
+            {"sub_list": ["test-list", mapping_sub]},
+            {
+                "id": resource.id,
+                "sub": mapping_sub,
+                "sub_tuple": ("test-tuple", mapping_sub),
+                "sub_list": ["test-list", mapping_sub],
+            },
+        ]
+
+        for mapping in mappings:
+            obtained_hit = await dao.find_one(mapping=mapping)
+            assert obtained_hit == resource
+            obtained_hits = [hit async for hit in dao.find_all(mapping=mapping)]
+            assert obtained_hits == [resource]
+
+    for i in range(3):
+        await dao.delete(resources[i].id)
+        obtained_hits = [hit async for hit in dao.find_all(mapping={})]
+        assert len(obtained_hits) == 2 - i
 
 
 async def test_duplicate_uuid(mongodb: MongoDbFixture):
@@ -395,27 +471,30 @@ async def test_duplicate_uuid(mongodb: MongoDbFixture):
     assert resource2_observed.field == "test2"
 
 
-@pytest.mark.parametrize("use_custom_id", [False, True], ids=["UUID4", "Custom ID"])
-async def test_dao_crud_happy(use_custom_id: bool, mongodb: MongoDbFixture):
+@pytest.mark.parametrize(
+    "dto_model", [ExampleDto, ExampleDtoWithIntID, ExampleDtoWithStrID]
+)
+async def test_dao_crud_happy(dto_model: type, mongodb: MongoDbFixture):
     """Test the happy path of a typical CRUD database interaction in sequence.
 
-    This tests both a UUID4 based and a custom string based ID generator.
+    This tests UUID4 based as well as custom int and string based ID generators.
     """
-    dto = ExampleDtoWithCustomID if use_custom_id else ExampleDto
-    id_field = "str_id" if use_custom_id else "id"
+    assert issubclass(dto_model, ExampleDto)
+    id_field = "id" if dto_model is ExampleDto else "custom_id"
     dao: Dao[ExampleDto] = await mongodb.dao_factory.get_dao(
         name="example",
-        dto_model=dto,  # type: ignore
+        dto_model=dto_model,
         id_field=id_field,
     )
 
     # insert an example resource:
-    resource = dto()
-    assert hasattr(resource, "str_id") == use_custom_id
+    resource = dto_model()
+    resource_id = getattr(resource, id_field)
+    assert hasattr(resource, "custom_id") == (dto_model is not ExampleDto)
     await dao.insert(resource)
 
     # read the newly inserted resource:
-    resource_read = await dao.get_by_id(getattr(resource, id_field))
+    resource_read = await dao.get_by_id(resource_id)
 
     assert resource_read == resource
 
@@ -424,14 +503,14 @@ async def test_dao_crud_happy(use_custom_id: bool, mongodb: MongoDbFixture):
     await dao.update(resource_updated)
 
     # read the updated resource again:
-    resource_updated_read = await dao.get_by_id(getattr(resource_updated, id_field))
+    resource_updated_read = await dao.get_by_id(resource_id)
 
     assert resource_updated_read == resource_updated
 
     # insert additional resources:
-    resource2 = dto(field_a="test2", field_b=27)
+    resource2 = dto_model(field_a="test2", field_b=27)
     await dao.insert(resource2)
-    resource3 = dto(field_a="test3", field_c=False)
+    resource3 = dto_model(field_a="test3", field_c=False)
     await dao.upsert(resource3)  # upsert should work here as well
 
     # perform a search for multiple resources:
@@ -441,13 +520,24 @@ async def test_dao_crud_happy(use_custom_id: bool, mongodb: MongoDbFixture):
 
     assert obtained_hits == {resource_updated, resource3}
 
+    # perform a search using values with non-standard data types
+    mapping = {id_field: resource_id, "field_d": resource.field_d}
+    obtained_hit = await dao.find_one(mapping=mapping)
+    assert obtained_hit == resource_updated
+    obtained_hits = {hit async for hit in dao.find_all(mapping=mapping)}
+    assert obtained_hits == {resource_updated}
+
     # make sure that 3 resources with different IDs were inserted:
     obtained_ids = {getattr(hit, id_field) async for hit in dao.find_all(mapping={})}
-    if use_custom_id:
-        assert obtained_ids == {"id-1", "id-2", "id-3"}
-    else:
-        assert len(obtained_ids) == 3
-        assert all(isinstance(obtained_id, uuid.UUID) for obtained_id in obtained_ids)
+    assert len(obtained_ids) == 3
+    assert resource_id in obtained_ids
+    for obtained_id in obtained_ids:
+        if dto_model is ExampleDtoWithIntID:
+            assert isinstance(obtained_id, int)
+        elif dto_model is ExampleDtoWithStrID:
+            assert isinstance(obtained_id, str) and obtained_id.startswith("id-")
+        else:
+            assert isinstance(obtained_id, uuid.UUID)
 
     # find a single resource:
     obtained_hit = await dao.find_one(mapping={"field_a": "test3"})
@@ -460,3 +550,7 @@ async def test_dao_crud_happy(use_custom_id: bool, mongodb: MongoDbFixture):
     # confirm that the resource was deleted:
     with pytest.raises(NoHitsFoundError):
         obtained_hit = await dao.find_one(mapping={"field_a": "test3"})
+
+    # make sure that only 2 resources are left:
+    obtained_hits = {hit async for hit in dao.find_all(mapping={})}
+    assert len(obtained_hits) == 2

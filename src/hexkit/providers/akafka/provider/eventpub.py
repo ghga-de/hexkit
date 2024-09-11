@@ -24,7 +24,10 @@ import logging
 import ssl
 from collections.abc import Mapping
 from contextlib import asynccontextmanager
+from datetime import date, datetime
+from pathlib import Path
 from typing import Any, Callable, Optional, Protocol
+from uuid import UUID
 
 from aiokafka import AIOKafkaProducer
 
@@ -119,9 +122,7 @@ class KafkaEventPublisher(EventPublisherProtocol):
             ssl_context=generate_ssl_context(config),
             client_id=client_id,
             key_serializer=lambda key: key.encode("ascii"),
-            value_serializer=lambda event_value: json.dumps(event_value).encode(
-                "ascii"
-            ),
+            value_serializer=cls._default_event_value_serializer,
             max_request_size=config.kafka_max_message_size,
         )
 
@@ -151,6 +152,20 @@ class KafkaEventPublisher(EventPublisherProtocol):
         """
         self._producer = producer
         self._generate_correlation_id = generate_correlation_id
+
+    @classmethod
+    def _default_event_value_serializer(cls, value: JsonObject) -> bytes:
+        """Method used as default event value serializer."""
+        return json.dumps(value, default=cls._default_json_serializer).encode("ascii")
+
+    @classmethod
+    def _default_json_serializer(cls, value: Any) -> str:
+        """Method used as default JSON serializer for events."""
+        if isinstance(value, (UUID, Path)):
+            return str(value)
+        if isinstance(value, (date, datetime)):
+            return value.isoformat()
+        raise TypeError(f"Object of type {type(value)} is not JSON serializable")
 
     async def _publish_validated(
         self,

@@ -95,6 +95,8 @@ class DaoPublisherFactoryProtocol(DaoFactoryBase, ABC):
         Raises:
             self.IdFieldNotFoundError:
                 Raised when the dto_model did not contain the expected id_field.
+            self.IdTypeNotSupportedError:
+                Raised when the id_field of the dto_model has an unexpected type.
         """
         self._validate(
             dto_model=dto_model,

@@ -48,32 +48,41 @@ class ExampleDto(BaseModel):
     """Example DTO model."""
 
     id: UUID4 = UUID4Field(description="The ID of the resource.")
-    some_param: str
-    another_param: int
+    str_field: str
+    int_field: int
+    bool_field: bool
 
 
 async def test_get_dto_valid():
     """Use the get_dao method of the DaoFactory with valid parameters."""
     dao_factory = FakeDaoFactory()
 
-    with pytest.raises(NotImplementedError):
-        _ = await dao_factory.get_dao(
-            name="test_dao",
-            dto_model=ExampleDto,
-            id_field="id",
-            fields_to_index={"some_param"},
-        )
+    for id_field in "id", "str_field", "int_field":
+        # should raise a NotImplementedError because indexing is not yet implemented,
+        # but the parameters should be considered valid
+        with pytest.raises(NotImplementedError):
+            _ = await dao_factory.get_dao(
+                name="test_dao",
+                dto_model=ExampleDto,
+                id_field=id_field,
+                fields_to_index={"str_field", "int_field"},
+            )
 
 
 async def test_get_dto_invalid_id():
     """Use the get_dao method of the DaoFactory with an invalid ID that is not found in
-    the provided DTO model.
+    the provided DTO model or has the wrong type.
     """
     dao_factory = FakeDaoFactory()
 
     with pytest.raises(DaoFactoryProtocol.IdFieldNotFoundError):
         _ = await dao_factory.get_dao(
-            name="test_dao", dto_model=ExampleDto, id_field="invalid_id"
+            name="test_dao", dto_model=ExampleDto, id_field="non_existing_field"
+        )
+
+    with pytest.raises(DaoFactoryProtocol.IdTypeNotSupportedError):
+        _ = await dao_factory.get_dao(
+            name="test_dao", dto_model=ExampleDto, id_field="bool_field"
         )
 
 
@@ -86,5 +95,5 @@ async def test_get_dto_invalid_fields_to_index():
             name="test_dao",
             dto_model=ExampleDto,
             id_field="id",
-            fields_to_index={"some_param", "non_existing_param"},
+            fields_to_index={"str_field", "non_existing_field"},
         )

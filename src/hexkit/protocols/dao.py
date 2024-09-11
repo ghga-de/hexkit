@@ -25,11 +25,12 @@ from abc import ABC, abstractmethod
 from collections.abc import AsyncIterator, Collection, Mapping
 from contextlib import AbstractAsyncContextManager
 from functools import partial
-from typing import Any, Optional, TypeVar, Union
-from uuid import UUID, uuid4
+from typing import Any, Optional, TypeVar
+from uuid import uuid4
 
 from pydantic import BaseModel, Field
 
+from hexkit.custom_types import ID
 from hexkit.utils import FieldNotInModelError, validate_fields_in_model
 
 __all__ = [
@@ -49,7 +50,7 @@ Dto = TypeVar("Dto", bound=BaseModel)
 class ResourceNotFoundError(RuntimeError):
     """Raised when a requested resource did not exist."""
 
-    def __init__(self, *, id_: str):
+    def __init__(self, *, id_: ID):
         message = f'The resource with the id "{id_}" does not exist.'
         super().__init__(message)
 
@@ -57,7 +58,7 @@ class ResourceNotFoundError(RuntimeError):
 class ResourceAlreadyExistsError(RuntimeError):
     """Raised when a resource did unexpectedly exist."""
 
-    def __init__(self, *, id_: str):
+    def __init__(self, *, id_: ID):
         message = f'The resource with the id "{id_}" already exists.'
         super().__init__(message)
 
@@ -116,7 +117,7 @@ class Dao(typing.Protocol[Dto]):
         """
         ...
 
-    async def get_by_id(self, id_: Union[str, UUID]) -> Dto:
+    async def get_by_id(self, id_: ID) -> Dto:
         """Get a resource by providing its ID.
 
         Args:
@@ -144,7 +145,7 @@ class Dao(typing.Protocol[Dto]):
         """
         ...
 
-    async def delete(self, id_: Union[str, UUID]) -> None:
+    async def delete(self, id_: ID) -> None:
         """Delete a resource by providing its ID.
 
         Args:
@@ -230,8 +231,11 @@ class Dao(typing.Protocol[Dto]):
 class DaoFactoryBase:
     """A base for Data Access Objects (DAO) Factory protocols."""
 
-    class IdFieldNotFoundError(ValueError):
+    class IdFieldNotFoundError(TypeError):
         """Raised when the dto_model did not contain the expected id_field."""
+
+    class IdTypeNotSupportedError(TypeError):
+        """Raised when the id_field of the dto_model has an unexpected Type."""
 
     class IndexFieldsInvalidError(ValueError):
         """Raised when providing an invalid list of fields to index."""
@@ -241,8 +245,13 @@ class DaoFactoryBase:
         """Checks whether the dto_model contains the expected id_field.
         Raises IdFieldNotFoundError otherwise.
         """
-        if id_field not in dto_model.model_json_schema()["properties"]:
+        properties = dto_model.model_json_schema()["properties"]
+        schema = properties.get(id_field)
+        if schema is None:
             raise cls.IdFieldNotFoundError()
+        id_type = schema.get("type")
+        if id_type not in ("integer", "string"):
+            raise cls.IdTypeNotSupportedError()
 
     @classmethod
     def _validate_fields_to_index(
@@ -312,6 +321,8 @@ class DaoFactoryProtocol(DaoFactoryBase, ABC):
         Raises:
             self.IdFieldNotFoundError:
                 Raised when the dto_model did not contain the expected id_field.
+            self.IdTypeNotSupportedError:
+                Raised when the id_field of the dto_model has an unexpected type.
         """
         self._validate(
             dto_model=dto_model,

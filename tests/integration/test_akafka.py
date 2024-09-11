@@ -16,7 +16,9 @@
 
 """Testing Apache Kafka based providers."""
 
+import uuid
 from contextlib import nullcontext
+from datetime import date, datetime, timezone
 from os import environ
 from pathlib import Path
 from typing import cast
@@ -51,7 +53,19 @@ pytestmark = pytest.mark.asyncio()
 
 async def test_kafka_event_publisher(kafka: KafkaFixture):
     """Test the KafkaEventPublisher."""
-    payload: JsonObject = {"test_content": "Hello World"}
+    payload: JsonObject = {
+        "test_str": "Hello World",
+        "test_bool": True,
+        "test_int": 42,
+        "test_float": -21.5,
+        "test_null": None,
+        "test_uuid": uuid.uuid4(),
+        "test_date": date.today(),
+        "test_datetime_utc": datetime.now(timezone.utc),
+        "test_array": [1, "two", 3],
+        "test_object": {"content": "value"},
+        "test_nested": {"values": [1], "nested_object": {"id": uuid.uuid4()}},
+    }
     type_ = "test_type"
     key = "test_key"
     topic = "test_topic"
