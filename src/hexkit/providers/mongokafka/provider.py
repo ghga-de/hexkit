@@ -25,7 +25,6 @@ from collections.abc import AsyncIterator, Awaitable, Collection, Mapping
 from contextlib import AbstractAsyncContextManager, asynccontextmanager, contextmanager
 from functools import partial
 from typing import Any, Callable, Generic, Optional
-from uuid import UUID
 
 from aiokafka import AIOKafkaProducer
 from motor.core import AgnosticCollection
@@ -236,8 +235,7 @@ class MongoKafkaDaoPublisher(Generic[Dto]):
         Raises:
             ResourceNotFoundError: when resource with the specified id_ was not found
         """
-        if isinstance(id_, UUID):
-            id_ = str(id_)
+        id_ = self._dao._value_to_document(id_)
 
         with assert_not_deleted():
             return await self._dao.get_by_id(id_)
@@ -275,8 +273,7 @@ class MongoKafkaDaoPublisher(Generic[Dto]):
         Raises:
             ResourceNotFoundError: when resource with the specified id_ was not found
         """
-        if isinstance(id_, UUID):
-            id_ = str(id_)
+        id_ = self._dao._value_to_document(id_)
 
         correlation_id = get_correlation_id()
         document = {
