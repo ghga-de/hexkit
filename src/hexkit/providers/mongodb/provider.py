@@ -26,6 +26,7 @@ from collections.abc import AsyncIterator, Collection, Mapping
 from contextlib import AbstractAsyncContextManager
 from datetime import date, datetime
 from functools import partial
+from pathlib import Path
 from typing import Any, Callable, Generic, Optional
 from uuid import UUID
 
@@ -35,6 +36,7 @@ from pydantic import Field, SecretStr
 from pydantic_settings import BaseSettings
 from pymongo.errors import DuplicateKeyError
 
+from hexkit.custom_types import ID
 from hexkit.protocols.dao import (
     Dao,
     DaoFactoryProtocol,
@@ -75,7 +77,7 @@ def value_to_document(value: Any) -> Any:
 
     This should be compatible with the conversion done in 'dto_to_document'.
     """
-    if isinstance(value, UUID):
+    if isinstance(value, (UUID, Path)):
         return str(value)
     if isinstance(value, (date, datetime)):
         return value.isoformat()
@@ -179,7 +181,7 @@ class MongoDbDao(Generic[Dto]):
         self._dto_to_document = dto_to_document
         self._value_to_document = value_to_document
 
-    async def get_by_id(self, id_: Any) -> Dto:
+    async def get_by_id(self, id_: ID) -> Dto:
         """Get a resource by providing its ID.
 
         Args:
@@ -221,7 +223,7 @@ class MongoDbDao(Generic[Dto]):
         # (trusting MongoDB that matching on the _id field can only yield one or
         # zero matches)
 
-    async def delete(self, id_: Any) -> None:
+    async def delete(self, id_: ID) -> None:
         """Delete a resource by providing its ID.
 
         Args:
@@ -295,7 +297,7 @@ class MongoDbDao(Generic[Dto]):
             yield self._document_to_dto(document)
 
     def _convert_filter_values(self, value: Any) -> Any:
-        """Convert UUID, date and datetime filter values.
+        """Convert filter values with non-standard types.
 
         This makes the values findable in the database where they are stored
         in standard JSON format (i.e. UUID, date and datetime object as strings).
@@ -305,6 +307,12 @@ class MongoDbDao(Generic[Dto]):
         if isinstance(value, dict):  # recursively convert all values
             convert = self._convert_filter_values
             return {k: convert(v) for k, v in value.items()}
+        if isinstance(value, list):
+            convert = self._convert_filter_values
+            return [convert(v) for v in value]
+        if isinstance(value, tuple):
+            convert = self._convert_filter_values
+            return tuple(convert(v) for v in value)
         return self._value_to_document(value)
 
     @classmethod

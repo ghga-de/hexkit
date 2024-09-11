@@ -18,7 +18,8 @@
 
 import uuid
 from collections.abc import Generator
-from typing import Optional
+from pathlib import Path
+from typing import Any, Optional
 
 import pytest
 from pydantic import UUID4, BaseModel
@@ -40,6 +41,7 @@ from hexkit.providers.akafka import KafkaOutboxSubscriber
 from hexkit.providers.akafka.testutils import (
     ExpectedEvent,
     KafkaFixture,  # noqa: F401
+    RecordedEvent,
     kafka_container_fixture,  # noqa: F401
     kafka_fixture,  # noqa: F401
 )
@@ -58,7 +60,12 @@ from hexkit.providers.mongokafka.testutils import (
     mongo_kafka_fixture,  # noqa: F401
 )
 
-from .test_mongodb import ExampleDto, ExampleDtoWithIntID, ExampleDtoWithStrID
+from .test_mongodb import (
+    ComplexDto,
+    ExampleDto,
+    ExampleDtoWithIntID,
+    ExampleDtoWithStrID,
+)
 
 pytestmark = pytest.mark.asyncio()
 
@@ -252,7 +259,6 @@ async def test_dao_outbox_happy(dto_model: type, mongo_kafka: MongoKafkaFixture)
         obtained_hits = {
             hit async for hit in dao.find_all(mapping={"field_b": 42, "field_c": True})
         }
-
         assert obtained_hits == {example, example3}
 
         # perform a search using values with non-standard data types
@@ -302,6 +308,130 @@ async def test_dao_outbox_happy(dto_model: type, mongo_kafka: MongoKafkaFixture)
         # make sure that only 3 resources are left:
         obtained_hits = {hit async for hit in dao.find_all(mapping={})}
         assert len(obtained_hits) == 3
+
+
+async def test_complex_models(mongo_kafka: MongoKafkaFixture):
+    """Tests whether complex pydantic models are correctly saved and retrieved."""
+    async with (
+        MongoKafkaDaoPublisherFactory.construct(config=mongo_kafka.config) as factory,
+        mongo_kafka.kafka.record_events(
+            in_topic=EXAMPLE_TOPIC, capture_headers=True
+        ) as recorder,
+    ):
+        dao = await factory.get_dao(
+            name="complex",
+            dto_model=ComplexDto,
+            id_field="id",
+            dto_to_event=lambda dto: dto.model_dump(),
+            event_topic=EXAMPLE_TOPIC,
+            autopublish=True,
+        )
+
+        # stage 1: insert
+        resources_created: list[ComplexDto] = []
+        for i in range(3):
+            nested = ExampleDto(field_a=f"inserted-{i}")
+            resource = ComplexDto(
+                sub=nested,
+                sub_tuple=("test-tuple", nested),
+                sub_list=["test-list", nested],
+                sub_dict={"test-dict": nested},
+            )
+            await dao.insert(resource)
+            resources_created.append(resource)
+
+        # stage 2: update
+        resources: list[ComplexDto] = []
+        for i in range(3):
+            resource_created = resources_created[i]
+            nested = ExampleDto(field_a=f"updated-{i}", field_e=Path(f"/path-{i}"))
+            assert nested != resource_created.sub
+            resource = ComplexDto(
+                id=resource_created.id,
+                sub=nested,
+                sub_tuple=("test-tuple", nested),
+                sub_list=["test-list", nested],
+                sub_dict={"test-dict": nested},
+            )
+            await dao.update(resource)
+            resources.append(resource)
+
+        # stage 3: query
+        for i in range(3):
+            resource = resources[i]
+
+            # fetch one newly inserted resource by its ID:
+            resource_read = await dao.get_by_id(resource.id)
+            assert resource_read == resource
+
+            # fetch the resource by filtering via complex mappings:
+            nested = resource.sub
+            mapping_sub = {
+                "id": nested.id,
+                "field_a": nested.field_a,
+                "field_b": nested.field_b,
+                "field_c": nested.field_c,
+                "field_d": nested.field_d,
+                "field_e": nested.field_e,
+            }
+            mappings: list[dict[str, Any]] = [
+                {"id": resource.id},
+                {"sub": mapping_sub},
+                {"sub_tuple": ("test-tuple", mapping_sub)},
+                {"sub_list": ["test-list", mapping_sub]},
+                {
+                    "id": resource.id,
+                    "sub": mapping_sub,
+                    "sub_tuple": ("test-tuple", mapping_sub),
+                    "sub_list": ["test-list", mapping_sub],
+                },
+            ]
+
+            for mapping in mappings:
+                obtained_hit = await dao.find_one(mapping=mapping)
+                assert obtained_hit == resource
+                obtained_hits = [hit async for hit in dao.find_all(mapping=mapping)]
+                assert obtained_hits == [resource]
+
+        # stage 4: delete
+        for i in range(3):
+            await dao.delete(resources[i].id)
+            obtained_hits = [hit async for hit in dao.find_all(mapping={})]
+            assert len(obtained_hits) == 2 - i
+
+    # check that the expected events have been created
+    events: list[RecordedEvent] = list(recorder.recorded_events)
+    for stage in 1, 2, 4:
+        # expected events for this stage
+        for i in range(3):
+            resource = (resources_created if stage == 1 else resources)[i]
+            event = events.pop(0)
+            assert event.type_ == DELETE_EVENT_TYPE if stage == 4 else CHANGE_EVENT_TYPE
+            assert event.key == str(resource.id)
+            if stage == 4:
+                # empty payload for deletion events
+                expected_payload = {}
+            else:
+                # construct expected payload for change events
+                sub_payload = {
+                    "id": str(resource.sub.id),
+                    "field_a": f"{'inserted' if stage == 1 else 'updated'}-{i}",
+                    "field_b": 42,
+                    "field_c": True,
+                    "field_d": resource.sub.field_d.isoformat(),
+                    "field_e": str(resource.sub.field_e)
+                    if stage == 1
+                    else f"/path-{i}",
+                }
+                expected_payload = {
+                    "id": str(resource.id),
+                    "sub": sub_payload,
+                    "sub_tuple": ["test-tuple", sub_payload],
+                    "sub_list": ["test-list", sub_payload],
+                    "sub_dict": {"test-dict": sub_payload},
+                }
+            assert event.payload == expected_payload, f"stage {stage} resource {i}"
+    assert not events  # no further events should have been recorded
 
 
 async def test_delay_publishing(mongo_kafka: MongoKafkaFixture):
@@ -511,7 +641,6 @@ async def test_dao_pub_sub_happy(mongo_kafka: MongoKafkaFixture):
         ) as subscriber:
             for _ in expected_events:
                 await subscriber.run(forever=False)
-            print("EXPECTED EVENTS", expected_events)
             assert sub_translator.received == expected_events
 
             # Clear out the received list
@@ -658,6 +787,7 @@ async def test_mongokafka_dao_correlation_id_delete(mongo_kafka: MongoKafkaFixtu
             "field_b": 42,
             "field_c": True,
             "field_d": example.field_d.isoformat(),
+            "field_e": str(example.field_e),
         }
         assert metadata == {
             "correlation_id": correlation_id,

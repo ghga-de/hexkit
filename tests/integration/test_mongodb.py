@@ -19,7 +19,7 @@
 import uuid
 from datetime import datetime
 from pathlib import Path
-from typing import Optional
+from typing import Any, Optional, Union
 
 import pytest
 from pydantic import UUID4, BaseModel, ConfigDict, Field
@@ -53,6 +53,7 @@ class ExampleDto(BaseModel):
     field_b: int = Field(default=42)
     field_c: bool = Field(default=True)
     field_d: datetime = Field(default_factory=datetime.now)
+    field_e: Path = Field(default_factory=Path.cwd)
 
 
 class CustomIdGenerator:
@@ -71,6 +72,10 @@ class CustomIdGenerator:
         self.last_id += 1
         return self.last_id
 
+    def composite_id_factory(self) -> tuple[str, int]:
+        """Factory that can be used to generate new composite IDs."""
+        return ("composite", self.int_id_factory())
+
 
 class ExampleDtoWithStrID(ExampleDto):
     """Example DTO model with a custom string based ID."""
@@ -87,6 +92,22 @@ class ExampleDtoWithIntID(ExampleDto):
     custom_id: int = Field(
         default_factory=CustomIdGenerator().int_id_factory,
         description="Custom int based ID of the resource.",
+    )
+
+
+class ComplexDto(BaseModel):
+    """A more complex, nested DTO."""
+
+    id: UUID4 = UUID4Field()
+    sub: ExampleDto = Field(default_factory=ExampleDto)
+    sub_tuple: tuple[str, ExampleDto] = Field(
+        default_factory=lambda: ("test-tuple", ExampleDto())
+    )
+    sub_list: list[Union[str, ExampleDto]] = Field(
+        default_factory=lambda: ["test-list", ExampleDto()]
+    )
+    sub_dict: dict[str, ExampleDto] = Field(
+        default_factory=lambda: {"test-dict": ExampleDto()}
     )
 
 
@@ -327,34 +348,74 @@ async def test_dao_find_one_with_multiple_hits(mongodb: MongoDbFixture):
 
 async def test_complex_models(mongodb: MongoDbFixture):
     """Tests whether complex pydantic models are correctly saved and retrieved."""
-
-    # a complex model:
-    class ComplexModel(BaseModel):
-        model_config = ConfigDict(frozen=True)
-        id: str
-        some_date: datetime
-        some_path: Path
-        some_nested_data: ExampleDto
-
     dao = await mongodb.dao_factory.get_dao(
-        name="example",
-        dto_model=ComplexModel,
+        name="complex",
+        dto_model=ComplexDto,
         id_field="id",
     )
 
-    # insert an example resource:
-    resource_to_create = ComplexModel(
-        id="complex_data",
-        some_date=datetime(2022, 10, 18, 16, 41, 34, 780735),
-        some_path=Path(__file__).resolve(),
-        some_nested_data=ExampleDto(),
-    )
-    await dao.insert(resource_to_create)
+    resources = []
+    for i in range(3):
+        nested = ExampleDto()
+        resource = ComplexDto(
+            sub=nested,
+            sub_tuple=("test-tuple", nested),
+            sub_list=["test-list", nested],
+            sub_dict={"test-dict": nested},
+        )
+        await dao.insert(resource)
+        nested_updated = ExampleDto(field_a=f"test-{i}", field_e=Path(f"/path-{i}"))
+        assert nested_updated != nested
+        resource_updated = ComplexDto(
+            id=resource.id,
+            sub=nested_updated,
+            sub_tuple=("test-tuple", nested_updated),
+            sub_list=["test-list", nested_updated],
+            sub_dict={"test-dict": nested_updated},
+        )
+        await dao.update(resource_updated)
+        resources.append(resource_updated)
 
-    # read the newly inserted resource:
-    resource_read = await dao.get_by_id(resource_to_create.id)
+    for i in range(3):
+        resource = resources[i]
 
-    assert resource_read == resource_to_create
+        # fetch one newly inserted resource by its ID:
+        resource_read = await dao.get_by_id(resource.id)
+        assert resource_read == resource
+
+        # fetch the resource by filtering via complex mappings:
+        nested = resource.sub
+        mapping_sub = {
+            "id": nested.id,
+            "field_a": nested.field_a,
+            "field_b": nested.field_b,
+            "field_c": nested.field_c,
+            "field_d": nested.field_d,
+            "field_e": nested.field_e,
+        }
+        mappings: list[dict[str, Any]] = [
+            {"id": resource.id},
+            {"sub": mapping_sub},
+            {"sub_tuple": ("test-tuple", mapping_sub)},
+            {"sub_list": ["test-list", mapping_sub]},
+            {
+                "id": resource.id,
+                "sub": mapping_sub,
+                "sub_tuple": ("test-tuple", mapping_sub),
+                "sub_list": ["test-list", mapping_sub],
+            },
+        ]
+
+        for mapping in mappings:
+            obtained_hit = await dao.find_one(mapping=mapping)
+            assert obtained_hit == resource
+            obtained_hits = [hit async for hit in dao.find_all(mapping=mapping)]
+            assert obtained_hits == [resource]
+
+    for i in range(3):
+        await dao.delete(resources[i].id)
+        obtained_hits = [hit async for hit in dao.find_all(mapping={})]
+        assert len(obtained_hits) == 2 - i
 
 
 async def test_duplicate_uuid(mongodb: MongoDbFixture):

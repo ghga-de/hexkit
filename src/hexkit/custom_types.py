@@ -21,6 +21,9 @@ from datetime import date, datetime
 from typing import Any, Literal, Union
 from uuid import UUID
 
+# A type for fields that can be used as identifiers (primary keys).
+ID = Union[int, str, UUID]
+
 # This is intended to type objects that are assumed to be JSON serializable.
 # (Scalar types as well as arrays are excluded from the above assumption,
 # and we serialize date, datetime and UUID objects to JSON as strings.)

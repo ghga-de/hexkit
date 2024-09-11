@@ -32,7 +32,7 @@ from motor.motor_asyncio import AsyncIOMotorClient
 from pydantic import field_validator
 
 from hexkit.correlation import get_correlation_id, set_correlation_id
-from hexkit.custom_types import JsonObject
+from hexkit.custom_types import ID, JsonObject
 from hexkit.protocols.dao import Dao, Dto, ResourceNotFoundError
 from hexkit.protocols.daopub import DaoPublisher, DaoPublisherFactoryProtocol
 from hexkit.protocols.eventpub import EventPublisherProtocol
@@ -52,7 +52,7 @@ from hexkit.providers.mongodb.provider import (
 class ResourceDeletedError(RuntimeError):
     """Raised when trying to interact with a resource that has been deleted."""
 
-    def __init__(self, id_: Any):
+    def __init__(self, id_: ID):
         """Initialize the exception."""
         super().__init__(f"Resource with ID {id_} has been deleted.")
         self.id_ = id_
@@ -134,7 +134,7 @@ def get_delete_publish_func(
     resource.
     """
 
-    async def publish_deletion(id_: Any) -> None:
+    async def publish_deletion(id_: ID) -> None:
         """Publishes a deletion event and marks the deletion as published."""
         await event_publisher.publish(
             payload={},
@@ -223,7 +223,7 @@ class MongoKafkaDaoPublisher(Generic[Dto]):
         self._publish_delete = publish_delete
         self._autopublish = autopublish
 
-    async def get_by_id(self, id_: Any) -> Dto:
+    async def get_by_id(self, id_: ID) -> Dto:
         """Get a resource by providing its ID.
 
         Args:
@@ -264,7 +264,7 @@ class MongoKafkaDaoPublisher(Generic[Dto]):
         if self._autopublish:
             await self._publish_change(dto)
 
-    async def delete(self, id_: Any) -> None:
+    async def delete(self, id_: ID) -> None:
         """Delete a resource by providing its ID.
 
         Args:
@@ -352,7 +352,7 @@ class MongoKafkaDaoPublisher(Generic[Dto]):
             )
 
     def _convert_filter_values(self, value: Any) -> Any:
-        """Convert UUID, date and datetime filter values.
+        """Convert filter values with non-standard types.
 
         This makes the values findable in the database where they are stored
         in standard JSON format (i.e. UUID, date and datetime object as strings).
@@ -362,6 +362,12 @@ class MongoKafkaDaoPublisher(Generic[Dto]):
         if isinstance(value, dict):  # recursively convert all values
             convert = self._convert_filter_values
             return {k: convert(v) for k, v in value.items()}
+        if isinstance(value, list):
+            convert = self._convert_filter_values
+            return [convert(v) for v in value]
+        if isinstance(value, tuple):
+            convert = self._convert_filter_values
+            return tuple(convert(v) for v in value)
         return value_to_document(value)
 
     async def insert(self, dto: Dto) -> None:

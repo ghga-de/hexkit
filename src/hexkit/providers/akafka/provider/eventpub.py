@@ -25,6 +25,7 @@ import ssl
 from collections.abc import Mapping
 from contextlib import asynccontextmanager
 from datetime import date, datetime
+from pathlib import Path
 from typing import Any, Callable, Optional, Protocol
 from uuid import UUID
 
@@ -160,7 +161,7 @@ class KafkaEventPublisher(EventPublisherProtocol):
     @classmethod
     def _default_json_serializer(cls, value: Any) -> str:
         """Method used as default JSON serializer for events."""
-        if isinstance(value, UUID):
+        if isinstance(value, (UUID, Path)):
             return str(value)
         if isinstance(value, (date, datetime)):
             return value.isoformat()
