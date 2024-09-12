@@ -24,7 +24,6 @@ from dataclasses import dataclass
 from typing import Optional, Union
 
 import pytest
-from pydantic import SecretStr
 from pymongo import MongoClient
 from pymongo.errors import ExecutionTimeout, OperationFailure
 from testcontainers.mongodb import MongoDbContainer
@@ -100,9 +99,9 @@ class MongoDbContainerFixture(MongoDbContainer):
 def _mongodb_container_fixture() -> Generator[MongoDbContainerFixture, None, None]:
     """Fixture function for getting a running MongoDB test container."""
     with MongoDbContainerFixture(image=MONGODB_IMAGE) as mongodb_container:
-        db_connection_str = mongodb_container.get_connection_url()
         mongodb_config = MongoDbConfig(
-            db_connection_str=SecretStr(db_connection_str), db_name="test"
+            mongo_dsn=mongodb_container.get_connection_url(),
+            db_name="test",
         )
         mongodb_container.mongodb_config = mongodb_config
         yield mongodb_container

@@ -16,8 +16,6 @@
 
 import logging
 
-from pydantic import SecretStr
-
 from hexkit.providers.mongokafka import MongoKafkaConfig
 
 
@@ -27,7 +25,7 @@ def make_mongokafka_config(kafka_max_message_size: int = 1048576) -> MongoKafkaC
         service_name="test",
         service_instance_id="1",
         kafka_servers=["localhost:9092"],
-        db_connection_str=SecretStr("mongodb://localhost:27017"),
+        mongo_dsn="mongodb://localhost:27017",  # type: ignore
         db_name="test",
         kafka_max_message_size=kafka_max_message_size,
     )

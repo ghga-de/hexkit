@@ -476,7 +476,7 @@ class MongoKafkaDaoPublisherFactory(DaoPublisherFactoryProtocol):
 
         # get a database-specific client:
         self._client: AsyncIOMotorClient = AsyncIOMotorClient(
-            self._config.db_connection_str.get_secret_value()
+            str(self._config.mongo_dsn.get_secret_value())
         )
         self._db = self._client[self._config.db_name]
 
