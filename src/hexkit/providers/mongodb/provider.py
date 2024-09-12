@@ -32,7 +32,7 @@ from uuid import UUID
 
 from motor.core import AgnosticCollection
 from motor.motor_asyncio import AsyncIOMotorClient
-from pydantic import Field, MongoDsn, Secret
+from pydantic import Field, MongoDsn, PositiveInt, Secret
 from pydantic_settings import BaseSettings
 from pymongo.errors import DuplicateKeyError
 
@@ -379,6 +379,17 @@ class MongoDbConfig(BaseSettings):
         ...,
         examples=["my-database"],
         description="Name of the database located on the MongoDB server.",
+    )
+    mongo_timeout: PositiveInt | None = Field(
+        default=None,
+        examples=[300, 600, None],
+        description=(
+            "Timeout in seconds for API calls to MongoDB. The timeout applies all steps"
+            + " needed to complete the operation, including server selection, connection"
+            + " checkout, serialization, and server-side execution. When the timeout"
+            + " expires, PyMongo raises a timeout exception. If set to None, the"
+            + " operation will not time out (default MongoDB behavior)."
+        ),
     )
 
 
