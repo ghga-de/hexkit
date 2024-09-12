@@ -32,7 +32,7 @@ from uuid import UUID
 
 from motor.core import AgnosticCollection
 from motor.motor_asyncio import AsyncIOMotorClient
-from pydantic import Field, SecretStr
+from pydantic import Field, MongoDsn, Secret
 from pydantic_settings import BaseSettings
 from pymongo.errors import DuplicateKeyError
 
@@ -366,7 +366,7 @@ class MongoDbConfig(BaseSettings):
     Inherit your config class from this class if your application uses MongoDB.
     """
 
-    db_connection_str: SecretStr = Field(
+    mongo_dsn: Secret[MongoDsn] = Field(
         ...,
         examples=["mongodb://localhost:27017"],
         description=(
@@ -399,7 +399,7 @@ class MongoDbDaoFactory(DaoFactoryProtocol):
 
         # get a database-specific client:
         self._client: AsyncIOMotorClient = AsyncIOMotorClient(
-            self._config.db_connection_str.get_secret_value()
+            str(self._config.mongo_dsn.get_secret_value())
         )
         self._db = self._client[self._config.db_name]
 
