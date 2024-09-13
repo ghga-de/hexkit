@@ -27,7 +27,7 @@ from contextlib import AbstractAsyncContextManager, contextmanager
 from datetime import date, datetime
 from functools import partial
 from pathlib import Path
-from typing import Any, Callable, Generic, Optional
+from typing import Any, Callable, Generic, Optional, Union
 from uuid import UUID
 
 from motor.core import AgnosticCollection
@@ -404,7 +404,7 @@ class MongoDbConfig(BaseSettings):
         examples=["my-database"],
         description="Name of the database located on the MongoDB server.",
     )
-    mongo_timeout: PositiveInt | None = Field(
+    mongo_timeout: Union[PositiveInt, None] = Field(
         default=None,
         examples=[300, 600, None],
         description=(
