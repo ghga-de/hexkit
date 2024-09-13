@@ -21,8 +21,20 @@ from typing import Optional
 
 import pytest
 from pydantic import UUID4, BaseModel
+from pymongo.errors import PyMongoError, ServerSelectionTimeoutError
 
-from hexkit.protocols.dao import Dao, DaoFactoryProtocol, Dto, UUID4Field
+from hexkit.protocols.dao import (
+    Dao,
+    DaoFactoryProtocol,
+    DbTimeoutError,
+    Dto,
+    UUID4Field,
+)
+from hexkit.providers.mongodb.provider import (
+    MongoDbConfig,
+    MongoDbDaoFactory,
+    translate_timeout_error,
+)
 
 pytestmark = pytest.mark.asyncio()
 
@@ -97,3 +109,68 @@ async def test_get_dto_invalid_fields_to_index():
             id_field="id",
             fields_to_index={"str_field", "non_existing_field"},
         )
+
+
+async def test_mongodb_timeout():
+    """Test the timeout functionality by pointing towards a non-existent DB."""
+    config = MongoDbConfig(
+        mongo_timeout=1,
+        mongo_dsn="mongodb://localhost:27017",  # type: ignore
+        db_name="test",
+    )
+
+    dao_factory = MongoDbDaoFactory(config=config)
+
+    dao = await dao_factory.get_dao(
+        name="example",
+        dto_model=ExampleDto,
+        id_field="id",
+    )
+
+    resource = ExampleDto(bool_field=True, int_field=42, str_field="test")
+
+    with pytest.raises(DbTimeoutError):
+        await dao.insert(resource)
+
+    with pytest.raises(DbTimeoutError):
+        await dao.get_by_id(resource.id)
+
+    with pytest.raises(DbTimeoutError):
+        await dao.find_one(mapping={"id": str(resource.id)})
+
+    with pytest.raises(DbTimeoutError):
+        [hit async for hit in dao.find_all(mapping={})]
+
+    with pytest.raises(DbTimeoutError):
+        await dao.update(resource)
+
+    with pytest.raises(DbTimeoutError):
+        await dao.upsert(resource)
+
+    with pytest.raises(DbTimeoutError):
+        await dao.delete(resource.id)
+
+
+async def test_db_timeout_error_translator():
+    """Test the function that translates a DB timeout error to a generic error."""
+    timeout_error = ServerSelectionTimeoutError()  # .timeout returns True
+    not_timeout_error = PyMongoError()  # .timeout is False by default
+
+    # Non-timeout errors should be re-raised as they are
+    try:
+        with translate_timeout_error():
+            raise not_timeout_error
+    except Exception as e:
+        assert not isinstance(e, DbTimeoutError)
+
+    # Timeout-caused PyMongoError instances should be translated to DbTimeoutError
+    try:
+        with translate_timeout_error():
+            raise timeout_error
+    except Exception as e:
+        assert isinstance(e, DbTimeoutError)
+
+    # Since the function only catches PyMongoError instances, test other exceptions
+    with pytest.raises(ValueError):
+        with translate_timeout_error():
+            raise ValueError()

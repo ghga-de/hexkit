@@ -23,7 +23,7 @@ Utilities for testing are located in `./testutils.py`.
 
 import json
 from collections.abc import AsyncIterator, Collection, Mapping
-from contextlib import AbstractAsyncContextManager
+from contextlib import AbstractAsyncContextManager, contextmanager
 from datetime import date, datetime
 from functools import partial
 from pathlib import Path
@@ -34,12 +34,13 @@ from motor.core import AgnosticCollection
 from motor.motor_asyncio import AsyncIOMotorClient
 from pydantic import Field, MongoDsn, PositiveInt, Secret
 from pydantic_settings import BaseSettings
-from pymongo.errors import DuplicateKeyError
+from pymongo.errors import DuplicateKeyError, PyMongoError
 
 from hexkit.custom_types import ID
 from hexkit.protocols.dao import (
     Dao,
     DaoFactoryProtocol,
+    DbTimeoutError,
     Dto,
     InvalidFindMappingError,
     MultipleHitsFoundError,
@@ -49,7 +50,23 @@ from hexkit.protocols.dao import (
 )
 from hexkit.utils import FieldNotInModelError, validate_fields_in_model
 
-__all__ = ["MongoDbConfig", "MongoDbDaoFactory"]
+__all__ = [
+    "MongoDbConfig",
+    "MongoDbDaoFactory",
+    "translate_timeout_error",
+    "MongoDbDao",
+]
+
+
+@contextmanager
+def translate_timeout_error():
+    """Catch PyMongoError and re-raise it as DbTimeoutError if it is a timeout error."""
+    try:
+        yield
+    except PyMongoError as exc:
+        if exc.timeout:  # denotes timeout-related errors in pymongo
+            raise DbTimeoutError(str(exc)) from exc
+        raise
 
 
 def document_to_dto(
@@ -195,7 +212,8 @@ class MongoDbDao(Generic[Dto]):
         """
         id_ = self._value_to_document(id_)
 
-        document = await self._collection.find_one({"_id": id_})
+        with translate_timeout_error():
+            document = await self._collection.find_one({"_id": id_})
 
         if document is None:
             raise ResourceNotFoundError(id_=id_)
@@ -215,7 +233,10 @@ class MongoDbDao(Generic[Dto]):
                 when resource with the id specified in the dto was not found
         """
         document = self._dto_to_document(dto)
-        result = await self._collection.replace_one({"_id": document["_id"]}, document)
+        with translate_timeout_error():
+            result = await self._collection.replace_one(
+                {"_id": document["_id"]}, document
+            )
 
         if result.matched_count == 0:
             raise ResourceNotFoundError(id_=document["_id"])
@@ -233,8 +254,8 @@ class MongoDbDao(Generic[Dto]):
             ResourceNotFoundError: when resource with the specified id_ was not found
         """
         id_ = self._value_to_document(id_)
-
-        result = await self._collection.delete_one({"_id": id_})
+        with translate_timeout_error():
+            result = await self._collection.delete_one({"_id": id_})
 
         if result.deleted_count == 0:
             raise ResourceNotFoundError(id_=id_)
@@ -291,10 +312,11 @@ class MongoDbDao(Generic[Dto]):
         validate_find_mapping(mapping, dto_model=self._dto_model)
         mapping = replace_id_field_in_find_mapping(mapping, self._id_field)
 
-        cursor = self._collection.find(filter=self._convert_filter_values(mapping))
+        with translate_timeout_error():
+            cursor = self._collection.find(filter=self._convert_filter_values(mapping))
 
-        async for document in cursor:
-            yield self._document_to_dto(document)
+            async for document in cursor:
+                yield self._document_to_dto(document)
 
     def _convert_filter_values(self, value: Any) -> Any:
         """Convert filter values with non-standard types.
@@ -342,7 +364,8 @@ class MongoDbDao(Generic[Dto]):
         """
         document = self._dto_to_document(dto)
         try:
-            await self._collection.insert_one(document)
+            with translate_timeout_error():
+                await self._collection.insert_one(document)
         except DuplicateKeyError as error:
             raise ResourceAlreadyExistsError(id_=document["_id"]) from error
 
@@ -355,9 +378,10 @@ class MongoDbDao(Generic[Dto]):
                 resource ID.
         """
         document = self._dto_to_document(dto)
-        await self._collection.replace_one(
-            {"_id": document["_id"]}, document, upsert=True
-        )
+        with translate_timeout_error():
+            await self._collection.replace_one(
+                {"_id": document["_id"]}, document, upsert=True
+            )
 
 
 class MongoDbConfig(BaseSettings):
@@ -407,10 +431,16 @@ class MongoDbDaoFactory(DaoFactoryProtocol):
             config: MongoDB-specific config parameters.
         """
         self._config = config
+        timeout_ms = (
+            int(config.mongo_timeout * 1000)
+            if config.mongo_timeout is not None
+            else None
+        )
 
         # get a database-specific client:
         self._client: AsyncIOMotorClient = AsyncIOMotorClient(
-            str(self._config.mongo_dsn.get_secret_value())
+            str(self._config.mongo_dsn.get_secret_value()),
+            timeoutms=timeout_ms,
         )
         self._db = self._client[self._config.db_name]
 

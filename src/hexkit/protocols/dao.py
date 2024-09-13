@@ -97,6 +97,14 @@ class NoHitsFoundError(FindError):
         super().__init__(message)
 
 
+class DbTimeoutError(RuntimeError):
+    """Raised when a database operation timed out."""
+
+    def __init__(self, reason: str):
+        message = f"The database operation timed out: {reason}"
+        super().__init__(message)
+
+
 # provide standardized default factory for UUID4 fields
 UUID4Field = partial(Field, default_factory=uuid4)
 
