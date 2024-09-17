@@ -408,7 +408,7 @@ class MongoDbConfig(BaseSettings):
         default=None,
         examples=[300, 600, None],
         description=(
-            "Timeout in seconds for API calls to MongoDB. The timeout applies all steps"
+            "Timeout in seconds for API calls to MongoDB. The timeout applies to all steps"
             + " needed to complete the operation, including server selection, connection"
             + " checkout, serialization, and server-side execution. When the timeout"
             + " expires, PyMongo raises a timeout exception. If set to None, the"
@@ -440,7 +440,7 @@ class MongoDbDaoFactory(DaoFactoryProtocol):
         # get a database-specific client:
         self._client: AsyncIOMotorClient = AsyncIOMotorClient(
             str(self._config.mongo_dsn.get_secret_value()),
-            timeoutms=timeout_ms,
+            timeoutMS=timeout_ms,
         )
         self._db = self._client[self._config.db_name]
 

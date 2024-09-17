@@ -47,7 +47,11 @@ __all__ = [
 Dto = TypeVar("Dto", bound=BaseModel)
 
 
-class ResourceNotFoundError(RuntimeError):
+class DaoError(RuntimeError):
+    """Base for all errors related to DAO operations."""
+
+
+class ResourceNotFoundError(DaoError):
     """Raised when a requested resource did not exist."""
 
     def __init__(self, *, id_: ID):
@@ -55,7 +59,7 @@ class ResourceNotFoundError(RuntimeError):
         super().__init__(message)
 
 
-class ResourceAlreadyExistsError(RuntimeError):
+class ResourceAlreadyExistsError(DaoError):
     """Raised when a resource did unexpectedly exist."""
 
     def __init__(self, *, id_: ID):
@@ -63,7 +67,7 @@ class ResourceAlreadyExistsError(RuntimeError):
         super().__init__(message)
 
 
-class FindError(RuntimeError):
+class FindError(DaoError):
     """Base for all error related to DAO find operations."""
 
 
@@ -97,11 +101,11 @@ class NoHitsFoundError(FindError):
         super().__init__(message)
 
 
-class DbTimeoutError(RuntimeError):
+class DbTimeoutError(DaoError):
     """Raised when a database operation timed out."""
 
-    def __init__(self, reason: str):
-        message = f"The database operation timed out: {reason}"
+    def __init__(self, details: str):
+        message = f"The database operation timed out: {details}"
         super().__init__(message)
 
 

@@ -488,7 +488,7 @@ class MongoKafkaDaoPublisherFactory(DaoPublisherFactoryProtocol):
         # get a database-specific client:
         self._client: AsyncIOMotorClient = AsyncIOMotorClient(
             str(self._config.mongo_dsn.get_secret_value()),
-            timeoutms=timeout_ms,
+            timeoutMS=timeout_ms,
         )
 
         self._db = self._client[self._config.db_name]

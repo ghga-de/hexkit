@@ -27,7 +27,10 @@ from hexkit.providers.mongokafka.provider import MongoKafkaDaoPublisherFactory
 
 
 def make_mongokafka_config(kafka_max_message_size: int = 1048576) -> MongoKafkaConfig:
-    """Create a MongoKafkaConfig object with a given kafka_max_message_size."""
+    """Create a MongoKafkaConfig object with a given kafka_max_message_size.
+
+    The value for `mongo_dsn` should *not* point to a running MongoDB instance.
+    """
     return MongoKafkaConfig(
         service_name="test",
         service_instance_id="1",
@@ -57,7 +60,7 @@ def test_max_message_size_too_high(caplog):
 
 @pytest.mark.asyncio
 async def test_mongokafka_timeout():
-    """Test that the timeout is set correctly."""
+    """Test that the timeout is set correctly by using a Mongo DSN that doesn't exist."""
     config = make_mongokafka_config()
     dao_factory = MongoKafkaDaoPublisherFactory(
         config=config, event_publisher=AsyncMock()
