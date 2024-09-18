@@ -44,6 +44,7 @@ from hexkit.providers.mongodb.provider import (
     MongoDbDao,
     get_single_hit,
     replace_id_field_in_find_mapping,
+    translate_timeout_error,
     validate_find_mapping,
     value_to_document,
 )
@@ -120,7 +121,10 @@ def get_change_publish_func(
             )
 
         document = dto_to_document(dto, id_field=id_field, published=True)
-        await collection.replace_one({"_id": document["_id"]}, document, upsert=True)
+        with translate_timeout_error():
+            await collection.replace_one(
+                {"_id": document["_id"]}, document, upsert=True
+            )
 
     return publish_change
 
@@ -152,7 +156,8 @@ def get_delete_publish_func(
                 "correlation_id": correlation_id,
             },
         }
-        await collection.replace_one({"_id": document["_id"]}, document)
+        with translate_timeout_error():
+            await collection.replace_one({"_id": document["_id"]}, document)
 
     return publish_deletion
 
@@ -255,9 +260,10 @@ class MongoKafkaDaoPublisher(Generic[Dto]):
         correlation_id = get_correlation_id()
         document = self._dao._dto_to_document(dto)
         document.setdefault("__metadata__", {})["correlation_id"] = correlation_id
-        result = await self._collection.replace_one(
-            {"_id": document["_id"], "__metadata__.deleted": False}, document
-        )
+        with translate_timeout_error():
+            result = await self._collection.replace_one(
+                {"_id": document["_id"], "__metadata__.deleted": False}, document
+            )
         if result.matched_count == 0:
             raise ResourceNotFoundError(id_=document["_id"])
 
@@ -284,9 +290,10 @@ class MongoKafkaDaoPublisher(Generic[Dto]):
                 "correlation_id": correlation_id,
             },
         }
-        result = await self._collection.replace_one(
-            {"_id": document["_id"], "__metadata__.deleted": False}, document
-        )
+        with translate_timeout_error():
+            result = await self._collection.replace_one(
+                {"_id": document["_id"], "__metadata__.deleted": False}, document
+            )
         if result.matched_count == 0:
             raise ResourceNotFoundError(id_=id_)
 
@@ -342,14 +349,15 @@ class MongoKafkaDaoPublisher(Generic[Dto]):
         validate_find_mapping(mapping, dto_model=self._dto_model)
         mapping = replace_id_field_in_find_mapping(mapping, self._id_field)
 
-        cursor = self._collection.find(filter=self._convert_filter_values(mapping))
+        with translate_timeout_error():
+            cursor = self._collection.find(filter=self._convert_filter_values(mapping))
 
-        async for document in cursor:
-            if document.get("__metadata__", {}).get("deleted", False):
-                continue
-            yield document_to_dto(
-                document, id_field=self._id_field, dto_model=self._dto_model
-            )
+            async for document in cursor:
+                if document.get("__metadata__", {}).get("deleted", False):
+                    continue
+                yield document_to_dto(
+                    document, id_field=self._id_field, dto_model=self._dto_model
+                )
 
     def _convert_filter_values(self, value: Any) -> Any:
         """Convert filter values with non-standard types.
@@ -413,7 +421,8 @@ class MongoKafkaDaoPublisher(Generic[Dto]):
 
     async def publish_pending(self) -> None:
         """Publishes all non-published changes."""
-        cursor = self._collection.find(filter={"__metadata__.published": False})
+        with translate_timeout_error():
+            cursor = self._collection.find(filter={"__metadata__.published": False})
 
         async for document in cursor:
             await self.publish_document(document)
@@ -422,7 +431,8 @@ class MongoKafkaDaoPublisher(Generic[Dto]):
         """Republishes the state of all resources independent of whether they have
         already been published or not.
         """
-        cursor = self._collection.find()
+        with translate_timeout_error():
+            cursor = self._collection.find()
 
         async for document in cursor:
             await self.publish_document(document)
@@ -473,11 +483,14 @@ class MongoKafkaDaoPublisherFactory(DaoPublisherFactoryProtocol):
     ):
         """Please do not call directly! Should be called by the `construct` method."""
         self._config = config
+        timeout_ms = int(config.mongo_timeout * 1000) if config.mongo_timeout else None
 
         # get a database-specific client:
         self._client: AsyncIOMotorClient = AsyncIOMotorClient(
-            str(self._config.mongo_dsn.get_secret_value())
+            str(self._config.mongo_dsn.get_secret_value()),
+            timeoutMS=timeout_ms,
         )
+
         self._db = self._client[self._config.db_name]
 
         self._event_publisher = event_publisher
