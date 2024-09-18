@@ -61,7 +61,10 @@ __all__ = [
 
 @contextmanager
 def translate_pymongo_errors():
-    """Catch PyMongoError and re-raise it as DbTimeoutError if it is a timeout error."""
+    """Catch PyMongoError and re-raise it as DbTimeoutError if it is a timeout error.
+
+    Non-timeout errors are re-raised as DaoError.
+    """
     try:
         yield
     except PyMongoError as exc:

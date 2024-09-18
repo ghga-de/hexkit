@@ -157,7 +157,7 @@ async def test_db_timeout_error_translator():
     timeout_error = ServerSelectionTimeoutError()  # .timeout returns True
     not_timeout_error = PyMongoError()  # .timeout is False by default
 
-    # Non-timeout errors should be re-raised as they are
+    # Non-timeout errors should be translated to DaoError
     with pytest.raises(DaoError):
         with translate_pymongo_errors():
             raise not_timeout_error
