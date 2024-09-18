@@ -39,6 +39,7 @@ from pymongo.errors import DuplicateKeyError, PyMongoError
 from hexkit.custom_types import ID
 from hexkit.protocols.dao import (
     Dao,
+    DaoError,
     DaoFactoryProtocol,
     DbTimeoutError,
     Dto,
@@ -53,20 +54,20 @@ from hexkit.utils import FieldNotInModelError, validate_fields_in_model
 __all__ = [
     "MongoDbConfig",
     "MongoDbDaoFactory",
-    "translate_timeout_error",
+    "translate_pymongo_errors",
     "MongoDbDao",
 ]
 
 
 @contextmanager
-def translate_timeout_error():
+def translate_pymongo_errors():
     """Catch PyMongoError and re-raise it as DbTimeoutError if it is a timeout error."""
     try:
         yield
     except PyMongoError as exc:
         if exc.timeout:  # denotes timeout-related errors in pymongo
             raise DbTimeoutError(str(exc)) from exc
-        raise
+        raise DaoError(str(exc)) from exc
 
 
 def document_to_dto(
@@ -212,7 +213,7 @@ class MongoDbDao(Generic[Dto]):
         """
         id_ = self._value_to_document(id_)
 
-        with translate_timeout_error():
+        with translate_pymongo_errors():
             document = await self._collection.find_one({"_id": id_})
 
         if document is None:
@@ -233,7 +234,7 @@ class MongoDbDao(Generic[Dto]):
                 when resource with the id specified in the dto was not found
         """
         document = self._dto_to_document(dto)
-        with translate_timeout_error():
+        with translate_pymongo_errors():
             result = await self._collection.replace_one(
                 {"_id": document["_id"]}, document
             )
@@ -254,7 +255,7 @@ class MongoDbDao(Generic[Dto]):
             ResourceNotFoundError: when resource with the specified id_ was not found
         """
         id_ = self._value_to_document(id_)
-        with translate_timeout_error():
+        with translate_pymongo_errors():
             result = await self._collection.delete_one({"_id": id_})
 
         if result.deleted_count == 0:
@@ -312,7 +313,7 @@ class MongoDbDao(Generic[Dto]):
         validate_find_mapping(mapping, dto_model=self._dto_model)
         mapping = replace_id_field_in_find_mapping(mapping, self._id_field)
 
-        with translate_timeout_error():
+        with translate_pymongo_errors():
             cursor = self._collection.find(filter=self._convert_filter_values(mapping))
 
             async for document in cursor:
@@ -363,11 +364,11 @@ class MongoDbDao(Generic[Dto]):
                 when a resource with the ID specified in the dto does already exist.
         """
         document = self._dto_to_document(dto)
-        try:
-            with translate_timeout_error():
+        with translate_pymongo_errors():
+            try:
                 await self._collection.insert_one(document)
-        except DuplicateKeyError as error:
-            raise ResourceAlreadyExistsError(id_=document["_id"]) from error
+            except DuplicateKeyError as error:
+                raise ResourceAlreadyExistsError(id_=document["_id"]) from error
 
     async def upsert(self, dto: Dto) -> None:
         """Update the provided resource if it already exists, create it otherwise.
@@ -378,7 +379,7 @@ class MongoDbDao(Generic[Dto]):
                 resource ID.
         """
         document = self._dto_to_document(dto)
-        with translate_timeout_error():
+        with translate_pymongo_errors():
             await self._collection.replace_one(
                 {"_id": document["_id"]}, document, upsert=True
             )

@@ -44,7 +44,7 @@ from hexkit.providers.mongodb.provider import (
     MongoDbDao,
     get_single_hit,
     replace_id_field_in_find_mapping,
-    translate_timeout_error,
+    translate_pymongo_errors,
     validate_find_mapping,
     value_to_document,
 )
@@ -121,7 +121,7 @@ def get_change_publish_func(
             )
 
         document = dto_to_document(dto, id_field=id_field, published=True)
-        with translate_timeout_error():
+        with translate_pymongo_errors():
             await collection.replace_one(
                 {"_id": document["_id"]}, document, upsert=True
             )
@@ -156,7 +156,7 @@ def get_delete_publish_func(
                 "correlation_id": correlation_id,
             },
         }
-        with translate_timeout_error():
+        with translate_pymongo_errors():
             await collection.replace_one({"_id": document["_id"]}, document)
 
     return publish_deletion
@@ -260,7 +260,7 @@ class MongoKafkaDaoPublisher(Generic[Dto]):
         correlation_id = get_correlation_id()
         document = self._dao._dto_to_document(dto)
         document.setdefault("__metadata__", {})["correlation_id"] = correlation_id
-        with translate_timeout_error():
+        with translate_pymongo_errors():
             result = await self._collection.replace_one(
                 {"_id": document["_id"], "__metadata__.deleted": False}, document
             )
@@ -290,7 +290,7 @@ class MongoKafkaDaoPublisher(Generic[Dto]):
                 "correlation_id": correlation_id,
             },
         }
-        with translate_timeout_error():
+        with translate_pymongo_errors():
             result = await self._collection.replace_one(
                 {"_id": document["_id"], "__metadata__.deleted": False}, document
             )
@@ -349,7 +349,7 @@ class MongoKafkaDaoPublisher(Generic[Dto]):
         validate_find_mapping(mapping, dto_model=self._dto_model)
         mapping = replace_id_field_in_find_mapping(mapping, self._id_field)
 
-        with translate_timeout_error():
+        with translate_pymongo_errors():
             cursor = self._collection.find(filter=self._convert_filter_values(mapping))
 
             async for document in cursor:
@@ -421,7 +421,7 @@ class MongoKafkaDaoPublisher(Generic[Dto]):
 
     async def publish_pending(self) -> None:
         """Publishes all non-published changes."""
-        with translate_timeout_error():
+        with translate_pymongo_errors():
             cursor = self._collection.find(filter={"__metadata__.published": False})
 
         async for document in cursor:
@@ -431,7 +431,7 @@ class MongoKafkaDaoPublisher(Generic[Dto]):
         """Republishes the state of all resources independent of whether they have
         already been published or not.
         """
-        with translate_timeout_error():
+        with translate_pymongo_errors():
             cursor = self._collection.find()
 
         async for document in cursor:

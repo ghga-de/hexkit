@@ -25,6 +25,7 @@ from pymongo.errors import PyMongoError, ServerSelectionTimeoutError
 
 from hexkit.protocols.dao import (
     Dao,
+    DaoError,
     DaoFactoryProtocol,
     DbTimeoutError,
     Dto,
@@ -33,7 +34,7 @@ from hexkit.protocols.dao import (
 from hexkit.providers.mongodb.provider import (
     MongoDbConfig,
     MongoDbDaoFactory,
-    translate_timeout_error,
+    translate_pymongo_errors,
 )
 
 pytestmark = pytest.mark.asyncio()
@@ -157,20 +158,16 @@ async def test_db_timeout_error_translator():
     not_timeout_error = PyMongoError()  # .timeout is False by default
 
     # Non-timeout errors should be re-raised as they are
-    try:
-        with translate_timeout_error():
+    with pytest.raises(DaoError):
+        with translate_pymongo_errors():
             raise not_timeout_error
-    except Exception as e:
-        assert not isinstance(e, DbTimeoutError)
 
     # Timeout-caused PyMongoError instances should be translated to DbTimeoutError
-    try:
-        with translate_timeout_error():
+    with pytest.raises(DbTimeoutError):
+        with translate_pymongo_errors():
             raise timeout_error
-    except Exception as e:
-        assert isinstance(e, DbTimeoutError)
 
     # Since the function only catches PyMongoError instances, test other exceptions
     with pytest.raises(ValueError):
-        with translate_timeout_error():
+        with translate_pymongo_errors():
             raise ValueError()
