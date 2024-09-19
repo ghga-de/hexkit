@@ -344,3 +344,151 @@ def tmp_file() -> Generator[FileObject, None, None]:
     """A fixture that provides a temporary file."""
     with temp_file_object() as temp_file:
         yield temp_file
+
+
+class FederatedS3Fixture:
+    """Fixture containing multiple S3 fixtures to simulate federated storage."""
+
+    def __init__(self, storages: dict[str, S3Fixture]):
+        self.storages = storages
+
+    def get_configs_by_alias(self) -> dict[str, S3Config]:
+        """Get the S3Config instance for each object storage in the fixture."""
+        return {alias: self.storages[alias].config for alias in self.storages}
+
+    async def populate_dummy_items(self, alias: str, contents: dict[str, list[str]]):
+        """Convenience function to populate a specific S3Fixture.
+
+        Args:
+        - `alias`: The alias of the S3Fixture to populate.
+        - `contents`: A dictionary with bucket names as keys and lists of object names
+        as values. The buckets can be empty, and the objects are created with a size of
+        1 byte.
+        """
+        if alias not in self.storages:
+            # This would indicate some kind of mismatch between config and fixture
+            raise RuntimeError(f"Alias '{alias}' not found in the federated S3 fixture")
+        storage = self.storages[alias]
+
+        # Populate the buckets so even empty buckets are established
+        await storage.populate_buckets([bucket for bucket in contents])
+
+        # Add the dummy items
+        for bucket, objects in contents.items():
+            for object in objects:
+                with temp_file_object(bucket, object, 1) as file:
+                    await storage.populate_file_objects([file])
+
+
+class S3MultiContainerFixture:
+    """Fixture for managing multiple running S3 test containers in order to mimic
+    multiple object storages.
+
+    Without this fixture, separate S3Fixture instances would access the same
+    underlying storage resources.
+    """
+
+    def __init__(self, s3_containers: dict[str, S3ContainerFixture]):
+        self.s3_containers = s3_containers
+
+    def __enter__(self):
+        """Enter the context manager and start the S3 containers."""
+        for container in self.s3_containers.values():
+            container.__enter__()
+        return self
+
+    def __exit__(self, exc_type, exc_val, exc_tb):
+        """Exit the context manager and clean up the S3 containers."""
+        for container in self.s3_containers.values():
+            container.__exit__(exc_type, exc_val, exc_tb)
+
+
+def _s3_multi_container_fixture(
+    request,
+) -> Generator[S3MultiContainerFixture, None, None]:
+    """Fixture function for getting multiple running S3 test containers."""
+    try:
+        storage_aliases = request.getfixturevalue("storage_aliases")
+    except pytest.FixtureLookupError as err:
+        raise NotImplementedError(
+            "You must provide a 'storage_aliases' fixture in your test setup."
+            + " It must have the same scope as 's3_multi_container'"
+            + " and it must return a list of the storage aliases to be used."
+        ) from err
+
+    if not storage_aliases:
+        raise RuntimeError("The 'storage_aliases' list must not be empty.")
+    s3_containers = {
+        alias: S3ContainerFixture(name=f"{alias}_s3_container")
+        for alias in storage_aliases
+    }
+    with S3MultiContainerFixture(s3_containers) as s3_multi_container:
+        yield s3_multi_container
+
+
+def get_s3_multi_container_fixture(
+    scope: PytestScope = "session", name: str = "s3_multi_container"
+):
+    """Get a fixture containing multiple LocalStack test containers.
+
+    By default, the session scope is used for LocalStack test containers.
+    Requires that a 'storage_aliases' fixture is provided in the test setup.
+    """
+    return pytest.fixture(_s3_multi_container_fixture, scope=scope, name=name)
+
+
+s3_multi_container_fixture = get_s3_multi_container_fixture()
+
+
+def _persistent_federated_s3_fixture(
+    s3_multi_container: S3MultiContainerFixture,
+) -> Generator[FederatedS3Fixture, None, None]:
+    """Fixture function that creates a persistent FederatedS3Fixture.
+
+    The state of each S3 storage in the fixture is not cleaned up.
+    """
+    s3_fixtures = {}
+    for alias, container in s3_multi_container.s3_containers.items():
+        config = container.s3_config
+        storage = S3ObjectStorage(config=config)
+        s3_fixtures[alias] = S3Fixture(config=config, storage=storage)
+    yield FederatedS3Fixture(s3_fixtures)
+
+
+def get_persistent_federated_s3_fixture(
+    scope: PytestScope = "function", name: str = "federated_s3"
+):
+    """Get a federated S3 storage fixture with desired scope.
+
+    The state of the S3 storage is not cleaned up by the fixture.
+    """
+    return pytest.fixture(_persistent_federated_s3_fixture, scope=scope, name=name)
+
+
+persistent_federated_s3_fixture = get_persistent_federated_s3_fixture()
+
+
+async def _clean_federated_s3_fixture(
+    s3_multi_container: S3MultiContainerFixture,
+) -> AsyncGenerator[FederatedS3Fixture, None]:
+    """Fixture function that creates a clean FederatedS3Fixture instance.
+
+    The state of each S3 storage is cleaned up before yielding the fixture.
+    """
+    for federated_s3_fixture in _persistent_federated_s3_fixture(s3_multi_container):
+        for s3_fixture in federated_s3_fixture.storages.values():
+            await s3_fixture.delete_buckets()
+        yield federated_s3_fixture
+
+
+def get_clean_federated_s3_fixture(
+    scope: PytestScope = "function", name: str = "federated_s3"
+):
+    """Get a federated S3 storage fixture with desired scope.
+
+    The state of the S3 storage is not cleaned up by the fixture.
+    """
+    return pytest_asyncio.fixture(_clean_federated_s3_fixture, scope=scope, name=name)
+
+
+federated_s3_fixture = clean_federated_s3_fixture = get_clean_federated_s3_fixture()
