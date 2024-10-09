@@ -23,6 +23,7 @@ import json
 import logging
 from collections.abc import AsyncIterator, Awaitable, Collection, Mapping
 from contextlib import AbstractAsyncContextManager, asynccontextmanager, contextmanager
+from functools import partial
 from typing import Any, Callable, Generic, Optional
 
 from aiokafka import AIOKafkaProducer
@@ -31,12 +32,8 @@ from motor.motor_asyncio import AsyncIOMotorClient
 from pydantic import field_validator
 
 from hexkit.correlation import get_correlation_id, set_correlation_id
-from hexkit.custom_types import JsonObject
-from hexkit.protocols.dao import (
-    DaoNaturalId,
-    Dto,
-    ResourceNotFoundError,
-)
+from hexkit.custom_types import ID, JsonObject
+from hexkit.protocols.dao import Dao, Dto, ResourceNotFoundError
 from hexkit.protocols.daopub import DaoPublisher, DaoPublisherFactoryProtocol
 from hexkit.protocols.eventpub import EventPublisherProtocol
 from hexkit.providers.akafka import KafkaConfig, KafkaEventPublisher
@@ -44,17 +41,19 @@ from hexkit.providers.akafka.provider.daosub import CHANGE_EVENT_TYPE, DELETE_EV
 from hexkit.providers.akafka.provider.eventpub import KafkaProducerCompatible
 from hexkit.providers.mongodb.provider import (
     MongoDbConfig,
-    MongoDbDaoNaturalId,
+    MongoDbDao,
     get_single_hit,
     replace_id_field_in_find_mapping,
+    translate_pymongo_errors,
     validate_find_mapping,
+    value_to_document,
 )
 
 
 class ResourceDeletedError(RuntimeError):
     """Raised when trying to interact with a resource that has been deleted."""
 
-    def __init__(self, id_: str):
+    def __init__(self, id_: ID):
         """Initialize the exception."""
         super().__init__(f"Resource with ID {id_} has been deleted.")
         self.id_ = id_
@@ -116,12 +115,16 @@ def get_change_publish_func(
             await event_publisher.publish(
                 payload=payload,
                 type_=CHANGE_EVENT_TYPE,
-                key=getattr(dto, id_field),
+                # here we assume that the ID is a string, an int or a UUID
+                key=str(getattr(dto, id_field)),
                 topic=event_topic,
             )
 
         document = dto_to_document(dto, id_field=id_field, published=True)
-        await collection.replace_one({"_id": document["_id"]}, document, upsert=True)
+        with translate_pymongo_errors():
+            await collection.replace_one(
+                {"_id": document["_id"]}, document, upsert=True
+            )
 
     return publish_change
 
@@ -130,30 +133,31 @@ def get_delete_publish_func(
     event_topic: str,
     event_publisher: EventPublisherProtocol,
     collection: AgnosticCollection,
-) -> Callable[[str], Awaitable[None]]:
+) -> Callable[[Any], Awaitable[None]]:
     """Generate a function that publishes deletion events for a specific type of
     resource.
     """
 
-    async def publish_deletion(id_: str) -> None:
+    async def publish_deletion(id_: ID) -> None:
         """Publishes a deletion event and marks the deletion as published."""
         await event_publisher.publish(
             payload={},
             type_=DELETE_EVENT_TYPE,
-            key=id_,
+            key=str(id_),
             topic=event_topic,
         )
 
         correlation_id = get_correlation_id()  # Get active correlation first
         document = {
-            "_id": id_,
+            "_id": value_to_document(id_),
             "__metadata__": {
                 "deleted": True,
                 "published": True,
                 "correlation_id": correlation_id,
             },
         }
-        await collection.replace_one({"_id": document["_id"]}, document)
+        with translate_pymongo_errors():
+            await collection.replace_one({"_id": document["_id"]}, document)
 
     return publish_deletion
 
@@ -168,10 +172,10 @@ def assert_not_deleted():
 
 
 class MongoKafkaDaoPublisher(Generic[Dto]):
-    """A DAO that uses a natural resource ID provided by the client."""
+    """A MongoDB DAO that uses Kafka to publish document upsertions and deletions."""
 
     @classmethod
-    def with_transaction(cls) -> AbstractAsyncContextManager["DaoNaturalId[Dto]"]:
+    def with_transaction(cls) -> AbstractAsyncContextManager["Dao[Dto]"]:
         """Creates a transaction manager that uses an async context manager interface:
 
         Upon __aenter__, pens a new transactional scope. Returns a transaction-scoped
@@ -189,9 +193,9 @@ class MongoKafkaDaoPublisher(Generic[Dto]):
         id_field: str,
         dto_model: type[Dto],
         collection: AgnosticCollection,
-        dao: MongoDbDaoNaturalId[Dto],
+        dao: MongoDbDao[Dto],
         publish_change: Callable[[Dto], Awaitable[None]],
-        publish_delete: Callable[[str], Awaitable[None]],
+        publish_delete: Callable[[Any], Awaitable[None]],
         autopublish: bool,
     ):
         """Initialize the DAO.
@@ -224,7 +228,7 @@ class MongoKafkaDaoPublisher(Generic[Dto]):
         self._publish_delete = publish_delete
         self._autopublish = autopublish
 
-    async def get_by_id(self, id_: str) -> Dto:
+    async def get_by_id(self, id_: ID) -> Dto:
         """Get a resource by providing its ID.
 
         Args:
@@ -236,6 +240,8 @@ class MongoKafkaDaoPublisher(Generic[Dto]):
         Raises:
             ResourceNotFoundError: when resource with the specified id_ was not found
         """
+        id_ = self._dao._value_to_document(id_)
+
         with assert_not_deleted():
             return await self._dao.get_by_id(id_)
 
@@ -254,23 +260,24 @@ class MongoKafkaDaoPublisher(Generic[Dto]):
         correlation_id = get_correlation_id()
         document = self._dao._dto_to_document(dto)
         document.setdefault("__metadata__", {})["correlation_id"] = correlation_id
-        result = await self._collection.replace_one(
-            {
-                "_id": document["_id"],
-                "$or": [
-                    {"__metadata__": {"$exists": False}},
-                    {"__metadata__.deleted": False},
-                ],
-            },
-            document,
-        )
+        with translate_pymongo_errors():
+            result = await self._collection.replace_one(
+                {
+                    "_id": document["_id"],
+                    "$or": [
+                        {"__metadata__": {"$exists": False}},
+                        {"__metadata__.deleted": False},
+                    ],
+                },
+                document,
+            )
         if result.matched_count == 0:
             raise ResourceNotFoundError(id_=document["_id"])
 
         if self._autopublish:
             await self._publish_change(dto)
 
-    async def delete(self, id_: str) -> None:
+    async def delete(self, id_: ID) -> None:
         """Delete a resource by providing its ID.
 
         Args:
@@ -279,6 +286,8 @@ class MongoKafkaDaoPublisher(Generic[Dto]):
         Raises:
             ResourceNotFoundError: when resource with the specified id_ was not found
         """
+        id_ = self._dao._value_to_document(id_)
+
         correlation_id = get_correlation_id()
         document = {
             "_id": id_,
@@ -288,16 +297,17 @@ class MongoKafkaDaoPublisher(Generic[Dto]):
                 "correlation_id": correlation_id,
             },
         }
-        result = await self._collection.replace_one(
-            {
-                "_id": document["_id"],
-                "$or": [
-                    {"__metadata__": {"$exists": False}},
-                    {"__metadata__.deleted": False},
-                ],
-            },
-            document,
-        )
+        with translate_pymongo_errors():
+            result = await self._collection.replace_one(
+                {
+                    "_id": document["_id"],
+                    "$or": [
+                        {"__metadata__": {"$exists": False}},
+                        {"__metadata__.deleted": False},
+                    ],
+                },
+                document,
+            )
         if result.matched_count == 0:
             raise ResourceNotFoundError(id_=id_)
 
@@ -305,9 +315,15 @@ class MongoKafkaDaoPublisher(Generic[Dto]):
             await self._publish_delete(id_)
 
     async def find_one(self, *, mapping: Mapping[str, Any]) -> Dto:
-        """Find the resource that matches the specified mapping. It is expected that
-        at most one resource matches the constraints. An exception is raised if no or
-        multiple hits are found.
+        """Find the resource that matches the specified mapping.
+
+        It is expected that at most one resource matches the constraints.
+        An exception is raised if no or multiple hits are found.
+
+        The values in the mapping are used to filter the resources, these are
+        assumed to be standard JSON scalar types. Particularly, UUIDs and datetimes
+        must be represented as strings. Dictionaries can be passed as values to
+        specify more complex MongoDB queries.
 
         Args:
             mapping:
@@ -330,6 +346,11 @@ class MongoKafkaDaoPublisher(Generic[Dto]):
     async def find_all(self, *, mapping: Mapping[str, Any]) -> AsyncIterator[Dto]:
         """Find all resources that match the specified mapping.
 
+        The values in the mapping are used to filter the resources, these are
+        assumed to be standard JSON scalar types. Particularly, UUIDs and datetimes
+        must be represented as strings. Dictionaries can be passed as values to
+        specify more complex MongoDB queries.
+
         Args:
             mapping:
                 A mapping where the keys correspond to the names of resource fields
@@ -342,14 +363,34 @@ class MongoKafkaDaoPublisher(Generic[Dto]):
         validate_find_mapping(mapping, dto_model=self._dto_model)
         mapping = replace_id_field_in_find_mapping(mapping, self._id_field)
 
-        cursor = self._collection.find(filter=mapping)
+        with translate_pymongo_errors():
+            cursor = self._collection.find(filter=self._convert_filter_values(mapping))
 
-        async for document in cursor:
-            if document.get("__metadata__", {}).get("deleted", False):
-                continue
-            yield document_to_dto(
-                document, id_field=self._id_field, dto_model=self._dto_model
-            )
+            async for document in cursor:
+                if document.get("__metadata__", {}).get("deleted", False):
+                    continue
+                yield document_to_dto(
+                    document, id_field=self._id_field, dto_model=self._dto_model
+                )
+
+    def _convert_filter_values(self, value: Any) -> Any:
+        """Convert filter values with non-standard types.
+
+        This makes the values findable in the database where they are stored
+        in standard JSON format (i.e. UUID, date and datetime object as strings).
+
+        The passed object can be a scalar value or a dictionary which can be nested.
+        """
+        if isinstance(value, dict):  # recursively convert all values
+            convert = self._convert_filter_values
+            return {k: convert(v) for k, v in value.items()}
+        if isinstance(value, list):
+            convert = self._convert_filter_values
+            return [convert(v) for v in value]
+        if isinstance(value, tuple):
+            convert = self._convert_filter_values
+            return tuple(convert(v) for v in value)
+        return value_to_document(value)
 
     async def insert(self, dto: Dto) -> None:
         """Create a new resource.
@@ -394,7 +435,8 @@ class MongoKafkaDaoPublisher(Generic[Dto]):
 
     async def publish_pending(self) -> None:
         """Publishes all non-published changes."""
-        cursor = self._collection.find(filter={"__metadata__.published": False})
+        with translate_pymongo_errors():
+            cursor = self._collection.find(filter={"__metadata__.published": False})
 
         async for document in cursor:
             await self.publish_document(document)
@@ -403,7 +445,8 @@ class MongoKafkaDaoPublisher(Generic[Dto]):
         """Republishes the state of all resources independent of whether they have
         already been published or not.
         """
-        cursor = self._collection.find()
+        with translate_pymongo_errors():
+            cursor = self._collection.find()
 
         async for document in cursor:
             await self.publish_document(document)
@@ -454,11 +497,14 @@ class MongoKafkaDaoPublisherFactory(DaoPublisherFactoryProtocol):
     ):
         """Please do not call directly! Should be called by the `construct` method."""
         self._config = config
+        timeout_ms = int(config.mongo_timeout * 1000) if config.mongo_timeout else None
 
         # get a database-specific client:
         self._client: AsyncIOMotorClient = AsyncIOMotorClient(
-            self._config.db_connection_str.get_secret_value()
+            str(self._config.mongo_dsn.get_secret_value()),
+            timeoutMS=timeout_ms,
         )
+
         self._db = self._client[self._config.db_name]
 
         self._event_publisher = event_publisher
@@ -490,17 +536,15 @@ class MongoKafkaDaoPublisherFactory(DaoPublisherFactoryProtocol):
 
         collection = self._db[name]
 
-        document_to_dto_ = lambda document: document_to_dto(
-            document=document, id_field=id_field, dto_model=dto_model
-        )
-        dto_to_document_ = lambda dto: dto_to_document(dto=dto, id_field=id_field)
-
-        dao = MongoDbDaoNaturalId(
+        dao = MongoDbDao(
             collection=collection,
             dto_model=dto_model,
             id_field=id_field,
-            document_to_dto=document_to_dto_,
-            dto_to_document=dto_to_document_,
+            document_to_dto=partial(
+                document_to_dto, id_field=id_field, dto_model=dto_model
+            ),
+            dto_to_document=partial(dto_to_document, id_field=id_field),
+            value_to_document=value_to_document,
         )
 
         publish_change = get_change_publish_func(

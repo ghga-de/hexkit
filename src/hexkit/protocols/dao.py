@@ -21,17 +21,16 @@ with the database.
 # ruff: noqa: PLR0913
 
 import typing
-import warnings
 from abc import ABC, abstractmethod
-from collections.abc import AsyncGenerator, AsyncIterator, Collection, Mapping
+from collections.abc import AsyncIterator, Collection, Mapping
 from contextlib import AbstractAsyncContextManager
-from copy import copy
-from typing import Any, Optional, TypeVar, Union, overload
+from functools import partial
+from typing import Any, Optional, TypeVar
 from uuid import uuid4
 
-from pydantic import BaseModel
-from typing_extensions import deprecated
+from pydantic import BaseModel, Field
 
+from hexkit.custom_types import ID
 from hexkit.utils import FieldNotInModelError, validate_fields_in_model
 
 __all__ = [
@@ -39,35 +38,36 @@ __all__ = [
     "ResourceAlreadyExistsError",
     "FindError",
     "MultipleHitsFoundError",
-    "DaoNaturalId",
-    "DaoSurrogateId",
+    "Dao",
     "DaoFactoryProtocol",
-    "uuid4_id_generator",
+    "UUID4Field",
 ]
 
-# Type variables for handling Data Transfer Objects:
+# Type variable for handling Data Transfer Objects:
 Dto = TypeVar("Dto", bound=BaseModel)
-DtoCreation = TypeVar("DtoCreation", bound=BaseModel)
-DtoCreation_contra = TypeVar("DtoCreation_contra", bound=BaseModel, contravariant=True)
 
 
-class ResourceNotFoundError(RuntimeError):
+class DaoError(RuntimeError):
+    """Base for all errors related to DAO operations."""
+
+
+class ResourceNotFoundError(DaoError):
     """Raised when a requested resource did not exist."""
 
-    def __init__(self, *, id_: str):
+    def __init__(self, *, id_: ID):
         message = f'The resource with the id "{id_}" does not exist.'
         super().__init__(message)
 
 
-class ResourceAlreadyExistsError(RuntimeError):
+class ResourceAlreadyExistsError(DaoError):
     """Raised when a resource did unexpectedly exist."""
 
-    def __init__(self, *, id_: str):
+    def __init__(self, *, id_: ID):
         message = f'The resource with the id "{id_}" already exists.'
         super().__init__(message)
 
 
-class FindError(RuntimeError):
+class FindError(DaoError):
     """Base for all error related to DAO find operations."""
 
 
@@ -101,12 +101,35 @@ class NoHitsFoundError(FindError):
         super().__init__(message)
 
 
-class DaoCommons(typing.Protocol[Dto]):
-    """A duck type with methods common to all DAOs. This shall be used as base class for
-    other DAO duck types.
-    """
+class DbTimeoutError(DaoError):
+    """Raised when a database operation timed out."""
 
-    async def get_by_id(self, id_: str) -> Dto:
+    def __init__(self, details: str):
+        message = f"The database operation timed out: {details}"
+        super().__init__(message)
+
+
+# provide standardized default factory for UUID4 fields
+UUID4Field = partial(Field, default_factory=uuid4)
+
+
+class Dao(typing.Protocol[Dto]):
+    """A duck type with methods common to all DAOs."""
+
+    @classmethod
+    def with_transaction(cls) -> AbstractAsyncContextManager["Dao[Dto]"]:
+        """Creates a transaction manager that uses an async context manager interface:
+
+        Upon __aenter__, pens a new transactional scope. Returns a transaction-scoped
+        DAO.
+
+        Upon __aexit__, closes the transactional scope. A full rollback of the
+        transaction is performed in case of an exception. Otherwise, the changes to the
+        database are committed and flushed.
+        """
+        ...
+
+    async def get_by_id(self, id_: ID) -> Dto:
         """Get a resource by providing its ID.
 
         Args:
@@ -134,7 +157,7 @@ class DaoCommons(typing.Protocol[Dto]):
         """
         ...
 
-    async def delete(self, id_: str) -> None:
+    async def delete(self, id_: ID) -> None:
         """Delete a resource by providing its ID.
 
         Args:
@@ -146,9 +169,15 @@ class DaoCommons(typing.Protocol[Dto]):
         ...
 
     async def find_one(self, *, mapping: Mapping[str, Any]) -> Dto:
-        """Find the resource that matches the specified mapping. It is expected that
-        at most one resource matches the constraints. An exception is raised if no or
-        multiple hits are found.
+        """Find the resource that matches the specified mapping.
+
+        It is expected that at most one resource matches the constraints.
+        An exception is raised if no or multiple hits are found.
+
+        The values in the mapping are used to filter the resources, these are
+        assumed to be standard JSON scalar types. Particularly, UUIDs and datetimes
+        must be represented as strings. The behavior for non-scalars types depends
+        on the specific provider.
 
         Args:
             mapping:
@@ -170,6 +199,11 @@ class DaoCommons(typing.Protocol[Dto]):
     def find_all(self, *, mapping: Mapping[str, Any]) -> AsyncIterator[Dto]:
         """Find all resources that match the specified mapping.
 
+        The values in the mapping are used to filter the resources, these are
+        assumed to be standard JSON scalar types. Particularly, UUIDs and datetimes
+        must be represented as strings. The behavior for non-scalar types depends
+        on the specific provider.
+
         Args:
             mapping:
                 A mapping where the keys correspond to the names of resource fields
@@ -178,61 +212,6 @@ class DaoCommons(typing.Protocol[Dto]):
         Returns:
             An AsyncIterator of hits. All hits are in the form of the respective DTO
             model.
-        """
-        ...
-
-
-class DaoSurrogateId(DaoCommons[Dto], typing.Protocol[Dto, DtoCreation_contra]):
-    """A duck type of a DAO that generates an internal/surrogate key for
-    identifying resources in the database. ID/keys cannot be defined by the client of
-    the DAO. Thus, both a standard DTO model (first type parameter), which includes
-    the key field, as well as special DTO model (second type parameter), which is
-    identical to the first one, but does not include the ID field and is dedicated for
-     creation of new resources.
-    """
-
-    @classmethod
-    def with_transaction(
-        cls,
-    ) -> AbstractAsyncContextManager["DaoSurrogateId[Dto, DtoCreation_contra]"]:
-        """Creates a transaction manager that uses an async context manager interface:
-
-        Upon __aenter__, pens a new transactional scope. Returns a transaction-scoped
-        DAO.
-
-        Upon __aexit__, closes the transactional scope. A full rollback of the
-        transaction is performed in case of an exception. Otherwise, the changes to the
-        database are committed and flushed.
-        """
-        ...
-
-    async def insert(self, dto: DtoCreation_contra) -> Dto:
-        """Create a new resource.
-
-        Args:
-            dto:
-                Resource content as a pydantic-based data transfer object without the
-                resource ID (which will be set automatically).
-
-        Returns:
-            Returns a copy of the newly inserted resource including its assigned ID.
-        """
-        ...
-
-
-class DaoNaturalId(DaoCommons[Dto], typing.Protocol[Dto]):
-    """A duck type of a DAO that uses a natural resource ID provided by the client."""
-
-    @classmethod
-    def with_transaction(cls) -> AbstractAsyncContextManager["DaoNaturalId[Dto]"]:
-        """Creates a transaction manager that uses an async context manager interface:
-
-        Upon __aenter__, pens a new transactional scope. Returns a transaction-scoped
-        DAO.
-
-        Upon __aexit__, closes the transactional scope. A full rollback of the
-        transaction is performed in case of an exception. Otherwise, the changes to the
-        database are committed and flushed.
         """
         ...
 
@@ -261,28 +240,14 @@ class DaoNaturalId(DaoCommons[Dto], typing.Protocol[Dto]):
         ...
 
 
-@deprecated(
-    "uuid4_id_generator is deprecated as of v3.6 and will be removed in hexkit v4."
-)
-async def uuid4_id_generator() -> AsyncGenerator[str, None]:
-    """Generates a new ID using the UUID4 algorithm.
-    This is an AsyncGenerator to be compliant with the id_generator requirements of the
-    DaoFactoryProtocol.
-    """
-    while True:
-        yield str(uuid4())
-
-
 class DaoFactoryBase:
     """A base for Data Access Objects (DAO) Factory protocols."""
 
-    class IdFieldNotFoundError(ValueError):
+    class IdFieldNotFoundError(TypeError):
         """Raised when the dto_model did not contain the expected id_field."""
 
-    class CreationModelInvalidError(ValueError):
-        """Raised when the DtoCreationModel was invalid in relation to the main
-        DTO model.
-        """
+    class IdTypeNotSupportedError(TypeError):
+        """Raised when the id_field of the dto_model has an unexpected Type."""
 
     class IndexFieldsInvalidError(ValueError):
         """Raised when providing an invalid list of fields to index."""
@@ -292,31 +257,13 @@ class DaoFactoryBase:
         """Checks whether the dto_model contains the expected id_field.
         Raises IdFieldNotFoundError otherwise.
         """
-        if id_field not in dto_model.model_json_schema()["properties"]:
+        properties = dto_model.model_json_schema()["properties"]
+        schema = properties.get(id_field)
+        if schema is None:
             raise cls.IdFieldNotFoundError()
-
-    @classmethod
-    def _validate_dto_creation_model(
-        cls,
-        *,
-        dto_model: type[Dto],
-        dto_creation_model: Optional[type[DtoCreation]],
-        id_field: str,
-    ) -> None:
-        """Checks that the dto_creation_model has the same fields as the dto_model
-        except missing the ID. Raises CreationModelInvalidError otherwise.
-        """
-        if dto_creation_model is None:
-            return
-
-        expected_properties = copy(dto_model.model_json_schema()["properties"])
-        # (the schema method returns an attribute of the class, making a copy to not
-        # alter the class)
-        del expected_properties[id_field]
-        observed_properties = dto_creation_model.model_json_schema()["properties"]
-
-        if observed_properties != expected_properties:
-            raise cls.CreationModelInvalidError()
+        id_type = schema.get("type")
+        if id_type not in ("integer", "string"):
+            raise cls.IdTypeNotSupportedError()
 
     @classmethod
     def _validate_fields_to_index(
@@ -344,16 +291,10 @@ class DaoFactoryBase:
         *,
         dto_model: type[Dto],
         id_field: str,
-        dto_creation_model: Optional[type[DtoCreation]],
         fields_to_index: Optional[Collection[str]],
     ) -> None:
         """Validates the input parameters of the get_dao method."""
         cls._validate_dto_model_id(dto_model=dto_model, id_field=id_field)
-        cls._validate_dto_creation_model(
-            dto_model=dto_model,
-            dto_creation_model=dto_creation_model,
-            id_field=id_field,
-        )
         cls._validate_fields_to_index(
             dto_model=dto_model, fields_to_index=fields_to_index
         )
@@ -364,7 +305,6 @@ class DaoFactoryProtocol(DaoFactoryBase, ABC):
     that are enclosed in transactional scopes.
     """
 
-    @overload
     async def get_dao(
         self,
         *,
@@ -372,31 +312,7 @@ class DaoFactoryProtocol(DaoFactoryBase, ABC):
         dto_model: type[Dto],
         id_field: str,
         fields_to_index: Optional[Collection[str]] = None,
-        id_generator: Optional[AsyncGenerator[str, None]] = None,
-    ) -> DaoNaturalId[Dto]: ...
-
-    @overload
-    async def get_dao(
-        self,
-        *,
-        name: str,
-        dto_model: type[Dto],
-        id_field: str,
-        dto_creation_model: type[DtoCreation],
-        fields_to_index: Optional[Collection[str]] = None,
-        id_generator: Optional[AsyncGenerator[str, None]] = None,
-    ) -> DaoSurrogateId[Dto, DtoCreation]: ...
-
-    async def get_dao(
-        self,
-        *,
-        name: str,
-        dto_model: type[Dto],
-        id_field: str,
-        dto_creation_model: Optional[type[DtoCreation]] = None,
-        fields_to_index: Optional[Collection[str]] = None,
-        id_generator: Optional[AsyncGenerator[str, None]] = None,
-    ) -> Union[DaoSurrogateId[Dto, DtoCreation], DaoNaturalId[Dto]]:
+    ) -> Dao[Dto]:
         """Constructs a DAO for interacting with resources in a database.
 
         Args:
@@ -411,60 +327,28 @@ class DaoFactoryProtocol(DaoFactoryBase, ABC):
             fields_to_index:
                 Optionally, provide any fields that should be indexed in addition to the
                 `id_field`. Defaults to None.
-            dto_creation_model:
-                An optional DTO model specific for creation of a new resource. This
-                model has to be identical to the `dto_model` except that it has to miss
-                the `id_field`. If specified, the resource ID will be generated by the DAO
-                implementation upon resource creation. Otherwise (if set to None), resource IDs
-                have to be specified upon resource creation. Defaults to None.
-            id_generator:
-                A generator that yields strings that will be used as IDs when creating
-                new resources. Please note, each ID should be unique. Moreover, the
-                generator should never exhaust.
-                By default a UUID4-based generator is used.
         Returns:
-            If a dedicated `dto_creation_model` is specified, a DAO of type
-            DaoSurrogateID, which autogenerates IDs upon resource creation, is returned.
-            Otherwise, returns a DAO of type DaoNaturalId, which require ID
-            specification upon resource creation.
+            A DAO specific to the provided DTO model.
 
         Raises:
-            self.CreationModelInvalidError:
-                Raised when the DtoCreationModel was invalid in relation to the main
-                DTO model.
             self.IdFieldNotFoundError:
                 Raised when the dto_model did not contain the expected id_field.
+            self.IdTypeNotSupportedError:
+                Raised when the id_field of the dto_model has an unexpected type.
         """
         self._validate(
             dto_model=dto_model,
             id_field=id_field,
-            dto_creation_model=dto_creation_model,
             fields_to_index=fields_to_index,
         )
-
-        if id_generator is None:
-            # instantiate the default ID generator:
-            id_generator = uuid4_id_generator()
-
-        if dto_creation_model is not None:
-            dep_msg = (
-                "The DAO API (and existing providers) are deprecated as of v3.6."
-                + " They will be simplified in hexkit v4."
-                + " Please plan to provide IDs during resource creation. The same model"
-                + " should be used for both creation and retrieval."
-            )
-            warnings.warn(dep_msg, category=DeprecationWarning, stacklevel=2)
 
         return await self._get_dao(
             name=name,
             dto_model=dto_model,
             id_field=id_field,
             fields_to_index=fields_to_index,
-            dto_creation_model=dto_creation_model,
-            id_generator=id_generator,
         )
 
-    @overload
     @abstractmethod
     async def _get_dao(
         self,
@@ -472,35 +356,8 @@ class DaoFactoryProtocol(DaoFactoryBase, ABC):
         name: str,
         dto_model: type[Dto],
         id_field: str,
-        dto_creation_model: None,
         fields_to_index: Optional[Collection[str]],
-        id_generator: AsyncGenerator[str, None],
-    ) -> DaoNaturalId[Dto]: ...
-
-    @overload
-    @abstractmethod
-    async def _get_dao(
-        self,
-        *,
-        name: str,
-        dto_model: type[Dto],
-        id_field: str,
-        dto_creation_model: type[DtoCreation],
-        fields_to_index: Optional[Collection[str]],
-        id_generator: AsyncGenerator[str, None],
-    ) -> DaoSurrogateId[Dto, DtoCreation]: ...
-
-    @abstractmethod
-    async def _get_dao(
-        self,
-        *,
-        name: str,
-        dto_model: type[Dto],
-        id_field: str,
-        dto_creation_model: Optional[type[DtoCreation]],
-        fields_to_index: Optional[Collection[str]],
-        id_generator: AsyncGenerator[str, None],
-    ) -> Union[DaoSurrogateId[Dto, DtoCreation], DaoNaturalId[Dto]]:
+    ) -> Dao[Dto]:
         """*To be implemented by the provider. Input validation is done outside of this
         method.*
         """

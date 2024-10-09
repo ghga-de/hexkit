@@ -28,13 +28,13 @@ from typing import Callable, Optional
 
 from hexkit.custom_types import JsonObject
 from hexkit.protocols.dao import (
+    Dao,
     DaoFactoryBase,
-    DaoNaturalId,
     Dto,
 )
 
 
-class DaoPublisher(DaoNaturalId[Dto], typing.Protocol[Dto]):
+class DaoPublisher(Dao[Dto], typing.Protocol[Dto]):
     """A Data Access Object (DAO) that automatically publishes changes according to the
     outbox pattern.
     """
@@ -95,11 +95,12 @@ class DaoPublisherFactoryProtocol(DaoFactoryBase, ABC):
         Raises:
             self.IdFieldNotFoundError:
                 Raised when the dto_model did not contain the expected id_field.
+            self.IdTypeNotSupportedError:
+                Raised when the id_field of the dto_model has an unexpected type.
         """
         self._validate(
             dto_model=dto_model,
             id_field=id_field,
-            dto_creation_model=None,
             fields_to_index=fields_to_index,
         )
 

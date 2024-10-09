@@ -174,7 +174,7 @@ async def test_context_var_setter():
         (VALID_CORRELATION_ID, False, None),
         ("invalid", True, InvalidCorrelationIdError),
         ("invalid", False, None),
-        ("", True, InvalidCorrelationIdError),
+        ("", True, None),
         ("", False, None),
     ],
 )

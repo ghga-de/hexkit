@@ -20,7 +20,7 @@ Please note, only use for testing purposes.
 """
 
 import json
-from collections.abc import AsyncGenerator, Generator, Sequence
+from collections.abc import AsyncGenerator, Generator, Mapping, Sequence
 from contextlib import asynccontextmanager
 from dataclasses import dataclass
 from functools import partial
@@ -43,7 +43,6 @@ from hexkit.providers.akafka import KafkaConfig
 from hexkit.providers.akafka.provider import (
     ConsumerEvent,
     KafkaEventPublisher,
-    get_header_value,
     headers_as_dict,
 )
 from hexkit.providers.akafka.testcontainer import DEFAULT_IMAGE as KAFKA_IMAGE
@@ -160,7 +159,14 @@ def check_recorded_events(
     for index, (recorded_event, expected_event) in enumerate(
         zip(recorded_events, expected_events)
     ):
-        if recorded_event.payload != expected_event.payload:
+        # Convert the expected payload to use only basic data types
+        expected_payload = json.loads(
+            json.dumps(
+                expected_event.payload,
+                default=KafkaEventPublisher._default_json_serializer,
+            )
+        )
+        if recorded_event.payload != expected_payload:
             raise get_field_mismatch_error(field="payload", index=index)
         if recorded_event.type_ != expected_event.type_:
             raise get_field_mismatch_error(field="type", index=index)
@@ -330,7 +336,7 @@ class EventRecorder:
         recorded_events: list[RecordedEvent] = []
         for raw_event in raw_events:
             headers = headers_as_dict(raw_event)
-            type_ = get_header_value("type", headers=headers)
+            type_ = headers.get("type", "")
             del headers["type"]
 
             recorded_event = RecordedEvent(
@@ -407,10 +413,18 @@ class KafkaFixture:
         self.publisher = publisher
 
     async def publish_event(
-        self, *, payload: JsonObject, type_: Ascii, topic: Ascii, key: Ascii = "test"
+        self,
+        *,
+        payload: JsonObject,
+        type_: Ascii,
+        topic: Ascii,
+        key: Ascii = "test",
+        headers: Optional[Mapping[str, str]] = None,
     ) -> None:
         """A convenience method to publish a test event."""
-        await self.publisher.publish(payload=payload, type_=type_, key=key, topic=topic)
+        await self.publisher.publish(
+            payload=payload, type_=type_, key=key, topic=topic, headers=headers
+        )
 
     def record_events(
         self, *, in_topic: Ascii, capture_headers: bool = False

@@ -22,25 +22,27 @@ Utilities for testing are located in `./testutils.py`.
 # ruff: noqa: PLR0913
 
 import json
-import warnings
-from abc import ABC
-from collections.abc import AsyncGenerator, AsyncIterator, Collection, Mapping
-from contextlib import AbstractAsyncContextManager
-from typing import Any, Callable, Generic, Optional, Union, overload
+from collections.abc import AsyncIterator, Collection, Mapping
+from contextlib import AbstractAsyncContextManager, contextmanager
+from datetime import date, datetime
+from functools import partial
+from pathlib import Path
+from typing import Any, Callable, Generic, Optional, Union
+from uuid import UUID
 
 from motor.core import AgnosticCollection
 from motor.motor_asyncio import AsyncIOMotorClient
-from pydantic import Field, SecretStr
+from pydantic import Field, MongoDsn, PositiveInt, Secret
 from pydantic_settings import BaseSettings
-from pymongo.errors import DuplicateKeyError
+from pymongo.errors import DuplicateKeyError, PyMongoError
 
+from hexkit.custom_types import ID
 from hexkit.protocols.dao import (
+    Dao,
+    DaoError,
     DaoFactoryProtocol,
-    DaoNaturalId,
-    DaoSurrogateId,
+    DbTimeoutError,
     Dto,
-    DtoCreation,
-    DtoCreation_contra,
     InvalidFindMappingError,
     MultipleHitsFoundError,
     NoHitsFoundError,
@@ -49,7 +51,26 @@ from hexkit.protocols.dao import (
 )
 from hexkit.utils import FieldNotInModelError, validate_fields_in_model
 
-__all__ = ["MongoDbConfig", "MongoDbDaoFactory"]
+__all__ = [
+    "MongoDbConfig",
+    "MongoDbDaoFactory",
+    "translate_pymongo_errors",
+    "MongoDbDao",
+]
+
+
+@contextmanager
+def translate_pymongo_errors():
+    """Catch PyMongoError and re-raise it as DbTimeoutError if it is a timeout error.
+
+    Non-timeout errors are re-raised as DaoError.
+    """
+    try:
+        yield
+    except PyMongoError as exc:
+        if exc.timeout:  # denotes timeout-related errors in pymongo
+            raise DbTimeoutError(str(exc)) from exc
+        raise DaoError(str(exc)) from exc
 
 
 def document_to_dto(
@@ -72,8 +93,21 @@ def dto_to_document(dto: Dto, *, id_field: str) -> dict[str, Any]:
     return document
 
 
+def value_to_document(value: Any) -> Any:
+    """Converts the value of a DTO field to the value used in the database.
+
+    This should be compatible with the conversion done in 'dto_to_document'.
+    """
+    if isinstance(value, (UUID, Path)):
+        return str(value)
+    if isinstance(value, (date, datetime)):
+        return value.isoformat()
+    return value
+
+
 def validate_find_mapping(mapping: Mapping[str, Any], *, dto_model: type[Dto]):
-    """Validates a key/value mapping used in find methods against the provided DTO model by checking if the mapping keys exist as model fields.
+    """Validates a key/value mapping used in find methods against the provided DTO model
+    by checking if the mapping keys exist as model fields.
 
     Raises:
         InvalidMappingError: If validation fails.
@@ -127,10 +161,8 @@ async def get_single_hit(
     raise MultipleHitsFoundError(mapping=mapping)
 
 
-class MongoDbDaoBase(ABC, Generic[Dto]):
-    """A base class with methods common to all MongoDB-based DAOs.
-    This shall be used as base class for other MongoDB-based DAO implementations.
-    """
+class MongoDbDao(Generic[Dto]):
+    """A MongoDb-specific DAO."""
 
     def __init__(
         self,
@@ -140,6 +172,7 @@ class MongoDbDaoBase(ABC, Generic[Dto]):
         collection: AgnosticCollection,
         document_to_dto: Callable[[dict[str, Any]], Dto],
         dto_to_document: Callable[[Dto], dict[str, Any]],
+        value_to_document: Callable[[Any], Any],
     ):
         """Initialize the DAO.
 
@@ -157,25 +190,19 @@ class MongoDbDaoBase(ABC, Generic[Dto]):
             dto_to_document:
                 A callable that takes a DTO model and returns a representation that is
                 a compatible document for a MongoDB database.
+            value_to_document:
+                A callable that takes a single DTO value and returns the representation
+                of the value that is stored in the MongoDB database.
+                This must be compatible with the conversion done by 'dto_to_document'.
         """
         self._collection = collection
         self._dto_model = dto_model
         self._id_field = id_field
         self._document_to_dto = document_to_dto
         self._dto_to_document = dto_to_document
+        self._value_to_document = value_to_document
 
-        warnings.warn(
-            "The MongoDbDaoBase class and subclasses are deprecated as of v3.6 and will"
-            + " be replaced in hexkit v4 with the new MongoDbDao class. To replace the"
-            + " MongoDbDaoNaturalId: just use the new class. To replace the"
-            + " MongoDbDaoSurrogateId: use the new class, remove the creation model and"
-            + " id_generator parameters, and make sure the supplied DTO model includes"
-            + " the ID field with a default factory for generating new IDs.",
-            category=DeprecationWarning,
-            stacklevel=2,
-        )
-
-    async def get_by_id(self, id_: str) -> Dto:
+    async def get_by_id(self, id_: ID) -> Dto:
         """Get a resource by providing its ID.
 
         Args:
@@ -187,7 +214,10 @@ class MongoDbDaoBase(ABC, Generic[Dto]):
         Raises:
             ResourceNotFoundError: when resource with the specified id_ was not found
         """
-        document = await self._collection.find_one({"_id": id_})
+        id_ = self._value_to_document(id_)
+
+        with translate_pymongo_errors():
+            document = await self._collection.find_one({"_id": id_})
 
         if document is None:
             raise ResourceNotFoundError(id_=id_)
@@ -207,7 +237,10 @@ class MongoDbDaoBase(ABC, Generic[Dto]):
                 when resource with the id specified in the dto was not found
         """
         document = self._dto_to_document(dto)
-        result = await self._collection.replace_one({"_id": document["_id"]}, document)
+        with translate_pymongo_errors():
+            result = await self._collection.replace_one(
+                {"_id": document["_id"]}, document
+            )
 
         if result.matched_count == 0:
             raise ResourceNotFoundError(id_=document["_id"])
@@ -215,7 +248,7 @@ class MongoDbDaoBase(ABC, Generic[Dto]):
         # (trusting MongoDB that matching on the _id field can only yield one or
         # zero matches)
 
-    async def delete(self, id_: str) -> None:
+    async def delete(self, id_: ID) -> None:
         """Delete a resource by providing its ID.
 
         Args:
@@ -224,7 +257,9 @@ class MongoDbDaoBase(ABC, Generic[Dto]):
         Raises:
             ResourceNotFoundError: when resource with the specified id_ was not found
         """
-        result = await self._collection.delete_one({"_id": id_})
+        id_ = self._value_to_document(id_)
+        with translate_pymongo_errors():
+            result = await self._collection.delete_one({"_id": id_})
 
         if result.deleted_count == 0:
             raise ResourceNotFoundError(id_=id_)
@@ -233,9 +268,15 @@ class MongoDbDaoBase(ABC, Generic[Dto]):
         # zero matches)
 
     async def find_one(self, *, mapping: Mapping[str, Any]) -> Dto:
-        """Find the resource that matches the specified mapping. It is expected that
-        at most one resource matches the constraints. An exception is raised if no or
-        multiple hits are found.
+        """Find the resource that matches the specified mapping.
+
+        It is expected that at most one resource matches the constraints.
+        An exception is raised if no or multiple hits are found.
+
+        The values in the mapping are used to filter the resources, these are
+        assumed to be standard JSON scalar types. Particularly, UUIDs and datetimes
+        must be represented as strings. Dictionaries can be passed as values to
+        specify more complex MongoDB queries.
 
         Args:
             mapping:
@@ -258,6 +299,11 @@ class MongoDbDaoBase(ABC, Generic[Dto]):
     async def find_all(self, *, mapping: Mapping[str, Any]) -> AsyncIterator[Dto]:
         """Find all resources that match the specified mapping.
 
+        The values in the mapping are used to filter the resources, these are
+        assumed to be standard JSON scalar types. Particularly, UUIDs and datetimes
+        must be represented as strings. Dictionaries can be passed as values to
+        specify more complex MongoDB queries.
+
         Args:
             mapping:
                 A mapping where the keys correspond to the names of resource fields
@@ -270,112 +316,33 @@ class MongoDbDaoBase(ABC, Generic[Dto]):
         validate_find_mapping(mapping, dto_model=self._dto_model)
         mapping = replace_id_field_in_find_mapping(mapping, self._id_field)
 
-        cursor = self._collection.find(filter=mapping)
+        with translate_pymongo_errors():
+            cursor = self._collection.find(filter=self._convert_filter_values(mapping))
 
-        async for document in cursor:
-            yield self._document_to_dto(document)
+            async for document in cursor:
+                yield self._document_to_dto(document)
 
+    def _convert_filter_values(self, value: Any) -> Any:
+        """Convert filter values with non-standard types.
 
-class MongoDbDaoSurrogateId(MongoDbDaoBase[Dto], Generic[Dto, DtoCreation_contra]):
-    """A DAO that generates an internal/surrogate key for
-    identifying resources in the database. ID/keys cannot be defined by the client of
-    the DAO. Thus, both a standard DTO model (first type parameter), which includes
-    the key field, as well as special DTO model (second type parameter), which is
-    identical to the first one, but does not include the ID field and is dedicated for
-     creation of new resources, is needed.
-    """
+        This makes the values findable in the database where they are stored
+        in standard JSON format (i.e. UUID, date and datetime object as strings).
+
+        The passed object can be a scalar value or a dictionary which can be nested.
+        """
+        if isinstance(value, dict):  # recursively convert all values
+            convert = self._convert_filter_values
+            return {k: convert(v) for k, v in value.items()}
+        if isinstance(value, list):
+            convert = self._convert_filter_values
+            return [convert(v) for v in value]
+        if isinstance(value, tuple):
+            convert = self._convert_filter_values
+            return tuple(convert(v) for v in value)
+        return self._value_to_document(value)
 
     @classmethod
-    def with_transaction(
-        cls,
-    ) -> AbstractAsyncContextManager["DaoSurrogateId[Dto, DtoCreation_contra]"]:
-        """Creates a transaction manager that uses an async context manager interface:
-
-        Upon __aenter__, pens a new transactional scope. Returns a transaction-scoped
-        DAO.
-
-        Upon __aexit__, closes the transactional scope. A full rollback of the
-        transaction is performed in case of an exception. Otherwise, the changes to the
-        database are committed and flushed.
-        """
-        raise NotImplementedError()
-
-    def __init__(
-        self,
-        *,
-        dto_model: type[Dto],
-        dto_creation_model: type[DtoCreation_contra],
-        id_field: str,
-        collection: AgnosticCollection,
-        id_generator: AsyncGenerator[str, None],
-        document_to_dto: Callable[[dict[str, Any]], Dto],
-        dto_to_document: Callable[[Dto], dict[str, Any]],
-    ):
-        """Initialize the DAO.
-
-        Args:
-            dto_model:
-                A DTO (Data Transfer Object) model describing the shape of resources.
-            dto_creation_model:
-                A DTO model specific for creation of a new resource. This
-                model has to be identical to the `dto_model` except that it has to miss
-                the `id_field`. The resource ID will be generated by the DAO
-                implementation upon resource creation.
-            id_field:
-                The name of the field of the `dto_model` that serves as resource ID.
-                (DAO implementation might use this field as primary key.)
-            collection:
-                A collection object from the motor library.
-            id_generator:
-                A generator to continuously generate new IDs for new resources.
-            document_to_dto:
-                A callable that takes a document obtained from the MongoDB database
-                and returns a DTO model-compliant representation.
-            dto_to_document:
-                A callable that takes a DTO model and returns a representation that is
-                a compatible document for a MongoDB database.
-        """
-        super().__init__(
-            dto_model=dto_model,
-            id_field=id_field,
-            collection=collection,
-            document_to_dto=document_to_dto,
-            dto_to_document=dto_to_document,
-        )
-
-        self._dto_creation_model = dto_creation_model
-        self._id_generator = id_generator
-
-    async def insert(self, dto: DtoCreation_contra) -> Dto:
-        """Create a new resource.
-
-        Args:
-            dto:
-                Resource content as a pydantic-based data transfer object without the
-                resource ID (which will be set automatically).
-
-        Returns:
-            Returns a copy of the newly inserted resource including its assigned ID.
-        """
-        # complete the provided data with an autogenerated ID:
-        data = dto.model_dump()
-        data[self._id_field] = await self._id_generator.__anext__()
-
-        # verify the completed data against the full DTO model (modifications might be
-        # introduced by the pydantic model):
-        full_dto = self._dto_model(**data)
-
-        document = self._dto_to_document(full_dto)
-        await self._collection.insert_one(document)
-
-        return full_dto
-
-
-class MongoDbDaoNaturalId(MongoDbDaoBase[Dto]):
-    """A DAO that uses a natural resource ID profided by the client."""
-
-    @classmethod
-    def with_transaction(cls) -> AbstractAsyncContextManager["DaoNaturalId[Dto]"]:
+    def with_transaction(cls) -> AbstractAsyncContextManager["Dao[Dto]"]:
         """Creates a transaction manager that uses an async context manager interface:
 
         Upon __aenter__, pens a new transactional scope. Returns a transaction-scoped
@@ -400,10 +367,11 @@ class MongoDbDaoNaturalId(MongoDbDaoBase[Dto]):
                 when a resource with the ID specified in the dto does already exist.
         """
         document = self._dto_to_document(dto)
-        try:
-            await self._collection.insert_one(document)
-        except DuplicateKeyError as error:
-            raise ResourceAlreadyExistsError(id_=document["_id"]) from error
+        with translate_pymongo_errors():
+            try:
+                await self._collection.insert_one(document)
+            except DuplicateKeyError as error:
+                raise ResourceAlreadyExistsError(id_=document["_id"]) from error
 
     async def upsert(self, dto: Dto) -> None:
         """Update the provided resource if it already exists, create it otherwise.
@@ -414,9 +382,10 @@ class MongoDbDaoNaturalId(MongoDbDaoBase[Dto]):
                 resource ID.
         """
         document = self._dto_to_document(dto)
-        await self._collection.replace_one(
-            {"_id": document["_id"]}, document, upsert=True
-        )
+        with translate_pymongo_errors():
+            await self._collection.replace_one(
+                {"_id": document["_id"]}, document, upsert=True
+            )
 
 
 class MongoDbConfig(BaseSettings):
@@ -425,7 +394,7 @@ class MongoDbConfig(BaseSettings):
     Inherit your config class from this class if your application uses MongoDB.
     """
 
-    db_connection_str: SecretStr = Field(
+    mongo_dsn: Secret[MongoDsn] = Field(
         ...,
         examples=["mongodb://localhost:27017"],
         description=(
@@ -438,6 +407,17 @@ class MongoDbConfig(BaseSettings):
         ...,
         examples=["my-database"],
         description="Name of the database located on the MongoDB server.",
+    )
+    mongo_timeout: Union[PositiveInt, None] = Field(
+        default=None,
+        examples=[300, 600, None],
+        description=(
+            "Timeout in seconds for API calls to MongoDB. The timeout applies to all steps"
+            + " needed to complete the operation, including server selection, connection"
+            + " checkout, serialization, and server-side execution. When the timeout"
+            + " expires, PyMongo raises a timeout exception. If set to None, the"
+            + " operation will not time out (default MongoDB behavior)."
+        ),
     )
 
 
@@ -455,56 +435,36 @@ class MongoDbDaoFactory(DaoFactoryProtocol):
             config: MongoDB-specific config parameters.
         """
         self._config = config
+        timeout_ms = (
+            int(config.mongo_timeout * 1000)
+            if config.mongo_timeout is not None
+            else None
+        )
 
         # get a database-specific client:
         self._client: AsyncIOMotorClient = AsyncIOMotorClient(
-            self._config.db_connection_str.get_secret_value()
+            str(self._config.mongo_dsn.get_secret_value()),
+            timeoutMS=timeout_ms,
         )
         self._db = self._client[self._config.db_name]
 
     def __repr__(self) -> str:  # noqa: D105
         return f"{self.__class__.__qualname__}(config={repr(self._config)})"
 
-    @overload
     async def _get_dao(
         self,
         *,
         name: str,
         dto_model: type[Dto],
         id_field: str,
-        dto_creation_model: None,
         fields_to_index: Optional[Collection[str]],
-        id_generator: AsyncGenerator[str, None],
-    ) -> DaoNaturalId[Dto]: ...
-
-    @overload
-    async def _get_dao(
-        self,
-        *,
-        name: str,
-        dto_model: type[Dto],
-        id_field: str,
-        dto_creation_model: type[DtoCreation],
-        fields_to_index: Optional[Collection[str]],
-        id_generator: AsyncGenerator[str, None],
-    ) -> DaoSurrogateId[Dto, DtoCreation]: ...
-
-    async def _get_dao(
-        self,
-        *,
-        name: str,
-        dto_model: type[Dto],
-        id_field: str,
-        dto_creation_model: Optional[type[DtoCreation]],
-        fields_to_index: Optional[Collection[str]],
-        id_generator: AsyncGenerator[str, None],
-    ) -> Union[DaoSurrogateId[Dto, DtoCreation], DaoNaturalId[Dto]]:
+    ) -> Dao[Dto]:
         """Constructs a DAO for interacting with resources in a MongoDB database.
 
         Please see the DaoFactoryProtocol superclass for documentation of parameters.
 
         Please note, the method in this MongoDB-specific implementation of the
-        DaoFactoryProtocol would not require to be coroutine. However, other
+        DaoFactoryProtocol would not normally be required to be async. However, other
         implementations of the DaoFactoryProtocol might need to perform await responses
         from the database server. Thus for compliance with the DaoFactoryProtocol, this
         method is async.
@@ -516,26 +476,13 @@ class MongoDbDaoFactory(DaoFactoryProtocol):
 
         collection = self._db[name]
 
-        document_to_dto_ = lambda document: document_to_dto(
-            document=document, id_field=id_field, dto_model=dto_model
-        )
-        dto_to_document_ = lambda dto: dto_to_document(dto=dto, id_field=id_field)
-
-        if dto_creation_model is None:
-            return MongoDbDaoNaturalId(
-                collection=collection,
-                dto_model=dto_model,
-                id_field=id_field,
-                document_to_dto=document_to_dto_,
-                dto_to_document=dto_to_document_,
-            )
-
-        return MongoDbDaoSurrogateId(
+        return MongoDbDao(
             collection=collection,
             dto_model=dto_model,
-            dto_creation_model=dto_creation_model,
             id_field=id_field,
-            id_generator=id_generator,
-            document_to_dto=document_to_dto_,
-            dto_to_document=dto_to_document_,
+            document_to_dto=partial(
+                document_to_dto, id_field=id_field, dto_model=dto_model
+            ),
+            dto_to_document=partial(dto_to_document, id_field=id_field),
+            value_to_document=value_to_document,
         )
