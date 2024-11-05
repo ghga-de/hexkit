@@ -45,7 +45,7 @@ from hexkit.providers.akafka.provider.utils import (
 
 ORIGINAL_TOPIC_FIELD = "original_topic"
 EXC_CLASS_FIELD = "exc_class"
-EXC_INFO_FIELD = "exc_info"
+EXC_MSG_FIELD = "exc_msg"
 
 
 class ConsumerEvent(Protocol):
@@ -302,7 +302,7 @@ class KafkaEventSubscriber(InboundProviderBase):
             headers={
                 ORIGINAL_TOPIC_FIELD: event.topic,
                 EXC_CLASS_FIELD: exc.__class__.__name__,
-                EXC_INFO_FIELD: str(exc),
+                EXC_MSG_FIELD: str(exc),
             },
         )
         logging.info("Published event to DLQ topic '%s'", self._dlq_topic)
@@ -516,7 +516,7 @@ def validate_dlq_headers(event: ConsumerEvent) -> None:
         "correlation_id",
         ORIGINAL_TOPIC_FIELD,
         EXC_CLASS_FIELD,
-        EXC_INFO_FIELD,
+        EXC_MSG_FIELD,
     ]
     invalid_headers = [key for key in expected_headers if not headers.get(key)]
     if invalid_headers:

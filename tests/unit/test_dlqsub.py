@@ -31,7 +31,7 @@ from hexkit.providers.akafka import KafkaConfig
 from hexkit.providers.akafka.provider.daosub import KafkaOutboxSubscriber
 from hexkit.providers.akafka.provider.eventsub import (
     EXC_CLASS_FIELD,
-    EXC_INFO_FIELD,
+    EXC_MSG_FIELD,
     ORIGINAL_TOPIC_FIELD,
     ConsumerEvent,
     DLQProcessingError,
@@ -375,7 +375,7 @@ async def test_retries_exhausted(
         headers={
             ORIGINAL_TOPIC_FIELD: "test-topic",
             EXC_CLASS_FIELD: "RuntimeError",
-            EXC_INFO_FIELD: "Destined to fail.",
+            EXC_MSG_FIELD: "Destined to fail.",
         },
     )
 
@@ -413,7 +413,7 @@ async def test_send_to_retry(kafka: KafkaFixture, caplog_debug):
         headers={
             ORIGINAL_TOPIC_FIELD: "test-topic",
             EXC_CLASS_FIELD: "RuntimeError",
-            EXC_INFO_FIELD: "Destined to fail.",
+            EXC_MSG_FIELD: "Destined to fail.",
         },
     )
 
