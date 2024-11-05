@@ -543,7 +543,7 @@ async def process_dlq_event(event: ConsumerEvent) -> Optional[ExtractedEventInfo
     return ExtractedEventInfo(event)
 
 
-class KafkaDLQSubscriber(InboundProviderBase):
+class KafkaDLQSubscriber:
     """A kafka event subscriber that subscribes to the configured DLQ topic and either
     discards each event or publishes it to the retry topic as instructed.
     Further processing before requeuing is provided by a callable adhering to the
