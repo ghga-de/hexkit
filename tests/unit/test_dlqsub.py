@@ -187,6 +187,7 @@ def make_config(
     max_retries: int = 0,
     enable_dlq: bool = True,
     retry_backoff: int = 0,
+    preview_limit: int = 1,
 ) -> KafkaConfig:
     """Convenience method to merge kafka fixture config with provided DLQ values."""
     return KafkaConfig(
@@ -198,6 +199,7 @@ def make_config(
         kafka_max_retries=max_retries,
         kafka_enable_dlq=enable_dlq,
         kafka_retry_backoff=retry_backoff,
+        kafka_preview_limit=preview_limit,
     )
 
 
@@ -268,7 +270,7 @@ async def test_original_topic_is_preserved(kafka: KafkaFixture):
         async with KafkaDLQSubscriber.construct(
             config=config, dlq_publisher=kafka.publisher
         ) as dlq_sub:
-            await dlq_sub.run()
+            await dlq_sub.process()
 
         # Make sure the translator has nothing in the successes list, then run again
         assert not translator.successes
@@ -425,7 +427,7 @@ async def test_send_to_retry(kafka: KafkaFixture, caplog_debug):
         config=config, dlq_publisher=dummy_publisher
     ) as dlq_sub:
         assert not dummy_publisher.published
-        await dlq_sub.run(ignore=False)
+        await dlq_sub.process()
 
     assert_logged(
         "INFO",
@@ -502,7 +504,7 @@ async def test_dlq_subscriber_ignore(kafka: KafkaFixture, caplog_debug):
         config=config, dlq_publisher=dummy_publisher
     ) as dlq_sub:
         assert not dummy_publisher.published
-        await dlq_sub.run(ignore=True)
+        await dlq_sub.ignore()
 
     parsed_log = assert_logged(
         "INFO",
@@ -585,7 +587,7 @@ async def test_outbox_with_dlq(kafka: KafkaFixture, event_type: str):
         async with KafkaDLQSubscriber.construct(
             config=config, dlq_publisher=kafka.publisher
         ) as dlq_sub:
-            await dlq_sub.run()
+            await dlq_sub.process()
 
         # Retry the event after clearing the list
         list_to_check.clear()  # type: ignore
@@ -648,7 +650,7 @@ async def test_default_dlq_processor(
     ) as dlq_sub:
         assert not dummy_publisher.published
         caplog.clear()
-        await dlq_sub.run()
+        await dlq_sub.process()
         assert dummy_publisher.published == [] if validation_error else [dlq_test_event]
 
     if validation_error:
@@ -700,7 +702,7 @@ async def test_custom_dlq_processors(kafka: KafkaFixture, processing_error: bool
     ) as dlq_sub:
         assert not custom_processor.hits
         with pytest.raises(DLQProcessingError) if processing_error else nullcontext():
-            await dlq_sub.run()
+            await dlq_sub.process()
 
         # verify that the event was received processed by the custom processor
         assert len(custom_processor.hits)
