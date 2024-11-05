@@ -79,7 +79,7 @@ class ExtractedEventInfo:
         self.key = kwargs.get("key", event.key if event else "")
         self.headers = kwargs.get("headers", headers_as_dict(event) if event else {})
         self.headers = cast(dict, self.headers)
-        self.type_ = kwargs.get("type_", self.headers.get("type", ""))
+        self.type_ = kwargs.get("type_", self.headers.pop("type", ""))
 
     @property
     def encoded_headers(self) -> list[tuple[str, bytes]]:
