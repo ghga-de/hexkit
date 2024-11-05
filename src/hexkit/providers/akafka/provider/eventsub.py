@@ -603,8 +603,7 @@ class KafkaDLQSubscriber(InboundProviderBase):
         await consumer.start()
         try:
             yield cls(
-                dlq_topic=config.kafka_dlq_topic,
-                retry_topic=config.kafka_retry_topic,
+                config=config,
                 consumer=consumer,
                 dlq_publisher=dlq_publisher,
                 process_dlq_event=process_dlq_event,
@@ -615,8 +614,7 @@ class KafkaDLQSubscriber(InboundProviderBase):
     def __init__(
         self,
         *,
-        dlq_topic: str,
-        retry_topic: str,
+        config: KafkaConfig,
         dlq_publisher: EventPublisherProtocol,
         consumer: KafkaConsumerCompatible,
         process_dlq_event: DLQEventProcessor,
@@ -624,16 +622,12 @@ class KafkaDLQSubscriber(InboundProviderBase):
         """Please do not call directly! Should be called by the `construct` method.
 
         Args:
+        - `config`: The KafkaConfig instance.
         - `consumer`:
             hands over a started AIOKafkaConsumer.
         - `dlq_publisher`:
             A running instance of a publishing provider that implements the
             EventPublisherProtocol, such as KafkaEventPublisher.
-        - `dlq_topic`:
-            The name of the topic used to store failed events, to which the
-            KafkaDLQSubscriber subscribes.
-        - `retry_topic`:
-            The name of the topic used to requeue failed events.
         - `process_dlq_event`:
             An async callable adhering to the DLQEventProcessor definition that provides
             validation and processing for events from the DLQ. It should return _either_
@@ -642,10 +636,11 @@ class KafkaDLQSubscriber(InboundProviderBase):
             `DLQValidationError` as a signal to discard/ignore the event, and all other
             errors will be re-raised as a `DLQProcessingError`.
         """
+        self._dlq_topic = config.kafka_dlq_topic
+        self._retry_topic = config.kafka_retry_topic
+        self._preview_limit = config.kafka_preview_limit
         self._consumer = consumer
         self._publisher = dlq_publisher
-        self._dlq_topic = dlq_topic
-        self._retry_topic = retry_topic
         self._process_dlq_event = process_dlq_event
 
     async def _publish_to_retry(self, *, event: ExtractedEventInfo) -> None:
