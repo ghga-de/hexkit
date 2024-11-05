@@ -16,7 +16,7 @@
 
 from collections.abc import Mapping
 from contextlib import nullcontext
-from copy import deepcopy
+from copy import copy, deepcopy
 from typing import Optional
 
 import pytest
@@ -398,6 +398,173 @@ async def test_retries_exhausted(
             parse=False,
         )
         assert parsed_log.endswith("(DLQ is disabled)")
+
+
+@pytest.mark.asyncio()
+async def test_preview_repeatability(kafka: KafkaFixture):
+    """Make sure the preview functionality works as expected.
+
+    Also make sure that previewing events doesn't impact the offset of the
+    next event that is consumed/processed.
+    """
+    config = make_config(kafka.config, preview_limit=2)
+
+    correlation_id = new_correlation_id()
+    async with set_correlation_id(correlation_id):
+        event1 = ExtractedEventInfo(
+            payload=TEST_EVENT.payload,
+            type_="test_type",
+            topic=config.kafka_dlq_topic,
+            key="123456",
+            headers={
+                "correlation_id": correlation_id,
+                ORIGINAL_TOPIC_FIELD: "test-topic",
+                EXC_CLASS_FIELD: "RuntimeError",
+                EXC_MSG_FIELD: "Destined to fail.",
+            },
+        )
+
+        # publish 3 events -- there will be logs about how we supplied correlation_id
+        # but that doesn't matter and can be ignored
+        await kafka.publisher.publish(**vars(event1))
+        event2 = copy(event1)
+        event3 = copy(event1)
+        event2.type_ = "test_type2"
+        event3.type_ = "test_type3"
+        await kafka.publisher.publish(**vars(event2))
+        await kafka.publisher.publish(**vars(event3))
+
+    # Set up the DLQ Subscriber and preview/process the events
+    dummy_publisher = DummyPublisher()
+    async with KafkaDLQSubscriber.construct(
+        config=config, dlq_publisher=dummy_publisher
+    ) as dlq_sub:
+        assert not dummy_publisher.published
+        preview1 = await dlq_sub.preview()
+
+        # Make sure we got the first two events (because the limit is 2)
+        assert len(preview1) == 2
+        assert preview1 == [event1, event2]
+
+        # Make sure the preview is repeatable
+        preview2 = await dlq_sub.preview()
+        assert preview2 == preview1 == [event1, event2]
+
+        # Process the first event
+        await dlq_sub.process()
+        assert len(dummy_publisher.published) == 1
+        assert dummy_publisher.published[0].type_ == "test_type"
+
+        # Preview again -- we should get the last 2 events since the first was consumed
+        preview3 = await dlq_sub.preview()
+        assert len(preview3) == 2
+        assert preview3 == [event2, event3]
+
+
+@pytest.mark.parametrize("event_published", [True, False])
+@pytest.mark.asyncio()
+async def test_preview_when_limit_exceeds_available_records(
+    kafka: KafkaFixture, event_published: bool
+):
+    """Make sure the consumer doesn't hang when < `preview_limit` records are available."""
+    config = make_config(kafka.config)
+
+    if not event_published:
+        correlation_id = new_correlation_id()
+        async with set_correlation_id(correlation_id):
+            event = ExtractedEventInfo(
+                payload=TEST_EVENT.payload,
+                type_="test_type",
+                topic=config.kafka_dlq_topic,
+                key="123456",
+                headers={
+                    "correlation_id": correlation_id,
+                    ORIGINAL_TOPIC_FIELD: "test-topic",
+                    EXC_CLASS_FIELD: "RuntimeError",
+                    EXC_MSG_FIELD: "Destined to fail.",
+                },
+            )
+            await kafka.publisher.publish(**vars(event))
+
+    # Set up the DLQ Subscriber and preview the events
+    dummy_publisher = DummyPublisher()
+    async with KafkaDLQSubscriber.construct(
+        config=config, dlq_publisher=dummy_publisher
+    ) as dlq_sub:
+        assert not dummy_publisher.published
+        results = await dlq_sub.preview()
+
+        # Make sure we got something
+        assert len(results) == 0 if event_published else 1
+        assert results == [] if event_published else [event]
+
+
+@pytest.mark.asyncio()
+async def test_preview_multiple_dlq_topics(kafka: KafkaFixture):
+    """Test that the preview functionality works as expected with multiple DLQ topics.
+
+    The DLQ Service should be able to preview events from multiple DLQ topics, each
+    with a separate consumer instance.
+    """
+    dlq1_config = make_config(kafka.config, preview_limit=2)
+
+    # don't need to set retry_topic because we're not retrying any events
+    dlq2_config = make_config(kafka.config, dlq_topic="dlq2", preview_limit=2)
+
+    # Create and publish an event to the first dlq topic
+    correlation_id1 = new_correlation_id()
+    async with set_correlation_id(correlation_id1):
+        dlq1_event = ExtractedEventInfo(
+            payload=TEST_EVENT.payload,
+            type_="test_type",
+            topic=dlq1_config.kafka_dlq_topic,
+            key="123456",
+            headers={
+                "correlation_id": correlation_id1,
+                ORIGINAL_TOPIC_FIELD: "test-topic",
+                EXC_CLASS_FIELD: "RuntimeError",
+                EXC_MSG_FIELD: "Destined to fail.",
+            },
+        )
+        await kafka.publisher.publish(**vars(dlq1_event))
+
+    # Create and publish an event to the second dlq topic
+    correlation_id2 = new_correlation_id()
+    async with set_correlation_id(correlation_id2):
+        dlq2_event = ExtractedEventInfo(
+            payload=TEST_EVENT.payload,
+            type_="test_type",
+            topic=dlq2_config.kafka_dlq_topic,
+            key="123456",
+            headers={
+                "correlation_id": correlation_id2,
+                ORIGINAL_TOPIC_FIELD: "test-topic",
+                EXC_CLASS_FIELD: "RuntimeError",
+                EXC_MSG_FIELD: "Destined to fail.",
+            },
+        )
+        await kafka.publisher.publish(**vars(dlq2_event))
+
+    # spin up the DLQ subscribers and preview events
+    async with (
+        KafkaDLQSubscriber.construct(
+            config=dlq1_config, dlq_publisher=DummyPublisher()
+        ) as dlq_sub1,
+        KafkaDLQSubscriber.construct(
+            config=dlq2_config, dlq_publisher=DummyPublisher()
+        ) as dlq_sub2,
+    ):
+        results1 = await dlq_sub1.preview()
+        results2 = await dlq_sub2.preview()
+
+        # Make sure we got the expected results
+        assert results1 == [dlq1_event]
+        assert results2 == [dlq2_event]
+
+        # Now, because of the offset manipulation that occurs, run the preview again
+        # to make sure there was no cross-topic interference
+        assert await dlq_sub1.preview() == results1 == [dlq1_event]
+        assert await dlq_sub2.preview() == results2 == [dlq2_event]
 
 
 @pytest.mark.asyncio()
