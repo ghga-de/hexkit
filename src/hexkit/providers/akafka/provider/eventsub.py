@@ -44,6 +44,8 @@ from hexkit.providers.akafka.provider.utils import (
 )
 
 ORIGINAL_TOPIC_FIELD = "original_topic"
+EXC_CLASS_FIELD = "exc_class"
+EXC_MSG_FIELD = "exc_msg"
 
 
 class ConsumerEvent(Protocol):
@@ -281,15 +283,27 @@ class KafkaEventSubscriber(InboundProviderBase):
         self._enable_dlq = config.kafka_enable_dlq
         self._retry_backoff = config.kafka_retry_backoff
 
-    async def _publish_to_dlq(self, *, event: ExtractedEventInfo):
-        """Publish the event to the DLQ topic."""
+    async def _publish_to_dlq(self, *, event: ExtractedEventInfo, exc: Exception):
+        """Publish the event to the DLQ topic.
+
+        The exception instance is included in the headers, but is split into the class
+        name and the string representation of the exception.
+
+        Args
+        - `event`: The event to publish to the DLQ.
+        - `exc`: The exception that caused the event to be published to the DLQ.
+        """
         logging.debug("About to publish an event to DLQ topic '%s'", self._dlq_topic)
         await self._dlq_publisher.publish(  # type: ignore
             payload=event.payload,
             type_=event.type_,
             topic=self._dlq_topic,
             key=event.key,
-            headers={ORIGINAL_TOPIC_FIELD: event.topic},
+            headers={
+                ORIGINAL_TOPIC_FIELD: event.topic,
+                EXC_CLASS_FIELD: exc.__class__.__name__,
+                EXC_MSG_FIELD: str(exc),
+            },
         )
         logging.info("Published event to DLQ topic '%s'", self._dlq_topic)
 
@@ -367,7 +381,7 @@ class KafkaEventSubscriber(InboundProviderBase):
             if not self._max_retries:
                 if not self._enable_dlq:
                     raise  # re-raise Exception
-                await self._publish_to_dlq(event=event)
+                await self._publish_to_dlq(event=event, exc=underlying_error)
                 return
 
             # Don't raise RetriesExhaustedError unless retries are actually attempted
@@ -380,7 +394,7 @@ class KafkaEventSubscriber(InboundProviderBase):
                 logging.warning(retry_error)
                 if not self._enable_dlq:
                     raise retry_error from underlying_error
-                await self._publish_to_dlq(event=event)
+                await self._publish_to_dlq(event=event, exc=underlying_error)
 
     def _extract_info(self, event: ConsumerEvent) -> ExtractedEventInfo:
         """Validate the event, returning the extracted info."""
@@ -442,6 +456,7 @@ class KafkaEventSubscriber(InboundProviderBase):
             async with set_correlation_id(correlation_id):
                 await self._handle_consumption(event=event_info)
         except Exception:
+            # Errors only bubble up here if the DLQ isn't used
             logging.critical(
                 "An error occurred while processing event of type '%s': %s. It was NOT"
                 " placed in the DLQ topic (%s)",
@@ -496,7 +511,13 @@ def validate_dlq_headers(event: ConsumerEvent) -> None:
     - `DLQValidationError`: If any headers are determined to be invalid.
     """
     headers = headers_as_dict(event)
-    expected_headers = ["type", "correlation_id", ORIGINAL_TOPIC_FIELD]
+    expected_headers = [
+        "type",
+        "correlation_id",
+        ORIGINAL_TOPIC_FIELD,
+        EXC_CLASS_FIELD,
+        EXC_MSG_FIELD,
+    ]
     invalid_headers = [key for key in expected_headers if not headers.get(key)]
     if invalid_headers:
         error_msg = f"Missing or empty headers: {', '.join(invalid_headers)}"

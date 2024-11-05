@@ -30,6 +30,8 @@ from hexkit.protocols.eventsub import EventSubscriberProtocol
 from hexkit.providers.akafka import KafkaConfig
 from hexkit.providers.akafka.provider.daosub import KafkaOutboxSubscriber
 from hexkit.providers.akafka.provider.eventsub import (
+    EXC_CLASS_FIELD,
+    EXC_MSG_FIELD,
     ORIGINAL_TOPIC_FIELD,
     ConsumerEvent,
     DLQProcessingError,
@@ -370,7 +372,11 @@ async def test_retries_exhausted(
         topic=config.kafka_dlq_topic,
         key=TEST_EVENT.key,
         payload=TEST_EVENT.payload,
-        headers={ORIGINAL_TOPIC_FIELD: "test-topic"},
+        headers={
+            ORIGINAL_TOPIC_FIELD: "test-topic",
+            EXC_CLASS_FIELD: "RuntimeError",
+            EXC_MSG_FIELD: "Destined to fail.",
+        },
     )
 
     # Verify that the event was sent to the DLQ topic just once and that it has
@@ -404,7 +410,11 @@ async def test_send_to_retry(kafka: KafkaFixture, caplog_debug):
         type_="test_type",
         topic=config.kafka_dlq_topic,
         key="123456",
-        headers={ORIGINAL_TOPIC_FIELD: "test-topic"},
+        headers={
+            ORIGINAL_TOPIC_FIELD: "test-topic",
+            EXC_CLASS_FIELD: "RuntimeError",
+            EXC_MSG_FIELD: "Destined to fail.",
+        },
     )
 
     await kafka.publisher.publish(**vars(event_to_put_in_dlq))
@@ -425,6 +435,9 @@ async def test_send_to_retry(kafka: KafkaFixture, caplog_debug):
 
     # Verify that the event was sent to the RETRY topic
     event_to_put_in_dlq.topic = config.kafka_retry_topic
+
+    # The exc_... headers are not supposed to be in the retry event
+    event_to_put_in_dlq.headers = {ORIGINAL_TOPIC_FIELD: "test-topic"}
     assert dummy_publisher.published == [event_to_put_in_dlq]
 
 
