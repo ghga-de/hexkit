@@ -26,7 +26,7 @@ import json
 import logging
 import ssl
 from collections.abc import Awaitable
-from contextlib import asynccontextmanager
+from contextlib import asynccontextmanager, suppress
 from dataclasses import dataclass
 from typing import Callable, Literal, Optional, Protocol, TypeVar, cast
 
@@ -677,8 +677,9 @@ class KafkaDLQSubscriber(InboundProviderBase):
         if event_to_publish:
             await self._publish_to_retry(event=event_to_publish)
 
-    async def _ignore_event(self, event: ConsumerEvent) -> None:
-        """Ignore the event, log it, and commit offsets"""
+    async def ignore(self) -> None:
+        """Directly ignore the next event from the DLQ topic."""
+        event = await self._consumer.__anext__()
         event_label = get_event_label(event)
         logging.info(
             "Ignoring event from DLQ topic '%s': %s",
@@ -687,18 +688,44 @@ class KafkaDLQSubscriber(InboundProviderBase):
         )
         await self._consumer.commit()
 
-    async def run(self, ignore: bool = False) -> None:
+    async def preview(self) -> list[ExtractedEventInfo]:
+        """Fetch the next events from the configured DLQ topic without processing them.
+
+        Offsets are reset to their original positions after fetching.
         """
-        Handles one event and returns.
-        If `ignore` is True, the event will be ignored outright.
-        Otherwise, `_process_dlq_event` will be used to validate and determine what to
-        do with the event.
+        topic_partitions = [
+            topic_partition
+            for topic_partition in self._consumer.assignment()  # type: ignore
+            if topic_partition.topic == self._dlq_topic
+        ]
+
+        positions = {
+            topic_partition: await self._consumer.position(  # type: ignore
+                topic_partition
+            )
+            for topic_partition in topic_partitions
+        }
+
+        events = []
+        fetched = await self._consumer.getmany(  # type: ignore
+            timeout_ms=500,
+            max_records=self._preview_limit,
+        )
+        with suppress(StopIteration):
+            events = next(iter(fetched.values()))
+
+        # Reset the consumer to the original offsets
+        for partition, offset in positions.items():
+            self._consumer.seek(partition, offset)  # type: ignore
+
+        return [ExtractedEventInfo(event) for event in events]
+
+    async def process(self) -> None:
+        """Process the next event from the configured DLQ topic.
+
+        Validate and resolve the event based on custom logic, if applicable.
         """
         event = await self._consumer.__anext__()
-        if ignore:
-            await self._ignore_event(event)
-            return
-
         try:
             await self._handle_dlq_event(event=event)
             await self._consumer.commit()
