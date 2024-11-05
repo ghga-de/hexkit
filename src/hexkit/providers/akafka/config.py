@@ -126,6 +126,12 @@ class KafkaConfig(BaseSettings):
         title="Kafka Retry Backoff",
         examples=[0, 1, 2, 3, 5],
     )
+    kafka_preview_limit: PositiveInt = Field(
+        default=1,
+        description="The maximum number of events to preview from the DLQ topic.",
+        title="Kafka DLQ Preview",
+        examples=[1, 3, 5],
+    )
 
     @model_validator(mode="after")
     def validate_retry_topic(self):

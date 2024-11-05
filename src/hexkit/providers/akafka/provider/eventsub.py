@@ -26,7 +26,7 @@ import json
 import logging
 import ssl
 from collections.abc import Awaitable
-from contextlib import asynccontextmanager
+from contextlib import asynccontextmanager, suppress
 from dataclasses import dataclass
 from typing import Callable, Literal, Optional, Protocol, TypeVar, cast
 
@@ -79,7 +79,7 @@ class ExtractedEventInfo:
         self.key = kwargs.get("key", event.key if event else "")
         self.headers = kwargs.get("headers", headers_as_dict(event) if event else {})
         self.headers = cast(dict, self.headers)
-        self.type_ = kwargs.get("type_", self.headers.get("type", ""))
+        self.type_ = kwargs.get("type_", self.headers.pop("type", ""))
 
     @property
     def encoded_headers(self) -> list[tuple[str, bytes]]:
@@ -543,7 +543,7 @@ async def process_dlq_event(event: ConsumerEvent) -> Optional[ExtractedEventInfo
     return ExtractedEventInfo(event)
 
 
-class KafkaDLQSubscriber(InboundProviderBase):
+class KafkaDLQSubscriber:
     """A kafka event subscriber that subscribes to the configured DLQ topic and either
     discards each event or publishes it to the retry topic as instructed.
     Further processing before requeuing is provided by a callable adhering to the
@@ -603,8 +603,7 @@ class KafkaDLQSubscriber(InboundProviderBase):
         await consumer.start()
         try:
             yield cls(
-                dlq_topic=config.kafka_dlq_topic,
-                retry_topic=config.kafka_retry_topic,
+                config=config,
                 consumer=consumer,
                 dlq_publisher=dlq_publisher,
                 process_dlq_event=process_dlq_event,
@@ -615,8 +614,7 @@ class KafkaDLQSubscriber(InboundProviderBase):
     def __init__(
         self,
         *,
-        dlq_topic: str,
-        retry_topic: str,
+        config: KafkaConfig,
         dlq_publisher: EventPublisherProtocol,
         consumer: KafkaConsumerCompatible,
         process_dlq_event: DLQEventProcessor,
@@ -624,16 +622,12 @@ class KafkaDLQSubscriber(InboundProviderBase):
         """Please do not call directly! Should be called by the `construct` method.
 
         Args:
+        - `config`: The KafkaConfig instance.
         - `consumer`:
             hands over a started AIOKafkaConsumer.
         - `dlq_publisher`:
             A running instance of a publishing provider that implements the
             EventPublisherProtocol, such as KafkaEventPublisher.
-        - `dlq_topic`:
-            The name of the topic used to store failed events, to which the
-            KafkaDLQSubscriber subscribes.
-        - `retry_topic`:
-            The name of the topic used to requeue failed events.
         - `process_dlq_event`:
             An async callable adhering to the DLQEventProcessor definition that provides
             validation and processing for events from the DLQ. It should return _either_
@@ -642,10 +636,11 @@ class KafkaDLQSubscriber(InboundProviderBase):
             `DLQValidationError` as a signal to discard/ignore the event, and all other
             errors will be re-raised as a `DLQProcessingError`.
         """
+        self._dlq_topic = config.kafka_dlq_topic
+        self._retry_topic = config.kafka_retry_topic
+        self._preview_limit = config.kafka_preview_limit
         self._consumer = consumer
         self._publisher = dlq_publisher
-        self._dlq_topic = dlq_topic
-        self._retry_topic = retry_topic
         self._process_dlq_event = process_dlq_event
 
     async def _publish_to_retry(self, *, event: ExtractedEventInfo) -> None:
@@ -682,8 +677,9 @@ class KafkaDLQSubscriber(InboundProviderBase):
         if event_to_publish:
             await self._publish_to_retry(event=event_to_publish)
 
-    async def _ignore_event(self, event: ConsumerEvent) -> None:
-        """Ignore the event, log it, and commit offsets"""
+    async def ignore(self) -> None:
+        """Directly ignore the next event from the DLQ topic."""
+        event = await self._consumer.__anext__()
         event_label = get_event_label(event)
         logging.info(
             "Ignoring event from DLQ topic '%s': %s",
@@ -692,18 +688,44 @@ class KafkaDLQSubscriber(InboundProviderBase):
         )
         await self._consumer.commit()
 
-    async def run(self, ignore: bool = False) -> None:
+    async def preview(self) -> list[ExtractedEventInfo]:
+        """Fetch the next events from the configured DLQ topic without processing them.
+
+        Offsets are reset to their original positions after fetching.
         """
-        Handles one event and returns.
-        If `ignore` is True, the event will be ignored outright.
-        Otherwise, `_process_dlq_event` will be used to validate and determine what to
-        do with the event.
+        topic_partitions = [
+            topic_partition
+            for topic_partition in self._consumer.assignment()  # type: ignore
+            if topic_partition.topic == self._dlq_topic
+        ]
+
+        positions = {
+            topic_partition: await self._consumer.position(  # type: ignore
+                topic_partition
+            )
+            for topic_partition in topic_partitions
+        }
+
+        events = []
+        fetched = await self._consumer.getmany(  # type: ignore
+            timeout_ms=500,
+            max_records=self._preview_limit,
+        )
+        with suppress(StopIteration):
+            events = next(iter(fetched.values()))
+
+        # Reset the consumer to the original offsets
+        for partition, offset in positions.items():
+            self._consumer.seek(partition, offset)  # type: ignore
+
+        return [ExtractedEventInfo(event) for event in events]
+
+    async def process(self) -> None:
+        """Process the next event from the configured DLQ topic.
+
+        Validate and resolve the event based on custom logic, if applicable.
         """
         event = await self._consumer.__anext__()
-        if ignore:
-            await self._ignore_event(event)
-            return
-
         try:
             await self._handle_dlq_event(event=event)
             await self._consumer.commit()
