@@ -122,6 +122,7 @@ class ObjectStorageProtocol(ABC):
         object_id: str,
         part_number: int,
         expires_after: int = 3600,
+        additional_params: dict[str, str] | None = None,
     ) -> str:
         """Given a id of an instantiated multipart upload along with the corresponding
         bucket and object ID, it returns a presigned URL for uploading a file part with the
@@ -137,6 +138,7 @@ class ObjectStorageProtocol(ABC):
             object_id=object_id,
             part_number=part_number,
             expires_after=expires_after,
+            additional_params=additional_params,
         )
 
     async def abort_multipart_upload(
@@ -206,6 +208,12 @@ class ObjectStorageProtocol(ABC):
         return await self._does_object_exist(
             bucket_id=bucket_id, object_id=object_id, object_md5sum=object_md5sum
         )
+
+    async def get_object_etag(self, *, bucket_id: str, object_id: str) -> str:
+        """Returns the etag of an object."""
+        self._validate_bucket_id(bucket_id)
+        self._validate_object_id(object_id)
+        return await self._get_object_etag(bucket_id=bucket_id, object_id=object_id)
 
     async def get_object_size(self, *, bucket_id: str, object_id: str) -> int:
         """Returns the size of an object in bytes."""
@@ -336,6 +344,7 @@ class ObjectStorageProtocol(ABC):
         object_id: str,
         part_number: int,
         expires_after: int = 3600,
+        additional_params: dict[str, str] | None = None,
     ) -> str:
         """
         Given a id of an instantiated multipart upload along with the corresponding
@@ -401,6 +410,14 @@ class ObjectStorageProtocol(ABC):
         method.*
         """
         ...
+
+    @abstractmethod
+    async def _get_object_etag(self, *, bucket_id: str, object_id: str) -> str:
+        """Returns the etag of an object.
+
+        *To be implemented by the provider. Input validation is done outside of this
+        method.*
+        """
 
     @abstractmethod
     async def _get_object_size(self, *, bucket_id: str, object_id: str) -> int:
