@@ -20,6 +20,7 @@ Please note, only use for testing purposes.
 """
 
 import os
+import sys
 from collections.abc import AsyncGenerator, Generator
 from contextlib import contextmanager
 from pathlib import Path
@@ -64,7 +65,7 @@ __all__ = [
 ]
 
 
-LOCALSTACK_IMAGE = "localstack/localstack:3.8.1"
+LOCALSTACK_IMAGE = "localstack/localstack:3.5.0"
 
 TEST_FILE_DIR = Path(__file__).parent.parent.resolve() / "test_files"
 
@@ -246,6 +247,7 @@ class S3ContainerFixture(LocalStackContainer):
 def _s3_container_fixture() -> Generator[S3ContainerFixture, None, None]:
     """Fixture function for getting a running S3 test container."""
     with S3ContainerFixture() as s3_container:
+        print(s3_container.s3_config.s3_endpoint_url, file=sys.stderr)
         yield s3_container
 
 
@@ -298,6 +300,9 @@ async def _clean_s3_fixture(
     """
     for s3_fixture in _persistent_s3_fixture(s3_container):
         await s3_fixture.delete_buckets()
+        for bucket in s3_fixture.get_buckets():
+            object_ids = await s3_fixture.storage.list_all_object_ids(bucket_id=bucket)
+            print(s3_container.s3_config.s3_endpoint_url, object_ids, file=sys.stderr)
         yield s3_fixture
 
 
