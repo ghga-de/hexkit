@@ -297,7 +297,7 @@ async def _clean_s3_fixture(
     The clean state is achieved by deleting all S3 buckets upfront.
     """
     for s3_fixture in _persistent_s3_fixture(s3_container):
-        await s3_fixture.empty_buckets()
+        await s3_fixture.delete_buckets()
         yield s3_fixture
 
 
@@ -375,8 +375,8 @@ class FederatedS3Fixture:
 
         # Add the dummy items
         for bucket, objects in contents.items():
-            for file_object in objects:
-                with temp_file_object(bucket, file_object, 1) as file:
+            for obj in objects:
+                with temp_file_object(bucket, obj, 1) as file:
                     await storage.populate_file_objects([file])
 
 
