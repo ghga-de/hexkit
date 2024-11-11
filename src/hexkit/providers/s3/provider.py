@@ -816,6 +816,7 @@ class S3ObjectStorage(ObjectStorageProtocol):
         source_object_id: str,
         dest_bucket_id: str,
         dest_object_id: str,
+        abort_failed: bool = True,
     ) -> None:
         """Copy an object from one bucket (`source_bucket_id` and `source_object_id`) to
         another bucket (`dest_bucket_id` and `dest_object_id`).
@@ -846,21 +847,22 @@ class S3ObjectStorage(ObjectStorageProtocol):
                 Config=transfer_config,
             )
         except botocore.exceptions.ClientError as error:
-            # try to find and abort the multipart operation, if multipart copy mode is used
-            # There should only be one ongoing multipart upload/copy at at a time as long
-            # as a new object ID is generated for each attempt
-            try:
-                upload_ids = await self._list_multipart_upload_for_object(
-                    bucket_id=dest_bucket_id, object_id=dest_object_id
-                )
-                if len(upload_ids) == 1:
-                    await self._abort_multipart_upload(
-                        upload_id=upload_ids[0],
-                        bucket_id=dest_bucket_id,
-                        object_id=dest_object_id,
+            if abort_failed:
+                # try to find and abort the multipart operation, if multipart copy mode is used
+                # There should only be one ongoing multipart upload/copy at at a time as long
+                # as a new object ID is generated for each attempt
+                try:
+                    upload_ids = await self._list_multipart_upload_for_object(
+                        bucket_id=dest_bucket_id, object_id=dest_object_id
                     )
-            except botocore.exceptions.ClientError:
-                pass
+                    if len(upload_ids) == 1:
+                        await self._abort_multipart_upload(
+                            upload_id=upload_ids[0],
+                            bucket_id=dest_bucket_id,
+                            object_id=dest_object_id,
+                        )
+                except botocore.exceptions.ClientError:
+                    pass
 
             raise self._translate_s3_client_errors(error) from error
 

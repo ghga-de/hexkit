@@ -228,6 +228,7 @@ class ObjectStorageProtocol(ABC):
         source_object_id: str,
         dest_bucket_id: str,
         dest_object_id: str,
+        abort_failed: bool = True,
     ) -> None:
         """Copy an object from one bucket (`source_bucket_id` and `source_object_id`) to
         another bucket (`dest_bucket_id` and `dest_object_id`).
@@ -241,6 +242,7 @@ class ObjectStorageProtocol(ABC):
             source_object_id=source_object_id,
             dest_bucket_id=dest_bucket_id,
             dest_object_id=dest_object_id,
+            abort_failed=abort_failed,
         )
 
     async def delete_object(self, *, bucket_id: str, object_id: str) -> None:
@@ -452,6 +454,7 @@ class ObjectStorageProtocol(ABC):
         source_object_id: str,
         dest_bucket_id: str,
         dest_object_id: str,
+        abort_failed: bool = True,
     ) -> None:
         """
         Copy an object from one bucket (`source_bucket_id` and `source_object_id`) to
