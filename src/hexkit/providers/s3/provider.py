@@ -473,7 +473,7 @@ class S3ObjectStorage(ObjectStorageProtocol):
         object_id: str,
         part_number: int,
         expires_after: int = 3600,
-        additional_params: dict[str, str] | None = None,
+        additional_params: Optional[dict[str, str]] = None,
     ) -> str:
         """Given a id of an instantiated multipart upload along with the corresponding
         bucket and object ID, it returns a presigned URL for uploading a file part with the
