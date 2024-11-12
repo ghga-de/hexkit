@@ -473,7 +473,7 @@ class S3ObjectStorage(ObjectStorageProtocol):
         object_id: str,
         part_number: int,
         expires_after: int = 3600,
-        additional_params: Optional[dict[str, str]] = None,
+        part_md5: Optional[str] = None,
     ) -> str:
         """Given a id of an instantiated multipart upload along with the corresponding
         bucket and object ID, it returns a presigned URL for uploading a file part with the
@@ -499,8 +499,8 @@ class S3ObjectStorage(ObjectStorageProtocol):
             "PartNumber": part_number,
         }
         # add additional parameters if any were passed
-        if additional_params:
-            params |= additional_params
+        if part_md5:
+            params["ContentMD5"] = part_md5
         try:
             return await asyncio.to_thread(
                 self._client.generate_presigned_url,

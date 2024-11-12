@@ -339,17 +339,17 @@ async def test_invalid_part_number(
         )
 
 
-async def test_additional_part_url_params_md5(s3: S3Fixture):
+async def test_md5_in_part_url(s3: S3Fixture):
     """Check that object MD5 can be provided in additional parameters to part URL signing."""
     upload_id, bucket_id, object_id = await s3.prepare_non_completed_upload()
-    additional_params = {"ContentMD5": "dummy-md5"}
+    part_md5 = "dummy-md5"
 
     url = await s3.storage.get_part_upload_url(
         upload_id=upload_id,
         bucket_id=bucket_id,
         object_id=object_id,
         part_number=1,
-        additional_params=additional_params,
+        part_md5=part_md5,
     )
 
     assert "content-md5=dummy-md5" in url

@@ -122,7 +122,7 @@ class ObjectStorageProtocol(ABC):
         object_id: str,
         part_number: int,
         expires_after: int = 3600,
-        additional_params: Optional[dict[str, str]] = None,
+        part_md5: Optional[str] = None,
     ) -> str:
         """Given a id of an instantiated multipart upload along with the corresponding
         bucket and object ID, it returns a presigned URL for uploading a file part with the
@@ -138,7 +138,7 @@ class ObjectStorageProtocol(ABC):
             object_id=object_id,
             part_number=part_number,
             expires_after=expires_after,
-            additional_params=additional_params,
+            part_md5=part_md5,
         )
 
     async def abort_multipart_upload(
@@ -346,7 +346,7 @@ class ObjectStorageProtocol(ABC):
         object_id: str,
         part_number: int,
         expires_after: int = 3600,
-        additional_params: Optional[dict[str, str]] = None,
+        part_md5: Optional[str] = None,
     ) -> str:
         """
         Given a id of an instantiated multipart upload along with the corresponding
