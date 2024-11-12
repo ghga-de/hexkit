@@ -217,7 +217,7 @@ async def test_handling_non_existing_file_and_bucket(
         )
 
     with pytest.raises(ObjectStorageProtocol.BucketNotFoundError):
-        # copy when source does not exist:
+        # copy when destination does not exist:
         await s3.storage.copy_object(
             source_bucket_id=existing_bucket_id,
             source_object_id=existing_object_id,
