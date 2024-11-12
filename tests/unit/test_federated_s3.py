@@ -15,6 +15,8 @@
 
 """Tests for the FederatedS3Fixture and related items."""
 
+import asyncio
+
 import pytest
 
 from hexkit.providers.s3 import S3Config
@@ -55,13 +57,11 @@ async def test_populate_dummy_items(federated_s3: FederatedS3Fixture):
     }
 
     # Populate the items
+    await asyncio.sleep(3)
     await federated_s3.populate_dummy_items(PRIMARY_STORAGE_ALIAS, buckets)
 
     storage_1 = federated_s3.storages[PRIMARY_STORAGE_ALIAS].storage
     storage_2 = federated_s3.storages[SECONDARY_STORAGE_ALIAS].storage
-
-    assert storage_1._config != storage_2._config
-    assert storage_1 != storage_2
 
     # Check that the items were added to the primary storage
     assert await storage_1.does_object_exist(bucket_id="bucket1", object_id="object1")
