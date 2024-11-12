@@ -588,7 +588,7 @@ async def test_outbox_with_dlq(kafka: KafkaFixture, event_type: str):
             await dlq_sub.run()
 
         # Retry the event after clearing the list
-        list_to_check.clear()  # type: ignore
+        list_to_check.clear()
         translator.fail = False
         assert not list_to_check
         await outbox_sub.run(forever=False)
