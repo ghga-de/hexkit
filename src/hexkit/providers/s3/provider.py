@@ -249,7 +249,7 @@ class S3ObjectStorage(ObjectStorageProtocol):
     async def _assert_bucket_not_exists(self, bucket_id: str) -> None:
         """Assert that the bucket with the specified ID (`bucket_id`) does not exist.
 
-        If the bucket exists, it throws a BucketAlreadyExistsError is raised.
+        If it exists, a BucketAlreadyExistsError is raised.
         """
         if await self.does_bucket_exist(bucket_id):
             raise self.BucketAlreadyExistsError(bucket_id=bucket_id)
