@@ -15,8 +15,6 @@
 
 """Tests for the FederatedS3Fixture and related items."""
 
-import asyncio
-
 import pytest
 
 from hexkit.providers.s3 import S3Config
@@ -50,6 +48,9 @@ async def test_get_configs_by_alias(federated_s3: FederatedS3Fixture):
 
 async def test_populate_dummy_items(federated_s3: FederatedS3Fixture):
     """Test the populate_dummy_items function on the FederatedS3Fixture."""
+    for s3_fixture in federated_s3.storages.values():
+        await s3_fixture.delete_buckets()
+
     # Define some stuff to add
     buckets = {
         "bucket1": ["object1", "object2"],
@@ -57,7 +58,6 @@ async def test_populate_dummy_items(federated_s3: FederatedS3Fixture):
     }
 
     # Populate the items
-    await asyncio.sleep(3)
     await federated_s3.populate_dummy_items(PRIMARY_STORAGE_ALIAS, buckets)
 
     storage_1 = federated_s3.storages[PRIMARY_STORAGE_ALIAS].storage
