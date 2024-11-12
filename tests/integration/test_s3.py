@@ -105,6 +105,16 @@ async def test_object_existence_checks(s3: S3Fixture, tmp_file: FileObject):  # 
     )
 
 
+async def test_get_object_etag(s3: S3Fixture, tmp_file: FileObject):  # noqa: F811
+    """Test ETag retrieval."""
+    await s3.populate_file_objects([tmp_file])
+    etag = await s3.storage.get_object_etag(
+        bucket_id=tmp_file.bucket_id, object_id=tmp_file.object_id
+    )
+
+    assert len(etag) > 0
+
+
 async def test_get_object_size(s3: S3Fixture, tmp_file: FileObject):  # noqa: F811
     """Test if the get_object_size method returns the correct size."""
     expected_size = len(tmp_file.content)
@@ -327,6 +337,22 @@ async def test_invalid_part_number(
             object_id=object_id,
             part_number=part_number,
         )
+
+
+async def test_additional_part_url_params_md5(s3: S3Fixture):
+    """Check that object MD5 can be provided in additional parameters to part URL signing."""
+    upload_id, bucket_id, object_id = await s3.prepare_non_completed_upload()
+    additional_params = {"ContentMD5": "dummy-md5"}
+
+    url = await s3.storage.get_part_upload_url(
+        upload_id=upload_id,
+        bucket_id=bucket_id,
+        object_id=object_id,
+        part_number=1,
+        additional_params=additional_params,
+    )
+
+    assert "content-md5=dummy-md5" in url
 
 
 @pytest.mark.parametrize(
