@@ -763,7 +763,7 @@ class S3ObjectStorage(ObjectStorageProtocol):
         return presigned_url
 
     async def _get_object_etag(self, *, bucket_id: str, object_id: str) -> str:
-        """Returns the etag of an object."""
+        """Return the etag of an object."""
         await self._assert_object_exists(bucket_id=bucket_id, object_id=object_id)
 
         object_metadata = await self._get_object_metadata(
