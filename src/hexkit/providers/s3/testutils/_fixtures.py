@@ -482,7 +482,7 @@ async def _clean_federated_s3_fixture(
 
 
 def get_clean_federated_s3_fixture(
-    scope: PytestScope = "function", name: str = "clean_federated_s3"
+    scope: PytestScope = "function", name: str = "federated_s3"
 ):
     """Get a federated S3 storage fixture with desired scope.
 

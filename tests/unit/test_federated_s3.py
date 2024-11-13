@@ -38,16 +38,21 @@ def storage_aliases():
     return STORAGE_ALIASES
 
 
-async def test_get_configs_by_alias(clean_federated_s3: FederatedS3Fixture):
+async def test_get_configs_by_alias(federated_s3: FederatedS3Fixture):
     """Test that `get_configs_by_alias` returns the configs of each storage by name."""
-    configs = clean_federated_s3.get_configs_by_alias()
+    configs = federated_s3.get_configs_by_alias()
     assert set(configs) == set(STORAGE_ALIASES)
     for config in configs.values():
         assert isinstance(config, S3Config)
 
 
-async def test_populate_dummy_items(clean_federated_s3: FederatedS3Fixture):
+async def test_populate_dummy_items(federated_s3: FederatedS3Fixture):
     """Test the populate_dummy_items function on the FederatedS3Fixture."""
+    # Explicitly calling this again, as it seems to solve the Github Actions issue
+    # Needs more investigation on what might be happening during fixture setup that makes this necessary
+    for s3_fixture in federated_s3.storages.values():
+        await s3_fixture.delete_buckets()
+
     # Define some stuff to add
     buckets = {
         "bucket1": ["object1", "object2"],
@@ -55,10 +60,10 @@ async def test_populate_dummy_items(clean_federated_s3: FederatedS3Fixture):
     }
 
     # Populate the items
-    await clean_federated_s3.populate_dummy_items(PRIMARY_STORAGE_ALIAS, buckets)
+    await federated_s3.populate_dummy_items(PRIMARY_STORAGE_ALIAS, buckets)
 
-    storage_1 = clean_federated_s3.storages[PRIMARY_STORAGE_ALIAS].storage
-    storage_2 = clean_federated_s3.storages[SECONDARY_STORAGE_ALIAS].storage
+    storage_1 = federated_s3.storages[PRIMARY_STORAGE_ALIAS].storage
+    storage_2 = federated_s3.storages[SECONDARY_STORAGE_ALIAS].storage
 
     # Check that the items were added to the primary storage
     assert await storage_1.does_object_exist(bucket_id="bucket1", object_id="object1")
