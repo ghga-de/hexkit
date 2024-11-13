@@ -820,6 +820,11 @@ class S3ObjectStorage(ObjectStorageProtocol):
     ) -> None:
         """Copy an object from one bucket (`source_bucket_id` and `source_object_id`) to
         another bucket (`dest_bucket_id` and `dest_object_id`).
+
+        If `abort_failed` is set to true (default), a failed copy operation tries to
+        abort the ongoing multipart upload it created (if using multipart mode).
+        This only works reliably as long as there are no other ongoing multipart operations for
+        the same destination bucket and object ID, in which case this should be set to false.
         """
         file_size = await self._get_object_size(
             bucket_id=source_bucket_id, object_id=source_object_id

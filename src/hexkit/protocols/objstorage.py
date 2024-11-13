@@ -232,6 +232,11 @@ class ObjectStorageProtocol(ABC):
     ) -> None:
         """Copy an object from one bucket (`source_bucket_id` and `source_object_id`) to
         another bucket (`dest_bucket_id` and `dest_object_id`).
+
+        If `abort_failed` is set to true (default), a failed copy operation tries to
+        abort the ongoing multipart upload it created (if using multipart mode).
+        This only works reliably as long as there are no other ongoing multipart operations for
+        the same destination bucket and object ID, in which case this should be set to false.
         """
         self._validate_bucket_id(source_bucket_id)
         self._validate_object_id(source_object_id)
@@ -459,6 +464,11 @@ class ObjectStorageProtocol(ABC):
         """
         Copy an object from one bucket (`source_bucket_id` and `source_object_id`) to
         another bucket (`dest_bucket_id` and `dest_object_id`).
+
+        If `abort_failed` is set to true (default), a failed copy operation tries to
+        abort the ongoing multipart upload it created (if using multipart mode).
+        This only works reliably as long as there are no other ongoing multipart operations for
+        the same destination bucket and object ID, in which case this should be set to false.
 
         *To be implemented by the provider. Input validation is done outside of this
         method.*
