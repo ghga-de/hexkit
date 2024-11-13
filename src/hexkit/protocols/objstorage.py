@@ -415,7 +415,7 @@ class ObjectStorageProtocol(ABC):
 
     @abstractmethod
     async def _get_object_etag(self, *, bucket_id: str, object_id: str) -> str:
-        """Returns the etag of an object.
+        """Return the etag of an object.
 
         *To be implemented by the provider. Input validation is done outside of this
         method.*
