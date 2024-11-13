@@ -223,27 +223,33 @@ class S3ObjectStorage(ObjectStorageProtocol):
 
     async def _does_bucket_exist(self, bucket_id: str) -> bool:
         """Check whether a bucket with the specified ID (`bucket_id`) exists.
-        Return `True` if it exists and `False` otherwise.
+
+        Returns `True` if it exists and `False` otherwise.
+
+        Note that this method does not need to have the permission to list buckets.
         """
         try:
-            bucket_list = await asyncio.to_thread(self._client.list_buckets)
+            await asyncio.to_thread(self._client.head_bucket, Bucket=bucket_id)
         except botocore.exceptions.ClientError as error:
+            if error.response["Error"]["Code"] == "404":
+                return False
             raise self._translate_s3_client_errors(
                 error, bucket_id=bucket_id
             ) from error
-
-        return any(bucket["Name"] == bucket_id for bucket in bucket_list["Buckets"])
+        return True
 
     async def _assert_bucket_exists(self, bucket_id: str) -> None:
-        """Checks if the bucket with specified ID (`bucket_id`) exists and throws an
-        BucketNotFoundError otherwise.
+        """Assert that the bucket with the specified ID (`bucket_id`) exists.
+
+        If if does not exist, a BucketNotFoundError is raised.
         """
         if not await self.does_bucket_exist(bucket_id):
             raise self.BucketNotFoundError(bucket_id=bucket_id)
 
     async def _assert_bucket_not_exists(self, bucket_id: str) -> None:
-        """Checks if the bucket with specified ID (`bucket_id`) exists. If so, it throws
-        an BucketAlreadyExistsError.
+        """Assert that the bucket with the specified ID (`bucket_id`) does not exist.
+
+        If it exists, a BucketAlreadyExistsError is raised.
         """
         if await self.does_bucket_exist(bucket_id):
             raise self.BucketAlreadyExistsError(bucket_id=bucket_id)
