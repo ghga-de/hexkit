@@ -224,11 +224,16 @@ class S3ContainerFixture(LocalStackContainer):
     def __init__(
         self,
         port: int = 4566,
-        region_name: Optional[str] = None,
+        name: Optional[str] = None,
+        region_name: Optional[str] = "us-east-1",
         **kwargs: Any,
     ) -> None:
         """Initialize the container."""
-        super().__init__(image=LOCALSTACK_IMAGE)
+        if name:
+            self.name = name
+        super().__init__(
+            image=LOCALSTACK_IMAGE, edge_port=port, region_name=region_name, **kwargs
+        )
 
     def __enter__(self) -> Self:
         """Enter the container context."""
