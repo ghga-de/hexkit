@@ -239,6 +239,8 @@ class S3ContainerFixture(LocalStackContainer):
             s3_access_key_id="test",
             s3_secret_access_key=SecretStr("test"),
         )
+        self.with_env("AWS_ACCESS_KEY_ID", "test")
+        self.with_env("AWS_SECRET_ACCESS_KEY", "test")
         self.s3_config = s3_config
         return self
 

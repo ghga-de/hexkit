@@ -48,11 +48,6 @@ async def test_get_configs_by_alias(federated_s3: FederatedS3Fixture):
 
 async def test_populate_dummy_items(federated_s3: FederatedS3Fixture):
     """Test the populate_dummy_items function on the FederatedS3Fixture."""
-    # Explicitly calling this again, as it seems to solve the Github Actions issue
-    # Needs more investigation on what might be happening during fixture setup that makes this necessary
-    for s3_fixture in federated_s3.storages.values():
-        await s3_fixture.delete_buckets()
-
     # Define some stuff to add
     buckets = {
         "bucket1": ["object1", "object2"],
