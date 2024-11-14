@@ -19,6 +19,7 @@
 Please note, only use for testing purposes.
 """
 
+import base64
 import os
 from collections.abc import AsyncGenerator, Generator
 from contextlib import contextmanager
@@ -239,13 +240,15 @@ class S3ContainerFixture(LocalStackContainer):
         """Enter the container context."""
         super().__enter__()
         s3_endpoint_url = self.get_url()
+        ak = base64.urlsafe_b64encode(os.urandom(32)).decode("ascii")
+        sk = base64.urlsafe_b64encode(os.urandom(32)).decode("ascii")
         s3_config = S3Config(  # type: ignore [call-arg]
             s3_endpoint_url=s3_endpoint_url,
-            s3_access_key_id="test",
-            s3_secret_access_key=SecretStr("test"),
+            s3_access_key_id=ak,
+            s3_secret_access_key=SecretStr(sk),
         )
-        self.with_env("AWS_ACCESS_KEY_ID", "test")
-        self.with_env("AWS_SECRET_ACCESS_KEY", "test")
+        self.with_env("AWS_ACCESS_KEY_ID", ak)
+        self.with_env("AWS_SECRET_ACCESS_KEY", sk)
         self.s3_config = s3_config
         return self
 
