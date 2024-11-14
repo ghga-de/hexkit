@@ -19,7 +19,6 @@
 Please note, only use for testing purposes.
 """
 
-import base64
 import os
 from collections.abc import AsyncGenerator, Generator
 from contextlib import contextmanager
@@ -226,10 +225,12 @@ class S3ContainerFixture(LocalStackContainer):
         self,
         port: int = 4566,
         name: Optional[str] = None,
+        # default region is different in localstack, but we have us-east-1 everywhere else
         region_name: Optional[str] = "us-east-1",
         **kwargs: Any,
     ) -> None:
         """Initialize the container."""
+        # name can't be passed as kwarg, it's sourced from the instance attribute instead
         if name:
             self.name = name
         super().__init__(
@@ -239,16 +240,14 @@ class S3ContainerFixture(LocalStackContainer):
     def __enter__(self) -> Self:
         """Enter the container context."""
         super().__enter__()
-        s3_endpoint_url = self.get_url()
-        ak = base64.urlsafe_b64encode(os.urandom(32)).decode("ascii")
-        sk = base64.urlsafe_b64encode(os.urandom(32)).decode("ascii")
+        # use a random key pair for each instance instead of reusing test:test
+        access_key = os.urandom(16).hex()
+        secret_key = os.urandom(16).hex()
         s3_config = S3Config(  # type: ignore [call-arg]
-            s3_endpoint_url=s3_endpoint_url,
-            s3_access_key_id=ak,
-            s3_secret_access_key=SecretStr(sk),
+            s3_endpoint_url=self.get_url(),
+            s3_access_key_id=access_key,
+            s3_secret_access_key=SecretStr(secret_key),
         )
-        self.with_env("AWS_ACCESS_KEY_ID", ak)
-        self.with_env("AWS_SECRET_ACCESS_KEY", sk)
         self.s3_config = s3_config
         return self
 
