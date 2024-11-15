@@ -280,7 +280,7 @@ class S3ObjectStorage(ObjectStorageProtocol):
         await self._assert_bucket_exists(bucket_id)
 
         try:
-            bucket = self._resource.Bucket(bucket_id)
+            bucket = self._resource.Bucket(bucket_id)  # pyright: ignore
             content = await asyncio.to_thread(bucket.objects.all)
             if delete_content:
                 await asyncio.to_thread(content.delete)
@@ -295,7 +295,7 @@ class S3ObjectStorage(ObjectStorageProtocol):
         await self._assert_bucket_exists(bucket_id)
 
         try:
-            bucket = self._resource.Bucket(bucket_id)
+            bucket = self._resource.Bucket(bucket_id)  # pyright: ignore
             content = await asyncio.to_thread(bucket.objects.all)
             return [object_summary.key for object_summary in content]
         except botocore.exceptions.ClientError as error:
@@ -312,17 +312,17 @@ class S3ObjectStorage(ObjectStorageProtocol):
         Return `True` if checks succeed and `False` otherwise.
         """
         if object_md5sum is not None:
-            raise NotImplementedError("Md5 checking is not yet implemented.")
-
+            raise NotImplementedError("MD5 checking is not yet implemented.")
         try:
-            _ = await asyncio.to_thread(
-                self._client.head_object,
-                Bucket=bucket_id,
-                Key=object_id,
+            await asyncio.to_thread(
+                self._client.head_object, Bucket=bucket_id, Key=object_id
             )
-        except botocore.exceptions.ClientError:
-            return False
-
+        except botocore.exceptions.ClientError as error:
+            if error.response["Error"]["Code"] == "404":
+                return False
+            raise self._translate_s3_client_errors(
+                error, bucket_id=bucket_id, object_id=object_id
+            ) from error
         return True
 
     async def _assert_object_exists(self, *, bucket_id: str, object_id: str) -> None:
