@@ -16,7 +16,6 @@
 """Tests for the FederatedS3Fixture and related items."""
 
 import pytest
-from testcontainers.core.utils import inside_container
 
 from hexkit.providers.s3 import S3Config
 from hexkit.providers.s3.testutils import (  # noqa: F401
@@ -47,9 +46,6 @@ async def test_get_configs_by_alias(federated_s3: FederatedS3Fixture):
         assert isinstance(config, S3Config)
 
 
-@pytest.mark.skipif(
-    not inside_container(), reason="This causes issues in Github Actions."
-)
 async def test_populate_dummy_items(federated_s3: FederatedS3Fixture):
     """Test the populate_dummy_items function on the FederatedS3Fixture."""
     # Define some stuff to add
