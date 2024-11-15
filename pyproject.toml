@@ -197,9 +197,9 @@ legacy_tox_ini = """
 
     [testenv]
     pass_env =
+        CI
         TC_HOST
         DOCKER_HOST
-        CI
     deps =
         --no-deps -r ./lock/requirements-dev.txt
     commands = pytest {posargs}

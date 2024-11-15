@@ -53,6 +53,7 @@ legacy_tox_ini = """
 
     [testenv]
     pass_env =
+        CI
         TC_HOST
         DOCKER_HOST
     deps =
