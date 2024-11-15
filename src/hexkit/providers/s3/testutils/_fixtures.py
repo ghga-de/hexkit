@@ -224,18 +224,24 @@ class S3ContainerFixture(LocalStackContainer):
     def __init__(
         self,
         port: int = 4566,
-        region_name: Optional[str] = None,
+        name: Optional[str] = None,
+        # default region is different in localstack, but we have us-east-1 everywhere else
+        region_name: Optional[str] = "us-east-1",
         **kwargs: Any,
     ) -> None:
         """Initialize the container."""
-        super().__init__(image=LOCALSTACK_IMAGE)
+        # name can't be passed as kwarg, it's sourced from the instance attribute instead
+        if name:
+            self.name = name
+        super().__init__(
+            image=LOCALSTACK_IMAGE, edge_port=port, region_name=region_name, **kwargs
+        )
 
     def __enter__(self) -> Self:
         """Enter the container context."""
         super().__enter__()
-        s3_endpoint_url = self.get_url()
         s3_config = S3Config(  # type: ignore [call-arg]
-            s3_endpoint_url=s3_endpoint_url,
+            s3_endpoint_url=self.get_url(),
             s3_access_key_id="test",
             s3_secret_access_key=SecretStr("test"),
         )
@@ -375,8 +381,8 @@ class FederatedS3Fixture:
 
         # Add the dummy items
         for bucket, objects in contents.items():
-            for object in objects:
-                with temp_file_object(bucket, object, 1) as file:
+            for obj in objects:
+                with temp_file_object(bucket, obj, 1) as file:
                     await storage.populate_file_objects([file])
 
 

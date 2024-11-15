@@ -457,7 +457,7 @@ class S3ObjectStorage(ObjectStorageProtocol):
             )
 
     async def _init_multipart_upload(self, *, bucket_id: str, object_id: str) -> str:
-        """Initiates a mulipart upload procedure. Returns the upload ID."""
+        """Initiates a multipart upload procedure. Returns the upload ID."""
         await self._assert_no_multipart_upload(bucket_id=bucket_id, object_id=object_id)
 
         try:
@@ -479,6 +479,7 @@ class S3ObjectStorage(ObjectStorageProtocol):
         object_id: str,
         part_number: int,
         expires_after: int = 3600,
+        part_md5: Optional[str] = None,
     ) -> str:
         """Given a id of an instantiated multipart upload along with the corresponding
         bucket and object ID, it returns a presigned URL for uploading a file part with the
@@ -497,16 +498,20 @@ class S3ObjectStorage(ObjectStorageProtocol):
             upload_id=upload_id, bucket_id=bucket_id, object_id=object_id
         )
 
+        params = {
+            "Bucket": bucket_id,
+            "Key": object_id,
+            "UploadId": upload_id,
+            "PartNumber": part_number,
+        }
+        # add additional parameters if any were passed
+        if part_md5:
+            params["ContentMD5"] = part_md5
         try:
             return await asyncio.to_thread(
                 self._client.generate_presigned_url,
                 ClientMethod="upload_part",
-                Params={
-                    "Bucket": bucket_id,
-                    "Key": object_id,
-                    "UploadId": upload_id,
-                    "PartNumber": part_number,
-                },
+                Params=params,
                 ExpiresIn=expires_after,
             )
         except botocore.exceptions.ClientError as error:
@@ -763,6 +768,22 @@ class S3ObjectStorage(ObjectStorageProtocol):
 
         return presigned_url
 
+    async def _get_object_etag(self, *, bucket_id: str, object_id: str) -> str:
+        """Return the etag of an object."""
+        await self._assert_object_exists(bucket_id=bucket_id, object_id=object_id)
+
+        object_metadata = await self._get_object_metadata(
+            bucket_id=bucket_id, object_id=object_id
+        )
+
+        if not "ETag" in object_metadata:
+            raise self.ObjectError(
+                f"Could not get the etag of the object with ID '{object_id}' in"
+                + f" bucket '{bucket_id}'."
+            )
+
+        return object_metadata["ETag"]
+
     async def _get_object_size(self, *, bucket_id: str, object_id: str) -> int:
         """Returns the size of an object in bytes."""
         await self._assert_object_exists(bucket_id=bucket_id, object_id=object_id)
@@ -801,9 +822,15 @@ class S3ObjectStorage(ObjectStorageProtocol):
         source_object_id: str,
         dest_bucket_id: str,
         dest_object_id: str,
+        abort_failed: bool = True,
     ) -> None:
         """Copy an object from one bucket (`source_bucket_id` and `source_object_id`) to
         another bucket (`dest_bucket_id` and `dest_object_id`).
+
+        If `abort_failed` is set to true (default), a failed copy operation tries to
+        abort the ongoing multipart upload it created (if using multipart mode).
+        This only works reliably as long as there are no other ongoing multipart operations for
+        the same destination bucket and object ID, in which case this should be set to false.
         """
         file_size = await self._get_object_size(
             bucket_id=source_bucket_id, object_id=source_object_id
@@ -831,6 +858,23 @@ class S3ObjectStorage(ObjectStorageProtocol):
                 Config=transfer_config,
             )
         except botocore.exceptions.ClientError as error:
+            if abort_failed:
+                # try to find and abort the multipart operation, if multipart copy mode is used
+                # There should only be one ongoing multipart upload/copy at at a time as long
+                # as a new object ID is generated for each attempt
+                try:
+                    upload_ids = await self._list_multipart_upload_for_object(
+                        bucket_id=dest_bucket_id, object_id=dest_object_id
+                    )
+                    if len(upload_ids) == 1:
+                        await self._abort_multipart_upload(
+                            upload_id=upload_ids[0],
+                            bucket_id=dest_bucket_id,
+                            object_id=dest_object_id,
+                        )
+                except botocore.exceptions.ClientError:
+                    pass
+
             raise self._translate_s3_client_errors(error) from error
 
     async def _delete_object(self, *, bucket_id: str, object_id: str) -> None:
