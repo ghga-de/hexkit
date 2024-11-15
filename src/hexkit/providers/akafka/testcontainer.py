@@ -151,7 +151,7 @@ class KafkaSSLContainer(DockerContainer):
             with tarfile.TarFile(fileobj=archive, mode="w") as tar:
                 tarinfo = tarfile.TarInfo(name=path)
                 tarinfo.size = len(content)
-                tarinfo.mtime = time.time()  # type: ignore
+                tarinfo.mtime = time.time()
                 tar.addfile(tarinfo, BytesIO(content))
             archive.seek(0)
             self.get_wrapped_container().put_archive("/", archive)
