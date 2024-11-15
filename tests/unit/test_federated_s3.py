@@ -16,7 +16,6 @@
 """Tests for the FederatedS3Fixture and related items."""
 
 import pytest
-from testcontainers.core.utils import inside_container
 
 from hexkit.providers.s3 import S3Config
 from hexkit.providers.s3.testutils import (  # noqa: F401
@@ -47,32 +46,26 @@ async def test_get_configs_by_alias(federated_s3: FederatedS3Fixture):
         assert isinstance(config, S3Config)
 
 
-@pytest.mark.skipif(
-    not inside_container(), reason="This causes issues in Github Actions."
-)
 async def test_populate_dummy_items(federated_s3: FederatedS3Fixture):
     """Test the populate_dummy_items function on the FederatedS3Fixture."""
     # Define some stuff to add
-    buckets = {
-        "bucket1": ["object1", "object2"],
-        "empty": [],
-    }
+    buckets = {"bucket1": ["object1", "object2"], "empty": []}
 
     # Populate the items
     await federated_s3.populate_dummy_items(PRIMARY_STORAGE_ALIAS, buckets)
 
-    storage_1 = federated_s3.storages[PRIMARY_STORAGE_ALIAS].storage
-    storage_2 = federated_s3.storages[SECONDARY_STORAGE_ALIAS].storage
+    primary = federated_s3.storages[PRIMARY_STORAGE_ALIAS].storage
+    secondary = federated_s3.storages[SECONDARY_STORAGE_ALIAS].storage
 
     # Check that the items were added to the primary storage
-    assert await storage_1.does_object_exist(bucket_id="bucket1", object_id="object1")
-    assert await storage_1.does_bucket_exist(bucket_id="empty")
+    assert await primary.does_object_exist(bucket_id="bucket1", object_id="object1")
+    assert await primary.does_bucket_exist(bucket_id="empty")
 
     # Check that the items were not added to/are not accessible via the secondary storage
-    assert not await storage_2.does_object_exist(
+    assert not await secondary.does_object_exist(
         bucket_id="bucket1", object_id="object1"
     )
-    assert not await storage_2.does_bucket_exist(bucket_id="empty")
+    assert not await secondary.does_bucket_exist(bucket_id="empty")
 
 
 async def test_multi_container_fixture(

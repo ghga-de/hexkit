@@ -24,7 +24,7 @@ from collections.abc import AsyncGenerator, Generator
 from contextlib import contextmanager
 from pathlib import Path
 from tempfile import NamedTemporaryFile
-from typing import Any, NamedTuple, Optional, Union
+from typing import NamedTuple, Optional, Union
 
 try:
     from typing import Self
@@ -64,7 +64,7 @@ __all__ = [
 ]
 
 
-LOCALSTACK_IMAGE = "localstack/localstack:3.5.0"
+LOCALSTACK_IMAGE = "localstack/localstack:3.8.1"
 
 TEST_FILE_DIR = Path(__file__).parent.parent.resolve() / "test_files"
 
@@ -223,25 +223,26 @@ class S3ContainerFixture(LocalStackContainer):
 
     def __init__(
         self,
-        port: int = 4566,
-        name: Optional[str] = None,
-        # default region is different in localstack, but we have us-east-1 everywhere else
-        region_name: Optional[str] = "us-east-1",
-        **kwargs: Any,
+        image: str = LOCALSTACK_IMAGE,
+        edge_port: int = 4566,
+        region_name: Optional[str] = None,
+        **kwargs,
     ) -> None:
         """Initialize the container."""
-        # name can't be passed as kwarg, it's sourced from the instance attribute instead
-        if name:
-            self.name = name
         super().__init__(
-            image=LOCALSTACK_IMAGE, edge_port=port, region_name=region_name, **kwargs
+            image=image, edge_port=edge_port, region_name=region_name, **kwargs
         )
 
     def __enter__(self) -> Self:
         """Enter the container context."""
         super().__enter__()
+        url = self.get_url()
+        # Make sure we only access the container on localhost via IPv4,
+        # since IPVv6 can sometimes use a different port mapping,
+        # which can shadow the IPv4 port mapping of a different container.
+        url = url.replace("localhost", "127.0.0.1")
         s3_config = S3Config(  # type: ignore [call-arg]
-            s3_endpoint_url=self.get_url(),
+            s3_endpoint_url=url,
             s3_access_key_id="test",
             s3_secret_access_key=SecretStr("test"),
         )
@@ -424,10 +425,7 @@ def _s3_multi_container_fixture(
 
     if not storage_aliases:
         raise RuntimeError("The 'storage_aliases' list must not be empty.")
-    s3_containers = {
-        alias: S3ContainerFixture(name=f"{alias}_s3_container")
-        for alias in storage_aliases
-    }
+    s3_containers = {alias: S3ContainerFixture() for alias in storage_aliases}
     with S3MultiContainerFixture(s3_containers) as s3_multi_container:
         yield s3_multi_container
 
