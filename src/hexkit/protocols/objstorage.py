@@ -122,6 +122,7 @@ class ObjectStorageProtocol(ABC):
         object_id: str,
         part_number: int,
         expires_after: int = 3600,
+        part_md5: Optional[str] = None,
     ) -> str:
         """Given a id of an instantiated multipart upload along with the corresponding
         bucket and object ID, it returns a presigned URL for uploading a file part with the
@@ -137,6 +138,7 @@ class ObjectStorageProtocol(ABC):
             object_id=object_id,
             part_number=part_number,
             expires_after=expires_after,
+            part_md5=part_md5,
         )
 
     async def abort_multipart_upload(
@@ -207,6 +209,12 @@ class ObjectStorageProtocol(ABC):
             bucket_id=bucket_id, object_id=object_id, object_md5sum=object_md5sum
         )
 
+    async def get_object_etag(self, *, bucket_id: str, object_id: str) -> str:
+        """Returns the etag of an object."""
+        self._validate_bucket_id(bucket_id)
+        self._validate_object_id(object_id)
+        return await self._get_object_etag(bucket_id=bucket_id, object_id=object_id)
+
     async def get_object_size(self, *, bucket_id: str, object_id: str) -> int:
         """Returns the size of an object in bytes."""
         self._validate_bucket_id(bucket_id)
@@ -220,9 +228,15 @@ class ObjectStorageProtocol(ABC):
         source_object_id: str,
         dest_bucket_id: str,
         dest_object_id: str,
+        abort_failed: bool = True,
     ) -> None:
         """Copy an object from one bucket (`source_bucket_id` and `source_object_id`) to
         another bucket (`dest_bucket_id` and `dest_object_id`).
+
+        If `abort_failed` is set to true (default), a failed copy operation tries to
+        abort the ongoing multipart upload it created (if using multipart mode).
+        This only works reliably as long as there are no other ongoing multipart operations for
+        the same destination bucket and object ID, in which case this should be set to false.
         """
         self._validate_bucket_id(source_bucket_id)
         self._validate_object_id(source_object_id)
@@ -233,6 +247,7 @@ class ObjectStorageProtocol(ABC):
             source_object_id=source_object_id,
             dest_bucket_id=dest_bucket_id,
             dest_object_id=dest_object_id,
+            abort_failed=abort_failed,
         )
 
     async def delete_object(self, *, bucket_id: str, object_id: str) -> None:
@@ -336,6 +351,7 @@ class ObjectStorageProtocol(ABC):
         object_id: str,
         part_number: int,
         expires_after: int = 3600,
+        part_md5: Optional[str] = None,
     ) -> str:
         """
         Given a id of an instantiated multipart upload along with the corresponding
@@ -403,6 +419,15 @@ class ObjectStorageProtocol(ABC):
         ...
 
     @abstractmethod
+    async def _get_object_etag(self, *, bucket_id: str, object_id: str) -> str:
+        """Return the etag of an object.
+
+        *To be implemented by the provider. Input validation is done outside of this
+        method.*
+        """
+        ...
+
+    @abstractmethod
     async def _get_object_size(self, *, bucket_id: str, object_id: str) -> int:
         """
         Returns the size of an object in bytes.
@@ -435,10 +460,16 @@ class ObjectStorageProtocol(ABC):
         source_object_id: str,
         dest_bucket_id: str,
         dest_object_id: str,
+        abort_failed: bool = True,
     ) -> None:
         """
         Copy an object from one bucket (`source_bucket_id` and `source_object_id`) to
         another bucket (`dest_bucket_id` and `dest_object_id`).
+
+        If `abort_failed` is set to true (default), a failed copy operation tries to
+        abort the ongoing multipart upload it created (if using multipart mode).
+        This only works reliably as long as there are no other ongoing multipart operations for
+        the same destination bucket and object ID, in which case this should be set to false.
 
         *To be implemented by the provider. Input validation is done outside of this
         method.*

@@ -24,7 +24,7 @@ from collections.abc import AsyncGenerator, Generator
 from contextlib import contextmanager
 from pathlib import Path
 from tempfile import NamedTemporaryFile
-from typing import Any, NamedTuple, Optional, Union
+from typing import NamedTuple, Optional, Union
 
 try:
     from typing import Self
@@ -64,7 +64,7 @@ __all__ = [
 ]
 
 
-LOCALSTACK_IMAGE = "localstack/localstack:3.5.0"
+LOCALSTACK_IMAGE = "localstack/localstack:3.8.1"
 
 TEST_FILE_DIR = Path(__file__).parent.parent.resolve() / "test_files"
 
@@ -223,19 +223,23 @@ class S3ContainerFixture(LocalStackContainer):
 
     def __init__(
         self,
-        port: int = 4566,
+        image: str = LOCALSTACK_IMAGE,
+        edge_port: int = 4566,
         region_name: Optional[str] = None,
-        **kwargs: Any,
+        **kwargs,
     ) -> None:
         """Initialize the container."""
-        super().__init__(image=LOCALSTACK_IMAGE)
+        super().__init__(
+            image=image, edge_port=edge_port, region_name=region_name, **kwargs
+        )
 
     def __enter__(self) -> Self:
         """Enter the container context."""
         super().__enter__()
-        s3_endpoint_url = self.get_url()
+        url = self.get_url()
+        url = url.replace("localhost", "127.0.0.1")
         s3_config = S3Config(  # type: ignore [call-arg]
-            s3_endpoint_url=s3_endpoint_url,
+            s3_endpoint_url=url,
             s3_access_key_id="test",
             s3_secret_access_key=SecretStr("test"),
         )
@@ -375,8 +379,8 @@ class FederatedS3Fixture:
 
         # Add the dummy items
         for bucket, objects in contents.items():
-            for object in objects:
-                with temp_file_object(bucket, object, 1) as file:
+            for obj in objects:
+                with temp_file_object(bucket, obj, 1) as file:
                     await storage.populate_file_objects([file])
 
 
@@ -418,10 +422,7 @@ def _s3_multi_container_fixture(
 
     if not storage_aliases:
         raise RuntimeError("The 'storage_aliases' list must not be empty.")
-    s3_containers = {
-        alias: S3ContainerFixture(name=f"{alias}_s3_container")
-        for alias in storage_aliases
-    }
+    s3_containers = {alias: S3ContainerFixture() for alias in storage_aliases}
     with S3MultiContainerFixture(s3_containers) as s3_multi_container:
         yield s3_multi_container
 
