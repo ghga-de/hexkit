@@ -240,13 +240,10 @@ class S3ContainerFixture(LocalStackContainer):
     def __enter__(self) -> Self:
         """Enter the container context."""
         super().__enter__()
-        # use a random key pair for each instance instead of reusing test:test
-        access_key = os.urandom(16).hex()
-        secret_key = os.urandom(16).hex()
         s3_config = S3Config(  # type: ignore [call-arg]
             s3_endpoint_url=self.get_url(),
-            s3_access_key_id=access_key,
-            s3_secret_access_key=SecretStr(secret_key),
+            s3_access_key_id="test",
+            s3_secret_access_key=SecretStr("test"),
         )
         self.s3_config = s3_config
         return self
