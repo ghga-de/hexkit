@@ -490,7 +490,7 @@ class ObjectStorageProtocol(ABC):
     # (is typically only used by the protocol but may also be used in
     # provider-specific code or overwritten by the provider)
 
-    _re_bucket_id = re.compile(r"^[a-z0-9\-]{3,63}$")
+    _re_bucket_id = re.compile(r"^[:a-z0-9\-]{3,63}$")
     _re_bucket_id_msg = "must consist of 3-63 lowercase letters, digits or hyphens"
 
     @classmethod
