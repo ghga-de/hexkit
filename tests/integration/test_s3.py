@@ -105,6 +105,19 @@ async def test_object_existence_checks(s3: S3Fixture, tmp_file: FileObject):  # 
     )
 
 
+async def test_bucket_name_with_tenant(s3: S3Fixture):
+    """Test if bucket names containing a tenant work correctly."""
+    check_bucket = s3.storage.does_bucket_exist
+    assert not await check_bucket("non-existing-bucket")
+    assert not await check_bucket("tenant:non-existing-bucket")
+    with pytest.raises(ObjectStorageProtocol.BucketIdValidationError):
+        assert not await check_bucket("tenant:invalid:bucket")
+    with pytest.raises(ObjectStorageProtocol.BucketIdValidationError):
+        assert not await check_bucket("tenant-invalid:bucket-valid")
+    with pytest.raises(ObjectStorageProtocol.BucketIdValidationError):
+        assert not await check_bucket("tenant_valid:bucket_invalid")
+
+
 async def test_get_object_etag(s3: S3Fixture, tmp_file: FileObject):  # noqa: F811
     """Test ETag retrieval."""
     await s3.populate_file_objects([tmp_file])
