@@ -42,7 +42,9 @@ from hexkit.utils import calc_part_size
 
 __all__ = ["ObjectStorageProtocol", "PresignedPostURL"]
 # Allow colon character in bucket names to accommodate Ceph multi tenancy S3
-botocore.handlers.VALID_BUCKET = re.compile(r"^[:a-zA-Z0-9.\-_]{1,255}$")
+botocore.handlers.VALID_BUCKET = re.compile(
+    r"^(?:[a-zA-Z0-9_]{1,191}:)?[a-z0-9\-]{3,63}$"
+)
 
 
 class S3Config(BaseSettings):
@@ -119,6 +121,8 @@ def read_aws_config_ini(aws_config_ini: Path) -> botocore.config.Config:
 
 class S3ObjectStorage(ObjectStorageProtocol):
     """S3-based provider implementing the ObjectStorageProtocol."""
+
+    _re_bucket_id = botocore.handlers.VALID_BUCKET
 
     def __init__(
         self,
