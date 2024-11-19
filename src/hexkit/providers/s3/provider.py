@@ -22,6 +22,7 @@ Utilities for testing are located in `./testutils.py`.
 # ruff: noqa: PLR0913
 
 import asyncio
+import re
 from functools import lru_cache
 from pathlib import Path
 from typing import Any, Optional
@@ -31,6 +32,7 @@ import botocore.client
 import botocore.config
 import botocore.configloader
 import botocore.exceptions
+import botocore.handlers
 from boto3.s3.transfer import TransferConfig
 from pydantic import Field, SecretStr
 from pydantic_settings import BaseSettings
@@ -39,6 +41,10 @@ from hexkit.protocols.objstorage import ObjectStorageProtocol, PresignedPostURL
 from hexkit.utils import calc_part_size
 
 __all__ = ["ObjectStorageProtocol", "PresignedPostURL"]
+# Allow colon character in bucket names to accommodate Ceph multi tenancy S3
+botocore.handlers.VALID_BUCKET = re.compile(
+    r"^(?:[a-zA-Z0-9_]{1,191}:)?[a-z0-9\-]{3,63}$"
+)
 
 
 class S3Config(BaseSettings):
@@ -115,6 +121,8 @@ def read_aws_config_ini(aws_config_ini: Path) -> botocore.config.Config:
 
 class S3ObjectStorage(ObjectStorageProtocol):
     """S3-based provider implementing the ObjectStorageProtocol."""
+
+    _re_bucket_id = botocore.handlers.VALID_BUCKET
 
     def __init__(
         self,
