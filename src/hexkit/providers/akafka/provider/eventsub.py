@@ -222,7 +222,7 @@ class KafkaEventSubscriber(InboundProviderBase):
         topics = translator.topics_of_interest
 
         if config.kafka_enable_dlq:
-            topics.append(f"{config.service_name}-retry")
+            topics.append(config.service_name + "-retry")
             if dlq_publisher is None:
                 error = ValueError("A publisher is required when the DLQ is enabled.")
                 logging.error(error)
@@ -283,7 +283,7 @@ class KafkaEventSubscriber(InboundProviderBase):
         self._types_whitelist = translator.types_of_interest
         self._dlq_publisher = dlq_publisher
         self._dlq_suffix = f".{config.service_name}-dlq"
-        self._retry_topic = f"{config.service_name}-retry"
+        self._retry_topic = config.service_name + "-retry"
         self._max_retries = config.kafka_max_retries
         self._enable_dlq = config.kafka_enable_dlq
         self._retry_backoff = config.kafka_retry_backoff

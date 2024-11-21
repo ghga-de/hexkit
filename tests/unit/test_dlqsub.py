@@ -402,7 +402,7 @@ async def test_send_to_retry(kafka: KafkaFixture, caplog_debug):
         assert not dummy_publisher.published
         await dlq_subscriber.run(ignore=False)
 
-    retry_topic = f"{config.service_name}-retry"
+    retry_topic = config.service_name + "-retry"
     assert_logged(
         "INFO",
         f"Published an event with type 'test_type' to the retry topic '{retry_topic}'",
@@ -425,7 +425,7 @@ async def test_consume_retry_without_og_topic(kafka: KafkaFixture, caplog_debug)
     """
     config = make_config(kafka.config)
 
-    retry_topic = f"{config.service_name}-retry"
+    retry_topic = config.service_name + "-retry"
     event = ExtractedEventInfo(
         payload={"test_id": "123456"},
         type_=TEST_TYPE,
