@@ -18,7 +18,7 @@
 
 from typing import Literal
 
-from pydantic import Field, NonNegativeInt, PositiveInt, SecretStr, model_validator
+from pydantic import Field, NonNegativeInt, PositiveInt, SecretStr
 from pydantic_settings import BaseSettings
 
 
@@ -82,20 +82,6 @@ class KafkaConfig(BaseSettings):
         + " services that have a need to send/receive larger messages should set this.",
         examples=[1024 * 1024, 16 * 1024 * 1024],
     )
-    kafka_dlq_topic: str = Field(
-        default="",
-        description="The name of the service-specific topic used for the dead letter queue.",
-        examples=["dcs-dlq", "ifrs-dlq", "mass-dlq"],
-        title="Kafka DLQ Topic",
-    )
-    kafka_retry_topic: str = Field(
-        default="",
-        description=(
-            "The name of the service-specific topic used to retry previously failed events."
-        ),
-        title="Kafka Retry Topic",
-        examples=["dcs-dlq-retry", "ifrs-dlq-retry", "mass-dlq-retry"],
-    )
     kafka_max_retries: NonNegativeInt = Field(
         default=0,
         description=(
@@ -111,8 +97,7 @@ class KafkaConfig(BaseSettings):
             "A flag to toggle the dead letter queue. If set to False, the service will"
             + " crash upon exhausting retries instead of publishing events to the DLQ."
             + " If set to True, the service will publish events to the DLQ topic after"
-            + " exhausting all retries, and both `kafka_dlq_topic` and"
-            + " `kafka_retry_topic` must be set."
+            + " exhausting all retries"
         ),
         title="Kafka Enable DLQ",
         examples=[True, False],
@@ -126,18 +111,3 @@ class KafkaConfig(BaseSettings):
         title="Kafka Retry Backoff",
         examples=[0, 1, 2, 3, 5],
     )
-
-    @model_validator(mode="after")
-    def validate_retry_topic(self):
-        """Ensure that the retry topic is not the same as the DLQ topic."""
-        if self.kafka_retry_topic and self.kafka_retry_topic == self.kafka_dlq_topic:
-            raise ValueError(
-                "kafka_retry_topic and kafka_dlq_topic cannot be the same."
-            )
-        if self.kafka_enable_dlq and not (
-            self.kafka_dlq_topic and self.kafka_retry_topic
-        ):
-            raise ValueError(
-                "Both kafka_dlq_topic and kafka_retry_topic must be set when the DLQ is enabled."
-            )
-        return self
