@@ -203,16 +203,15 @@ def make_config(
     )
 
 
-def test_config_validation():
+@pytest.mark.parametrize("max_retries", [-1, 0, 1])
+def test_config_validation(max_retries: int):
     """Test for config validation.
 
     Errors should occur:
     1. Anytime max_retries is < 0
     """
-    max_retries = [-1, 0, 1]
-    for val in max_retries:
-        with pytest.raises(ValueError) if val < 0 else nullcontext():
-            make_config(max_retries=val)
+    with pytest.raises(ValueError) if max_retries < 0 else nullcontext():
+        make_config(max_retries=max_retries)
 
 
 @pytest.mark.asyncio()

@@ -89,7 +89,7 @@ class ExtractedEventInfo:
 
 def service_name_from_dlq_topic(dlq_topic: str) -> str:
     """Extract the service name from a DLQ topic name."""
-    return dlq_topic.rsplit(".")[1].removesuffix("-dlq")
+    return dlq_topic.rsplit(".", 1)[1].removesuffix("-dlq")
 
 
 def get_event_label(event: ConsumerEvent) -> str:
@@ -683,7 +683,7 @@ class KafkaDLQSubscriber(InboundProviderBase):
                 type_=event.type_,
                 key=event.key,
                 topic=self._retry_topic,
-                headers={ORIGINAL_TOPIC_FIELD: self._dlq_topic.rsplit(".")[0]},
+                headers={ORIGINAL_TOPIC_FIELD: self._dlq_topic.rsplit(".", 1)[0]},
             )
             logging.info(
                 "Published an event with type '%s' to the retry topic '%s'",
