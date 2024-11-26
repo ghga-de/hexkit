@@ -589,7 +589,6 @@ async def test_handling_multiple_subsequent_uploads(abort_first: bool, s3: S3Fix
     )
 
 
-@pytest.mark.asyncio()
 async def test_concurrent_copy_requests(s3: S3Fixture, caplog):
     """Ensure subsequent copy requests for a given file don't initiate new S3 copy
     operations if one is already underway.
@@ -606,7 +605,7 @@ async def test_concurrent_copy_requests(s3: S3Fixture, caplog):
 
         # Mock the boto client's copy method so we can check if it was called
         mock = Mock()
-        s3.storage._client.copy = mock  # type: ignore
+        s3.storage._client.copy = mock
 
         # Clear caplog buffer and enable capturing INFO-level logs
         caplog.clear()
