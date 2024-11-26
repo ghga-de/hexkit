@@ -781,3 +781,26 @@ async def test_preview_pagination(kafka: KafkaFixture):
 
         results3 = await dlq_subscriber.preview(limit=100, skip=2)
         assert not results3
+
+
+@pytest.mark.asyncio()
+async def test_empty_dlq_timeout(kafka: KafkaFixture):
+    """Test that fetching from an empty DLQ topic does not hang.
+
+    The `process` and `ignore` methods of the KafkaDLQSubscriber should return
+    after a brief timeout. The `preview` method should return an empty list.
+    """
+    config = make_config(kafka.config)
+
+    async def custom_processor(event: ConsumerEvent) -> Optional[ExtractedEventInfo]:
+        raise RuntimeError("This should not be called.")
+
+    async with KafkaDLQSubscriber.construct(
+        config=config,
+        dlq_topic=TEST_DLQ_TOPIC,
+        dlq_publisher=DummyPublisher(),
+        process_dlq_event=custom_processor,
+    ) as dlq_subscriber:
+        assert await dlq_subscriber.preview() == []
+        await dlq_subscriber.process()
+        await dlq_subscriber.ignore()
