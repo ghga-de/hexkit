@@ -705,16 +705,6 @@ class KafkaDLQSubscriber:
         if event_to_publish:
             await self._publish_to_retry(event=event_to_publish)
 
-    async def _ignore_event(self, event: ConsumerEvent) -> None:
-        """Ignore the event, log it, and commit offsets"""
-        event_label = get_event_label(event)
-        logging.info(
-            "Ignoring event from DLQ topic '%s': %s",
-            self._dlq_topic,
-            event_label,
-        )
-        await self._consumer.commit()
-
     async def ignore(self) -> None:
         """Directly ignore the next event from the DLQ topic."""
         event = await self._consumer.__anext__()
