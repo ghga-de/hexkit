@@ -22,6 +22,7 @@ Utilities for testing are located in `./testutils.py`.
 # ruff: noqa: PLR0913
 
 import asyncio
+import logging
 import re
 from functools import lru_cache
 from pathlib import Path
@@ -848,6 +849,17 @@ class S3ObjectStorage(ObjectStorageProtocol):
         await self._assert_object_not_exists(
             bucket_id=dest_bucket_id, object_id=dest_object_id
         )
+
+        underway_operations = await self._list_multipart_upload_for_object(
+            bucket_id=dest_bucket_id, object_id=dest_object_id
+        )
+        if len(underway_operations) > 0:
+            logging.info(
+                "Copy operation already exists for dest object id '%s' in dest bucket '%s'.",
+                dest_object_id,
+                dest_bucket_id,
+            )
+            return
 
         part_size = calc_part_size(file_size=file_size)
 
