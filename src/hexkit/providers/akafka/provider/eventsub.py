@@ -705,16 +705,29 @@ class KafkaDLQSubscriber:
         if event_to_publish:
             await self._publish_to_retry(event=event_to_publish)
 
+    async def _get_events_from_dlq(self, *, max_records: int) -> list[ConsumerEvent]:
+        """Get the next event from the DLQ topic."""
+        fetched = await self._consumer.getmany(  # type: ignore
+            max_records=max_records, timeout_ms=500
+        )
+        events = []
+        with suppress(StopIteration):
+            events = next(iter(fetched.values()))
+        if not events:
+            logging.info("No events currently found in DLQ topic '%s'", self._dlq_topic)
+        return events
+
     async def ignore(self) -> None:
         """Directly ignore the next event from the DLQ topic."""
-        event = await self._consumer.__anext__()
-        event_label = get_event_label(event)
-        logging.info(
-            "Ignoring event from DLQ topic '%s': %s",
-            self._dlq_topic,
-            event_label,
-        )
-        await self._consumer.commit()
+        events = await self._get_events_from_dlq(max_records=1)
+        if events:
+            event_label = get_event_label(events[0])
+            logging.info(
+                "Ignoring event from DLQ topic '%s': %s",
+                self._dlq_topic,
+                event_label,
+            )
+            await self._consumer.commit()
 
     async def preview(self, limit: int = 1, skip: int = 0) -> list[ExtractedEventInfo]:
         """Fetch the next events from the configured DLQ topic without processing them.
@@ -741,16 +754,8 @@ class KafkaDLQSubscriber:
         }
 
         max_records = limit + skip
-        fetched = await self._consumer.getmany(  # type: ignore
-            timeout_ms=500,
-            max_records=max_records,
-        )
-
-        # Convert results to list
-        events = []
-        with suppress(StopIteration):
-            events = next(iter(fetched.values()))
-            events = events[skip:]
+        events = await self._get_events_from_dlq(max_records=max_records)
+        events = events[skip:]
 
         # Reset the consumer to the original offsets
         for partition, offset in positions.items():
@@ -763,7 +768,10 @@ class KafkaDLQSubscriber:
 
         Validate and resolve the event based on custom logic, if applicable.
         """
-        event = await self._consumer.__anext__()
+        events = await self._get_events_from_dlq(max_records=1)
+        if not events:
+            return
+        event = events[0]
         try:
             await self._handle_dlq_event(event=event)
             await self._consumer.commit()
