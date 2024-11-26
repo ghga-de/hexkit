@@ -71,7 +71,6 @@ TEST_DLQ_EVENT = ExtractedEventInfo(
     key="123456",
     headers={
         "correlation_id": TEST_CORRELATION_ID,
-        ORIGINAL_TOPIC_FIELD: TEST_TOPIC,
         EXC_CLASS_FIELD: "RuntimeError",
         EXC_MSG_FIELD: "Destined to fail.",
     },
