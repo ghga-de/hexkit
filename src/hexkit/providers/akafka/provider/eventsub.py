@@ -26,7 +26,7 @@ import json
 import logging
 import ssl
 from collections.abc import Awaitable
-from contextlib import asynccontextmanager
+from contextlib import asynccontextmanager, suppress
 from dataclasses import dataclass
 from typing import Callable, Literal, Optional, Protocol, TypeVar, cast
 
@@ -79,7 +79,7 @@ class ExtractedEventInfo:
         self.key = kwargs.get("key", event.key if event else "")
         self.headers = kwargs.get("headers", headers_as_dict(event) if event else {})
         self.headers = cast(dict, self.headers)
-        self.type_ = kwargs.get("type_", self.headers.get("type", ""))
+        self.type_ = kwargs.get("type_", self.headers.pop("type", ""))
 
     @property
     def encoded_headers(self) -> list[tuple[str, bytes]]:
@@ -561,7 +561,7 @@ async def process_dlq_event(event: ConsumerEvent) -> Optional[ExtractedEventInfo
     return ExtractedEventInfo(event)
 
 
-class KafkaDLQSubscriber(InboundProviderBase):
+class KafkaDLQSubscriber:
     """A kafka event subscriber that subscribes to the specified DLQ topic and either
     discards each event or publishes it to the retry topic as instructed.
     Further processing before requeuing is provided by a callable adhering to the
@@ -592,8 +592,6 @@ class KafkaDLQSubscriber(InboundProviderBase):
             A running instance of a publishing provider that implements the
             EventPublisherProtocol, such as KafkaEventPublisher. It is used to publish
             events to the retry topic.
-        - `kafka_consumer_cls`:
-            Overwrite the used Kafka consumer class. Only intended for unit testing.
         - `process_dlq_event`:
             An async callable adhering to the DLQEventProcessor definition that provides
             validation and processing for events from the DLQ. It should return _either_
@@ -601,6 +599,8 @@ class KafkaDLQSubscriber(InboundProviderBase):
             discard the event. The `KafkaDLQSubscriber` will log and interpret
             `DLQValidationError` as a signal to discard/ignore the event, and all other
             errors will be re-raised as a `DLQProcessingError`.
+        - `kafka_consumer_cls`:
+            Overwrite the used Kafka consumer class. Only intended for unit testing.
         """
         client_id = generate_client_id(
             service_name=config.service_name, instance_id=config.service_instance_id
@@ -644,14 +644,14 @@ class KafkaDLQSubscriber(InboundProviderBase):
         """Please do not call directly! Should be called by the `construct` method.
 
         Args:
-        - `consumer`:
-            hands over a started AIOKafkaConsumer.
-        - `dlq_publisher`:
-            A running instance of a publishing provider that implements the
-            EventPublisherProtocol, such as KafkaEventPublisher.
         - `dlq_topic`:
             The name of the DLQ topic to subscribe to. Has the format
             "{original_topic}.{service_name}-dlq".
+        - `dlq_publisher`:
+            A running instance of a publishing provider that implements the
+            EventPublisherProtocol, such as KafkaEventPublisher.
+        - `consumer`:
+            hands over a started AIOKafkaConsumer.
         - `process_dlq_event`:
             An async callable adhering to the DLQEventProcessor definition that provides
             validation and processing for events from the DLQ. It should return _either_
@@ -715,18 +715,65 @@ class KafkaDLQSubscriber(InboundProviderBase):
         )
         await self._consumer.commit()
 
-    async def run(self, ignore: bool = False) -> None:
-        """Handle one event and return.
+    async def ignore(self) -> None:
+        """Directly ignore the next event from the DLQ topic."""
+        event = await self._consumer.__anext__()
+        event_label = get_event_label(event)
+        logging.info(
+            "Ignoring event from DLQ topic '%s': %s",
+            self._dlq_topic,
+            event_label,
+        )
+        await self._consumer.commit()
 
-        If `ignore` is True, the event will be ignored outright.
-        Otherwise, `_process_dlq_event` will be used to validate
-        and determine what to do with the event.
+    async def preview(self, limit: int = 1, skip: int = 0) -> list[ExtractedEventInfo]:
+        """Fetch the next events from the configured DLQ topic without processing them.
+
+        Offsets are reset to their original positions after fetching. The pagination
+        parameters 'skip' and 'limit' can be used to control the number of events
+        returned and from how deep in the topic to start fetching.
+
+        Args
+        - `limit`: The maximum number of events to fetch.
+        - `skip`: The number of events to skip before fetching.
+        """
+        topic_partitions = [
+            topic_partition
+            for topic_partition in self._consumer.assignment()  # type: ignore
+            if topic_partition.topic == self._dlq_topic
+        ]
+
+        positions = {
+            topic_partition: await self._consumer.position(  # type: ignore
+                topic_partition
+            )
+            for topic_partition in topic_partitions
+        }
+
+        max_records = limit + skip
+        fetched = await self._consumer.getmany(  # type: ignore
+            timeout_ms=500,
+            max_records=max_records,
+        )
+
+        # Convert results to list
+        events = []
+        with suppress(StopIteration):
+            events = next(iter(fetched.values()))
+            events = events[skip:]
+
+        # Reset the consumer to the original offsets
+        for partition, offset in positions.items():
+            self._consumer.seek(partition, offset)  # type: ignore
+
+        return [ExtractedEventInfo(event) for event in events]
+
+    async def process(self) -> None:
+        """Process the next event from the configured DLQ topic.
+
+        Validate and resolve the event based on custom logic, if applicable.
         """
         event = await self._consumer.__anext__()
-        if ignore:
-            await self._ignore_event(event)
-            return
-
         try:
             await self._handle_dlq_event(event=event)
             await self._consumer.commit()
