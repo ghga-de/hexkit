@@ -35,13 +35,13 @@ from typing_extensions import deprecated
 from hexkit.utils import FieldNotInModelError, validate_fields_in_model
 
 __all__ = [
-    "ResourceNotFoundError",
-    "ResourceAlreadyExistsError",
-    "FindError",
-    "MultipleHitsFoundError",
+    "DaoFactoryProtocol",
     "DaoNaturalId",
     "DaoSurrogateId",
-    "DaoFactoryProtocol",
+    "FindError",
+    "MultipleHitsFoundError",
+    "ResourceAlreadyExistsError",
+    "ResourceNotFoundError",
     "uuid4_id_generator",
 ]
 

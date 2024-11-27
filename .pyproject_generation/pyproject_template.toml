@@ -40,6 +40,7 @@ fixable = [
     "UP", # e.g. List -> list
     "I", # sort imports
     "D", # pydocstyle
+    "RUF022", # sort items in __all__
 ]
 ignore = [
     "E111", # indentation with invalid multiple (for formatter)
@@ -59,6 +60,7 @@ ignore = [
     "D206", # indent-with-spaces (for formatter)
     "D300", # triple-single-quotes (for formatter)
     "UP040", # type statement (not yet supported by mypy)
+    "PLC0206", # Extracting value from dictionary without calling `.items()`
 ]
 select = [
     "C90", # McCabe Complexity

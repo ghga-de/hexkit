@@ -22,7 +22,7 @@ import re
 from abc import ABC, abstractmethod
 from typing import NamedTuple, Optional
 
-__all__ = ["PresignedPostURL", "ObjectStorageProtocol"]
+__all__ = ["ObjectStorageProtocol", "PresignedPostURL"]
 
 DEFAULT_URL_EXPIRATION_PERIOD = 24 * 60 * 60  # default expiration time 24 hours
 

@@ -28,13 +28,13 @@ log = logging.getLogger(__name__)
 correlation_id_var: ContextVar[str] = ContextVar("correlation_id", default="")
 
 __all__ = [
-    "set_correlation_id",
-    "set_new_correlation_id",
-    "get_correlation_id",
-    "new_correlation_id",
-    "validate_correlation_id",
     "CorrelationIdContextError",
     "InvalidCorrelationIdError",
+    "get_correlation_id",
+    "new_correlation_id",
+    "set_correlation_id",
+    "set_new_correlation_id",
+    "validate_correlation_id",
 ]
 
 
