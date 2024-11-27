@@ -29,10 +29,10 @@ from .eventsub import (
 )
 
 __all__ = [
+    "ConsumerEvent",
     "KafkaEventPublisher",
     "KafkaEventSubscriber",
-    "ConsumerEvent",
+    "KafkaOutboxSubscriber",
     "get_header_value",
     "headers_as_dict",
-    "KafkaOutboxSubscriber",
 ]
