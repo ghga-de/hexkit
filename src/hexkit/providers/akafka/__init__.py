@@ -27,8 +27,8 @@ from .provider import (
 )
 
 __all__ = [
+    "KafkaConfig",
     "KafkaEventPublisher",
     "KafkaEventSubscriber",
-    "KafkaConfig",
     "KafkaOutboxSubscriber",
 ]

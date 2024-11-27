@@ -27,7 +27,7 @@ from typing import NamedTuple, Optional
 from hexkit.custom_types import JsonObject
 from hexkit.protocols.eventpub import EventPublisherProtocol
 
-__all__ = ["InMemEventStore", "InMemEventPublisher", "TopicExhaustedError"]
+__all__ = ["InMemEventPublisher", "InMemEventStore", "TopicExhaustedError"]
 
 
 class TopicExhaustedError(RuntimeError):

@@ -106,7 +106,7 @@ class ComplexDto(BaseModel):
         default_factory=lambda: ("test-tuple", ExampleDto())
     )
     sub_list: list[Union[str, ExampleDto]] = Field(
-        default_factory=lambda: ["test-list", ExampleDto()]
+        default_factory=lambda: ["test-list", ExampleDto()]  # type: ignore
     )
     sub_dict: dict[str, ExampleDto] = Field(
         default_factory=lambda: {"test-dict": ExampleDto()}

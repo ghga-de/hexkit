@@ -64,7 +64,7 @@ class KafkaConfig(BaseSettings):
         default="", description="Optional filename containing the client private key."
     )
     kafka_ssl_password: SecretStr = Field(
-        default="",
+        default="",  # type: ignore
         description="Optional password to be used for the client private key.",
     )
     generate_correlation_id: bool = Field(

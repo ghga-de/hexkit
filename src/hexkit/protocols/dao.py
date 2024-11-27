@@ -34,12 +34,12 @@ from hexkit.custom_types import ID
 from hexkit.utils import FieldNotInModelError, validate_fields_in_model
 
 __all__ = [
-    "ResourceNotFoundError",
-    "ResourceAlreadyExistsError",
-    "FindError",
-    "MultipleHitsFoundError",
     "Dao",
     "DaoFactoryProtocol",
+    "FindError",
+    "MultipleHitsFoundError",
+    "ResourceAlreadyExistsError",
+    "ResourceNotFoundError",
     "UUID4Field",
 ]
 
