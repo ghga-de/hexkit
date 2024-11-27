@@ -622,6 +622,6 @@ async def test_concurrent_copy_requests(s3: S3Fixture, caplog):
         mock.assert_not_called()
         assert len(caplog.records) == 1
         assert caplog.records[0].getMessage() == (
-            f"Upload or copy operation already exists for dest object id '{dest_object_id}'"
-            + f" in dest bucket '{dest_bucket_id}'."
+            f"Upload or copy operation already exists for object id '{dest_object_id}'"
+            + f" in bucket '{dest_bucket_id}'."
         )
