@@ -854,7 +854,7 @@ class S3ObjectStorage(ObjectStorageProtocol):
         )
         if len(underway_operations) > 0:
             logging.info(
-                "Copy operation already exists for dest object id '%s' in dest bucket '%s'.",
+                "Upload or copy operation already exists for dest object id '%s' in dest bucket '%s'.",
                 dest_object_id,
                 dest_bucket_id,
             )
