@@ -17,6 +17,7 @@
 
 from contextlib import AbstractContextManager, nullcontext
 from typing import Optional
+from unittest.mock import Mock
 
 import pytest
 
@@ -33,6 +34,7 @@ from hexkit.providers.s3.testutils import (
     upload_part,
     upload_part_of_size,
 )
+from tests.fixtures.utils import assert_logged
 
 EXAMPLE_BUCKETS = [
     "example-bucket-1",
@@ -585,3 +587,44 @@ async def test_handling_multiple_subsequent_uploads(abort_first: bool, s3: S3Fix
     await s3.storage.complete_multipart_upload(
         upload_id=upload2_id, bucket_id=bucket_id, object_id=object_id
     )
+
+
+async def test_concurrent_copy_requests(s3: S3Fixture, caplog):
+    """Ensure subsequent copy requests for a given file don't initiate new S3 copy
+    operations if one is already underway.
+    """
+    source_bucket_id = "source-bucket"
+    source_object_id = "source-object"
+
+    # Upload a file to the source bucket
+    with temp_file_object(source_bucket_id, source_object_id) as file:
+        await s3.populate_file_objects([file])
+
+        # Create an upload that mimics an ongoing copy operation
+        _, dest_bucket_id, dest_object_id = await s3.get_initialized_upload()
+
+        # Mock the boto client's copy method so we can check if it was called
+        mock = Mock()
+        s3.storage._client.copy = mock
+
+        # Clear caplog buffer and enable capturing INFO-level logs
+        caplog.clear()
+        caplog.set_level("INFO")
+
+        # Attempt to copy the object temp file to the destination bucket/object
+        await s3.storage.copy_object(
+            source_bucket_id=source_bucket_id,
+            source_object_id=source_object_id,
+            dest_bucket_id=dest_bucket_id,
+            dest_object_id=dest_object_id,
+        )
+
+        # Check that the client copy method was not called and that a message was logged
+        mock.assert_not_called()
+        assert_logged(
+            "INFO",
+            f"Upload or copy operation already exists for object id '{dest_object_id}'"
+            + f" in bucket '{dest_bucket_id}'.",
+            caplog.records,
+            parse=True,
+        )
