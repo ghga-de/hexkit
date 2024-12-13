@@ -490,11 +490,10 @@ class KafkaEventSubscriber(InboundProviderBase):
             await self._consumer.commit()
 
     async def run(self, forever: bool = True) -> None:
-        """
-        Start consuming events and passing them down to the translator.
-        By default, it blocks forever.
-        However, you can set `forever` to `False` to make it return after handling one
-        event.
+        """Start consuming events and passing them down to the translator.
+
+        By default, this method blocks forever. However, you can set `forever`
+        to `False` to make it return after handling one event.
         """
         if forever:
             async for event in self._consumer:
@@ -717,11 +716,11 @@ class KafkaDLQSubscriber(InboundProviderBase):
         await self._consumer.commit()
 
     async def run(self, ignore: bool = False) -> None:
-        """
-        Handles one event and returns.
+        """Handle one event and return.
+
         If `ignore` is True, the event will be ignored outright.
-        Otherwise, `_process_dlq_event` will be used to validate and determine what to
-        do with the event.
+        Otherwise, `_process_dlq_event` will be used to validate
+        and determine what to do with the event.
         """
         event = await self._consumer.__anext__()
         if ignore:

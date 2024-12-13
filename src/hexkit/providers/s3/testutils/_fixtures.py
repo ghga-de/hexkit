@@ -46,25 +46,25 @@ __all__ = [
     "MEBIBYTE",
     "TEST_FILE_DIR",
     "TEST_FILE_PATHS",
-    "upload_file",
-    "populate_storage",
-    "calc_md5",
     "FileObject",
     "S3ContainerFixture",
-    "get_s3_container_fixture",
-    "s3_container_fixture",
     "S3Fixture",
-    "get_persistent_s3_fixture",
-    "persistent_s3_fixture",
-    "get_clean_s3_fixture",
+    "calc_md5",
     "clean_s3_fixture",
+    "get_clean_s3_fixture",
+    "get_persistent_s3_fixture",
+    "get_s3_container_fixture",
+    "persistent_s3_fixture",
+    "populate_storage",
+    "s3_container_fixture",
     "s3_fixture",
-    "tmp_file",
     "temp_file_object",
+    "tmp_file",
+    "upload_file",
 ]
 
 
-LOCALSTACK_IMAGE = "localstack/localstack:3.8.1"
+LOCALSTACK_IMAGE = "localstack/localstack:4.0.3"
 
 TEST_FILE_DIR = Path(__file__).parent.parent.resolve() / "test_files"
 

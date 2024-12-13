@@ -52,19 +52,19 @@ __all__ = [
     "EventBase",
     "EventRecorder",
     "ExpectedEvent",
-    "RecordedEvent",
-    "ValidationError",
     "KafkaConfig",
     "KafkaContainerFixture",
     "KafkaEventPublisher",
     "KafkaFixture",
-    "get_kafka_container_fixture",
+    "RecordedEvent",
+    "ValidationError",
+    "clean_kafka_fixture",
     "get_clean_kafka_fixture",
+    "get_kafka_container_fixture",
     "get_persistent_kafka_fixture",
     "kafka_container_fixture",
-    "clean_kafka_fixture",
-    "persistent_kafka_fixture",
     "kafka_fixture",
+    "persistent_kafka_fixture",
 ]
 
 
@@ -270,10 +270,10 @@ class EventRecorder:
         if self._starting_offsets is None:
             raise self.NotStartedError()
 
-        for partition in offsets:
+        for partition, offset in offsets.items():
             consumer.seek(
                 partition=TopicPartition(topic=self._topic, partition=partition),
-                offset=offsets[partition],
+                offset=offset,
             )
 
     def _get_consumer(self) -> AIOKafkaConsumer:

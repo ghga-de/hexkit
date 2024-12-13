@@ -19,7 +19,7 @@
 import uuid
 from datetime import datetime
 from pathlib import Path
-from typing import Any, Optional, Union
+from typing import Any, Optional, Union, cast
 
 import pytest
 from pydantic import UUID4, BaseModel, ConfigDict, Field
@@ -105,8 +105,11 @@ class ComplexDto(BaseModel):
     sub_tuple: tuple[str, ExampleDto] = Field(
         default_factory=lambda: ("test-tuple", ExampleDto())
     )
+
     sub_list: list[Union[str, ExampleDto]] = Field(
-        default_factory=lambda: ["test-list", ExampleDto()]
+        default_factory=lambda: cast(
+            list[Union[str, ExampleDto]], ["test-list", ExampleDto()]
+        )
     )
     sub_dict: dict[str, ExampleDto] = Field(
         default_factory=lambda: {"test-dict": ExampleDto()}

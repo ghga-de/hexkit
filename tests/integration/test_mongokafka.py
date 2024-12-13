@@ -77,8 +77,8 @@ EXAMPLE_TOPIC = "example"
 @pytest.fixture(autouse=True)
 def correlation_id_fixture() -> Generator[str, None, None]:
     """Provides a new correlation ID for each test case."""
-    # we cannot use an async fixture with set_new_correlation_id(),
-    # because it would run in a different context from the test
+    # Note: Using an async fixture doesn't work reliably with older Python versions,
+    # because the context is not preserved even with pytest-asyncio 0.25.
     correlation_id = new_correlation_id()
     token = correlation_id_var.set(correlation_id)
     yield correlation_id

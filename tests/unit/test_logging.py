@@ -309,8 +309,8 @@ def test_secrets_logging_config(root_logger_reset, capsys):  # noqa: F811
     class TestConfig(LoggingConfig):
         string: str = "foo"
         number: int = 42
-        secret_bytes: SecretBytes = Field(default=b"silent")
-        secret_str: SecretStr = Field(default="silent")
+        secret_bytes: SecretBytes = Field(default=SecretBytes(b"silent"))
+        secret_str: SecretStr = Field(default=SecretStr("silent"))
 
     config = TestConfig(service_name="", service_instance_id="")
 

@@ -19,14 +19,14 @@ services:
     user: vscode
 
   zookeeper:
-    image: confluentinc/cp-zookeeper:7.6.1
+    image: confluentinc/cp-zookeeper:7.8.0
     environment:
       ZOOKEEPER_SERVER_ID: 1
       ZOOKEEPER_CLIENT_PORT: 2181
       ZOOKEEPER_TICK_TIME: 2000
 
   kafka:
-    image: confluentinc/cp-server:7.6.1
+    image: confluentinc/cp-server:7.8.0
     restart: always
     depends_on:
       - zookeeper

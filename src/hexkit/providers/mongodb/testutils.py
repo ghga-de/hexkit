@@ -31,7 +31,7 @@ from testcontainers.mongodb import MongoDbContainer
 from hexkit.custom_types import PytestScope
 from hexkit.providers.mongodb.provider import MongoDbConfig, MongoDbDaoFactory
 
-MONGODB_IMAGE = "mongo:7.0.9"
+MONGODB_IMAGE = "mongo:7.0.15"
 
 __all__ = [
     "MONGODB_IMAGE",
@@ -40,13 +40,13 @@ __all__ = [
     "MongoDbContainerFixture",
     "MongoDbDaoFactory",
     "MongoDbFixture",
+    "clean_mongodb_fixture",
+    "get_clean_mongodb_fixture",
     "get_mongodb_container_fixture",
     "get_persistent_mongodb_fixture",
-    "get_clean_mongodb_fixture",
     "mongodb_container_fixture",
-    "clean_mongodb_fixture",
-    "persistent_mongodb_fixture",
     "mongodb_fixture",
+    "persistent_mongodb_fixture",
 ]
 
 
