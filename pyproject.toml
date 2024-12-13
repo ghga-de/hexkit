@@ -28,7 +28,7 @@ description = "A Toolkit for Building Microservices using the Hexagonal Architec
 dependencies = [
     "pydantic >=2, <3",
     "pydantic_settings >=2, <3",
-    "PyYAML >=6.0, <7",
+    "PyYAML >=6, <7",
 ]
 
 [project.license]
@@ -36,27 +36,27 @@ text = "Apache 2.0"
 
 [project.optional-dependencies]
 akafka = [
-    "aiokafka~=0.11.0",
-    "jsonschema >=4.22, <5",
+    "aiokafka~=0.12.0",
+    "jsonschema >=4.23, <5",
 ]
 s3 = [
-    "boto3 >=1.34.140, <2",
-    "botocore >=1.34.140, <2",
+    "boto3 >=1.35.80, <2",
+    "botocore >=1.35.80, <2",
 ]
 mongodb = [
     "motor >=3.5.0, <4",
 ]
 test-akafka = [
     "hexkit[akafka]",
-    "testcontainers[kafka] >=4.7.1, <5",
+    "testcontainers[kafka] >=4.9.0, <5",
 ]
 test-s3 = [
     "hexkit[s3]",
-    "testcontainers >=4.7.1, <5",
+    "testcontainers >=4.9.0, <5",
 ]
 test-mongodb = [
     "hexkit[mongodb]",
-    "testcontainers[mongo] >=4.7.1, <5",
+    "testcontainers[mongo] >=4.9.0, <5",
 ]
 test = [
     "hexkit[test-akafka,test-s3,test-mongodb]",
@@ -95,6 +95,7 @@ fixable = [
     "UP",
     "I",
     "D",
+    "RUF022",
 ]
 ignore = [
     "E111",
@@ -114,6 +115,7 @@ ignore = [
     "D206",
     "D300",
     "UP040",
+    "PLC0206",
 ]
 select = [
     "C90",
