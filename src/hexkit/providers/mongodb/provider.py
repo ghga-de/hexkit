@@ -53,9 +53,9 @@ from hexkit.utils import FieldNotInModelError, validate_fields_in_model
 
 __all__ = [
     "MongoDbConfig",
+    "MongoDbDao",
     "MongoDbDaoFactory",
     "translate_pymongo_errors",
-    "MongoDbDao",
 ]
 
 

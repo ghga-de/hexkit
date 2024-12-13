@@ -490,11 +490,9 @@ class KafkaEventSubscriber(InboundProviderBase):
             await self._consumer.commit()
 
     async def run(self, forever: bool = True) -> None:
-        """
-        Start consuming events and passing them down to the translator.
-        By default, it blocks forever.
-        However, you can set `forever` to `False` to make it return after handling one
-        event.
+        """Start consuming events and passing them down to the translator.
+        By default, this method blocks forever. However, you can set `forever` to
+        `False` to make it return after handling one event.
         """
         if forever:
             async for event in self._consumer:
