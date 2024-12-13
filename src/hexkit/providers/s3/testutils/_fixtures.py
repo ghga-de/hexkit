@@ -64,7 +64,7 @@ __all__ = [
 ]
 
 
-LOCALSTACK_IMAGE = "localstack/localstack:3.8.1"
+LOCALSTACK_IMAGE = "localstack/localstack:4.0.3"
 
 TEST_FILE_DIR = Path(__file__).parent.parent.resolve() / "test_files"
 

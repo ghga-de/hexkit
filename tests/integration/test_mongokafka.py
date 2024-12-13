@@ -17,12 +17,11 @@
 """Test the DAO pub/sub functionality based on the mongokafka/kafka providers."""
 
 import uuid
-from collections.abc import AsyncGenerator
+from collections.abc import Generator
 from pathlib import Path
 from typing import Any, Optional
 
 import pytest
-import pytest_asyncio
 from pydantic import UUID4, BaseModel
 from pymongo import MongoClient
 from pymongo.collection import Collection
@@ -75,9 +74,11 @@ pytestmark = pytest.mark.asyncio()
 EXAMPLE_TOPIC = "example"
 
 
-@pytest_asyncio.fixture(autouse=True)
-async def correlation_id_fixture() -> AsyncGenerator[str, None]:
+@pytest.fixture(autouse=True)
+def correlation_id_fixture() -> Generator[str, None, None]:
     """Provides a new correlation ID for each test case."""
+    # Note: Using an async fixture doesn't work reliably with older Python versions,
+    # because the context is not preserved even with pytest-asyncio 0.25.
     correlation_id = new_correlation_id()
     token = correlation_id_var.set(correlation_id)
     yield correlation_id
