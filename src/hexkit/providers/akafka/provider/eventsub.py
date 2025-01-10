@@ -570,7 +570,7 @@ class KafkaDLQSubscriber:
 
     @classmethod
     @asynccontextmanager
-    async def construct(
+    async def construct(  # noqa: PLR0913
         cls,
         *,
         config: KafkaConfig,
@@ -578,6 +578,7 @@ class KafkaDLQSubscriber:
         dlq_publisher: EventPublisherProtocol,
         process_dlq_event: DLQEventProcessor = process_dlq_event,
         kafka_consumer_cls: type[KafkaConsumerCompatible] = AIOKafkaConsumer,
+        timeout_ms: int = 500,
     ):
         """
         Setup and teardown KafkaDLQSubscriber instance.
@@ -601,7 +602,14 @@ class KafkaDLQSubscriber:
             errors will be re-raised as a `DLQProcessingError`.
         - `kafka_consumer_cls`:
             Overwrite the used Kafka consumer class. Only intended for unit testing.
+        - `timeout_ms`:
+            The maximum time in milliseconds to spend reading from the DLQ topic.
         """
+        if timeout_ms < 0:
+            error = ValueError("timeout_ms must be a non-negative integer.")
+            logging.error(error)
+            raise error
+
         client_id = generate_client_id(
             service_name=config.service_name, instance_id=config.service_instance_id
         )
@@ -629,6 +637,7 @@ class KafkaDLQSubscriber:
                 dlq_publisher=dlq_publisher,
                 consumer=consumer,
                 process_dlq_event=process_dlq_event,
+                timeout_ms=timeout_ms,
             )
         finally:
             await consumer.stop()
@@ -640,6 +649,7 @@ class KafkaDLQSubscriber:
         dlq_publisher: EventPublisherProtocol,
         consumer: KafkaConsumerCompatible,
         process_dlq_event: DLQEventProcessor,
+        timeout_ms: int,
     ):
         """Please do not call directly! Should be called by the `construct` method.
 
@@ -659,10 +669,13 @@ class KafkaDLQSubscriber:
             discard the event. The `KafkaDLQSubscriber` will log and interpret
             `DLQValidationError` as a signal to discard/ignore the event, and all other
             errors will be re-raised as a `DLQProcessingError`.
+        - `timeout_ms`:
+            The maximum time in milliseconds to spend reading from the DLQ topic.
         """
         self._consumer = consumer
         self._publisher = dlq_publisher
         self._dlq_topic = dlq_topic
+        self._timeout_ms = timeout_ms
 
         # In KafkaEventSubscriber, we get the service name from the config. However,
         # the service name in effect here probably differs -- e.g., a DLQ-specific
@@ -708,7 +721,7 @@ class KafkaDLQSubscriber:
     async def _get_events_from_dlq(self, *, max_records: int) -> list[ConsumerEvent]:
         """Get the next event from the DLQ topic."""
         fetched = await self._consumer.getmany(  # type: ignore
-            max_records=max_records, timeout_ms=500
+            max_records=max_records, timeout_ms=self._timeout_ms
         )
         events = []
         with suppress(StopIteration):
