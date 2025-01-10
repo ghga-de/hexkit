@@ -16,7 +16,7 @@
 
 from collections.abc import Mapping
 from contextlib import nullcontext
-from copy import copy
+from dataclasses import replace
 from typing import Optional
 from unittest.mock import Mock
 
@@ -94,8 +94,7 @@ OUTBOX_EVENT_UPSERT = ExtractedEventInfo(
     key="123456",
 )
 
-OUTBOX_EVENT_DELETE = copy(OUTBOX_EVENT_UPSERT)
-OUTBOX_EVENT_DELETE.type_ = "deleted"
+OUTBOX_EVENT_DELETE = replace(OUTBOX_EVENT_UPSERT, type_="deleted")
 
 
 class FailSwitchTranslator(EventSubscriberProtocol):
@@ -393,8 +392,7 @@ async def test_send_to_retry(kafka: KafkaFixture, caplog_debug):
     """
     config = make_config(kafka.config)
 
-    dlq_event = copy(TEST_DLQ_EVENT)
-    await kafka.publisher.publish(**vars(dlq_event))
+    await kafka.publisher.publish(**vars(TEST_DLQ_EVENT))
 
     # Set up dummies and consume the event with the DLQ Subscriber
     dummy_publisher = DummyPublisher()
@@ -411,7 +409,7 @@ async def test_send_to_retry(kafka: KafkaFixture, caplog_debug):
     )
 
     # Verify that the event was sent to the RETRY topic
-    dlq_event.topic = TEST_RETRY_TOPIC
+    dlq_event = replace(TEST_DLQ_EVENT, topic=TEST_RETRY_TOPIC)
 
     # The exc_... headers are not supposed to be in the retry event, but the original
     # topic should be!
@@ -616,10 +614,8 @@ async def test_default_dlq_processor(
     config = make_config(kafka.config)
 
     # Publish test event directly to DLQ with chosen correlation ID
-    event = copy(TEST_DLQ_EVENT)
+    event = replace(TEST_DLQ_EVENT, type_="" if validation_error else TEST_TYPE)
     async with set_correlation_id(TEST_CORRELATION_ID):
-        if validation_error:
-            event.type_ = ""
         await kafka.publish_event(**vars(event))
 
     dummy_publisher = DummyPublisher()
@@ -694,10 +690,8 @@ async def test_preview_repeatability(kafka: KafkaFixture):
         # publish 3 events -- there will be logs about how we supplied correlation_id
         # but that doesn't matter and can be ignored
         await kafka.publisher.publish(**vars(TEST_DLQ_EVENT))
-        event2 = copy(TEST_DLQ_EVENT)
-        event3 = copy(TEST_DLQ_EVENT)
-        event2.type_ = "test_type2"
-        event3.type_ = "test_type3"
+        event2 = replace(TEST_DLQ_EVENT, type_="test_type2")
+        event3 = replace(TEST_DLQ_EVENT, type_="test_type3")
         await kafka.publisher.publish(**vars(event2))
         await kafka.publisher.publish(**vars(event3))
 
@@ -763,8 +757,7 @@ async def test_preview_pagination(kafka: KafkaFixture):
         await kafka.publisher.publish(**vars(TEST_DLQ_EVENT))
 
     # Create and publish a second event to the second dlq topic with a different key
-    dlq_event2 = copy(TEST_DLQ_EVENT)
-    dlq_event2.key = "78910"
+    dlq_event2 = replace(TEST_DLQ_EVENT, key="78910")
     async with set_correlation_id(TEST_CORRELATION_ID):
         await kafka.publisher.publish(**vars(dlq_event2))
 
