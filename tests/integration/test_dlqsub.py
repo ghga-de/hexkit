@@ -23,7 +23,7 @@ from unittest.mock import Mock
 import pytest
 from pydantic import BaseModel
 
-from hexkit.correlation import set_correlation_id
+from hexkit.correlation import new_correlation_id, set_correlation_id
 from hexkit.custom_types import Ascii, JsonObject
 from hexkit.protocols.daosub import DaoSubscriberProtocol
 from hexkit.protocols.eventpub import EventPublisherProtocol
@@ -796,3 +796,71 @@ async def test_empty_dlq_timeout(kafka: KafkaFixture):
         assert await dlq_subscriber.preview() == []
         await dlq_subscriber.process()
         await dlq_subscriber.ignore()
+
+
+@pytest.mark.asyncio()
+async def test_process_override(kafka: KafkaFixture):
+    """Make sure we can supply an override value for the `process` method."""
+
+    # Make a custom process func so we can ensure that process_dlq_event is not called
+    async def custom_processor(event: ConsumerEvent) -> Optional[ExtractedEventInfo]:
+        raise RuntimeError("This should not be called.")
+
+    config = make_config(kafka.config)
+
+    # Publish an event to the dlq topic
+    async with set_correlation_id(TEST_CORRELATION_ID):
+        await kafka.publisher.publish(**vars(TEST_DLQ_EVENT))
+
+    # Create an override event (the event we just want to publish to the retry topic)
+    override_event = replace(TEST_DLQ_EVENT, payload={"key": "value_override"})
+
+    # We need to inspect what actually gets published, so we need a dummy publisher
+    dummy_publisher = DummyPublisher()
+
+    # Create the DLQ subscriber and manually resolve the DLQ event
+    async with KafkaDLQSubscriber.construct(
+        config=config,
+        dlq_topic=TEST_DLQ_TOPIC,
+        dlq_publisher=dummy_publisher,
+        process_dlq_event=custom_processor,
+    ) as dlq_subscriber:
+        assert len(await dlq_subscriber.preview()) == 1
+        await dlq_subscriber.process(override=override_event)
+        assert not await dlq_subscriber.preview()
+
+    # Inspect what was published
+    headers = {"original_topic": TEST_TOPIC}
+    expected_published_event = replace(
+        override_event, headers=headers, topic=TEST_RETRY_TOPIC
+    )
+    assert dummy_publisher.published == [expected_published_event]
+
+
+async def test_process_override_different_cid(kafka: KafkaFixture):
+    """Verify that the KafkaDLQProcessor prevents a user-supplied event from being
+    published to the retry topic if the correlation ID does not match the one from
+    the original event.
+    """
+    config = make_config(kafka.config)
+
+    # Publish an event to the dlq topic
+    async with set_correlation_id(TEST_CORRELATION_ID):
+        await kafka.publisher.publish(**vars(TEST_DLQ_EVENT))
+
+    # Create an override event with a valid but different correlation ID
+    headers = TEST_DLQ_EVENT.headers.copy()
+    headers["correlation_id"] = new_correlation_id()
+    override_event = replace(
+        TEST_DLQ_EVENT, payload={"key": "value_override"}, headers=headers
+    )
+
+    # Create the DLQ subscriber and manually resolve the DLQ event, expecting an error
+    msg = "Cannot manually resolve DLQ event because the correlation ID doesn't match."
+    async with KafkaDLQSubscriber.construct(
+        config=config,
+        dlq_topic=TEST_DLQ_TOPIC,
+        dlq_publisher=DummyPublisher(),
+    ) as dlq_subscriber:
+        with pytest.raises(ValueError, match=msg):
+            await dlq_subscriber.process(override=override_event)
