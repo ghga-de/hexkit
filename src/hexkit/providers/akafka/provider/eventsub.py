@@ -529,13 +529,9 @@ def validate_dlq_headers(event: ConsumerEvent) -> None:
     Raises:
     - `DLQValidationError`: If any headers are determined to be invalid.
     """
+    # TODO: this validation is should not be performed on user-supplied events
     headers = headers_as_dict(event)
-    expected_headers = [
-        "type",
-        "correlation_id",
-        EXC_CLASS_FIELD,
-        EXC_MSG_FIELD,
-    ]
+    expected_headers = ["type", "correlation_id"]
     invalid_headers = [key for key in expected_headers if not headers.get(key)]
     if invalid_headers:
         error_msg = f"Missing or empty headers: {', '.join(invalid_headers)}"
@@ -544,8 +540,10 @@ def validate_dlq_headers(event: ConsumerEvent) -> None:
 
 async def process_dlq_event(event: ConsumerEvent) -> Optional[ExtractedEventInfo]:
     """
-    Simple 'processing' function for a message from a dead-letter queue that
-    adheres to the DLQEventProcessor callable definition.
+    Placeholder 'processing' function for a message from a dead-letter queue that
+    adheres to the DLQEventProcessor callable definition. This placeholder returns the
+    event as-is after performing basic validation, but can be overridden to perform
+    other validation or transformation.
 
     Args:
     - `event`: The event to process.
@@ -703,11 +701,40 @@ class KafkaDLQSubscriber:
                 self._retry_topic,
             )
 
-    async def _handle_dlq_event(self, *, event: ConsumerEvent) -> None:
-        """Process an event from the dead-letter queue.
+    async def _handle_dlq_event_manual(
+        self,
+        *,
+        event: ConsumerEvent,
+        override: ExtractedEventInfo,
+    ) -> None:
+        """Manually resolve an event from the dead-letter queue by directly publishing
+        a user-supplied event to the retry topic. This will bypass `_process_dlq_event`,
+        but still run the basic validation.
 
-        The event is processed by `_process_dlq_event`, which validates the event
-        and determines whether to publish it to the retry topic or discard it.
+        Raises:
+        - `DLQValidationError`: If the DLQ event headers are invalid
+        """
+        # Check headers of the DLQ event itself
+        validate_dlq_headers(event)
+        dlq_event = ExtractedEventInfo(event)
+
+        # Correlation ID should match the original event -- if not, we might be using
+        # the wrong data to resolve the DLQ event (e.g. copy/paste error)
+        if dlq_event.headers["correlation_id"] != override.headers["correlation_id"]:
+            msg = (
+                "Cannot manually resolve DLQ event due to correlation ID mismatch.\n"
+                + f"User-supplied event ID: {override.headers['correlation_id']}\n"
+                + f"DLQ event ID: {dlq_event.headers['correlation_id']}"
+            )
+            raise RuntimeError(msg)
+
+        # If all good, publish the user-supplied event to the retry topic
+        await self._publish_to_retry(event=override)
+
+    async def _handle_dlq_event_automatic(self, *, event: ConsumerEvent) -> None:
+        """Automatically process an event from the dead-letter queue. This will run
+        the event through the `_process_dlq_event` function and publish the result to
+        the retry topic.
         """
         try:
             event_to_publish = await self._process_dlq_event(event)
@@ -776,17 +803,26 @@ class KafkaDLQSubscriber:
 
         return [ExtractedEventInfo(event) for event in events]
 
-    async def process(self) -> None:
+    async def process(self, override: Optional[ExtractedEventInfo] = None) -> None:
         """Process the next event from the configured DLQ topic.
 
         Validate and resolve the event based on custom logic, if applicable.
+
+        Args
+        - `override`: An optional `ExtractedEventInfo` instance to use in place of the
+            next event from the DLQ topic. This is useful for manually resolving the
+            next event instead of letting the processor handle it automatically.
         """
         events = await self._get_events_from_dlq(max_records=1)
         if not events:
             return
         event = events[0]
+
         try:
-            await self._handle_dlq_event(event=event)
+            if override:
+                await self._handle_dlq_event_manual(event=event, override=override)
+            else:
+                await self._handle_dlq_event_automatic(event=event)
             await self._consumer.commit()
         except Exception as exc:
             error = DLQProcessingError(event=event, reason=str(exc))
