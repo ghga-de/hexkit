@@ -51,6 +51,7 @@ from tests.fixtures.utils import (
     caplog_debug_fixture,  # noqa: F401
 )
 
+pytestmark = pytest.mark.asyncio()
 DEFAULT_SERVICE_NAME = "test_publisher"  # see KafkaConfig instance in akafka.testutils
 TEST_TOPIC = "test-topic"
 TEST_TYPE = "test_type"
@@ -215,7 +216,7 @@ def make_config(
 
 
 @pytest.mark.parametrize("max_retries", [-1, 0, 1])
-def test_config_validation(max_retries: int):
+async def test_config_validation(max_retries: int):
     """Test for config validation.
 
     Errors should occur:
@@ -225,7 +226,6 @@ def test_config_validation(max_retries: int):
         make_config(max_retries=max_retries)
 
 
-@pytest.mark.asyncio()
 async def test_original_topic_is_preserved(kafka: KafkaFixture):
     """Ensure the original topic is preserved when it comes back to the subscriber.
 
@@ -251,7 +251,7 @@ async def test_original_topic_is_preserved(kafka: KafkaFixture):
         await event_subscriber.run(forever=False)
 
         # Run the DLQ subscriber, telling it to publish the event to the retry topic
-        async with KafkaDLQSubscriber.construct(
+        async with KafkaDLQSubscriber(
             config=config, dlq_topic=TEST_DLQ_TOPIC, dlq_publisher=kafka.publisher
         ) as dlq_subscriber:
             await dlq_subscriber.process()
@@ -267,7 +267,6 @@ async def test_original_topic_is_preserved(kafka: KafkaFixture):
     assert translator.successes == [TEST_EVENT]
 
 
-@pytest.mark.asyncio()
 async def test_invalid_retries_left(kafka: KafkaFixture, caplog_debug):
     """Ensure that the proper error is raised when retries_left is invalid."""
     config = make_config(kafka.config, max_retries=2)
@@ -298,7 +297,6 @@ async def test_invalid_retries_left(kafka: KafkaFixture, caplog_debug):
 
 @pytest.mark.parametrize("max_retries", [0, 1, 2])
 @pytest.mark.parametrize("enable_dlq", [True, False])
-@pytest.mark.asyncio()
 async def test_retries_exhausted(
     kafka: KafkaFixture, max_retries: int, enable_dlq: bool, caplog_debug
 ):
@@ -385,7 +383,6 @@ async def test_retries_exhausted(
         assert parsed_log.endswith("(DLQ is disabled)")
 
 
-@pytest.mark.asyncio()
 async def test_send_to_retry(kafka: KafkaFixture, caplog_debug):
     """Ensure the event is sent to the retry topic when the DLQ subscriber is instructed
     to do so. This would occur in whatever service or app is resolving DLQ events.
@@ -396,7 +393,7 @@ async def test_send_to_retry(kafka: KafkaFixture, caplog_debug):
 
     # Set up dummies and consume the event with the DLQ Subscriber
     dummy_publisher = DummyPublisher()
-    async with KafkaDLQSubscriber.construct(
+    async with KafkaDLQSubscriber(
         config=config, dlq_topic=TEST_DLQ_TOPIC, dlq_publisher=dummy_publisher
     ) as dlq_subscriber:
         assert not dummy_publisher.published
@@ -419,7 +416,6 @@ async def test_send_to_retry(kafka: KafkaFixture, caplog_debug):
     assert dummy_publisher.published == [dlq_event]
 
 
-@pytest.mark.asyncio()
 async def test_consume_retry_without_og_topic(kafka: KafkaFixture, caplog_debug):
     """If the original topic is missing when consuming an event from the retry queue,
     the event should be ignored and the offset committed. The information should be logged.
@@ -460,7 +456,6 @@ async def test_consume_retry_without_og_topic(kafka: KafkaFixture, caplog_debug)
         assert parsed_log.endswith("errors: topic is empty")
 
 
-@pytest.mark.asyncio()
 async def test_dlq_subscriber_ignore(kafka: KafkaFixture, caplog_debug):
     """Test what happens when a DLQ Subscriber is instructed to ignore an event."""
     config = make_config(kafka.config)
@@ -479,7 +474,7 @@ async def test_dlq_subscriber_ignore(kafka: KafkaFixture, caplog_debug):
 
     # Set up dummies and consume the event with the DLQ Subscriber
     dummy_publisher = DummyPublisher()
-    async with KafkaDLQSubscriber.construct(
+    async with KafkaDLQSubscriber(
         config=config, dlq_topic=TEST_DLQ_TOPIC, dlq_publisher=dummy_publisher
     ) as dlq_subscriber:
         assert not dummy_publisher.published
@@ -499,7 +494,6 @@ async def test_dlq_subscriber_ignore(kafka: KafkaFixture, caplog_debug):
     assert not dummy_publisher.published
 
 
-@pytest.mark.asyncio()
 async def test_no_retries_no_dlq_original_error(kafka: KafkaFixture, caplog_debug):
     """Test that not using the DLQ and configuring 0 retries results in failures that
     propagate the underlying error to the provider.
@@ -541,7 +535,6 @@ async def test_no_retries_no_dlq_original_error(kafka: KafkaFixture, caplog_debu
 
 
 @pytest.mark.parametrize("event_type", ["upserted", "deleted"])
-@pytest.mark.asyncio()
 async def test_outbox_with_dlq(kafka: KafkaFixture, event_type: str):
     """Ensure that the DLQ lifecycle works with the KafkaOutboxSubscriber."""
     config = make_config(kafka.config)
@@ -566,7 +559,7 @@ async def test_outbox_with_dlq(kafka: KafkaFixture, event_type: str):
 
         # Consume event from the DLQ topic, publish to retry topic
         dlq_topic = f"users.{config.service_name}-dlq"
-        async with KafkaDLQSubscriber.construct(
+        async with KafkaDLQSubscriber(
             config=config, dlq_topic=dlq_topic, dlq_publisher=kafka.publisher
         ) as dlq_subscriber:
             await dlq_subscriber.process()
@@ -579,7 +572,6 @@ async def test_outbox_with_dlq(kafka: KafkaFixture, event_type: str):
         assert list_to_check == [event] if event_type == "upserted" else [event.key]
 
 
-@pytest.mark.asyncio
 async def test_kafka_event_subscriber_construction(caplog):
     """Test construction of the KafkaEventSubscriber, ensuring an error is raised if
     the DLQ is enabled but no provider is used.
@@ -603,7 +595,6 @@ async def test_kafka_event_subscriber_construction(caplog):
 @pytest.mark.parametrize(
     "validation_error", [True, False], ids=["validation_error", "no_validation_error"]
 )
-@pytest.mark.asyncio
 async def test_default_dlq_processor(
     kafka: KafkaFixture, caplog, validation_error: bool
 ):
@@ -619,7 +610,7 @@ async def test_default_dlq_processor(
         await kafka.publish_event(**vars(event))
 
     dummy_publisher = DummyPublisher()
-    async with KafkaDLQSubscriber.construct(
+    async with KafkaDLQSubscriber(
         config=config, dlq_topic=TEST_DLQ_TOPIC, dlq_publisher=dummy_publisher
     ) as dlq_subscriber:
         assert not dummy_publisher.published
@@ -636,7 +627,6 @@ async def test_default_dlq_processor(
 @pytest.mark.parametrize(
     "processing_error", [True, False], ids=["processing_error", "no_processing_error"]
 )
-@pytest.mark.asyncio
 async def test_custom_dlq_processors(kafka: KafkaFixture, processing_error: bool):
     """Test that a custom DLQ processor can be used with the KafkaDLQSubscriber."""
 
@@ -662,7 +652,7 @@ async def test_custom_dlq_processors(kafka: KafkaFixture, processing_error: bool
 
     # Create custom processor instance and consume with the KafkaDLQSubscriber
     custom_processor = CustomDLQProcessor()
-    async with KafkaDLQSubscriber.construct(
+    async with KafkaDLQSubscriber(
         config=config,
         dlq_topic=TEST_DLQ_TOPIC,
         dlq_publisher=DummyPublisher(),
@@ -678,7 +668,6 @@ async def test_custom_dlq_processors(kafka: KafkaFixture, processing_error: bool
         assert event == TEST_DLQ_EVENT
 
 
-@pytest.mark.asyncio()
 async def test_preview_repeatability(kafka: KafkaFixture):
     """Make sure the preview functionality works as expected.
     Also make sure that previewing events doesn't impact the offset of the
@@ -697,7 +686,7 @@ async def test_preview_repeatability(kafka: KafkaFixture):
 
     # Set up the DLQ Subscriber and preview/process the events
     dummy_publisher = DummyPublisher()
-    async with KafkaDLQSubscriber.construct(
+    async with KafkaDLQSubscriber(
         config=config, dlq_topic=TEST_DLQ_TOPIC, dlq_publisher=dummy_publisher
     ) as dlq_sub:
         assert not dummy_publisher.published
@@ -723,7 +712,6 @@ async def test_preview_repeatability(kafka: KafkaFixture):
 
 
 @pytest.mark.parametrize("event_published", [True, False])
-@pytest.mark.asyncio()
 async def test_preview_when_limit_exceeds_available_records(
     kafka: KafkaFixture, event_published: bool
 ):
@@ -736,7 +724,7 @@ async def test_preview_when_limit_exceeds_available_records(
 
     # Set up the DLQ Subscriber and preview the events
     dummy_publisher = DummyPublisher()
-    async with KafkaDLQSubscriber.construct(
+    async with KafkaDLQSubscriber(
         config=config, dlq_topic=TEST_DLQ_TOPIC, dlq_publisher=dummy_publisher
     ) as dlq_sub:
         assert not dummy_publisher.published
@@ -747,7 +735,6 @@ async def test_preview_when_limit_exceeds_available_records(
         assert results == [] if event_published else [TEST_DLQ_EVENT]
 
 
-@pytest.mark.asyncio()
 async def test_preview_pagination(kafka: KafkaFixture):
     """Test that the preview pagination works as expected."""
     config = make_config(kafka.config)
@@ -762,7 +749,7 @@ async def test_preview_pagination(kafka: KafkaFixture):
         await kafka.publisher.publish(**vars(dlq_event2))
 
     # spin up the DLQ subscribers and preview events
-    async with KafkaDLQSubscriber.construct(
+    async with KafkaDLQSubscriber(
         config=config, dlq_topic=TEST_DLQ_TOPIC, dlq_publisher=DummyPublisher()
     ) as dlq_subscriber:
         results1 = await dlq_subscriber.preview()
@@ -775,7 +762,6 @@ async def test_preview_pagination(kafka: KafkaFixture):
         assert not results3
 
 
-@pytest.mark.asyncio()
 async def test_empty_dlq_timeout(kafka: KafkaFixture):
     """Test that fetching from an empty DLQ topic does not hang.
 
@@ -787,7 +773,7 @@ async def test_empty_dlq_timeout(kafka: KafkaFixture):
     async def custom_processor(event: ConsumerEvent) -> Optional[ExtractedEventInfo]:
         raise RuntimeError("This should not be called.")
 
-    async with KafkaDLQSubscriber.construct(
+    async with KafkaDLQSubscriber(
         config=config,
         dlq_topic=TEST_DLQ_TOPIC,
         dlq_publisher=DummyPublisher(),
@@ -819,7 +805,7 @@ async def test_process_override(kafka: KafkaFixture):
     dummy_publisher = DummyPublisher()
 
     # Create the DLQ subscriber and manually resolve the DLQ event
-    async with KafkaDLQSubscriber.construct(
+    async with KafkaDLQSubscriber(
         config=config,
         dlq_topic=TEST_DLQ_TOPIC,
         dlq_publisher=dummy_publisher,
@@ -856,11 +842,15 @@ async def test_process_override_different_cid(kafka: KafkaFixture):
     )
 
     # Create the DLQ subscriber and manually resolve the DLQ event, expecting an error
-    msg = "Cannot manually resolve DLQ event because the correlation ID doesn't match."
-    async with KafkaDLQSubscriber.construct(
+    msg = (
+        "Cannot manually resolve DLQ event due to correlation ID mismatch."
+        + f"\nExpected {TEST_CORRELATION_ID} but user gave {headers['correlation_id']}"
+    )
+    async with KafkaDLQSubscriber(
         config=config,
         dlq_topic=TEST_DLQ_TOPIC,
         dlq_publisher=DummyPublisher(),
     ) as dlq_subscriber:
-        with pytest.raises(ValueError, match=msg):
+        with pytest.raises(DLQProcessingError) as err:
             await dlq_subscriber.process(override=override_event)
+        assert err.exconly().endswith(msg)
