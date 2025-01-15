@@ -566,10 +566,8 @@ class KafkaDLQSubscriber:
     DLQEventProcessor definition.
     """
 
-    @classmethod
-    @asynccontextmanager
-    async def construct(  # noqa: PLR0913
-        cls,
+    def __init__(  # noqa: PLR0913
+        self,
         *,
         config: KafkaConfig,
         dlq_topic: str,
@@ -628,48 +626,6 @@ class KafkaDLQSubscriber:
             max_partition_fetch_bytes=config.kafka_max_message_size,
         )
 
-        await consumer.start()
-        try:
-            yield cls(
-                dlq_topic=dlq_topic,
-                dlq_publisher=dlq_publisher,
-                consumer=consumer,
-                process_dlq_event=process_dlq_event,
-                timeout_ms=timeout_ms,
-            )
-        finally:
-            await consumer.stop()
-
-    def __init__(
-        self,
-        *,
-        dlq_topic: str,
-        dlq_publisher: EventPublisherProtocol,
-        consumer: KafkaConsumerCompatible,
-        process_dlq_event: DLQEventProcessor,
-        timeout_ms: int,
-    ):
-        """Please do not call directly! Should be called by the `construct` method.
-
-        Args:
-        - `dlq_topic`:
-            The name of the DLQ topic to subscribe to. Has the format
-            "{original_topic}.{service_name}-dlq".
-        - `dlq_publisher`:
-            A running instance of a publishing provider that implements the
-            EventPublisherProtocol, such as KafkaEventPublisher.
-        - `consumer`:
-            hands over a started AIOKafkaConsumer.
-        - `process_dlq_event`:
-            An async callable adhering to the DLQEventProcessor definition that provides
-            validation and processing for events from the DLQ. It should return _either_
-            the event to publish to the retry topic (which may be altered) or `None` to
-            discard the event. The `KafkaDLQSubscriber` will log and interpret
-            `DLQValidationError` as a signal to discard/ignore the event, and all other
-            errors will be re-raised as a `DLQProcessingError`.
-        - `timeout_ms`:
-            The maximum time in milliseconds to spend reading from the DLQ topic.
-        """
         self._consumer = consumer
         self._publisher = dlq_publisher
         self._dlq_topic = dlq_topic
@@ -682,6 +638,23 @@ class KafkaDLQSubscriber:
         service_name = service_name_from_dlq_topic(dlq_topic)
         self._retry_topic = service_name + "-retry"
         self._process_dlq_event = process_dlq_event
+
+    async def __aenter__(self) -> "KafkaDLQSubscriber":
+        """Start consuming events from the DLQ topic."""
+        await self.start()
+        return self
+
+    async def __aexit__(self, *args) -> None:
+        """Stop consuming events from the DLQ topic."""
+        await self.stop()
+
+    async def start(self) -> None:
+        """Start consuming events from the DLQ topic."""
+        await self._consumer.start()
+
+    async def stop(self) -> None:
+        """Stop consuming events from the DLQ topic."""
+        await self._consumer.stop()
 
     async def _publish_to_retry(self, *, event: ExtractedEventInfo) -> None:
         """Publish the event to the retry topic."""
@@ -722,9 +695,9 @@ class KafkaDLQSubscriber:
         # the wrong data to resolve the DLQ event (e.g. copy/paste error)
         if dlq_event.headers["correlation_id"] != override.headers["correlation_id"]:
             msg = (
-                "Cannot manually resolve DLQ event due to correlation ID mismatch.\n"
-                + f"User-supplied event ID: {override.headers['correlation_id']}\n"
-                + f"DLQ event ID: {dlq_event.headers['correlation_id']}"
+                "Cannot manually resolve DLQ event due to correlation ID mismatch."
+                + f"\nExpected {dlq_event.headers['correlation_id']} but"
+                + f" got {override.headers['correlation_id']}"
             )
             raise RuntimeError(msg)
 
