@@ -696,8 +696,8 @@ class KafkaDLQSubscriber:
         if dlq_event.headers["correlation_id"] != override.headers["correlation_id"]:
             msg = (
                 "Cannot manually resolve DLQ event due to correlation ID mismatch."
-                + f"\nExpected {dlq_event.headers['correlation_id']} but user"
-                + f" gave {override.headers['correlation_id']}"
+                + f"\nExpected {dlq_event.headers['correlation_id']} but"
+                + f" got {override.headers['correlation_id']}"
             )
             raise RuntimeError(msg)
 

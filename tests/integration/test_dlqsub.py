@@ -844,7 +844,7 @@ async def test_process_override_different_cid(kafka: KafkaFixture):
     # Create the DLQ subscriber and manually resolve the DLQ event, expecting an error
     msg = (
         "Cannot manually resolve DLQ event due to correlation ID mismatch."
-        + f"\nExpected {TEST_CORRELATION_ID} but user gave {headers['correlation_id']}"
+        + f"\nExpected {TEST_CORRELATION_ID} but got {headers['correlation_id']}"
     )
     async with KafkaDLQSubscriber(
         config=config,
