@@ -92,12 +92,9 @@ def service_name_from_dlq_topic(dlq_topic: str) -> str:
     return dlq_topic.rsplit(".", 1)[1].removesuffix("-dlq")
 
 
-def get_event_label(event: ConsumerEvent) -> str:
+def get_event_id(event: ConsumerEvent) -> str:
     """Make a label that identifies an event."""
-    return (
-        f"{event.topic} - {event.partition} - {event.key} - {event.offset}"
-        + " (topic-partition-key-offset)"
-    )
+    return f"{event.topic} - {event.partition} - {event.offset}"
 
 
 def headers_as_dict(event: ConsumerEvent) -> dict[str, str]:
@@ -288,7 +285,9 @@ class KafkaEventSubscriber(InboundProviderBase):
         self._enable_dlq = config.kafka_enable_dlq
         self._retry_backoff = config.kafka_retry_backoff
 
-    async def _publish_to_dlq(self, *, event: ExtractedEventInfo, exc: Exception):
+    async def _publish_to_dlq(
+        self, *, event: ExtractedEventInfo, exc: Exception, event_id: str
+    ):
         """Publish the event to the corresponding DLQ topic.
 
         The exception instance is included in the headers, but is split into the class
@@ -297,6 +296,8 @@ class KafkaEventSubscriber(InboundProviderBase):
         Args
         - `event`: The event to publish to the DLQ.
         - `exc`: The exception that caused the event to be published to the DLQ.
+        - `event_id`: The topic, partition, and offset of the failed event. Uses the
+            format "topic - partition - offset".
         """
         dlq_topic = event.topic + self._dlq_suffix
         logging.debug("About to publish an event to DLQ topic '%s'", dlq_topic)
@@ -308,6 +309,7 @@ class KafkaEventSubscriber(InboundProviderBase):
             headers={
                 EXC_CLASS_FIELD: exc.__class__.__name__,
                 EXC_MSG_FIELD: str(exc),
+                "event_id": event_id,
             },
         )
         logging.info("Published event to DLQ topic '%s'", dlq_topic)
@@ -359,7 +361,7 @@ class KafkaEventSubscriber(InboundProviderBase):
                     event_type=event.type_, max_retries=self._max_retries
                 ) from err
 
-    async def _handle_consumption(self, *, event: ExtractedEventInfo):
+    async def _handle_consumption(self, *, event: ExtractedEventInfo, event_id: str):
         """Try to pass the event to the consumer.
 
         If the event fails:
@@ -368,6 +370,9 @@ class KafkaEventSubscriber(InboundProviderBase):
            or
         3. Allow failure with unhandled error if the DLQ is not enabled. This is the
            pre-DLQ behavior.
+
+        In the case that the event is published to the DLQ topic, the event ID will be
+        added as a header to aid in debugging.
         """
         try:
             await self._translator.consume(
@@ -387,7 +392,9 @@ class KafkaEventSubscriber(InboundProviderBase):
             if not self._max_retries:
                 if not self._enable_dlq:
                     raise  # re-raise Exception
-                await self._publish_to_dlq(event=event, exc=underlying_error)
+                await self._publish_to_dlq(
+                    event=event, exc=underlying_error, event_id=event_id
+                )
                 return
 
             # Don't raise RetriesExhaustedError unless retries are actually attempted
@@ -400,7 +407,9 @@ class KafkaEventSubscriber(InboundProviderBase):
                 logging.warning(retry_error)
                 if not self._enable_dlq:
                     raise retry_error from underlying_error
-                await self._publish_to_dlq(event=event, exc=underlying_error)
+                await self._publish_to_dlq(
+                    event=event, exc=underlying_error, event_id=event_id
+                )
 
     def _extract_info(self, event: ConsumerEvent) -> ExtractedEventInfo:
         """Validate the event, returning the extracted info."""
@@ -451,7 +460,7 @@ class KafkaEventSubscriber(InboundProviderBase):
 
     async def _consume_event(self, event: ConsumerEvent) -> None:
         """Consume an event by passing it down to the translator via the protocol."""
-        event_label = get_event_label(event)
+        event_id = get_event_id(event)
         event_info = self._extract_info(event)
 
         try:
@@ -460,7 +469,7 @@ class KafkaEventSubscriber(InboundProviderBase):
             logging.info(
                 "Ignored event of type '%s': %s, errors: %s",
                 event_info.type_,
-                event_label,
+                event_id,
                 str(err),
             )
             # Always acknowledge event receipt for ignored events
@@ -468,12 +477,10 @@ class KafkaEventSubscriber(InboundProviderBase):
             return
 
         try:
-            logging.info(
-                "Consuming event of type '%s': %s", event_info.type_, event_label
-            )
+            logging.info("Consuming event of type '%s': %s", event_info.type_, event_id)
             correlation_id = event_info.headers["correlation_id"]
             async with set_correlation_id(correlation_id):
-                await self._handle_consumption(event=event_info)
+                await self._handle_consumption(event=event_info, event_id=event_id)
         except Exception:
             # Errors only bubble up here if the DLQ isn't used
             dlq_topic = event_info.topic + self._dlq_suffix
@@ -481,7 +488,7 @@ class KafkaEventSubscriber(InboundProviderBase):
                 "An error occurred while processing event of type '%s': %s. It was NOT"
                 " placed in the DLQ topic (%s)",
                 event_info.type_,
-                event_label,
+                event_id,
                 dlq_topic if self._enable_dlq else "DLQ is disabled",
             )
             raise
@@ -511,7 +518,7 @@ class DLQValidationError(RuntimeError):
     """Raised when an event from the DLQ fails validation."""
 
     def __init__(self, *, event: ConsumerEvent, reason: str):
-        msg = f"DLQ Event '{get_event_label(event)}' is invalid: {reason}"
+        msg = f"DLQ Event '{get_event_id(event)}' is invalid: {reason}"
         super().__init__(msg)
 
 
@@ -519,7 +526,7 @@ class DLQProcessingError(RuntimeError):
     """Raised when an error occurs while processing an event from the DLQ."""
 
     def __init__(self, *, event: ConsumerEvent, reason: str):
-        msg = f"DLQ Event '{get_event_label(event)}' cannot be processed: {reason}"
+        msg = f"DLQ Event '{get_event_id(event)}' cannot be processed: {reason}"
         super().__init__(msg)
 
 
@@ -734,7 +741,7 @@ class KafkaDLQSubscriber:
         """Directly ignore the next event from the DLQ topic."""
         events = await self._get_events_from_dlq(max_records=1)
         if events:
-            event_label = get_event_label(events[0])
+            event_label = get_event_id(events[0])
             logging.info(
                 "Ignoring event from DLQ topic '%s': %s",
                 self._dlq_topic,
