@@ -364,8 +364,17 @@ async def test_retries_exhausted(
 
     # Verify that the event was sent to the DLQ topic just once and that it has
     # the original topic field appended
-    expected_published = [failed_event] if enable_dlq else []
-    assert dummy_publisher.published == expected_published
+    if enable_dlq:
+        assert dummy_publisher.published
+        assert "event_id" in dummy_publisher.published[0].headers
+        event_id = dummy_publisher.published[0].headers.pop("event_id")
+        topic, partition, offset = event_id.split(" - ")
+        assert topic == TEST_EVENT.topic
+        assert partition.isnumeric()
+        assert offset.isnumeric()
+        assert dummy_publisher.published == [failed_event]
+    else:
+        assert not dummy_publisher.published
     if enable_dlq:
         assert_logged(
             "INFO",
