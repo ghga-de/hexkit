@@ -790,6 +790,8 @@ class KafkaDLQSubscriber:
             return [ExtractedEventInfo(event) for event in events]
 
     class _PublishingInterceptor:
+        """A mock object to intercept the call to `self._publisher.publish()`."""
+
         def __init__(self):
             self.intercepted: Optional[ExtractedEventInfo] = None
 
@@ -802,6 +804,7 @@ class KafkaDLQSubscriber:
             topic: Ascii,
             headers: Mapping[str, str],
         ) -> None:
+            """Store the intercepted event data as an ExtractedEventInfo instance."""
             self.intercepted = ExtractedEventInfo(
                 payload=payload,
                 type_=type_,
@@ -816,14 +819,14 @@ class KafkaDLQSubscriber:
     ):
         """Intercept the call to `self._publisher.publish()`.
 
-        This context manager will replace the publish method with a mock if
+        This context manager will replace the publish method with `interceptor` if
         `test_only` is `True`.
 
         Args:
-        - `test_only`: If `True`, the publish method will be replaced with a mock that
+        - `test_only`: If `True`, the publish method will be patched with a class that
             captures the published event while maintaining the current offsets.
             This is useful for testing the output of `.process()` without actually
-            publishing to the retry topic/moving the offsets forward.
+            publishing to the retry topic or moving the offsets forward.
             If `False`, the original publish method will be used and offsets committed.
         - `interceptor`: The mock object to use in place of the publisher.
         """
@@ -852,7 +855,7 @@ class KafkaDLQSubscriber:
             next event instead of letting the processor handle it automatically.
         - `test_only`: If `True`, the event will be processed but not published to the
             retry topic. This is useful for double-checking that what would be published
-            matches the expected output.
+            matches the expected output. Offsets will not be committed, like in preview.
         """
         try:
             # Create an interceptor to capture the event that would be published
