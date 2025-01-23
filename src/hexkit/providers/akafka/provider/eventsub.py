@@ -25,7 +25,7 @@ import asyncio
 import json
 import logging
 import ssl
-from collections.abc import Awaitable
+from collections.abc import Awaitable, Mapping
 from contextlib import asynccontextmanager, suppress
 from dataclasses import dataclass
 from typing import Callable, Literal, Optional, Protocol, TypeVar, cast
@@ -749,17 +749,9 @@ class KafkaDLQSubscriber:
             )
             await self._consumer.commit()
 
-    async def preview(self, limit: int = 1, skip: int = 0) -> list[ExtractedEventInfo]:
-        """Fetch the next events from the configured DLQ topic without processing them.
-
-        Offsets are reset to their original positions after fetching. The pagination
-        parameters 'skip' and 'limit' can be used to control the number of events
-        returned and from how deep in the topic to start fetching.
-
-        Args
-        - `limit`: The maximum number of events to fetch.
-        - `skip`: The number of events to skip before fetching.
-        """
+    @asynccontextmanager
+    async def _keep_current_offsets(self):
+        """Context manager to keep the current offsets of the DLQ topic."""
         topic_partitions = [
             topic_partition
             for topic_partition in self._consumer.assignment()  # type: ignore
@@ -773,17 +765,83 @@ class KafkaDLQSubscriber:
             for topic_partition in topic_partitions
         }
 
-        max_records = limit + skip
-        events = await self._get_events_from_dlq(max_records=max_records)
-        events = events[skip:]
+        try:
+            yield
+        finally:
+            # Reset the consumer to the original offsets
+            for partition, offset in positions.items():
+                self._consumer.seek(partition, offset)  # type: ignore
 
-        # Reset the consumer to the original offsets
-        for partition, offset in positions.items():
-            self._consumer.seek(partition, offset)  # type: ignore
+    async def preview(self, limit: int = 1, skip: int = 0) -> list[ExtractedEventInfo]:
+        """Fetch the next events from the configured DLQ topic without processing them.
 
-        return [ExtractedEventInfo(event) for event in events]
+        Offsets are reset to their original positions after fetching. The pagination
+        parameters 'skip' and 'limit' can be used to control the number of events
+        returned and from how deep in the topic to start fetching.
 
-    async def process(self, override: Optional[ExtractedEventInfo] = None) -> None:
+        Args
+        - `limit`: The maximum number of events to fetch.
+        - `skip`: The number of events to skip before fetching.
+        """
+        async with self._keep_current_offsets():
+            max_records = limit + skip
+            events = await self._get_events_from_dlq(max_records=max_records)
+            events = events[skip:]
+            return [ExtractedEventInfo(event) for event in events]
+
+    class _PublishingInterceptor:
+        def __init__(self):
+            self.intercepted: Optional[ExtractedEventInfo] = None
+
+        async def __call__(
+            self,
+            *,
+            payload: JsonObject,
+            type_: Ascii,
+            key: Ascii,
+            topic: Ascii,
+            headers: Mapping[str, str],
+        ) -> None:
+            self.intercepted = ExtractedEventInfo(
+                payload=payload,
+                type_=type_,
+                key=key,
+                topic=topic,
+                headers=headers,
+            )
+
+    @asynccontextmanager
+    async def _conditional_intercept(
+        self, *, test_only: bool, interceptor: _PublishingInterceptor
+    ):
+        """Intercept the call to `self._publisher.publish()`.
+
+        This context manager will replace the publish method with a mock if
+        `test_only` is `True`.
+
+        Args:
+        - `test_only`: If `True`, the publish method will be replaced with a mock that
+            captures the published event while maintaining the current offsets.
+            This is useful for testing the output of `.process()` without actually
+            publishing to the retry topic/moving the offsets forward.
+            If `False`, the original publish method will be used and offsets committed.
+        - `interceptor`: The mock object to use in place of the publisher.
+        """
+        if test_only:
+            original_publish = self._publisher.publish
+            self._publisher.publish = interceptor  # type: ignore
+            try:
+                async with self._keep_current_offsets():
+                    yield
+            finally:
+                self._publisher.publish = original_publish  # type: ignore
+        else:
+            yield
+            await self._consumer.commit()
+
+    async def process(
+        self, *, override: Optional[ExtractedEventInfo] = None, test_only: bool = False
+    ) -> Optional[ExtractedEventInfo]:
         """Process the next event from the configured DLQ topic.
 
         Validate and resolve the event based on custom logic, if applicable.
@@ -792,21 +850,32 @@ class KafkaDLQSubscriber:
         - `override`: An optional `ExtractedEventInfo` instance to use in place of the
             next event from the DLQ topic. This is useful for manually resolving the
             next event instead of letting the processor handle it automatically.
+        - `test_only`: If `True`, the event will be processed but not published to the
+            retry topic. This is useful for double-checking that what would be published
+            matches the expected output.
         """
-        events = await self._get_events_from_dlq(max_records=1)
-        if not events:
-            return
-        event = events[0]
-
         try:
-            if override:
-                await self._handle_dlq_event_manual(event=event, override=override)
-            else:
-                await self._handle_dlq_event_automatic(event=event)
-            await self._consumer.commit()
+            # Create an interceptor to capture the event that would be published
+            interceptor = self._PublishingInterceptor()
+            async with self._conditional_intercept(
+                test_only=test_only, interceptor=interceptor
+            ):
+                events = await self._get_events_from_dlq(max_records=1)
+                if not events:
+                    return None
+                event = events[0]
+
+                if override:
+                    await self._handle_dlq_event_manual(event=event, override=override)
+                else:
+                    await self._handle_dlq_event_automatic(event=event)
+
+            # Return the event that would have been published or just None
+            return interceptor.intercepted if test_only else None
+
         except Exception as exc:
             error = DLQProcessingError(event=event, reason=str(exc))
-            logging.critical(
+            logging.error(
                 "Failed to process event from DLQ topic '%s': '%s'",
                 self._dlq_topic,
                 exc,

@@ -832,6 +832,44 @@ async def test_process_override(kafka: KafkaFixture):
     assert dummy_publisher.published == [expected_published_event]
 
 
+@pytest.mark.asyncio()
+async def test_process_test_only(kafka: KafkaFixture):
+    """Ensure `process` doesn't actually publish the event if `test_only` is True.
+
+    Offsets should not be committed.
+    The event that would have been published should be returned.
+    """
+    config = make_config(kafka.config)
+
+    # Publish an event to the dlq topic
+    async with set_correlation_id(TEST_CORRELATION_ID):
+        await kafka.publisher.publish(**vars(TEST_DLQ_EVENT))
+
+    dummy_publisher = DummyPublisher()
+    # Create the DLQ subscriber and manually resolve the DLQ event
+    async with KafkaDLQSubscriber(
+        config=config,
+        dlq_topic=TEST_DLQ_TOPIC,
+        dlq_publisher=dummy_publisher,
+    ) as dlq_subscriber:
+        # Verify the event is in the DLQ topic
+        assert len(await dlq_subscriber.preview()) == 1
+
+        # Process the event with `test_only` to see what would be published to the retry topic
+        test_result = await dlq_subscriber.process(test_only=True)
+        assert test_result is not None
+
+        # Verify that it wasn't actually published and the offset not committed
+        assert not dummy_publisher.published
+        assert len(await dlq_subscriber.preview()) == 1
+
+        # Process/publish the event for real and verify that it matches what we expected
+        await dlq_subscriber.process()
+        assert len(await dlq_subscriber.preview()) == 0
+        assert len(dummy_publisher.published) == 1
+        assert test_result == dummy_publisher.published[0]
+
+
 async def test_process_override_different_cid(kafka: KafkaFixture):
     """Verify that the KafkaDLQProcessor prevents a user-supplied event from being
     published to the retry topic if the correlation ID does not match the one from
