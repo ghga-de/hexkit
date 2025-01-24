@@ -696,7 +696,7 @@ class KafkaDLQSubscriber:
 
     async def _handle_dlq_event_manual(
         self, *, event: ConsumerEvent, override: ExtractedEventInfo, dry_run: bool
-    ) -> ExtractedEventInfo:
+    ) -> Optional[ExtractedEventInfo]:
         """Manually resolve an event from the dead-letter queue by directly publishing
         a user-supplied event to the retry topic. This will bypass `_process_dlq_event`,
         but still run the basic validation.
@@ -722,7 +722,10 @@ class KafkaDLQSubscriber:
             raise RuntimeError(msg)
 
         # If all good, publish the user-supplied event to the retry topic
-        return await self._publish_to_retry(event=override, dry_run=dry_run)
+        publish_result = await self._publish_to_retry(event=override, dry_run=dry_run)
+
+        # Only return `result` if doing a dry run, otherwise just return None
+        return publish_result if dry_run else None
 
     async def _handle_dlq_event_automatic(
         self, *, event: ConsumerEvent, dry_run: bool
@@ -731,17 +734,18 @@ class KafkaDLQSubscriber:
         the event through the `_process_dlq_event` function and publish the result to
         the retry topic.
         """
-        result = None
         try:
             event_to_publish = await self._process_dlq_event(event)
             if event_to_publish:
                 result = await self._publish_to_retry(
                     event=event_to_publish, dry_run=dry_run
                 )
+            # Only return `result` if doing a dry run, otherwise just return None
+            return result if dry_run else None
         except DLQValidationError as err:
             txt = "Would have ignored" if dry_run else "Ignoring"
             logging.error("%s event from DLQ due to validation failure: %s", txt, err)
-        return result
+            return None
 
     async def ignore(self) -> None:
         """Directly ignore the next event from the DLQ topic."""
@@ -834,7 +838,6 @@ class KafkaDLQSubscriber:
             retry topic. This is useful for double-checking that what would be published
             matches the expected output. Offsets will not be committed, like in preview.
         """
-        result = None
         commit = not dry_run
 
         async with self._get_events(max_records=1, commit_offsets=commit) as events:
@@ -852,6 +855,7 @@ class KafkaDLQSubscriber:
                         event=event, dry_run=dry_run
                     )
                 )
+                return result
             except Exception as exc:
                 error = DLQProcessingError(event=event, reason=str(exc))
                 logging.error(
@@ -860,6 +864,3 @@ class KafkaDLQSubscriber:
                     exc,
                 )
                 raise error from exc
-
-        # Only return `result` if doing a dry run, otherwise just return None
-        return result if dry_run else None
