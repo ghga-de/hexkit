@@ -630,7 +630,8 @@ async def test_default_dlq_processor(
     if validation_error:
         assert len(caplog.records) > 0  # could be more, but should be at least 1
         log = caplog.records[0]
-        assert log.msg.startswith("Ignoring event from DLQ due to validation failure:")
+        expected_log = "Ignoring event from DLQ due to validation failure:"
+        assert log.getMessage().startswith(expected_log)
 
 
 @pytest.mark.parametrize(
@@ -832,6 +833,46 @@ async def test_process_override(kafka: KafkaFixture):
     assert dummy_publisher.published == [expected_published_event]
 
 
+@pytest.mark.asyncio()
+async def test_process_dry_run(kafka: KafkaFixture):
+    """Ensure `process` doesn't actually publish the event if `dry_run` is True.
+
+    Offsets should not be committed.
+    Return value should be an ExtractedEventInfo instance with the args that would
+    have been passed to the publisher. The header modifications that the publisher
+    performs before passing the event to aiokafka are not included.
+    """
+    config = make_config(kafka.config)
+
+    # Publish an event to the dlq topic
+    async with set_correlation_id(TEST_CORRELATION_ID):
+        await kafka.publisher.publish(**vars(TEST_DLQ_EVENT))
+
+    dummy_publisher = DummyPublisher()
+    # Create the DLQ subscriber and manually resolve the DLQ event
+    async with KafkaDLQSubscriber(
+        config=config,
+        dlq_topic=TEST_DLQ_TOPIC,
+        dlq_publisher=dummy_publisher,
+    ) as dlq_subscriber:
+        # Verify the event is in the DLQ topic
+        assert len(await dlq_subscriber.preview()) == 1
+
+        # Process the event with `dry_run` to see what would be published to the retry topic
+        test_result = await dlq_subscriber.process(dry_run=True)
+        assert test_result is not None
+
+        # Verify that it wasn't actually published and the offset not committed
+        assert not dummy_publisher.published
+        assert len(await dlq_subscriber.preview()) == 1
+
+        # Process/publish the event for real and verify that it matches what we expected
+        await dlq_subscriber.process()
+        assert len(await dlq_subscriber.preview()) == 0
+        assert len(dummy_publisher.published) == 1
+        assert test_result == dummy_publisher.published[0]
+
+
 async def test_process_override_different_cid(kafka: KafkaFixture):
     """Verify that the KafkaDLQProcessor prevents a user-supplied event from being
     published to the retry topic if the correlation ID does not match the one from
@@ -863,3 +904,58 @@ async def test_process_override_different_cid(kafka: KafkaFixture):
         with pytest.raises(DLQProcessingError) as err:
             await dlq_subscriber.process(override=override_event)
         assert err.exconly().endswith(msg)
+
+
+async def test_retry_topic_event_id(kafka: KafkaFixture):
+    """Ensure that the event_id is correctly set when event fails from retry topic.
+
+    The event_id should identify the partition and offset of the failed event, so
+    when generating the event_id, the topic used must be the actual topic it came from.
+    """
+    config = make_config(kafka.config)
+
+    event = ExtractedEventInfo(
+        payload={"test_id": "123456"},
+        type_=TEST_TYPE,
+        topic=TEST_RETRY_TOPIC,
+        key="key",
+        headers={
+            ORIGINAL_TOPIC_FIELD: TEST_TOPIC,
+        },
+    )
+
+    # Publish that event directly to RETRY Topic, as if it had already been requeued
+    async with set_correlation_id(TEST_CORRELATION_ID):
+        await kafka.publisher.publish(**vars(event))
+
+    # Set up dummies and subscriber
+    translator = FailSwitchTranslator(
+        topics_of_interest=[TEST_TOPIC], types_of_interest=[TEST_TYPE], fail=True
+    )
+    async with KafkaEventSubscriber.construct(
+        config=config, translator=translator, dlq_publisher=kafka.publisher
+    ) as event_subscriber:
+        # Consume the event with the event subscriber
+        await event_subscriber.run(forever=False)
+        assert translator.failures
+
+    class PersistentProcessor:
+        def __init__(self):
+            self.called = False
+
+        async def process_event(self, event: ConsumerEvent):
+            """Event processor that makes sure the event_id topic is the retry topic"""
+            self.called = True
+            event_info = ExtractedEventInfo(event)
+            assert "event_id" in event_info.headers
+            assert event_info.headers["event_id"].split(" - ")[0] == TEST_RETRY_TOPIC
+
+    custom_processor = PersistentProcessor()
+    async with KafkaDLQSubscriber(
+        config=config,
+        dlq_topic=TEST_DLQ_TOPIC,
+        dlq_publisher=DummyPublisher(),
+        process_dlq_event=custom_processor.process_event,
+    ) as dlq_subscriber:
+        await dlq_subscriber.process()
+        assert custom_processor.called
