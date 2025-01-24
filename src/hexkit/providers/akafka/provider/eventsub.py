@@ -663,20 +663,22 @@ class KafkaDLQSubscriber:
         await self._consumer.stop()
 
     async def _publish_to_retry(
-        self, *, event: ExtractedEventInfo, test: bool
-    ) -> Optional[ExtractedEventInfo]:
+        self, *, event: ExtractedEventInfo, dry_run: bool
+    ) -> ExtractedEventInfo:
         """Publish the event to the retry topic.
 
-        If `test` is `True`, the event will not be published.
+        If `dry_run` is `True`, the event will not be published.
 
         Returns the data that was/would be passed to the publisher.
         """
         correlation_id = event.headers["correlation_id"]
+
+        # Get original topic name by removing the DLQ suffix (".<service name>-dlq")
         headers = {ORIGINAL_TOPIC_FIELD: self._dlq_topic.rsplit(".", 1)[0]}
 
         event_to_publish = replace(event, topic=self._retry_topic, headers=headers)
 
-        if not test:
+        if not dry_run:
             async with set_correlation_id(correlation_id):
                 await self._publisher.publish(
                     payload=event_to_publish.payload,
@@ -693,14 +695,14 @@ class KafkaDLQSubscriber:
         return event_to_publish
 
     async def _handle_dlq_event_manual(
-        self, *, event: ConsumerEvent, override: ExtractedEventInfo, test: bool
-    ) -> Optional[ExtractedEventInfo]:
+        self, *, event: ConsumerEvent, override: ExtractedEventInfo, dry_run: bool
+    ) -> ExtractedEventInfo:
         """Manually resolve an event from the dead-letter queue by directly publishing
         a user-supplied event to the retry topic. This will bypass `_process_dlq_event`,
         but still run the basic validation.
 
         Returns the ExtractedEventInfo instance that would be published to the retry
-        topic or `None` if the event is ultimately invalid/discarded.
+        topic.
 
         Raises:
         - `DLQValidationError`: If the DLQ event headers are invalid
@@ -720,10 +722,10 @@ class KafkaDLQSubscriber:
             raise RuntimeError(msg)
 
         # If all good, publish the user-supplied event to the retry topic
-        return await self._publish_to_retry(event=override, test=test)
+        return await self._publish_to_retry(event=override, dry_run=dry_run)
 
     async def _handle_dlq_event_automatic(
-        self, *, event: ConsumerEvent, test: bool
+        self, *, event: ConsumerEvent, dry_run: bool
     ) -> Optional[ExtractedEventInfo]:
         """Automatically process an event from the dead-letter queue. This will run
         the event through the `_process_dlq_event` function and publish the result to
@@ -733,9 +735,11 @@ class KafkaDLQSubscriber:
         try:
             event_to_publish = await self._process_dlq_event(event)
             if event_to_publish:
-                result = await self._publish_to_retry(event=event_to_publish, test=test)
+                result = await self._publish_to_retry(
+                    event=event_to_publish, dry_run=dry_run
+                )
         except DLQValidationError as err:
-            txt = "Would have ignored" if test else "Ignoring"
+            txt = "Would have ignored" if dry_run else "Ignoring"
             logging.error("%s event from DLQ due to validation failure: %s", txt, err)
         return result
 
@@ -816,7 +820,7 @@ class KafkaDLQSubscriber:
             return [ExtractedEventInfo(event) for event in events[skip:]]
 
     async def process(
-        self, override: Optional[ExtractedEventInfo] = None, test: bool = False
+        self, override: Optional[ExtractedEventInfo] = None, dry_run: bool = False
     ) -> Optional[ExtractedEventInfo]:
         """Process the next event from the configured DLQ topic.
 
@@ -826,12 +830,12 @@ class KafkaDLQSubscriber:
         - `override`: An optional `ExtractedEventInfo` instance to use in place of the
             next event from the DLQ topic. This is useful for manually resolving the
             next event instead of letting the processor handle it automatically.
-        - `test`: If `True`, the event will be processed but not published to the
+        - `dry_run`: If `True`, the event will be processed but not published to the
             retry topic. This is useful for double-checking that what would be published
             matches the expected output. Offsets will not be committed, like in preview.
         """
         result = None
-        commit = not test
+        commit = not dry_run
 
         async with self._get_events(max_records=1, commit_offsets=commit) as events:
             if not events:
@@ -841,10 +845,12 @@ class KafkaDLQSubscriber:
                 # Process the event and get what would be sent to `_publisher.publish()`
                 result = (
                     await self._handle_dlq_event_manual(
-                        event=event, override=override, test=test
+                        event=event, override=override, dry_run=dry_run
                     )
                     if override
-                    else await self._handle_dlq_event_automatic(event=event, test=test)
+                    else await self._handle_dlq_event_automatic(
+                        event=event, dry_run=dry_run
+                    )
                 )
             except Exception as exc:
                 error = DLQProcessingError(event=event, reason=str(exc))
@@ -856,4 +862,4 @@ class KafkaDLQSubscriber:
                 raise error from exc
 
         # Only return `result` if doing a dry run, otherwise just return None
-        return result if test else None
+        return result if dry_run else None

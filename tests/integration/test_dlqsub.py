@@ -834,8 +834,8 @@ async def test_process_override(kafka: KafkaFixture):
 
 
 @pytest.mark.asyncio()
-async def test_process_test_result(kafka: KafkaFixture):
-    """Ensure `process` doesn't actually publish the event if `test` is True.
+async def test_process_dry_run(kafka: KafkaFixture):
+    """Ensure `process` doesn't actually publish the event if `dry_run` is True.
 
     Offsets should not be committed.
     Return value should be an ExtractedEventInfo instance with the args that would
@@ -858,8 +858,8 @@ async def test_process_test_result(kafka: KafkaFixture):
         # Verify the event is in the DLQ topic
         assert len(await dlq_subscriber.preview()) == 1
 
-        # Process the event with `test` to see what would be published to the retry topic
-        test_result = await dlq_subscriber.process(test=True)
+        # Process the event with `dry_run` to see what would be published to the retry topic
+        test_result = await dlq_subscriber.process(dry_run=True)
         assert test_result is not None
 
         # Verify that it wasn't actually published and the offset not committed
