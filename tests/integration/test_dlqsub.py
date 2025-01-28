@@ -17,27 +17,27 @@
 from collections.abc import Mapping
 from contextlib import nullcontext
 from dataclasses import replace
+from datetime import datetime
 from typing import Optional
 from unittest.mock import Mock
 
 import pytest
 from pydantic import BaseModel
 
-from hexkit.correlation import new_correlation_id, set_correlation_id
+from hexkit.correlation import set_correlation_id
 from hexkit.custom_types import Ascii, JsonObject
 from hexkit.protocols.daosub import DaoSubscriberProtocol
 from hexkit.protocols.eventpub import EventPublisherProtocol
-from hexkit.protocols.eventsub import EventSubscriberProtocol
+from hexkit.protocols.eventsub import DLQSubscriberProtocol, EventSubscriberProtocol
 from hexkit.providers.akafka import KafkaConfig
 from hexkit.providers.akafka.provider.daosub import KafkaOutboxSubscriber
 from hexkit.providers.akafka.provider.eventsub import (
     EXC_CLASS_FIELD,
     EXC_MSG_FIELD,
     ORIGINAL_TOPIC_FIELD,
-    ConsumerEvent,
-    DLQProcessingError,
+    SERVICE_NAME_FIELD,
+    DLQEventInfo,
     ExtractedEventInfo,
-    KafkaDLQSubscriber,
     KafkaEventSubscriber,
 )
 from hexkit.providers.akafka.testutils import (  # noqa: F401
@@ -55,7 +55,6 @@ pytestmark = pytest.mark.asyncio()
 DEFAULT_SERVICE_NAME = "test_publisher"  # see KafkaConfig instance in akafka.testutils
 TEST_TOPIC = "test-topic"
 TEST_TYPE = "test_type"
-TEST_DLQ_TOPIC = "test-topic.test_publisher-dlq"
 TEST_RETRY_TOPIC = "test_publisher-retry"
 TEST_EVENT = ExtractedEventInfo(
     payload={"key": "value"},
@@ -68,7 +67,7 @@ TEST_CORRELATION_ID = "81e9b4f6-ed56-4779-94e2-421d7f286837"
 TEST_DLQ_EVENT = ExtractedEventInfo(
     payload=TEST_EVENT.payload,
     type_=TEST_TYPE,
-    topic=TEST_DLQ_TOPIC,
+    topic="dlq",
     key="123456",
     headers={
         "correlation_id": TEST_CORRELATION_ID,
@@ -197,6 +196,34 @@ class DummyPublisher(EventPublisherProtocol):
         )
 
 
+class DLQTranslator(DLQSubscriberProtocol):
+    """Translator implementing the DLQSubscriberProtocol"""
+
+    def __init__(self):
+        self.events: list[DLQEventInfo] = []
+
+    async def _consume_validated(
+        self,
+        *,
+        payload: JsonObject,
+        type_: Ascii,
+        topic: Ascii,
+        key: Ascii,
+        timestamp: datetime,
+        headers: Mapping[str, str],
+    ) -> None:
+        """Consumes a DLQ event and stores it in self.events"""
+        event = DLQEventInfo(
+            payload=payload,
+            type_=type_,
+            topic=topic,
+            key=key,
+            timestamp=timestamp,
+            headers=headers,
+        )
+        self.events.append(event)
+
+
 def make_config(
     kafka_config: Optional[KafkaConfig] = None,
     *,
@@ -232,7 +259,7 @@ async def test_original_topic_is_preserved(kafka: KafkaFixture):
     Consume a failing event, send to DLQ, consume from DLQ, send to Retry, consume from
     Retry, and check the original topic.
     """
-    config = make_config(kafka.config)
+    service_config = make_config(kafka.config)
 
     # Publish test event
     await kafka.publisher.publish(**vars(TEST_EVENT))
@@ -245,26 +272,20 @@ async def test_original_topic_is_preserved(kafka: KafkaFixture):
 
     # Run the subscriber and expect it to fail, sending the event to the DLQ
     async with KafkaEventSubscriber.construct(
-        config=config, translator=translator, dlq_publisher=kafka.publisher
+        config=service_config, translator=translator, dlq_publisher=kafka.publisher
     ) as event_subscriber:
         assert not translator.failures
         await event_subscriber.run(forever=False)
 
-        # Run the DLQ subscriber, telling it to publish the event to the retry topic
-        async with KafkaDLQSubscriber(
-            config=config, dlq_topic=TEST_DLQ_TOPIC, dlq_publisher=kafka.publisher
+        # Run the DLQ subscriber and check that the topic is TEST_TOPIC, not "dlq"
+        dlq_translator = DLQTranslator()
+        async with KafkaEventSubscriber.construct(
+            config=service_config,
+            translator=dlq_translator,
         ) as dlq_subscriber:
-            await dlq_subscriber.process()
-
-        # Make sure the translator has nothing in the successes list, then run again
-        assert not translator.successes
-        translator.fail = False
-        await event_subscriber.run(forever=False)
-
-    # Make sure the event received by the translator is identical to the original
-    # This means the original topic is preserved and `original_topic` is removed
-    assert translator.failures == [TEST_EVENT]
-    assert translator.successes == [TEST_EVENT]
+            await dlq_subscriber.run(forever=False)
+            assert dlq_translator.events
+            assert dlq_translator.events[0].topic == TEST_TOPIC
 
 
 async def test_invalid_retries_left(kafka: KafkaFixture, caplog_debug):
@@ -350,15 +371,17 @@ async def test_retries_exhausted(
     else:
         assert_not_logged("WARNING", retry_log, caplog_debug.records)
 
-    # Put together the expected event with the original topic field appended
+    # Put together the event we ultimately expect to see published to the DLQ
     failed_event = ExtractedEventInfo(
         type_=TEST_EVENT.type_,
-        topic=TEST_DLQ_TOPIC,
+        topic=config.kafka_dlq_topic,
         key=TEST_EVENT.key,
         payload=TEST_EVENT.payload,
         headers={
             EXC_CLASS_FIELD: "RuntimeError",
             EXC_MSG_FIELD: "Destined to fail.",
+            ORIGINAL_TOPIC_FIELD: TEST_TOPIC,
+            SERVICE_NAME_FIELD: config.service_name,
         },
     )
 
@@ -378,51 +401,18 @@ async def test_retries_exhausted(
     if enable_dlq:
         assert_logged(
             "INFO",
-            f"Published event to DLQ topic '{TEST_DLQ_TOPIC}'",
+            "Published event to DLQ topic 'dlq'",
             caplog_debug.records,
+            parse=True,
         )
     else:
-        parsed_log = assert_logged(
+        assert_logged(
             "CRITICAL",
             "An error occurred while processing event of type '%s': %s. It was NOT"
             + " placed in the DLQ topic (%s)",
             caplog_debug.records,
             parse=False,
         )
-        assert parsed_log.endswith("(DLQ is disabled)")
-
-
-async def test_send_to_retry(kafka: KafkaFixture, caplog_debug):
-    """Ensure the event is sent to the retry topic when the DLQ subscriber is instructed
-    to do so. This would occur in whatever service or app is resolving DLQ events.
-    """
-    config = make_config(kafka.config)
-
-    await kafka.publisher.publish(**vars(TEST_DLQ_EVENT))
-
-    # Set up dummies and consume the event with the DLQ Subscriber
-    dummy_publisher = DummyPublisher()
-    async with KafkaDLQSubscriber(
-        config=config, dlq_topic=TEST_DLQ_TOPIC, dlq_publisher=dummy_publisher
-    ) as dlq_subscriber:
-        assert not dummy_publisher.published
-        await dlq_subscriber.process()
-
-    assert_logged(
-        "INFO",
-        f"Published an event with type 'test_type' to the retry topic '{TEST_RETRY_TOPIC}'",
-        caplog_debug.records,
-    )
-
-    # Verify that the event was sent to the RETRY topic
-    dlq_event = replace(TEST_DLQ_EVENT, topic=TEST_RETRY_TOPIC)
-
-    # The exc_... headers are not supposed to be in the retry event, but the original
-    # topic should be!
-    dlq_event.headers = {ORIGINAL_TOPIC_FIELD: TEST_TOPIC}
-    assert EXC_CLASS_FIELD not in dlq_event.headers
-    assert EXC_MSG_FIELD not in dlq_event.headers
-    assert dummy_publisher.published == [dlq_event]
 
 
 async def test_consume_retry_without_og_topic(kafka: KafkaFixture, caplog_debug):
@@ -463,44 +453,6 @@ async def test_consume_retry_without_og_topic(kafka: KafkaFixture, caplog_debug)
             f"Ignored event of type 'test_type': {TEST_RETRY_TOPIC}"
         )
         assert parsed_log.endswith("errors: topic is empty")
-
-
-async def test_dlq_subscriber_ignore(kafka: KafkaFixture, caplog_debug):
-    """Test what happens when a DLQ Subscriber is instructed to ignore an event."""
-    config = make_config(kafka.config)
-
-    # make an event without the original_topic field in the header
-    event = ExtractedEventInfo(
-        payload={"test_id": "123456"},
-        type_=TEST_TYPE,
-        topic=TEST_DLQ_TOPIC,
-        key="key",
-    )
-
-    # Publish that event directly to DLQ Topic, as if it had already failed
-    # the original topic header is not included at this point
-    await kafka.publisher.publish(**vars(event))
-
-    # Set up dummies and consume the event with the DLQ Subscriber
-    dummy_publisher = DummyPublisher()
-    async with KafkaDLQSubscriber(
-        config=config, dlq_topic=TEST_DLQ_TOPIC, dlq_publisher=dummy_publisher
-    ) as dlq_subscriber:
-        assert not dummy_publisher.published
-        await dlq_subscriber.ignore()
-
-    parsed_log = assert_logged(
-        "INFO",
-        "Ignoring event from DLQ topic '%s': %s",
-        caplog_debug.records,
-        parse=False,
-    )
-    assert parsed_log.startswith(
-        f"Ignoring event from DLQ topic '{TEST_DLQ_TOPIC}': test"
-    )
-
-    # Assert that the event was not published to the retry topic
-    assert not dummy_publisher.published
 
 
 async def test_no_retries_no_dlq_original_error(kafka: KafkaFixture, caplog_debug):
@@ -558,7 +510,7 @@ async def test_outbox_with_dlq(kafka: KafkaFixture, event_type: str):
     # publish the test event
     await kafka.publisher.publish(**vars(event))
 
-    # Run the outbox subscriber and expect it to fail
+    # Run the outbox subscriber and expect it to fail (sending event to DLQ topic)
     async with KafkaOutboxSubscriber.construct(
         config=config, dlq_publisher=kafka.publisher, translators=[translator]
     ) as outbox_subscriber:
@@ -566,19 +518,20 @@ async def test_outbox_with_dlq(kafka: KafkaFixture, event_type: str):
         await outbox_subscriber.run(forever=False)
         assert list_to_check == [event] if event_type == "upserted" else [event.key]
 
-        # Consume event from the DLQ topic, publish to retry topic
-        dlq_topic = f"users.{config.service_name}-dlq"
-        async with KafkaDLQSubscriber(
-            config=config, dlq_topic=dlq_topic, dlq_publisher=kafka.publisher
+        # Consume event from the DLQ topic with a DLQ sub translator and check for match
+        dlq_translator = DLQTranslator()
+        async with KafkaEventSubscriber.construct(
+            config=config, translator=dlq_translator, dlq_publisher=kafka.publisher
         ) as dlq_subscriber:
-            await dlq_subscriber.process()
-
-        # Retry the event after clearing the list
-        list_to_check.clear()
-        translator.fail = False
-        assert not list_to_check
-        await outbox_subscriber.run(forever=False)
-        assert list_to_check == [event] if event_type == "upserted" else [event.key]
+            await dlq_subscriber.run(forever=False)
+            assert dlq_translator.events
+            dlq_event = dlq_translator.events[0]
+            assert dlq_event.payload == event.payload
+            assert dlq_event.type_ == event.type_
+            assert dlq_event.topic == event.topic
+            assert dlq_event.headers[SERVICE_NAME_FIELD] == config.service_name
+            assert dlq_event.headers[EXC_CLASS_FIELD] != ""
+            assert dlq_event.headers[EXC_MSG_FIELD] != ""
 
 
 async def test_kafka_event_subscriber_construction(caplog):
@@ -599,311 +552,6 @@ async def test_kafka_event_subscriber_construction(caplog):
         "A publisher is required when the DLQ is enabled.",
         caplog.records,
     )
-
-
-@pytest.mark.parametrize(
-    "validation_error", [True, False], ids=["validation_error", "no_validation_error"]
-)
-async def test_default_dlq_processor(
-    kafka: KafkaFixture, caplog, validation_error: bool
-):
-    """Verify that `process_dlq_event` behaves as expected.
-
-    Assert that the event is republished unchanged or ignored.
-    """
-    config = make_config(kafka.config)
-
-    # Publish test event directly to DLQ with chosen correlation ID
-    event = replace(TEST_DLQ_EVENT, type_="" if validation_error else TEST_TYPE)
-    async with set_correlation_id(TEST_CORRELATION_ID):
-        await kafka.publish_event(**vars(event))
-
-    dummy_publisher = DummyPublisher()
-    async with KafkaDLQSubscriber(
-        config=config, dlq_topic=TEST_DLQ_TOPIC, dlq_publisher=dummy_publisher
-    ) as dlq_subscriber:
-        assert not dummy_publisher.published
-        caplog.clear()
-        await dlq_subscriber.process()
-        assert dummy_publisher.published == [] if validation_error else [event]
-
-    if validation_error:
-        assert len(caplog.records) > 0  # could be more, but should be at least 1
-        log = caplog.records[0]
-        expected_log = "Ignoring event from DLQ due to validation failure:"
-        assert log.getMessage().startswith(expected_log)
-
-
-@pytest.mark.parametrize(
-    "processing_error", [True, False], ids=["processing_error", "no_processing_error"]
-)
-async def test_custom_dlq_processors(kafka: KafkaFixture, processing_error: bool):
-    """Test that a custom DLQ processor can be used with the KafkaDLQSubscriber."""
-
-    class CustomDLQProcessor:
-        hits: list[ConsumerEvent]
-        fail: bool
-
-        def __init__(self):
-            self.hits = []
-            self.fail = processing_error
-
-        async def process(self, event: ConsumerEvent) -> Optional[ExtractedEventInfo]:
-            self.hits.append(event)
-            if self.fail:
-                raise RuntimeError("Destined to fail.")
-            return ExtractedEventInfo(event)
-
-    config = make_config(kafka.config)
-
-    # Publish test event directly to DLQ with chosen correlation ID
-    async with set_correlation_id(TEST_CORRELATION_ID):
-        await kafka.publisher.publish(**vars(TEST_DLQ_EVENT))
-
-    # Create custom processor instance and consume with the KafkaDLQSubscriber
-    custom_processor = CustomDLQProcessor()
-    async with KafkaDLQSubscriber(
-        config=config,
-        dlq_topic=TEST_DLQ_TOPIC,
-        dlq_publisher=DummyPublisher(),
-        process_dlq_event=custom_processor.process,
-    ) as dlq_subscriber:
-        assert not custom_processor.hits
-        with pytest.raises(DLQProcessingError) if processing_error else nullcontext():
-            await dlq_subscriber.process()
-
-        # verify that the event was received processed by the custom processor
-        assert len(custom_processor.hits)
-        event = ExtractedEventInfo(custom_processor.hits[0])
-        assert event == TEST_DLQ_EVENT
-
-
-async def test_preview_repeatability(kafka: KafkaFixture):
-    """Make sure the preview functionality works as expected.
-    Also make sure that previewing events doesn't impact the offset of the
-    next event that is consumed/processed.
-    """
-    config = make_config(kafka.config)
-
-    async with set_correlation_id(TEST_CORRELATION_ID):
-        # publish 3 events -- there will be logs about how we supplied correlation_id
-        # but that doesn't matter and can be ignored
-        await kafka.publisher.publish(**vars(TEST_DLQ_EVENT))
-        event2 = replace(TEST_DLQ_EVENT, type_="test_type2")
-        event3 = replace(TEST_DLQ_EVENT, type_="test_type3")
-        await kafka.publisher.publish(**vars(event2))
-        await kafka.publisher.publish(**vars(event3))
-
-    # Set up the DLQ Subscriber and preview/process the events
-    dummy_publisher = DummyPublisher()
-    async with KafkaDLQSubscriber(
-        config=config, dlq_topic=TEST_DLQ_TOPIC, dlq_publisher=dummy_publisher
-    ) as dlq_sub:
-        assert not dummy_publisher.published
-        preview1 = await dlq_sub.preview(limit=2)
-
-        # Make sure we got the first two events (because the limit is 2)
-        assert len(preview1) == 2
-        assert preview1 == [TEST_DLQ_EVENT, event2]
-
-        # Make sure the preview is repeatable
-        preview2 = await dlq_sub.preview(limit=2)
-        assert preview2 == preview1 == [TEST_DLQ_EVENT, event2]
-
-        # Process the first event
-        await dlq_sub.process()
-        assert len(dummy_publisher.published) == 1
-        assert dummy_publisher.published[0].type_ == TEST_TYPE
-
-        # Preview again -- we should get the last 2 events since the first was consumed
-        preview3 = await dlq_sub.preview(limit=2)
-        assert len(preview3) == 2
-        assert preview3 == [event2, event3]
-
-
-@pytest.mark.parametrize("event_published", [True, False])
-async def test_preview_when_limit_exceeds_available_records(
-    kafka: KafkaFixture, event_published: bool
-):
-    """Make sure the consumer doesn't hang when < `preview_limit` records are available."""
-    config = make_config(kafka.config)
-
-    if not event_published:
-        async with set_correlation_id(TEST_CORRELATION_ID):
-            await kafka.publisher.publish(**vars(TEST_DLQ_EVENT))
-
-    # Set up the DLQ Subscriber and preview the events
-    dummy_publisher = DummyPublisher()
-    async with KafkaDLQSubscriber(
-        config=config, dlq_topic=TEST_DLQ_TOPIC, dlq_publisher=dummy_publisher
-    ) as dlq_sub:
-        assert not dummy_publisher.published
-        results = await dlq_sub.preview(limit=100)
-
-        # Make sure we got something
-        assert len(results) == 0 if event_published else 1
-        assert results == [] if event_published else [TEST_DLQ_EVENT]
-
-
-async def test_preview_pagination(kafka: KafkaFixture):
-    """Test that the preview pagination works as expected."""
-    config = make_config(kafka.config)
-
-    # Publish an event to the dlq topic
-    async with set_correlation_id(TEST_CORRELATION_ID):
-        await kafka.publisher.publish(**vars(TEST_DLQ_EVENT))
-
-    # Create and publish a second event to the second dlq topic with a different key
-    dlq_event2 = replace(TEST_DLQ_EVENT, key="78910")
-    async with set_correlation_id(TEST_CORRELATION_ID):
-        await kafka.publisher.publish(**vars(dlq_event2))
-
-    # spin up the DLQ subscribers and preview events
-    async with KafkaDLQSubscriber(
-        config=config, dlq_topic=TEST_DLQ_TOPIC, dlq_publisher=DummyPublisher()
-    ) as dlq_subscriber:
-        results1 = await dlq_subscriber.preview()
-        assert results1 == [TEST_DLQ_EVENT]
-
-        results2 = await dlq_subscriber.preview(skip=1)
-        assert results2 == [dlq_event2]
-
-        results3 = await dlq_subscriber.preview(limit=100, skip=2)
-        assert not results3
-
-
-async def test_empty_dlq_timeout(kafka: KafkaFixture):
-    """Test that fetching from an empty DLQ topic does not hang.
-
-    The `process` and `ignore` methods of the KafkaDLQSubscriber should return
-    after a brief timeout. The `preview` method should return an empty list.
-    """
-    config = make_config(kafka.config)
-
-    async def custom_processor(event: ConsumerEvent) -> Optional[ExtractedEventInfo]:
-        raise RuntimeError("This should not be called.")
-
-    async with KafkaDLQSubscriber(
-        config=config,
-        dlq_topic=TEST_DLQ_TOPIC,
-        dlq_publisher=DummyPublisher(),
-        process_dlq_event=custom_processor,
-    ) as dlq_subscriber:
-        assert await dlq_subscriber.preview() == []
-        await dlq_subscriber.process()
-        await dlq_subscriber.ignore()
-
-
-@pytest.mark.asyncio()
-async def test_process_override(kafka: KafkaFixture):
-    """Make sure we can supply an override value for the `process` method."""
-
-    # Make a custom process func so we can ensure that process_dlq_event is not called
-    async def custom_processor(event: ConsumerEvent) -> Optional[ExtractedEventInfo]:
-        raise RuntimeError("This should not be called.")
-
-    config = make_config(kafka.config)
-
-    # Publish an event to the dlq topic
-    async with set_correlation_id(TEST_CORRELATION_ID):
-        await kafka.publisher.publish(**vars(TEST_DLQ_EVENT))
-
-    # Create an override event (the event we just want to publish to the retry topic)
-    override_event = replace(TEST_DLQ_EVENT, payload={"key": "value_override"})
-
-    # We need to inspect what actually gets published, so we need a dummy publisher
-    dummy_publisher = DummyPublisher()
-
-    # Create the DLQ subscriber and manually resolve the DLQ event
-    async with KafkaDLQSubscriber(
-        config=config,
-        dlq_topic=TEST_DLQ_TOPIC,
-        dlq_publisher=dummy_publisher,
-        process_dlq_event=custom_processor,
-    ) as dlq_subscriber:
-        assert len(await dlq_subscriber.preview()) == 1
-        await dlq_subscriber.process(override=override_event)
-        assert not await dlq_subscriber.preview()
-
-    # Inspect what was published
-    headers = {"original_topic": TEST_TOPIC}
-    expected_published_event = replace(
-        override_event, headers=headers, topic=TEST_RETRY_TOPIC
-    )
-    assert dummy_publisher.published == [expected_published_event]
-
-
-@pytest.mark.asyncio()
-async def test_process_dry_run(kafka: KafkaFixture):
-    """Ensure `process` doesn't actually publish the event if `dry_run` is True.
-
-    Offsets should not be committed.
-    Return value should be an ExtractedEventInfo instance with the args that would
-    have been passed to the publisher. The header modifications that the publisher
-    performs before passing the event to aiokafka are not included.
-    """
-    config = make_config(kafka.config)
-
-    # Publish an event to the dlq topic
-    async with set_correlation_id(TEST_CORRELATION_ID):
-        await kafka.publisher.publish(**vars(TEST_DLQ_EVENT))
-
-    dummy_publisher = DummyPublisher()
-    # Create the DLQ subscriber and manually resolve the DLQ event
-    async with KafkaDLQSubscriber(
-        config=config,
-        dlq_topic=TEST_DLQ_TOPIC,
-        dlq_publisher=dummy_publisher,
-    ) as dlq_subscriber:
-        # Verify the event is in the DLQ topic
-        assert len(await dlq_subscriber.preview()) == 1
-
-        # Process the event with `dry_run` to see what would be published to the retry topic
-        test_result = await dlq_subscriber.process(dry_run=True)
-        assert test_result is not None
-
-        # Verify that it wasn't actually published and the offset not committed
-        assert not dummy_publisher.published
-        assert len(await dlq_subscriber.preview()) == 1
-
-        # Process/publish the event for real and verify that it matches what we expected
-        await dlq_subscriber.process()
-        assert len(await dlq_subscriber.preview()) == 0
-        assert len(dummy_publisher.published) == 1
-        assert test_result == dummy_publisher.published[0]
-
-
-async def test_process_override_different_cid(kafka: KafkaFixture):
-    """Verify that the KafkaDLQProcessor prevents a user-supplied event from being
-    published to the retry topic if the correlation ID does not match the one from
-    the original event.
-    """
-    config = make_config(kafka.config)
-
-    # Publish an event to the dlq topic
-    async with set_correlation_id(TEST_CORRELATION_ID):
-        await kafka.publisher.publish(**vars(TEST_DLQ_EVENT))
-
-    # Create an override event with a valid but different correlation ID
-    headers = TEST_DLQ_EVENT.headers.copy()
-    headers["correlation_id"] = new_correlation_id()
-    override_event = replace(
-        TEST_DLQ_EVENT, payload={"key": "value_override"}, headers=headers
-    )
-
-    # Create the DLQ subscriber and manually resolve the DLQ event, expecting an error
-    msg = (
-        "Cannot manually resolve DLQ event due to correlation ID mismatch."
-        + f"\nExpected {TEST_CORRELATION_ID} but got {headers['correlation_id']}"
-    )
-    async with KafkaDLQSubscriber(
-        config=config,
-        dlq_topic=TEST_DLQ_TOPIC,
-        dlq_publisher=DummyPublisher(),
-    ) as dlq_subscriber:
-        with pytest.raises(DLQProcessingError) as err:
-            await dlq_subscriber.process(override=override_event)
-        assert err.exconly().endswith(msg)
 
 
 async def test_retry_topic_event_id(kafka: KafkaFixture):
@@ -935,27 +583,16 @@ async def test_retry_topic_event_id(kafka: KafkaFixture):
     async with KafkaEventSubscriber.construct(
         config=config, translator=translator, dlq_publisher=kafka.publisher
     ) as event_subscriber:
-        # Consume the event with the event subscriber
+        # Consume the event with normal event subscriber
         await event_subscriber.run(forever=False)
         assert translator.failures
 
-    class PersistentProcessor:
-        def __init__(self):
-            self.called = False
-
-        async def process_event(self, event: ConsumerEvent):
-            """Event processor that makes sure the event_id topic is the retry topic"""
-            self.called = True
-            event_info = ExtractedEventInfo(event)
-            assert "event_id" in event_info.headers
-            assert event_info.headers["event_id"].split(" - ")[0] == TEST_RETRY_TOPIC
-
-    custom_processor = PersistentProcessor()
-    async with KafkaDLQSubscriber(
-        config=config,
-        dlq_topic=TEST_DLQ_TOPIC,
-        dlq_publisher=DummyPublisher(),
-        process_dlq_event=custom_processor.process_event,
+    dlq_translator = DLQTranslator()
+    async with KafkaEventSubscriber.construct(
+        config=config, translator=dlq_translator, dlq_publisher=kafka.publisher
     ) as dlq_subscriber:
-        await dlq_subscriber.process()
-        assert custom_processor.called
+        await dlq_subscriber.run(forever=False)
+        assert dlq_translator.events
+        event = dlq_translator.events[0]
+        assert "event_id" in event.headers
+        assert event.headers["event_id"].split(" - ")[0] == TEST_RETRY_TOPIC
