@@ -102,6 +102,12 @@ class KafkaConfig(BaseSettings):
         title="Kafka Enable DLQ",
         examples=[True, False],
     )
+    kafka_dlq_topic: str = Field(
+        default="dlq",
+        description="The name of the topic used to resolve error-causing events.",
+        title="Kafka DLQ Topic",
+        examples=["dlq"],
+    )
     kafka_retry_backoff: NonNegativeInt = Field(
         default=0,
         description=(
