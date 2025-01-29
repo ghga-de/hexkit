@@ -262,7 +262,7 @@ async def test_original_topic_is_preserved(kafka: KafkaFixture):
     service_config = make_config(kafka.config)
 
     # Publish test event
-    await kafka.publisher.publish(**vars(TEST_EVENT))
+    await kafka.publisher.publish(**TEST_EVENT.asdict())
 
     # Create dummy translator and set it to auto-fail
     translator = FailSwitchTranslator(
@@ -330,7 +330,7 @@ async def test_retries_exhausted(
     )
 
     # Publish test event
-    await kafka.publisher.publish(**vars(TEST_EVENT))
+    await kafka.publisher.publish(**TEST_EVENT.asdict())
 
     # Set up dummies and consume the event
     dummy_publisher = DummyPublisher()
@@ -430,7 +430,7 @@ async def test_consume_retry_without_og_topic(kafka: KafkaFixture, caplog_debug)
 
     # Publish that event directly to RETRY Topic, as if it had already been requeued,
     # the original topic header is intentionally not included here
-    await kafka.publisher.publish(**vars(event))
+    await kafka.publisher.publish(**event.asdict())
 
     # Set up dummies and subscriber
     translator = FailSwitchTranslator(
@@ -462,7 +462,7 @@ async def test_no_retries_no_dlq_original_error(kafka: KafkaFixture, caplog_debu
     config = make_config(kafka.config, enable_dlq=False)
 
     # publish the test event
-    await kafka.publisher.publish(**vars(TEST_EVENT))
+    await kafka.publisher.publish(**TEST_EVENT.asdict())
 
     translator = FailSwitchTranslator(
         topics_of_interest=[TEST_TOPIC], types_of_interest=[TEST_TYPE], fail=True
@@ -508,7 +508,7 @@ async def test_outbox_with_dlq(kafka: KafkaFixture, event_type: str):
     event = OUTBOX_EVENT_UPSERT if event_type == "upserted" else OUTBOX_EVENT_DELETE
 
     # publish the test event
-    await kafka.publisher.publish(**vars(event))
+    await kafka.publisher.publish(**event.asdict())
 
     # Run the outbox subscriber and expect it to fail (sending event to DLQ topic)
     async with KafkaOutboxSubscriber.construct(
@@ -574,7 +574,7 @@ async def test_retry_topic_event_id(kafka: KafkaFixture):
 
     # Publish that event directly to RETRY Topic, as if it had already been requeued
     async with set_correlation_id(TEST_CORRELATION_ID):
-        await kafka.publisher.publish(**vars(event))
+        await kafka.publisher.publish(**event.asdict())
 
     # Set up dummies and subscriber
     translator = FailSwitchTranslator(

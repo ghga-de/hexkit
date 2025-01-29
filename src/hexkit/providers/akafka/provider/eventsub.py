@@ -28,7 +28,7 @@ import ssl
 from contextlib import asynccontextmanager
 from dataclasses import asdict, dataclass
 from datetime import datetime, timezone
-from typing import Callable, Literal, Optional, Protocol, TypeVar, Union, cast
+from typing import Any, Callable, Literal, Optional, Protocol, TypeVar, Union, cast
 
 from aiokafka import AIOKafkaConsumer
 
@@ -101,6 +101,10 @@ class ExtractedEventInfo:
     def encoded_headers(self) -> list[tuple[str, bytes]]:
         """Return the headers as a list of 2-tuples with the values encoded as bytes."""
         return [(name, value.encode("ascii")) for name, value in self.headers.items()]
+
+    def asdict(self) -> dict[str, Any]:
+        """Return result of `dataclasses.asdict()` on the instance"""
+        return asdict(self)
 
 
 @dataclass
