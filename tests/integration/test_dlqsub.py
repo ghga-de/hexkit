@@ -35,7 +35,6 @@ from hexkit.providers.akafka.provider.eventsub import (
     EXC_CLASS_FIELD,
     EXC_MSG_FIELD,
     ORIGINAL_TOPIC_FIELD,
-    SERVICE_NAME_FIELD,
     DLQEventInfo,
     ExtractedEventInfo,
     KafkaEventSubscriber,
@@ -381,7 +380,6 @@ async def test_retries_exhausted(
             EXC_CLASS_FIELD: "RuntimeError",
             EXC_MSG_FIELD: "Destined to fail.",
             ORIGINAL_TOPIC_FIELD: TEST_TOPIC,
-            SERVICE_NAME_FIELD: config.service_name,
         },
     )
 
@@ -529,7 +527,6 @@ async def test_outbox_with_dlq(kafka: KafkaFixture, event_type: str):
             assert dlq_event.payload == event.payload
             assert dlq_event.type_ == event.type_
             assert dlq_event.topic == event.topic
-            assert dlq_event.headers[SERVICE_NAME_FIELD] == config.service_name
             assert dlq_event.headers[EXC_CLASS_FIELD] != ""
             assert dlq_event.headers[EXC_MSG_FIELD] != ""
 

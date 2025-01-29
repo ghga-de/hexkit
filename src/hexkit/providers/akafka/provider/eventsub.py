@@ -45,7 +45,6 @@ from hexkit.providers.akafka.provider.utils import (
 
 EVENT_ID_FIELD = "event_id"
 CORRELATION_ID_FIELD = "correlation_id"
-SERVICE_NAME_FIELD = "service_name"
 ORIGINAL_TOPIC_FIELD = "original_topic"
 EXC_CLASS_FIELD = "exc_class"
 EXC_MSG_FIELD = "exc_msg"
@@ -357,7 +356,6 @@ class KafkaEventSubscriber(InboundProviderBase):
                 EXC_MSG_FIELD: str(exc),
                 EVENT_ID_FIELD: event_id,
                 ORIGINAL_TOPIC_FIELD: event.topic,
-                SERVICE_NAME_FIELD: self._service_name,
             },
         )
         logging.info("Published event to DLQ topic '%s'", self._dlq_topic)
