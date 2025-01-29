@@ -120,9 +120,9 @@ class DLQEventInfo(ExtractedEventInfo):
         super().__init__(event=event, **kwargs)
 
 
-def get_event_id(event: ConsumerEvent) -> str:
+def get_event_id(event: ConsumerEvent, *, service_name: str) -> str:
     """Make a label that identifies an event."""
-    return f"{event.topic} - {event.partition} - {event.offset}"
+    return f"{service_name},{event.topic},{event.partition},{event.offset}"
 
 
 def headers_as_dict(event: ConsumerEvent) -> dict[str, str]:
@@ -343,8 +343,8 @@ class KafkaEventSubscriber(InboundProviderBase):
         Args
         - `event`: The event to publish to the DLQ.
         - `exc`: The exception that caused the event to be published to the DLQ.
-        - `event_id`: The topic, partition, and offset of the failed event. Uses the
-            format "topic - partition - offset".
+        - `event_id`: The service name, topic, partition, and offset of the
+            failed event. Uses the format "service_name,topic,partition,offset".
         """
         logging.debug("About to publish an event to DLQ topic '%s'", self._dlq_topic)
         await self._dlq_publisher.publish(  # type: ignore
@@ -499,7 +499,7 @@ class KafkaEventSubscriber(InboundProviderBase):
 
     async def _consume_event(self, event: ConsumerEvent) -> None:
         """Consume an event by passing it down to the translator via the protocol."""
-        event_id = get_event_id(event)
+        event_id = get_event_id(event, service_name=self._service_name)
         event_info = self._extract_info(event)
         try:
             self._validate_extracted_info(event_info)

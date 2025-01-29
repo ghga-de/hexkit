@@ -391,7 +391,8 @@ async def test_retries_exhausted(
         assert dummy_publisher.published
         assert "event_id" in dummy_publisher.published[0].headers
         event_id = dummy_publisher.published[0].headers.pop("event_id")
-        topic, partition, offset = event_id.split(" - ")
+        service_name, topic, partition, offset = event_id.split(",")
+        assert service_name == config.service_name
         assert topic == TEST_EVENT.topic
         assert partition.isnumeric()
         assert offset.isnumeric()
@@ -449,9 +450,8 @@ async def test_consume_retry_without_og_topic(kafka: KafkaFixture, caplog_debug)
             caplog_debug.records,
             parse=False,
         )
-        assert parsed_log.startswith(
-            f"Ignored event of type 'test_type': {TEST_RETRY_TOPIC}"
-        )
+        assert parsed_log.startswith("Ignored event of type 'test_type':")
+        assert TEST_RETRY_TOPIC in parsed_log
         assert parsed_log.endswith("errors: topic is empty")
 
 
@@ -595,4 +595,4 @@ async def test_retry_topic_event_id(kafka: KafkaFixture):
         assert dlq_translator.events
         event = dlq_translator.events[0]
         assert "event_id" in event.headers
-        assert event.headers["event_id"].split(" - ")[0] == TEST_RETRY_TOPIC
+        assert event.headers["event_id"].split(",")[1] == TEST_RETRY_TOPIC
