@@ -32,11 +32,9 @@ from hexkit.protocols.eventsub import DLQSubscriberProtocol, EventSubscriberProt
 from hexkit.providers.akafka import KafkaConfig
 from hexkit.providers.akafka.provider.daosub import KafkaOutboxSubscriber
 from hexkit.providers.akafka.provider.eventsub import (
-    EXC_CLASS_FIELD,
-    EXC_MSG_FIELD,
-    ORIGINAL_TOPIC_FIELD,
     DLQEventInfo,
     ExtractedEventInfo,
+    HeaderNames,
     KafkaEventSubscriber,
 )
 from hexkit.providers.akafka.testutils import (  # noqa: F401
@@ -69,9 +67,11 @@ TEST_DLQ_EVENT = ExtractedEventInfo(
     topic="dlq",
     key="123456",
     headers={
-        "correlation_id": TEST_CORRELATION_ID,
-        EXC_CLASS_FIELD: "RuntimeError",
-        EXC_MSG_FIELD: "Destined to fail.",
+        HeaderNames.ORIGINAL_TOPIC: TEST_TOPIC,
+        HeaderNames.CORRELATION_ID: TEST_CORRELATION_ID,
+        HeaderNames.EXC_CLASS: "RuntimeError",
+        HeaderNames.EXC_MSG: "Destined to fail.",
+        # Correlation ID added when publishing in tests
     },
 )
 
@@ -96,7 +96,7 @@ OUTBOX_EVENT_UPSERT = ExtractedEventInfo(
 OUTBOX_EVENT_DELETE = replace(OUTBOX_EVENT_UPSERT, type_="deleted")
 
 
-class FailSwitchTranslator(EventSubscriberProtocol):
+class DummyTranslator(EventSubscriberProtocol):
     """Event translator that can be set to fail or collect events."""
 
     fail: bool
@@ -137,8 +137,8 @@ class FailSwitchTranslator(EventSubscriberProtocol):
         self.successes.append(event)
 
 
-class FailSwitchOutboxTranslator(DaoSubscriberProtocol):
-    """Translator for the outbox event."""
+class DummyOutboxTranslator(DaoSubscriberProtocol):
+    """Translator for the outbox event that can be set to fail or collect events."""
 
     event_topic: str = "users"
     dto_model: type[BaseModel] = OutboxDto
@@ -258,20 +258,20 @@ async def test_original_topic_is_preserved(kafka: KafkaFixture):
     Consume a failing event, send to DLQ, consume from DLQ, send to Retry, consume from
     Retry, and check the original topic.
     """
-    service_config = make_config(kafka.config)
+    config = make_config(kafka.config)
 
     # Publish test event
     await kafka.publisher.publish(**TEST_EVENT.asdict())
 
     # Create dummy translator and set it to auto-fail
-    translator = FailSwitchTranslator(
+    translator = DummyTranslator(
         topics_of_interest=[TEST_TOPIC], types_of_interest=[TEST_TYPE], fail=True
     )
     assert not translator.successes
 
     # Run the subscriber and expect it to fail, sending the event to the DLQ
     async with KafkaEventSubscriber.construct(
-        config=service_config, translator=translator, dlq_publisher=kafka.publisher
+        config=config, translator=translator, dlq_publisher=kafka.publisher
     ) as event_subscriber:
         assert not translator.failures
         await event_subscriber.run(forever=False)
@@ -279,18 +279,20 @@ async def test_original_topic_is_preserved(kafka: KafkaFixture):
         # Run the DLQ subscriber and check that the topic is TEST_TOPIC, not "dlq"
         dlq_translator = DLQTranslator()
         async with KafkaEventSubscriber.construct(
-            config=service_config,
+            config=config,
             translator=dlq_translator,
         ) as dlq_subscriber:
             await dlq_subscriber.run(forever=False)
             assert dlq_translator.events
-            assert dlq_translator.events[0].topic == TEST_TOPIC
+            assert dlq_translator.events[0].topic == config.kafka_dlq_topic
+            og_topic = dlq_translator.events[0].headers[HeaderNames.ORIGINAL_TOPIC]
+            assert og_topic == TEST_TOPIC
 
 
 async def test_invalid_retries_left(kafka: KafkaFixture, caplog_debug):
     """Ensure that the proper error is raised when retries_left is invalid."""
     config = make_config(kafka.config, max_retries=2)
-    translator = FailSwitchTranslator(
+    translator = DummyTranslator(
         topics_of_interest=[TEST_TOPIC], types_of_interest=[TEST_TYPE]
     )
     dummy_publisher = DummyPublisher()
@@ -333,7 +335,7 @@ async def test_retries_exhausted(
 
     # Set up dummies and consume the event
     dummy_publisher = DummyPublisher()
-    translator = FailSwitchTranslator(
+    translator = DummyTranslator(
         topics_of_interest=[TEST_TOPIC], types_of_interest=[TEST_TYPE], fail=True
     )
     async with KafkaEventSubscriber.construct(
@@ -377,9 +379,9 @@ async def test_retries_exhausted(
         key=TEST_EVENT.key,
         payload=TEST_EVENT.payload,
         headers={
-            EXC_CLASS_FIELD: "RuntimeError",
-            EXC_MSG_FIELD: "Destined to fail.",
-            ORIGINAL_TOPIC_FIELD: TEST_TOPIC,
+            HeaderNames.EXC_CLASS: "RuntimeError",
+            HeaderNames.EXC_MSG: "Destined to fail.",
+            HeaderNames.ORIGINAL_TOPIC: TEST_TOPIC,
         },
     )
 
@@ -432,7 +434,7 @@ async def test_consume_retry_without_og_topic(kafka: KafkaFixture, caplog_debug)
     await kafka.publisher.publish(**event.asdict())
 
     # Set up dummies and subscriber
-    translator = FailSwitchTranslator(
+    translator = DummyTranslator(
         topics_of_interest=[TEST_TOPIC], types_of_interest=[TEST_TYPE]
     )
     async with KafkaEventSubscriber.construct(
@@ -462,7 +464,7 @@ async def test_no_retries_no_dlq_original_error(kafka: KafkaFixture, caplog_debu
     # publish the test event
     await kafka.publisher.publish(**TEST_EVENT.asdict())
 
-    translator = FailSwitchTranslator(
+    translator = DummyTranslator(
         topics_of_interest=[TEST_TOPIC], types_of_interest=[TEST_TYPE], fail=True
     )
     async with KafkaEventSubscriber.construct(
@@ -498,7 +500,7 @@ async def test_outbox_with_dlq(kafka: KafkaFixture, event_type: str):
     """Ensure that the DLQ lifecycle works with the KafkaOutboxSubscriber."""
     config = make_config(kafka.config)
 
-    translator = FailSwitchOutboxTranslator(fail=True)
+    translator = DummyOutboxTranslator(fail=True)
     list_to_check = (
         translator.upsertions if event_type == "upserted" else translator.deletions
     )
@@ -526,9 +528,9 @@ async def test_outbox_with_dlq(kafka: KafkaFixture, event_type: str):
             dlq_event = dlq_translator.events[0]
             assert dlq_event.payload == event.payload
             assert dlq_event.type_ == event.type_
-            assert dlq_event.topic == event.topic
-            assert dlq_event.headers[EXC_CLASS_FIELD] != ""
-            assert dlq_event.headers[EXC_MSG_FIELD] != ""
+            assert dlq_event.topic == config.kafka_dlq_topic
+            assert dlq_event.headers[HeaderNames.EXC_CLASS] != ""
+            assert dlq_event.headers[HeaderNames.EXC_MSG] != ""
 
 
 async def test_kafka_event_subscriber_construction(caplog):
@@ -565,7 +567,7 @@ async def test_retry_topic_event_id(kafka: KafkaFixture):
         topic=TEST_RETRY_TOPIC,
         key="key",
         headers={
-            ORIGINAL_TOPIC_FIELD: TEST_TOPIC,
+            HeaderNames.ORIGINAL_TOPIC: TEST_TOPIC,
         },
     )
 
@@ -574,7 +576,7 @@ async def test_retry_topic_event_id(kafka: KafkaFixture):
         await kafka.publisher.publish(**event.asdict())
 
     # Set up dummies and subscriber
-    translator = FailSwitchTranslator(
+    translator = DummyTranslator(
         topics_of_interest=[TEST_TOPIC], types_of_interest=[TEST_TYPE], fail=True
     )
     async with KafkaEventSubscriber.construct(

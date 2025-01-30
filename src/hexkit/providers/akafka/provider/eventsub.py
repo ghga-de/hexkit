@@ -43,11 +43,15 @@ from hexkit.providers.akafka.provider.utils import (
     generate_ssl_context,
 )
 
-EVENT_ID_FIELD = "event_id"
-CORRELATION_ID_FIELD = "correlation_id"
-ORIGINAL_TOPIC_FIELD = "original_topic"
-EXC_CLASS_FIELD = "exc_class"
-EXC_MSG_FIELD = "exc_msg"
+
+class HeaderNames:
+    """Encapsulated constants for event header values"""
+
+    EVENT_ID = "event_id"
+    CORRELATION_ID = "correlation_id"
+    ORIGINAL_TOPIC = "original_topic"
+    EXC_CLASS = "exc_class"
+    EXC_MSG = "exc_msg"
 
 
 class ConsumerEvent(Protocol):
@@ -352,10 +356,10 @@ class KafkaEventSubscriber(InboundProviderBase):
             topic=self._dlq_topic,
             key=event.key,
             headers={
-                EXC_CLASS_FIELD: exc.__class__.__name__,
-                EXC_MSG_FIELD: str(exc),
-                EVENT_ID_FIELD: event_id,
-                ORIGINAL_TOPIC_FIELD: event.topic,
+                HeaderNames.EXC_CLASS: exc.__class__.__name__,
+                HeaderNames.EXC_MSG: str(exc),
+                HeaderNames.EVENT_ID: event_id,
+                HeaderNames.ORIGINAL_TOPIC: event.topic,
             },
         )
         logging.info("Published event to DLQ topic '%s'", self._dlq_topic)
@@ -457,22 +461,25 @@ class KafkaEventSubscriber(InboundProviderBase):
     def _extract_info(self, event: ConsumerEvent) -> ExtractedEventInfo:
         """Convert the raw event to either ExtractedEventInfo or DLQEventInfo.
 
-        Also extract the original topic name from the header if needed.
+        Also extract the original topic name from the header if it's a retried event.
+        Automatically extracting the original topic name from retried events prevents
+        having to do that separately in every service. The DLQ case is more limited, so
+        leave it up to any DLQ topic consumers to extract the value themselves.
         """
         event_info = (
             DLQEventInfo(event)
             if self._using_dlq_protocol
             else ExtractedEventInfo(event)
         )
-        if event_info.topic in [self._retry_topic, self._dlq_topic]:
+        if event_info.topic == self._retry_topic:
             # The event is being consumed by from the retry topic, so we expect the
             # original topic to be in the headers.
-            event_info.topic = event_info.headers.get(ORIGINAL_TOPIC_FIELD, "")
+            event_info.topic = event_info.headers.pop(HeaderNames.ORIGINAL_TOPIC, "")
         return event_info
 
     def _validate_extracted_info(self, event: ExtractedEventInfo):
         """Validate the extracted event info."""
-        correlation_id = event.headers.get(CORRELATION_ID_FIELD, "")
+        correlation_id = event.headers.get(HeaderNames.CORRELATION_ID, "")
         errors = []
         if not event.type_:
             errors.append("event type is empty")
@@ -481,16 +488,15 @@ class KafkaEventSubscriber(InboundProviderBase):
         if not correlation_id:
             errors.append("correlation_id is empty")
 
-        # Check the topic field -- this happens after replacing retry/dlq with og topic
-        if event.topic in (self._retry_topic, self._dlq_topic):
+        # Check the topic field -- this happens after replacing 'retry' with og topic
+        if event.topic == self._retry_topic:
             errors.append(
-                f"{ORIGINAL_TOPIC_FIELD} header cannot be {self._retry_topic} or"
-                + f" {self._dlq_topic}. Value: '{event.topic}'"
+                f"{HeaderNames.ORIGINAL_TOPIC} header cannot be {self._retry_topic}."
+                + f" Value: '{event.topic}'"
             )
         elif not event.topic:
-            errors.append(
-                "topic is empty"
-            )  # only occurs if original_topic header is empty
+            # only occurs if original_topic header is empty
+            errors.append("topic is empty")
         if errors:
             error = RuntimeError(", ".join(errors))
             raise error
@@ -514,7 +520,7 @@ class KafkaEventSubscriber(InboundProviderBase):
 
         try:
             logging.info("Consuming event of type '%s': %s", event_info.type_, event_id)
-            correlation_id = event_info.headers[CORRELATION_ID_FIELD]
+            correlation_id = event_info.headers[HeaderNames.CORRELATION_ID]
             async with set_correlation_id(correlation_id):
                 await self._handle_consumption(event=event_info, event_id=event_id)
         except Exception:
