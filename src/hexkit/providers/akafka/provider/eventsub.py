@@ -81,7 +81,7 @@ class ExtractedEventInfo:
     """A class encapsulating the data extracted from a `ConsumerEvent`-like object.
 
     This data includes the topic, type, payload, key, headers, and timestamp of the
-    event. If the timestamp is specified in `kwargs`, it will be set to either the
+    event. If the timestamp is specified in `kwargs`, it will be set to the
     event's timestamp. If the event is not available, it will use the current time.
     """
 
@@ -410,6 +410,8 @@ class KafkaEventSubscriber(InboundProviderBase):
         """Pass event to consumer with args adjusted for protocol type."""
         args = asdict(event)
         if not self._using_dlq_protocol:
+            # the reason we don't pop 'timestamp' here is because timestamp is only
+            # provided if using the DLQ protocol. However, both protocols pass headers
             args.pop("headers")
         await self._translator.consume(**args)
 

@@ -529,8 +529,8 @@ async def test_outbox_with_dlq(kafka: KafkaFixture, event_type: str):
             assert dlq_event.payload == event.payload
             assert dlq_event.type_ == event.type_
             assert dlq_event.topic == config.kafka_dlq_topic
-            assert dlq_event.headers[HeaderNames.EXC_CLASS] != ""
-            assert dlq_event.headers[HeaderNames.EXC_MSG] != ""
+            assert dlq_event.headers[HeaderNames.EXC_CLASS] == "RuntimeError"
+            assert dlq_event.headers[HeaderNames.EXC_MSG] == "Destined to fail."
 
 
 async def test_kafka_event_subscriber_construction(caplog):
