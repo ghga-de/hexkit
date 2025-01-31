@@ -25,10 +25,10 @@ import asyncio
 import json
 import logging
 import ssl
-from collections.abc import AsyncGenerator, Awaitable
-from contextlib import asynccontextmanager, suppress
-from dataclasses import dataclass, replace
-from typing import Callable, Literal, Optional, Protocol, TypeVar, cast
+from contextlib import asynccontextmanager
+from dataclasses import asdict, dataclass
+from datetime import datetime, timezone
+from typing import Any, Callable, Literal, Optional, Protocol, TypeVar, Union, cast
 
 from aiokafka import AIOKafkaConsumer
 
@@ -36,16 +36,22 @@ from hexkit.base import InboundProviderBase
 from hexkit.correlation import set_correlation_id
 from hexkit.custom_types import Ascii, JsonObject
 from hexkit.protocols.eventpub import EventPublisherProtocol
-from hexkit.protocols.eventsub import EventSubscriberProtocol
+from hexkit.protocols.eventsub import DLQSubscriberProtocol, EventSubscriberProtocol
 from hexkit.providers.akafka.config import KafkaConfig
 from hexkit.providers.akafka.provider.utils import (
     generate_client_id,
     generate_ssl_context,
 )
 
-ORIGINAL_TOPIC_FIELD = "original_topic"
-EXC_CLASS_FIELD = "exc_class"
-EXC_MSG_FIELD = "exc_msg"
+
+class HeaderNames:
+    """Encapsulated constants for event header values"""
+
+    EVENT_ID = "event_id"
+    CORRELATION_ID = "correlation_id"
+    ORIGINAL_TOPIC = "original_topic"
+    EXC_CLASS = "exc_class"
+    EXC_MSG = "exc_msg"
 
 
 class ConsumerEvent(Protocol):
@@ -57,13 +63,26 @@ class ConsumerEvent(Protocol):
     headers: list[tuple[str, bytes]]
     partition: int
     offset: int
+    timestamp: int
+
+
+def utc_datetime_from_millis(millis: int) -> datetime:
+    """Convert an integer representing milliseconds to a timestamp"""
+    return datetime.fromtimestamp(millis / 1000, tz=timezone.utc)
+
+
+def now_as_utc() -> datetime:
+    """Return the current timestamp with UTC timezone"""
+    return datetime.now().astimezone(tz=timezone.utc)
 
 
 @dataclass
 class ExtractedEventInfo:
     """A class encapsulating the data extracted from a `ConsumerEvent`-like object.
 
-    This data includes the topic, type, payload, and key of the event.
+    This data includes the topic, type, payload, key, headers, and timestamp of the
+    event. If the timestamp is specified in `kwargs`, it will be set to the
+    event's timestamp. If the event is not available, it will use the current time.
     """
 
     topic: Ascii
@@ -86,15 +105,27 @@ class ExtractedEventInfo:
         """Return the headers as a list of 2-tuples with the values encoded as bytes."""
         return [(name, value.encode("ascii")) for name, value in self.headers.items()]
 
+    def asdict(self) -> dict[str, Any]:
+        """Return result of `dataclasses.asdict()` on the instance"""
+        return asdict(self)
 
-def service_name_from_dlq_topic(dlq_topic: str) -> str:
-    """Extract the service name from a DLQ topic name."""
-    return dlq_topic.rsplit(".", 1)[1].removesuffix("-dlq")
+
+@dataclass
+class DLQEventInfo(ExtractedEventInfo):
+    """ExtractedEventInfo plus timestamp information"""
+
+    timestamp: datetime
+
+    def __init__(self, event: Optional[ConsumerEvent] = None, **kwargs):
+        """Initialize an instance of ExtractedEventInfo."""
+        timestamp = utc_datetime_from_millis(event.timestamp) if event else now_as_utc()
+        self.timestamp = kwargs.pop("timestamp", timestamp)
+        super().__init__(event=event, **kwargs)
 
 
-def get_event_id(event: ConsumerEvent) -> str:
+def get_event_id(event: ConsumerEvent, *, service_name: str) -> str:
     """Make a label that identifies an event."""
-    return f"{event.topic} - {event.partition} - {event.offset}"
+    return f"{service_name},{event.topic},{event.partition},{event.offset}"
 
 
 def headers_as_dict(event: ConsumerEvent) -> dict[str, str]:
@@ -191,7 +222,7 @@ class KafkaEventSubscriber(InboundProviderBase):
         cls,
         *,
         config: KafkaConfig,
-        translator: EventSubscriberProtocol,
+        translator: Union[EventSubscriberProtocol, DLQSubscriberProtocol],
         kafka_consumer_cls: type[KafkaConsumerCompatible] = AIOKafkaConsumer,
         dlq_publisher: Optional[EventPublisherProtocol] = None,
     ):
@@ -215,15 +246,30 @@ class KafkaEventSubscriber(InboundProviderBase):
         client_id = generate_client_id(
             service_name=config.service_name, instance_id=config.service_instance_id
         )
+        using_dlq_protocol = isinstance(translator, DLQSubscriberProtocol)
 
-        topics = translator.topics_of_interest
+        topics = (
+            [config.kafka_dlq_topic]
+            if using_dlq_protocol
+            else translator.topics_of_interest  # type: ignore[union-attr]
+        )
 
         if config.kafka_enable_dlq:
-            topics.append(config.service_name + "-retry")
-            if dlq_publisher is None:
-                error = ValueError("A publisher is required when the DLQ is enabled.")
-                logging.error(error)
-                raise error
+            if using_dlq_protocol:
+                updated_config = config.model_dump()
+                updated_config["kafka_enable_dlq"] = False
+                config = KafkaConfig(**updated_config)
+                logging.warning(
+                    "Can't enable DLQ when using DLQSubscriberProtocol. Disabling DLQ."
+                )
+            else:
+                topics.append(config.service_name + "-retry")
+                if dlq_publisher is None:
+                    error = ValueError(
+                        "A publisher is required when the DLQ is enabled."
+                    )
+                    logging.error(error)
+                    raise error
 
         consumer = kafka_consumer_cls(
             *topics,
@@ -256,7 +302,7 @@ class KafkaEventSubscriber(InboundProviderBase):
         self,
         *,
         consumer: KafkaConsumerCompatible,
-        translator: EventSubscriberProtocol,
+        translator: Union[EventSubscriberProtocol, DLQSubscriberProtocol],
         config: KafkaConfig,
         dlq_publisher: Optional[EventPublisherProtocol] = None,
     ):
@@ -275,12 +321,16 @@ class KafkaEventSubscriber(InboundProviderBase):
             config:
                 The KafkaConfig instance
         """
+        self._using_dlq_protocol = isinstance(translator, DLQSubscriberProtocol)
         self._consumer = consumer
         self._translator = translator
-        self._types_whitelist = translator.types_of_interest
+        self._types_whitelist = (
+            [] if self._using_dlq_protocol else translator.types_of_interest  # type: ignore
+        )
         self._dlq_publisher = dlq_publisher
-        self._dlq_suffix = f".{config.service_name}-dlq"
         self._retry_topic = config.service_name + "-retry"
+        self._dlq_topic = config.kafka_dlq_topic
+        self._service_name = config.service_name
         self._max_retries = config.kafka_max_retries
         self._enable_dlq = config.kafka_enable_dlq
         self._retry_backoff = config.kafka_retry_backoff
@@ -296,23 +346,23 @@ class KafkaEventSubscriber(InboundProviderBase):
         Args
         - `event`: The event to publish to the DLQ.
         - `exc`: The exception that caused the event to be published to the DLQ.
-        - `event_id`: The topic, partition, and offset of the failed event. Uses the
-            format "topic - partition - offset".
+        - `event_id`: The service name, topic, partition, and offset of the
+            failed event. Uses the format "service_name,topic,partition,offset".
         """
-        dlq_topic = event.topic + self._dlq_suffix
-        logging.debug("About to publish an event to DLQ topic '%s'", dlq_topic)
+        logging.debug("About to publish an event to DLQ topic '%s'", self._dlq_topic)
         await self._dlq_publisher.publish(  # type: ignore
             payload=event.payload,
             type_=event.type_,
-            topic=dlq_topic,
+            topic=self._dlq_topic,
             key=event.key,
             headers={
-                EXC_CLASS_FIELD: exc.__class__.__name__,
-                EXC_MSG_FIELD: str(exc),
-                "event_id": event_id,
+                HeaderNames.EXC_CLASS: exc.__class__.__name__,
+                HeaderNames.EXC_MSG: str(exc),
+                HeaderNames.EVENT_ID: event_id,
+                HeaderNames.ORIGINAL_TOPIC: event.topic,
             },
         )
-        logging.info("Published event to DLQ topic '%s'", dlq_topic)
+        logging.info("Published event to DLQ topic '%s'", self._dlq_topic)
 
     async def _retry_event(self, *, event: ExtractedEventInfo, retries_left: int):
         """Retry the event until the maximum number of retries is reached.
@@ -347,12 +397,7 @@ class KafkaEventSubscriber(InboundProviderBase):
                 backoff_time,
             )
             await asyncio.sleep(backoff_time)
-            await self._translator.consume(
-                payload=event.payload,
-                type_=event.type_,
-                topic=event.topic,
-                key=event.key,
-            )
+            await self._translator_consume(event=event)
         except Exception as err:
             if retries_left > 0:
                 await self._retry_event(event=event, retries_left=retries_left)
@@ -361,8 +406,17 @@ class KafkaEventSubscriber(InboundProviderBase):
                     event_type=event.type_, max_retries=self._max_retries
                 ) from err
 
+    async def _translator_consume(self, *, event: ExtractedEventInfo):
+        """Pass event to consumer with args adjusted for protocol type."""
+        args = asdict(event)
+        if not self._using_dlq_protocol:
+            # the reason we don't pop 'timestamp' here is because timestamp is only
+            # provided if using the DLQ protocol. However, both protocols pass headers
+            args.pop("headers")
+        await self._translator.consume(**args)
+
     async def _handle_consumption(self, *, event: ExtractedEventInfo, event_id: str):
-        """Try to pass the event to the consumer.
+        """Try to pass the event to the translator.
 
         If the event fails:
         1. Retry until retries are exhausted, if retries are configured.
@@ -375,12 +429,7 @@ class KafkaEventSubscriber(InboundProviderBase):
         added as a header to aid in debugging.
         """
         try:
-            await self._translator.consume(
-                payload=event.payload,
-                type_=event.type_,
-                topic=event.topic,
-                key=event.key,
-            )
+            await self._translator_consume(event=event)
         except Exception as underlying_error:
             logging.warning(
                 "Failed initial attempt to consume event of type '%s' on topic '%s' with key '%s'.",
@@ -412,55 +461,51 @@ class KafkaEventSubscriber(InboundProviderBase):
                 )
 
     def _extract_info(self, event: ConsumerEvent) -> ExtractedEventInfo:
-        """Validate the event, returning the extracted info."""
-        event_info = ExtractedEventInfo(event)
+        """Convert the raw event to either ExtractedEventInfo or DLQEventInfo.
+
+        Also extract the original topic name from the header if it's a retried event.
+        Automatically extracting the original topic name from retried events prevents
+        having to do that separately in every service. The DLQ case is more limited, so
+        leave it up to any DLQ topic consumers to extract the value themselves.
+        """
+        event_info = (
+            DLQEventInfo(event)
+            if self._using_dlq_protocol
+            else ExtractedEventInfo(event)
+        )
         if event_info.topic == self._retry_topic:
             # The event is being consumed by from the retry topic, so we expect the
             # original topic to be in the headers.
-            event_info.topic = event_info.headers.get(ORIGINAL_TOPIC_FIELD, "")
-            logging.info(
-                "Received previously failed event from topic '%s' for retry.",
-                event_info.topic,
-            )
-        elif event_info.topic.endswith(self._dlq_suffix):
-            # The event is being consumed from a DLQ topic, so we remove the DLQ suffix
-            # to produce the original topic name.
-            original_topic = event_info.topic.removesuffix(self._dlq_suffix)
-            logging.info(
-                "Received event from DLQ topic '%s' for processing. Original topic: '%s'",
-                event_info.topic,
-                original_topic,
-            )
-            event_info.topic = original_topic
+            event_info.topic = event_info.headers.pop(HeaderNames.ORIGINAL_TOPIC, "")
         return event_info
 
     def _validate_extracted_info(self, event: ExtractedEventInfo):
-        """Extract and validate the event, returning the correlation ID and the extracted info."""
-        dlq_topic = event.topic + self._dlq_suffix
-        correlation_id = event.headers.get("correlation_id", "")
+        """Validate the extracted event info."""
+        correlation_id = event.headers.get(HeaderNames.CORRELATION_ID, "")
         errors = []
         if not event.type_:
             errors.append("event type is empty")
-        elif event.type_ not in self._types_whitelist:
+        elif self._types_whitelist and event.type_ not in self._types_whitelist:
             errors.append(f"event type '{event.type_}' is not in the whitelist")
         if not correlation_id:
             errors.append("correlation_id is empty")
-        if event.topic in (self._retry_topic, dlq_topic):
+
+        # Check the topic field -- this happens after replacing 'retry' with og topic
+        if event.topic == self._retry_topic:
             errors.append(
-                f"original_topic header cannot be {self._retry_topic} or"
-                + f" {dlq_topic}. Value: '{event.topic}'"
+                f"{HeaderNames.ORIGINAL_TOPIC} header cannot be {self._retry_topic}."
+                + f" Value: '{event.topic}'"
             )
         elif not event.topic:
-            errors.append(
-                "topic is empty"
-            )  # only occurs if original_topic header is empty
+            # only occurs if original_topic header is empty
+            errors.append("topic is empty")
         if errors:
             error = RuntimeError(", ".join(errors))
             raise error
 
     async def _consume_event(self, event: ConsumerEvent) -> None:
         """Consume an event by passing it down to the translator via the protocol."""
-        event_id = get_event_id(event)
+        event_id = get_event_id(event, service_name=self._service_name)
         event_info = self._extract_info(event)
         try:
             self._validate_extracted_info(event_info)
@@ -477,18 +522,17 @@ class KafkaEventSubscriber(InboundProviderBase):
 
         try:
             logging.info("Consuming event of type '%s': %s", event_info.type_, event_id)
-            correlation_id = event_info.headers["correlation_id"]
+            correlation_id = event_info.headers[HeaderNames.CORRELATION_ID]
             async with set_correlation_id(correlation_id):
                 await self._handle_consumption(event=event_info, event_id=event_id)
         except Exception:
             # Errors only bubble up here if the DLQ isn't used
-            dlq_topic = event_info.topic + self._dlq_suffix
             logging.critical(
                 "An error occurred while processing event of type '%s': %s. It was NOT"
                 " placed in the DLQ topic (%s)",
                 event_info.type_,
                 event_id,
-                dlq_topic if self._enable_dlq else "DLQ is disabled",
+                self._dlq_topic if self._enable_dlq else "DLQ is disabled",
             )
             raise
         else:
@@ -507,360 +551,3 @@ class KafkaEventSubscriber(InboundProviderBase):
         else:
             event = await self._consumer.__anext__()
             await self._consume_event(event)
-
-
-# Define function signature for the DLQ processor.
-DLQEventProcessor = Callable[[ConsumerEvent], Awaitable[Optional[ExtractedEventInfo]]]
-
-
-class DLQValidationError(RuntimeError):
-    """Raised when an event from the DLQ fails validation."""
-
-    def __init__(self, *, event: ConsumerEvent, reason: str):
-        msg = f"DLQ Event '{get_event_id(event)}' is invalid: {reason}"
-        super().__init__(msg)
-
-
-class DLQProcessingError(RuntimeError):
-    """Raised when an error occurs while processing an event from the DLQ."""
-
-    def __init__(self, *, event: ConsumerEvent, reason: str):
-        msg = f"DLQ Event '{get_event_id(event)}' cannot be processed: {reason}"
-        super().__init__(msg)
-
-
-def validate_dlq_headers(event: ConsumerEvent) -> None:
-    """Validate the headers that should be populated on every DLQ event.
-
-    Raises:
-    - `DLQValidationError`: If any headers are determined to be invalid.
-    """
-    # TODO: this validation is should not be performed on user-supplied events
-    headers = headers_as_dict(event)
-    expected_headers = ["type", "correlation_id"]
-    invalid_headers = [key for key in expected_headers if not headers.get(key)]
-    if invalid_headers:
-        error_msg = f"Missing or empty headers: {', '.join(invalid_headers)}"
-        raise DLQValidationError(event=event, reason=error_msg)
-
-
-async def process_dlq_event(event: ConsumerEvent) -> Optional[ExtractedEventInfo]:
-    """
-    Placeholder 'processing' function for a message from a dead-letter queue that
-    adheres to the DLQEventProcessor callable definition. This placeholder returns the
-    event as-is after performing basic validation, but can be overridden to perform
-    other validation or transformation.
-
-    Args:
-    - `event`: The event to process.
-
-    Returns:
-    - `ConsumerEvent`: The unaltered event to publish to the retry topic.
-    - `None`: A signal to discard the event.
-
-    Raises:
-    - `DLQValidationError`: If the event headers are invalid.
-    """
-    validate_dlq_headers(event)
-    return ExtractedEventInfo(event)
-
-
-class KafkaDLQSubscriber:
-    """A kafka event subscriber that subscribes to the specified DLQ topic and either
-    discards each event or publishes it to the retry topic as instructed.
-    Further processing before requeuing is provided by a callable adhering to the
-    DLQEventProcessor definition.
-    """
-
-    def __init__(  # noqa: PLR0913
-        self,
-        *,
-        config: KafkaConfig,
-        dlq_topic: str,
-        dlq_publisher: EventPublisherProtocol,
-        process_dlq_event: DLQEventProcessor = process_dlq_event,
-        kafka_consumer_cls: type[KafkaConsumerCompatible] = AIOKafkaConsumer,
-        timeout_ms: int = 500,
-    ):
-        """
-        Setup and teardown KafkaDLQSubscriber instance.
-
-        Args:
-        - `config`:
-            Config parameters needed for connecting to Apache Kafka.
-        - `dlq_topic`:
-            The name of the DLQ topic to subscribe to. Has the format
-            "{original_topic}.{service_name}-dlq".
-        - `dlq_publisher`:
-            A running instance of a publishing provider that implements the
-            EventPublisherProtocol, such as KafkaEventPublisher. It is used to publish
-            events to the retry topic.
-        - `process_dlq_event`:
-            An async callable adhering to the DLQEventProcessor definition that provides
-            validation and processing for events from the DLQ. It should return _either_
-            the event to publish to the retry topic (which may be altered) or `None` to
-            discard the event. The `KafkaDLQSubscriber` will log and interpret
-            `DLQValidationError` as a signal to discard/ignore the event, and all other
-            errors will be re-raised as a `DLQProcessingError`.
-        - `kafka_consumer_cls`:
-            Overwrite the used Kafka consumer class. Only intended for unit testing.
-        - `timeout_ms`:
-            The maximum time in milliseconds to spend reading from the DLQ topic.
-        """
-        if timeout_ms < 0:
-            error = ValueError("timeout_ms must be a non-negative integer.")
-            logging.error(error)
-            raise error
-
-        client_id = generate_client_id(
-            service_name=config.service_name, instance_id=config.service_instance_id
-        )
-
-        consumer = kafka_consumer_cls(
-            dlq_topic,
-            bootstrap_servers=",".join(config.kafka_servers),
-            security_protocol=config.kafka_security_protocol,
-            ssl_context=generate_ssl_context(config),
-            client_id=client_id,
-            group_id=config.service_name,
-            auto_offset_reset="earliest",
-            enable_auto_commit=False,
-            key_deserializer=lambda event_key: event_key.decode("ascii"),
-            value_deserializer=lambda event_value: json.loads(
-                event_value.decode("ascii")
-            ),
-            max_partition_fetch_bytes=config.kafka_max_message_size,
-        )
-
-        self._consumer = consumer
-        self._publisher = dlq_publisher
-        self._dlq_topic = dlq_topic
-        self._timeout_ms = timeout_ms
-
-        # In KafkaEventSubscriber, we get the service name from the config. However,
-        # the service name in effect here probably differs -- e.g., a DLQ-specific
-        # service might be running the KafkaDLQSubscriber. So we extract the service
-        # name from the DLQ topic name instead.
-        service_name = service_name_from_dlq_topic(dlq_topic)
-        self._retry_topic = service_name + "-retry"
-        self._process_dlq_event = process_dlq_event
-
-    async def __aenter__(self) -> "KafkaDLQSubscriber":
-        """Start consuming events from the DLQ topic."""
-        await self.start()
-        return self
-
-    async def __aexit__(self, *args) -> None:
-        """Stop consuming events from the DLQ topic."""
-        await self.stop()
-
-    async def start(self) -> None:
-        """Start consuming events from the DLQ topic."""
-        await self._consumer.start()
-
-    async def stop(self) -> None:
-        """Stop consuming events from the DLQ topic."""
-        await self._consumer.stop()
-
-    async def _publish_to_retry(
-        self, *, event: ExtractedEventInfo, dry_run: bool
-    ) -> ExtractedEventInfo:
-        """Publish the event to the retry topic.
-
-        If `dry_run` is `True`, the event will not be published.
-
-        Returns the data that was/would be passed to the publisher.
-        """
-        correlation_id = event.headers["correlation_id"]
-
-        # Get original topic name by removing the DLQ suffix (".<service name>-dlq")
-        headers = {ORIGINAL_TOPIC_FIELD: self._dlq_topic.rsplit(".", 1)[0]}
-
-        event_to_publish = replace(event, topic=self._retry_topic, headers=headers)
-
-        if not dry_run:
-            async with set_correlation_id(correlation_id):
-                await self._publisher.publish(
-                    payload=event_to_publish.payload,
-                    type_=event_to_publish.type_,
-                    key=event_to_publish.key,
-                    topic=event_to_publish.topic,
-                    headers=event_to_publish.headers,
-                )
-                logging.info(
-                    "Published an event with type '%s' to the retry topic '%s'",
-                    event.type_,
-                    self._retry_topic,
-                )
-        return event_to_publish
-
-    async def _handle_dlq_event_manual(
-        self, *, event: ConsumerEvent, override: ExtractedEventInfo, dry_run: bool
-    ) -> Optional[ExtractedEventInfo]:
-        """Manually resolve an event from the dead-letter queue by directly publishing
-        a user-supplied event to the retry topic. This will bypass `_process_dlq_event`,
-        but still run the basic validation.
-
-        Returns the ExtractedEventInfo instance that would be published to the retry
-        topic.
-
-        Raises:
-        - `DLQValidationError`: If the DLQ event headers are invalid
-        """
-        # Check headers of the DLQ event itself
-        validate_dlq_headers(event)
-        dlq_event = ExtractedEventInfo(event)
-
-        # Correlation ID should match the original event -- if not, we might be using
-        # the wrong data to resolve the DLQ event (e.g. copy/paste error)
-        if dlq_event.headers["correlation_id"] != override.headers["correlation_id"]:
-            msg = (
-                "Cannot manually resolve DLQ event due to correlation ID mismatch."
-                + f"\nExpected {dlq_event.headers['correlation_id']} but"
-                + f" got {override.headers['correlation_id']}"
-            )
-            raise RuntimeError(msg)
-
-        # If all good, publish the user-supplied event to the retry topic
-        publish_result = await self._publish_to_retry(event=override, dry_run=dry_run)
-
-        # Only return `result` if doing a dry run, otherwise just return None
-        return publish_result if dry_run else None
-
-    async def _handle_dlq_event_automatic(
-        self, *, event: ConsumerEvent, dry_run: bool
-    ) -> Optional[ExtractedEventInfo]:
-        """Automatically process an event from the dead-letter queue. This will run
-        the event through the `_process_dlq_event` function and publish the result to
-        the retry topic.
-        """
-        try:
-            event_to_publish = await self._process_dlq_event(event)
-            if event_to_publish:
-                result = await self._publish_to_retry(
-                    event=event_to_publish, dry_run=dry_run
-                )
-            # Only return `result` if doing a dry run, otherwise just return None
-            return result if dry_run else None
-        except DLQValidationError as err:
-            txt = "Would have ignored" if dry_run else "Ignoring"
-            logging.error("%s event from DLQ due to validation failure: %s", txt, err)
-            return None
-
-    async def ignore(self) -> None:
-        """Directly ignore the next event from the DLQ topic."""
-        async with self._get_events(max_records=1, commit_offsets=True) as events:
-            if not events:
-                return
-            event_label = get_event_id(events[0])
-            logging.info(
-                "Ignoring event from DLQ topic '%s': %s",
-                self._dlq_topic,
-                event_label,
-            )
-
-    @asynccontextmanager
-    async def _get_events(
-        self, *, max_records: int, commit_offsets: bool
-    ) -> AsyncGenerator[list[ConsumerEvent], None]:
-        """Context manager to fetch events from the DLQ topic.
-
-        Args:
-        - `max_records`: The maximum number of events to fetch.
-        - `commit_offsets`: Whether to commit the offsets upon exit or roll back.
-        """
-        # Fetch the current offsets before doing anything
-        topic_partitions = [
-            topic_partition
-            for topic_partition in self._consumer.assignment()  # type: ignore
-            if topic_partition.topic == self._dlq_topic
-        ]
-
-        positions = {
-            topic_partition: await self._consumer.position(  # type: ignore
-                topic_partition
-            )
-            for topic_partition in topic_partitions
-        }
-
-        try:
-            # Get the next events from the DLQ topic, up to `max_records`
-            fetched = await self._consumer.getmany(  # type: ignore
-                max_records=max_records, timeout_ms=self._timeout_ms
-            )
-
-            # Convert to a list and yield control back to the caller
-            events = []
-            with suppress(StopIteration):
-                events = next(iter(fetched.values()))
-            if not events:
-                logging.debug("No events found in DLQ topic '%s'", self._dlq_topic)
-            yield events
-
-            # Commit offsets if requested, but only if no errors occurred
-            if commit_offsets:
-                await self._consumer.commit()
-        finally:
-            # If not committing offsets, always try to roll them back (error or not)
-            if not commit_offsets:
-                for partition, offset in positions.items():
-                    self._consumer.seek(partition, offset)  # type: ignore
-
-    async def preview(self, limit: int = 1, skip: int = 0) -> list[ExtractedEventInfo]:
-        """Fetch the next events from the configured DLQ topic without processing them.
-
-        Offsets are reset to their original positions after fetching. The pagination
-        parameters 'skip' and 'limit' can be used to control the number of events
-        returned and from how deep in the topic to start fetching.
-
-        Args
-        - `limit`: The maximum number of events to fetch.
-        - `skip`: The number of events to skip before fetching.
-        """
-        max_records = limit + skip
-        async with self._get_events(
-            max_records=max_records, commit_offsets=False
-        ) as events:
-            return [ExtractedEventInfo(event) for event in events[skip:]]
-
-    async def process(
-        self, override: Optional[ExtractedEventInfo] = None, dry_run: bool = False
-    ) -> Optional[ExtractedEventInfo]:
-        """Process the next event from the configured DLQ topic.
-
-        Validate and resolve the event based on custom logic, if applicable.
-
-        Args
-        - `override`: An optional `ExtractedEventInfo` instance to use in place of the
-            next event from the DLQ topic. This is useful for manually resolving the
-            next event instead of letting the processor handle it automatically.
-        - `dry_run`: If `True`, the event will be processed but not published to the
-            retry topic. This is useful for double-checking that what would be published
-            matches the expected output. Offsets will not be committed, like in preview.
-        """
-        commit = not dry_run
-
-        async with self._get_events(max_records=1, commit_offsets=commit) as events:
-            if not events:
-                return None
-            event = events[0]
-            try:
-                # Process the event and get what would be sent to `_publisher.publish()`
-                result = (
-                    await self._handle_dlq_event_manual(
-                        event=event, override=override, dry_run=dry_run
-                    )
-                    if override
-                    else await self._handle_dlq_event_automatic(
-                        event=event, dry_run=dry_run
-                    )
-                )
-                return result
-            except Exception as exc:
-                error = DLQProcessingError(event=event, reason=str(exc))
-                logging.error(
-                    "Failed to process event from DLQ topic '%s': '%s'",
-                    self._dlq_topic,
-                    exc,
-                )
-                raise error from exc

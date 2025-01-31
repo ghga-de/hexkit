@@ -24,21 +24,15 @@ from .eventpub import KafkaEventPublisher
 from .eventsub import (
     ConsumerEvent,
     ExtractedEventInfo,
-    KafkaDLQSubscriber,
     KafkaEventSubscriber,
     headers_as_dict,
-    process_dlq_event,
-    validate_dlq_headers,
 )
 
 __all__ = [
     "ConsumerEvent",
     "ExtractedEventInfo",
-    "KafkaDLQSubscriber",
     "KafkaEventPublisher",
     "KafkaEventSubscriber",
     "KafkaOutboxSubscriber",
     "headers_as_dict",
-    "process_dlq_event",
-    "validate_dlq_headers",
 ]

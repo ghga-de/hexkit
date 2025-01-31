@@ -17,6 +17,8 @@
 """Protocol related to event subscription."""
 
 from abc import ABC, abstractmethod
+from collections.abc import Mapping
+from datetime import datetime
 
 from hexkit.custom_types import Ascii, JsonObject
 from hexkit.utils import check_ascii
@@ -87,5 +89,78 @@ class EventSubscriberProtocol(ABC):
             type_: The type of the event.
             topic: Name of the topic the event was published to.
             key: A key used for routing the event.
+        """
+        ...
+
+
+class DLQSubscriberProtocol(ABC):
+    """
+    A protocol for consuming events from an event broker with the header data included.
+
+    In addition to the methods described below, implementations shall expose the
+    the following attributes:
+    """
+
+    class MalformedPayloadError(RuntimeError):
+        """
+        Raised if the payload of a received event was not formatted as expected given
+        the type.
+        """
+
+    async def consume(  # noqa: PLR0913
+        self,
+        *,
+        payload: JsonObject,
+        type_: Ascii,
+        topic: Ascii,
+        key: Ascii,
+        timestamp: datetime,
+        headers: Mapping[str, str],
+    ) -> None:
+        """Receive an event of interest and process it according to its type.
+
+        Args:
+            payload: The data/payload to send with the event.
+            type_: The type of the event.
+            topic: Name of the topic the event was published to.
+            key: A key used for routing the event.
+            timestamp: The timestamp assigned by either the publisher or the broker.
+            headers: The event headers containing important metadata.
+        """
+        check_ascii(type_, topic)
+
+        if key:
+            check_ascii(key)
+
+        await self._consume_validated(
+            payload=payload,
+            type_=type_,
+            topic=topic,
+            key=key,
+            timestamp=timestamp,
+            headers=headers,
+        )
+
+    @abstractmethod
+    async def _consume_validated(  # noqa: PLR0913
+        self,
+        *,
+        payload: JsonObject,
+        type_: Ascii,
+        topic: Ascii,
+        key: Ascii,
+        timestamp: datetime,
+        headers: Mapping[str, str],
+    ) -> None:
+        """
+        Receive and process an event with already validated topic, type, and key.
+
+        Args:
+            payload: The data/payload to send with the event.
+            type_: The type of the event.
+            topic: Name of the topic the event was published to.
+            key: A key used for routing the event.
+            timestamp: The timestamp assigned by either the publisher or the broker.
+            headers: The event headers containing important metadata.
         """
         ...
