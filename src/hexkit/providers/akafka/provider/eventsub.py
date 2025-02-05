@@ -28,6 +28,9 @@ from contextlib import asynccontextmanager
 from typing import Callable, Literal, Optional, Protocol, TypeVar
 
 from aiokafka import AIOKafkaConsumer
+from opentelemetry import trace
+from opentelemetry.propagate import extract
+from opentelemetry.propagators import textmap
 
 from hexkit.base import InboundProviderBase
 from hexkit.correlation import set_correlation_id
@@ -38,6 +41,33 @@ from hexkit.providers.akafka.provider.utils import (
     generate_client_id,
     generate_ssl_context,
 )
+
+tracer = trace.get_tracer_provider().get_tracer(__name__)
+
+HeadersT = list[tuple[str, Optional[bytes]]]
+
+
+class AIOKafkaContextGetter(textmap.Getter[HeadersT]):
+    """Extractor helper"""
+
+    def get(self, carrier: HeadersT, key: str) -> Optional[list[str]]:
+        """Get value"""
+        if carrier is None:
+            return None
+
+        for item_key, value in carrier:
+            if item_key == key and value is not None:
+                return [value.decode()]
+        return None
+
+    def keys(self, carrier: HeadersT) -> list[str]:
+        """Get keys"""
+        if carrier is None:
+            return []
+        return [key for (key, value) in carrier]
+
+
+_aiokafka_getter = AIOKafkaContextGetter()
 
 
 class EventHeaderNotFoundError(RuntimeError):
@@ -213,45 +243,52 @@ class KafkaEventSubscriber(InboundProviderBase):
 
     async def _consume_event(self, event: ConsumerEvent) -> None:
         """Consume an event by passing it down to the translator via the protocol."""
-        event_label = self._get_event_label(event)
-        headers = headers_as_dict(event)
-
-        try:
-            type_ = get_header_value(header_name="type", headers=headers)
-            correlation_id = get_header_value(
-                header_name="correlation_id", headers=headers
-            )
-        except EventHeaderNotFoundError as err:
-            logging.warning("Ignored an event: %s. %s", event_label, err.args[0])
-            # acknowledge event receipt
-            await self._consumer.commit()
-            return
-
-        if type_ in self._types_whitelist:
-            logging.info('Consuming event of type "%s": %s', type_, event_label)
+        extracted_context = extract(
+            event.headers,
+            getter=_aiokafka_getter,  # type: ignore
+        )
+        with tracer.start_as_current_span(
+            name="Consume event", context=extracted_context
+        ):
+            event_label = self._get_event_label(event)
+            headers = headers_as_dict(event)
 
             try:
-                async with set_correlation_id(correlation_id):
-                    # blocks until event processing is completed:
-                    await self._translator.consume(
-                        payload=event.value,
-                        type_=type_,
-                        topic=event.topic,
-                        key=event.key,
-                    )
-                    # acknowledge successfully processed event
-                    await self._consumer.commit()
-            except Exception:
-                logging.error(
-                    "A fatal error occurred while processing the event: %s",
-                    event_label,
+                type_ = get_header_value(header_name="type", headers=headers)
+                correlation_id = get_header_value(
+                    header_name="correlation_id", headers=headers
                 )
-                raise
+            except EventHeaderNotFoundError as err:
+                logging.warning("Ignored an event: %s. %s", event_label, err.args[0])
+                # acknowledge event receipt
+                await self._consumer.commit()
+                return
 
-        else:
-            logging.info("Ignored event of type %s: %s", type_, event_label)
-            # acknowledge event receipt
-            await self._consumer.commit()
+            if type_ in self._types_whitelist:
+                logging.info('Consuming event of type "%s": %s', type_, event_label)
+
+                try:
+                    async with set_correlation_id(correlation_id):
+                        # blocks until event processing is completed:
+                        await self._translator.consume(
+                            payload=event.value,
+                            type_=type_,
+                            topic=event.topic,
+                            key=event.key,
+                        )
+                        # acknowledge successfully processed event
+                        await self._consumer.commit()
+                except Exception:
+                    logging.error(
+                        "A fatal error occurred while processing the event: %s",
+                        event_label,
+                    )
+                    raise
+
+            else:
+                logging.info("Ignored event of type %s: %s", type_, event_label)
+                # acknowledge event receipt
+                await self._consumer.commit()
 
     async def run(self, forever: bool = True) -> None:
         """
