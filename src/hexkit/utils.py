@@ -69,7 +69,7 @@ def calc_part_size(*, file_size: int, preferred_part_size: Optional[int] = None)
 
     if file_size > FILE_SIZE_LIMIT:
         raise ValueError(
-            f"""Provided file size of {file_size/1024**4:2.f}TiB
+            f"""Provided file size of {file_size / 1024**4:2.f}TiB
             exceeds maximum allowed file size of 5 TiB"""
         )
 
