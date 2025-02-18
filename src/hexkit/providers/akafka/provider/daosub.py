@@ -19,85 +19,24 @@
 """
 
 import logging
+import warnings
 from collections.abc import Sequence
 from contextlib import asynccontextmanager
 from typing import Optional
 
 from aiokafka import AIOKafkaConsumer
-from pydantic import ValidationError
 
 from hexkit.base import InboundProviderBase
-from hexkit.custom_types import Ascii, JsonObject
-from hexkit.protocols.daosub import (
-    DaoSubscriberProtocol,
-    DtoValidationError,
-)
+from hexkit.protocols.daosub import DaoSubscriberProtocol
 from hexkit.protocols.eventpub import EventPublisherProtocol
-from hexkit.protocols.eventsub import EventSubscriberProtocol
 from hexkit.providers.akafka.config import KafkaConfig
 from hexkit.providers.akafka.provider.eventsub import (
+    CHANGE_EVENT_TYPE,  # noqa: F401  (export for backwards compatibility until v5)
+    DELETE_EVENT_TYPE,  # noqa: F401  (export for backwards compatibility until v5)
     KafkaConsumerCompatible,
     KafkaEventSubscriber,
+    TranslatorConverter,
 )
-
-CHANGE_EVENT_TYPE = "upserted"
-DELETE_EVENT_TYPE = "deleted"
-
-
-class TranslatorConverter(EventSubscriberProtocol):
-    """Takes a list of translators implementing the `DaoSubscriberProtocol` to
-    create a single translator implementing the `EventSubscriberProtocol`.
-    """
-
-    types_of_interest = [CHANGE_EVENT_TYPE, DELETE_EVENT_TYPE]
-
-    def __init__(self, *, translators: Sequence[DaoSubscriberProtocol]):
-        self.topics_of_interest = [translator.event_topic for translator in translators]
-
-        if len(set(self.topics_of_interest)) != len(self.topics_of_interest):
-            raise ValueError(
-                "Got multiple DaoSubscriberProtocol-compliant translators trying to"
-                + " consume from the same event topic."
-            )
-
-        self._translator_by_topic = {
-            translator.event_topic: translator for translator in translators
-        }
-
-    async def _consume_validated(
-        self, *, payload: JsonObject, type_: Ascii, topic: Ascii, key: Ascii
-    ) -> None:
-        """
-        Receive and process an event with already validated topic, type, and key.
-
-        Args:
-            payload: The data/payload to send with the event.
-            type_: The type of the event.
-            topic: Name of the topic the event was published to.
-            key: A key used for routing the event.
-        """
-        translator = self._translator_by_topic.get(topic)
-
-        if translator is None:
-            # This should never happen, as the topic should have been filtered out:
-            raise RuntimeError
-
-        if type_ == CHANGE_EVENT_TYPE:
-            try:
-                dto = translator.dto_model.model_validate(payload)
-            except ValidationError as error:
-                message = (
-                    f"The event of type {type_} on topic {topic}"
-                    + " was not valid wrt. the DTO model."
-                )
-                logging.error(message)
-                raise DtoValidationError(message) from error
-
-            await translator.changed(resource_id=key, update=dto)
-
-        else:
-            # a deletion event:
-            await translator.deleted(resource_id=key)
 
 
 class KafkaOutboxSubscriber(InboundProviderBase):
@@ -129,6 +68,14 @@ class KafkaOutboxSubscriber(InboundProviderBase):
         Returns:
             An instance of the provider.
         """
+        warnings.warn(
+            "KafkaOutboxSubscriber is deprecated and will be removed in hexkit"
+            + " v5. Use KafkaEventSubscriber instead. If you use multiple"
+            + " DaoSubscriberProtocol translators, merge them into a single"
+            + " EventSubscriberProtocol by using the TranslatorConverter class.",
+            DeprecationWarning,
+            stacklevel=1,
+        )
         translator_converter = TranslatorConverter(translators=translators)
 
         if config.kafka_enable_dlq and dlq_publisher is None:

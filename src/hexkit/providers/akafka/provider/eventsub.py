@@ -25,16 +25,19 @@ import asyncio
 import json
 import logging
 import ssl
+from collections.abc import Sequence
 from contextlib import asynccontextmanager
 from dataclasses import asdict, dataclass
 from datetime import datetime, timezone
 from typing import Any, Callable, Literal, Optional, Protocol, TypeVar, Union, cast
 
 from aiokafka import AIOKafkaConsumer
+from pydantic import ValidationError
 
 from hexkit.base import InboundProviderBase
 from hexkit.correlation import set_correlation_id
 from hexkit.custom_types import Ascii, JsonObject
+from hexkit.protocols.daosub import DaoSubscriberProtocol, DtoValidationError
 from hexkit.protocols.eventpub import EventPublisherProtocol
 from hexkit.protocols.eventsub import DLQSubscriberProtocol, EventSubscriberProtocol
 from hexkit.providers.akafka.config import KafkaConfig
@@ -42,6 +45,71 @@ from hexkit.providers.akafka.provider.utils import (
     generate_client_id,
     generate_ssl_context,
 )
+
+CHANGE_EVENT_TYPE = "upserted"
+DELETE_EVENT_TYPE = "deleted"
+
+
+class TranslatorConverter(EventSubscriberProtocol):
+    """Takes a list of translators implementing the `DaoSubscriberProtocol` to
+    create a single translator implementing the `EventSubscriberProtocol`.
+    """
+
+    types_of_interest = [CHANGE_EVENT_TYPE, DELETE_EVENT_TYPE]
+
+    def __init__(
+        self,
+        *,
+        translators: Union[DaoSubscriberProtocol, Sequence[DaoSubscriberProtocol]],
+    ):
+        if isinstance(translators, DaoSubscriberProtocol):
+            translators = [translators]
+        self.topics_of_interest = [translator.event_topic for translator in translators]
+
+        if len(set(self.topics_of_interest)) != len(self.topics_of_interest):
+            raise ValueError(
+                "Got multiple DaoSubscriberProtocol-compliant translators trying to"
+                + " consume from the same event topic."
+            )
+
+        self._translator_by_topic = {
+            translator.event_topic: translator for translator in translators
+        }
+
+    async def _consume_validated(
+        self, *, payload: JsonObject, type_: Ascii, topic: Ascii, key: Ascii
+    ) -> None:
+        """
+        Receive and process an event with already validated topic, type, and key.
+
+        Args:
+            payload: The data/payload to send with the event.
+            type_: The type of the event.
+            topic: Name of the topic the event was published to.
+            key: A key used for routing the event.
+        """
+        translator = self._translator_by_topic.get(topic)
+
+        if translator is None:
+            # This should never happen, as the topic should have been filtered out:
+            raise RuntimeError
+
+        if type_ == CHANGE_EVENT_TYPE:
+            try:
+                dto = translator.dto_model.model_validate(payload)
+            except ValidationError as error:
+                message = (
+                    f"The event of type {type_} on topic {topic}"
+                    + " was not valid wrt. the DTO model."
+                )
+                logging.error(message)
+                raise DtoValidationError(message) from error
+
+            await translator.changed(resource_id=key, update=dto)
+
+        else:
+            # a deletion event:
+            await translator.deleted(resource_id=key)
 
 
 class HeaderNames:

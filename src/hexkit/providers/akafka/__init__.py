@@ -24,6 +24,7 @@ from .provider import (
     KafkaEventPublisher,
     KafkaEventSubscriber,
     KafkaOutboxSubscriber,
+    TranslatorConverter,
 )
 
 __all__ = [
@@ -31,4 +32,5 @@ __all__ = [
     "KafkaEventPublisher",
     "KafkaEventSubscriber",
     "KafkaOutboxSubscriber",
+    "TranslatorConverter",
 ]
