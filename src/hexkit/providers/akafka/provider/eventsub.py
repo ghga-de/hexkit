@@ -43,6 +43,8 @@ from hexkit.providers.akafka.provider.utils import (
     generate_ssl_context,
 )
 
+RETRY_SUFFIX = "-retry"
+
 
 class HeaderNames:
     """Encapsulated constants for event header values"""
@@ -52,6 +54,7 @@ class HeaderNames:
     ORIGINAL_TOPIC = "original_topic"
     EXC_CLASS = "exc_class"
     EXC_MSG = "exc_msg"
+    RETRY_TOPIC = "retry_topic"
 
 
 class ConsumerEvent(Protocol):
@@ -225,6 +228,7 @@ class KafkaEventSubscriber(InboundProviderBase):
         translator: Union[EventSubscriberProtocol, DLQSubscriberProtocol],
         kafka_consumer_cls: type[KafkaConsumerCompatible] = AIOKafkaConsumer,
         dlq_publisher: Optional[EventPublisherProtocol] = None,
+        retry_topic_suffix: str = RETRY_SUFFIX,
     ):
         """
         Setup and teardown KafkaEventSubscriber instance with some config params.
@@ -253,6 +257,7 @@ class KafkaEventSubscriber(InboundProviderBase):
             if using_dlq_protocol
             else translator.topics_of_interest  # type: ignore[union-attr]
         )
+        retry_topic = config.service_name + retry_topic_suffix
 
         if config.kafka_enable_dlq:
             if using_dlq_protocol:
@@ -263,7 +268,7 @@ class KafkaEventSubscriber(InboundProviderBase):
                     "Can't enable DLQ when using DLQSubscriberProtocol. Disabling DLQ."
                 )
             else:
-                topics.append(config.service_name + "-retry")
+                topics.append(retry_topic)
                 if dlq_publisher is None:
                     error = ValueError(
                         "A publisher is required when the DLQ is enabled."
@@ -294,6 +299,7 @@ class KafkaEventSubscriber(InboundProviderBase):
                 translator=translator,
                 dlq_publisher=dlq_publisher,
                 config=config,
+                retry_topic=retry_topic,
             )
         finally:
             await consumer.stop()
@@ -304,6 +310,7 @@ class KafkaEventSubscriber(InboundProviderBase):
         consumer: KafkaConsumerCompatible,
         translator: Union[EventSubscriberProtocol, DLQSubscriberProtocol],
         config: KafkaConfig,
+        retry_topic: str,
         dlq_publisher: Optional[EventPublisherProtocol] = None,
     ):
         """Please do not call directly! Should be called by the `construct` method.
@@ -328,7 +335,7 @@ class KafkaEventSubscriber(InboundProviderBase):
             [] if self._using_dlq_protocol else translator.types_of_interest  # type: ignore
         )
         self._dlq_publisher = dlq_publisher
-        self._retry_topic = config.service_name + "-retry"
+        self._retry_topic = retry_topic
         self._dlq_topic = config.kafka_dlq_topic
         self._service_name = config.service_name
         self._max_retries = config.kafka_max_retries
@@ -360,6 +367,7 @@ class KafkaEventSubscriber(InboundProviderBase):
                 HeaderNames.EXC_MSG: str(exc),
                 HeaderNames.EVENT_ID: event_id,
                 HeaderNames.ORIGINAL_TOPIC: event.topic,
+                HeaderNames.RETRY_TOPIC: self._retry_topic,
             },
         )
         logging.info("Published event to DLQ topic '%s'", self._dlq_topic)

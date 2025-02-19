@@ -42,6 +42,7 @@ from hexkit.providers.akafka.provider.eventsub import (
 
 CHANGE_EVENT_TYPE = "upserted"
 DELETE_EVENT_TYPE = "deleted"
+OUTBOX_RETRY_SUFFIX = "-outbox-retry"
 
 
 class TranslatorConverter(EventSubscriberProtocol):
@@ -141,6 +142,7 @@ class KafkaOutboxSubscriber(InboundProviderBase):
             translator=translator_converter,
             dlq_publisher=dlq_publisher,
             kafka_consumer_cls=kafka_consumer_cls,
+            retry_topic_suffix=OUTBOX_RETRY_SUFFIX,
         ) as event_subscriber:
             yield cls(event_subscriber=event_subscriber)
 

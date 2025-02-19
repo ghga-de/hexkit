@@ -23,7 +23,7 @@ classifiers = [
     "Intended Audience :: Developers",
 ]
 name = "hexkit"
-version = "4.0.0"
+version = "4.0.1"
 description = "A Toolkit for Building Microservices using the Hexagonal Architecture"
 dependencies = [
     "pydantic >=2, <3",

@@ -71,6 +71,7 @@ TEST_DLQ_EVENT = ExtractedEventInfo(
         HeaderNames.CORRELATION_ID: TEST_CORRELATION_ID,
         HeaderNames.EXC_CLASS: "RuntimeError",
         HeaderNames.EXC_MSG: "Destined to fail.",
+        HeaderNames.RETRY_TOPIC: "test_publisher-retry",
         # Correlation ID added when publishing in tests
     },
 )
@@ -284,9 +285,27 @@ async def test_original_topic_is_preserved(kafka: KafkaFixture):
         ) as dlq_subscriber:
             await dlq_subscriber.run(forever=False)
             assert dlq_translator.events
-            assert dlq_translator.events[0].topic == config.kafka_dlq_topic
-            og_topic = dlq_translator.events[0].headers[HeaderNames.ORIGINAL_TOPIC]
+            dlq_event = dlq_translator.events[0]
+            assert dlq_event.topic == config.kafka_dlq_topic
+            og_topic = dlq_event.headers[HeaderNames.ORIGINAL_TOPIC]
             assert og_topic == TEST_TOPIC
+            retry_topic = TEST_RETRY_TOPIC
+            assert dlq_event.headers[HeaderNames.RETRY_TOPIC] == retry_topic
+
+    # Publish to retry topic (simulate DLQ event resolution)
+    retry_event = replace(TEST_DLQ_EVENT, topic=TEST_RETRY_TOPIC)
+    await kafka.publisher.publish(**retry_event.asdict())
+    async with KafkaEventSubscriber.construct(
+        config=config, translator=translator, dlq_publisher=kafka.publisher
+    ) as event_subscriber:
+        translator.fail = False
+        translator.failures.clear()
+        assert not translator.successes
+        await event_subscriber.run(forever=False)
+
+        assert translator.successes
+        event = translator.successes[0]
+        assert event.topic == TEST_TOPIC
 
 
 async def test_invalid_retries_left(kafka: KafkaFixture, caplog_debug):
@@ -382,6 +401,7 @@ async def test_retries_exhausted(
             HeaderNames.EXC_CLASS: "RuntimeError",
             HeaderNames.EXC_MSG: "Destined to fail.",
             HeaderNames.ORIGINAL_TOPIC: TEST_TOPIC,
+            HeaderNames.RETRY_TOPIC: TEST_RETRY_TOPIC,
         },
     )
 
@@ -531,6 +551,8 @@ async def test_outbox_with_dlq(kafka: KafkaFixture, event_type: str):
             assert dlq_event.topic == config.kafka_dlq_topic
             assert dlq_event.headers[HeaderNames.EXC_CLASS] == "RuntimeError"
             assert dlq_event.headers[HeaderNames.EXC_MSG] == "Destined to fail."
+            retry_topic = "test_publisher-outbox-retry"
+            assert dlq_event.headers[HeaderNames.RETRY_TOPIC] == retry_topic
 
 
 async def test_kafka_event_subscriber_construction(caplog):
