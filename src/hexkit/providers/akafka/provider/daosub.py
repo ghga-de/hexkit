@@ -19,7 +19,6 @@
 """
 
 import logging
-import warnings
 from collections.abc import Sequence
 from contextlib import asynccontextmanager
 from typing import Optional
@@ -68,14 +67,6 @@ class KafkaOutboxSubscriber(InboundProviderBase):
         Returns:
             An instance of the provider.
         """
-        warnings.warn(
-            "KafkaOutboxSubscriber is deprecated and will be removed in hexkit"
-            + " v5. Use KafkaEventSubscriber instead. If you use multiple"
-            + " DaoSubscriberProtocol translators, merge them into a single"
-            + " EventSubscriberProtocol by using the TranslatorConverter class.",
-            DeprecationWarning,
-            stacklevel=1,
-        )
         translator_converter = TranslatorConverter(translators=translators)
 
         if config.kafka_enable_dlq and dlq_publisher is None:
