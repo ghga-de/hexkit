@@ -25,6 +25,7 @@ import asyncio
 import json
 import logging
 import ssl
+from collections import defaultdict
 from collections.abc import Sequence
 from contextlib import asynccontextmanager
 from dataclasses import asdict, dataclass
@@ -48,6 +49,7 @@ from hexkit.providers.akafka.provider.utils import (
 
 CHANGE_EVENT_TYPE = "upserted"
 DELETE_EVENT_TYPE = "deleted"
+EventOrDaoSubProtocol = Union[DaoSubscriberProtocol, EventSubscriberProtocol]
 
 
 class TranslatorConverter(EventSubscriberProtocol):
@@ -55,26 +57,54 @@ class TranslatorConverter(EventSubscriberProtocol):
     create a single translator implementing the `EventSubscriberProtocol`.
     """
 
-    types_of_interest = [CHANGE_EVENT_TYPE, DELETE_EVENT_TYPE]
+    topics_of_interest: list[str]
+    types_of_interest: list[str]
 
     def __init__(
         self,
         *,
-        translators: Union[DaoSubscriberProtocol, Sequence[DaoSubscriberProtocol]],
+        translators: Sequence[EventOrDaoSubProtocol],
     ):
-        if isinstance(translators, DaoSubscriberProtocol):
-            translators = [translators]
-        self.topics_of_interest = [translator.event_topic for translator in translators]
+        self.translators: dict[str, dict[str, EventOrDaoSubProtocol]] = defaultdict(
+            dict
+        )
+        self.topics_of_interest = []
+        self.types_of_interest = []
+        uses_outbox = False
 
-        if len(set(self.topics_of_interest)) != len(self.topics_of_interest):
+        outbox_topics: list[str] = []
+        non_outbox_topics: list[str] = []
+        for translator in translators:
+            if isinstance(translator, DaoSubscriberProtocol):
+                outbox_topics.append(translator.event_topic)
+                self.translators[translator.event_topic][CHANGE_EVENT_TYPE] = translator
+                self.translators[translator.event_topic][DELETE_EVENT_TYPE] = translator
+                uses_outbox = True
+            elif isinstance(translator, EventSubscriberProtocol):
+                # This looks like a looping no-no, but in reality is only a handful of
+                #  iterations and it ensures we route the event to the right translator
+                self.types_of_interest.extend(translator.types_of_interest)
+                non_outbox_topics.extend(translator.topics_of_interest)
+                for topic in translator.topics_of_interest:
+                    for type_ in translator.types_of_interest:
+                        if type_ in self.translators[topic]:
+                            raise ValueError(
+                                "Got multiple EventSubscriberProtocol-compliant"
+                                + " translators trying to consume from the same topic"
+                                + " and type."
+                            )
+                        self.translators[topic][type_] = translator
+        if uses_outbox:
+            self.types_of_interest.append(CHANGE_EVENT_TYPE)
+            self.types_of_interest.append(DELETE_EVENT_TYPE)
+
+        if len(set(outbox_topics)) != len(outbox_topics):
             raise ValueError(
                 "Got multiple DaoSubscriberProtocol-compliant translators trying to"
                 + " consume from the same event topic."
             )
-
-        self._translator_by_topic = {
-            translator.event_topic: translator for translator in translators
-        }
+        self.topics_of_interest.extend(set(outbox_topics))
+        self.topics_of_interest.extend(set(non_outbox_topics))
 
     async def _consume_validated(
         self, *, payload: JsonObject, type_: Ascii, topic: Ascii, key: Ascii
@@ -88,28 +118,31 @@ class TranslatorConverter(EventSubscriberProtocol):
             topic: Name of the topic the event was published to.
             key: A key used for routing the event.
         """
-        translator = self._translator_by_topic.get(topic)
+        translator = self.translators[topic][type_]
 
         if translator is None:
             # This should never happen, as the topic should have been filtered out:
             raise RuntimeError
 
-        if type_ == CHANGE_EVENT_TYPE:
-            try:
-                dto = translator.dto_model.model_validate(payload)
-            except ValidationError as error:
-                message = (
-                    f"The event of type {type_} on topic {topic}"
-                    + " was not valid wrt. the DTO model."
-                )
-                logging.error(message)
-                raise DtoValidationError(message) from error
+        if isinstance(translator, DaoSubscriberProtocol):
+            if type_ == CHANGE_EVENT_TYPE:
+                try:
+                    dto = translator.dto_model.model_validate(payload)
+                except ValidationError as error:
+                    message = (
+                        f"The event of type {type_} on topic {topic}"
+                        + " was not valid wrt. the DTO model."
+                    )
+                    logging.error(message)
+                    raise DtoValidationError(message) from error
 
-            await translator.changed(resource_id=key, update=dto)
+                await translator.changed(resource_id=key, update=dto)
 
+            else:
+                # a deletion event:
+                await translator.deleted(resource_id=key)
         else:
-            # a deletion event:
-            await translator.deleted(resource_id=key)
+            await translator.consume(payload=payload, type_=type_, topic=topic, key=key)
 
 
 class HeaderNames:
