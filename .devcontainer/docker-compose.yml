@@ -27,14 +27,13 @@ services:
 
   kafka:
     image: confluentinc/cp-server:7.8.0
-    restart: always
     depends_on:
       - zookeeper
     environment:
       KAFKA_BROKER_ID: 1
       KAFKA_ZOOKEEPER_CONNECT: zookeeper:2181
-      KAFKA_ADVERTISED_LISTENERS: PLAINTEXT://kafka:9092,PLAINTEXT_HOST://localhost:29092
-      KAFKA_INTER_BROKER_LISTENER_NAME: PLAINTEXT,PLAINTEXT_HOST:PLAINTEXT
+      KAFKA_ADVERTISED_LISTENERS: PLAINTEXT://kafka:9092
+      KAFKA_INTER_BROKER_LISTENER_NAME: PLAINTEXT
       KAFKA_DELETE_TOPIC_ENABLE: "true"
       KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR: 1
       KAFKA_GROUP_INITIAL_REBALANCE_DELAY_MS: 0
@@ -45,7 +44,6 @@ services:
 
   kafka-ui:
     image: provectuslabs/kafka-ui
-    restart: always
     depends_on:
       - kafka
       - zookeeper
