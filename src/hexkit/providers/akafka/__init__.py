@@ -21,12 +21,14 @@ respectively.
 
 from .config import KafkaConfig
 from .provider import (
+    ComboTranslator,
     KafkaEventPublisher,
     KafkaEventSubscriber,
     KafkaOutboxSubscriber,
 )
 
 __all__ = [
+    "ComboTranslator",
     "KafkaConfig",
     "KafkaEventPublisher",
     "KafkaEventSubscriber",

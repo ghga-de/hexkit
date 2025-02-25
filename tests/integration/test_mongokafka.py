@@ -18,6 +18,7 @@
 
 import uuid
 from collections.abc import Generator
+from functools import partial
 from pathlib import Path
 from typing import Any, Optional
 
@@ -38,7 +39,12 @@ from hexkit.protocols.dao import (
     UUID4Field,
 )
 from hexkit.protocols.daosub import DaoSubscriberProtocol, DtoValidationError
-from hexkit.providers.akafka import KafkaOutboxSubscriber
+from hexkit.protocols.eventsub import EventSubscriberProtocol
+from hexkit.providers.akafka import (
+    ComboTranslator,
+    KafkaEventSubscriber,
+    KafkaOutboxSubscriber,
+)
 from hexkit.providers.akafka.testutils import (
     ExpectedEvent,
     KafkaFixture,  # noqa: F401
@@ -592,7 +598,12 @@ async def test_republishing(mongo_kafka: MongoKafkaFixture):
             await dao.republish()
 
 
-async def test_dao_pub_sub_happy(mongo_kafka: MongoKafkaFixture):
+@pytest.mark.parametrize(
+    "subscriber_class", [KafkaOutboxSubscriber, KafkaEventSubscriber]
+)
+async def test_dao_pub_sub_happy(
+    mongo_kafka: MongoKafkaFixture, subscriber_class: type[EventSubscriberProtocol]
+):
     """Test the happy path of transmitting resource changes or deletions between the
     MongoKafkaOutboxFactory and the KafkaOutboxSubscriber.
 
@@ -637,10 +648,16 @@ async def test_dao_pub_sub_happy(mongo_kafka: MongoKafkaFixture):
         assert get_correlation_id() == initial_correlation_id
 
         # consume events:
-        async with KafkaOutboxSubscriber.construct(
-            config=mongo_kafka.config,
-            translators=[sub_translator],
-        ) as subscriber:
+        construct = partial(
+            KafkaOutboxSubscriber.construct, translators=[sub_translator]
+        )
+        if subscriber_class == KafkaEventSubscriber:
+            construct = partial(
+                KafkaEventSubscriber.construct,
+                translator=ComboTranslator(translators=[sub_translator]),
+            )
+
+        async with construct(config=mongo_kafka.config) as subscriber:
             for _ in expected_events:
                 await subscriber.run(forever=False)
             assert sub_translator.received == expected_events
