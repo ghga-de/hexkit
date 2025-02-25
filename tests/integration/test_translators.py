@@ -13,7 +13,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-"""Integration tests for the TranslatorConverter behavior.
+"""Integration tests for the ComboTranslator behavior.
 
 There are 4 event schemas defined, which go to three different topics.
 Two of them are outbox events, the other two are non-outbox events.
@@ -29,7 +29,7 @@ from pydantic import BaseModel, Field
 from hexkit.custom_types import Ascii
 from hexkit.protocols.daosub import DaoSubscriberProtocol
 from hexkit.protocols.eventsub import EventSubscriberProtocol
-from hexkit.providers.akafka import KafkaEventSubscriber, TranslatorConverter
+from hexkit.providers.akafka import ComboTranslator, KafkaEventSubscriber
 from hexkit.providers.akafka.config import KafkaConfig
 from hexkit.providers.akafka.testutils import (
     KafkaFixture,
@@ -150,12 +150,12 @@ async def test_merged_translators(kafka: KafkaFixture):
         key=test_event2.my_other_id,
     )
 
-    # Create the translators, then bundle them into one via the TranslatorConverter
+    # Create the translators, then bundle them into one via the ComboTranslator
     non_outbox_translator = DummyEventSubTranslator()
     user_translator = OutboxUserTranslator()
     order_translator = OutboxOrderTranslator()
 
-    super_translator = TranslatorConverter(
+    super_translator = ComboTranslator(
         translators=[non_outbox_translator, user_translator, order_translator]
     )
 
@@ -216,7 +216,7 @@ async def test_merged_translators_retry_topic(kafka: KafkaFixture):
     user_translator = OutboxUserTranslator()
     order_translator = OutboxOrderTranslator()
 
-    super_translator = TranslatorConverter(
+    super_translator = ComboTranslator(
         translators=[non_outbox_translator, user_translator, order_translator]
     )
 

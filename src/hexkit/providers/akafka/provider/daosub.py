@@ -34,7 +34,9 @@ from hexkit.providers.akafka.provider.eventsub import (
     DELETE_EVENT_TYPE,  # noqa: F401  (export for backwards compatibility until v5)
     KafkaConsumerCompatible,
     KafkaEventSubscriber,
-    TranslatorConverter,
+)
+from hexkit.providers.akafka.provider.eventsub import (
+    ComboTranslator as TranslatorConverter,  # for backwards compatibility
 )
 
 
@@ -42,7 +44,7 @@ class KafkaOutboxSubscriber(InboundProviderBase):
     """Apache Kafka-specific provider using translators that implement the
     `DaoSubscriberProtocol`.
 
-    Note: this class can be replaced by using the TranslatorConverter in conjunction
+    Note: this class can be replaced by using the ComboTranslator in conjunction
     with the normal KafkaEventSubscriber class. We may therefore deprecate this
     class in the near future.
     """

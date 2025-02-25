@@ -41,9 +41,9 @@ from hexkit.protocols.dao import (
 from hexkit.protocols.daosub import DaoSubscriberProtocol, DtoValidationError
 from hexkit.protocols.eventsub import EventSubscriberProtocol
 from hexkit.providers.akafka import (
+    ComboTranslator,
     KafkaEventSubscriber,
     KafkaOutboxSubscriber,
-    TranslatorConverter,
 )
 from hexkit.providers.akafka.testutils import (
     ExpectedEvent,
@@ -654,7 +654,7 @@ async def test_dao_pub_sub_happy(
         if subscriber_class == KafkaEventSubscriber:
             construct = partial(
                 KafkaEventSubscriber.construct,
-                translator=TranslatorConverter(translators=[sub_translator]),
+                translator=ComboTranslator(translators=[sub_translator]),
             )
 
         async with construct(config=mongo_kafka.config) as subscriber:

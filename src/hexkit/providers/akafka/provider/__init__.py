@@ -22,19 +22,19 @@ Require dependencies of the `akafka` extra.
 from .daosub import KafkaOutboxSubscriber
 from .eventpub import KafkaEventPublisher
 from .eventsub import (
+    ComboTranslator,
     ConsumerEvent,
     ExtractedEventInfo,
     KafkaEventSubscriber,
-    TranslatorConverter,
     headers_as_dict,
 )
 
 __all__ = [
+    "ComboTranslator",
     "ConsumerEvent",
     "ExtractedEventInfo",
     "KafkaEventPublisher",
     "KafkaEventSubscriber",
     "KafkaOutboxSubscriber",
-    "TranslatorConverter",
     "headers_as_dict",
 ]

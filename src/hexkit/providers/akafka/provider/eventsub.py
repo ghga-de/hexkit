@@ -52,9 +52,13 @@ DELETE_EVENT_TYPE = "deleted"
 EventOrDaoSubProtocol = Union[DaoSubscriberProtocol, EventSubscriberProtocol]
 
 
-class TranslatorConverter(EventSubscriberProtocol):
-    """Takes a list of translators implementing the `DaoSubscriberProtocol` to
-    create a single translator implementing the `EventSubscriberProtocol`.
+class ComboTranslator(EventSubscriberProtocol):
+    """Takes a list of translators implementing either the `DaoSubscriberProtocol`,
+    `EventSubscriberProtocol`, or both, and create a single translator
+    implementing the `EventSubscriberProtocol`. This basically bundles the
+    passed-in translators, with the resulting combo translator acting as a router
+    that directs the event information to the appropriate translator based on
+    its `topic` and `type`.
     """
 
     topics_of_interest: list[str]
