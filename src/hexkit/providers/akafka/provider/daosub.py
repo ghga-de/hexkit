@@ -41,6 +41,10 @@ from hexkit.providers.akafka.provider.eventsub import (
 class KafkaOutboxSubscriber(InboundProviderBase):
     """Apache Kafka-specific provider using translators that implement the
     `DaoSubscriberProtocol`.
+
+    Note: this class can be replaced by using the TranslatorConverter in conjunction
+    with the normal KafkaEventSubscriber class. We may therefore deprecate this
+    class in the near future.
     """
 
     @classmethod
