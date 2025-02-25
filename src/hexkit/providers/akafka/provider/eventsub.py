@@ -84,7 +84,7 @@ class TranslatorConverter(EventSubscriberProtocol):
                 # This looks like a looping no-no, but in reality is only a handful of
                 #  iterations and it ensures we route the event to the right translator
                 self.types_of_interest.extend(translator.types_of_interest)
-                non_outbox_topics.extend(translator.topics_of_interest)
+                non_outbox_topics.extend(dict.fromkeys(translator.topics_of_interest))
                 for topic in translator.topics_of_interest:
                     for type_ in translator.types_of_interest:
                         if type_ in self.translators[topic]:
@@ -103,8 +103,8 @@ class TranslatorConverter(EventSubscriberProtocol):
                 "Got multiple DaoSubscriberProtocol-compliant translators trying to"
                 + " consume from the same event topic."
             )
-        self.topics_of_interest.extend(set(outbox_topics))
-        self.topics_of_interest.extend(set(non_outbox_topics))
+        self.topics_of_interest.extend(outbox_topics)
+        self.topics_of_interest.extend(non_outbox_topics)
 
     async def _consume_validated(
         self, *, payload: JsonObject, type_: Ascii, topic: Ascii, key: Ascii
