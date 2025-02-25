@@ -94,7 +94,7 @@ class OutboxUserTranslator(DaoSubscriberProtocol):
 class OutboxOrderTranslator(OutboxUserTranslator):
     """A translator class to subscribe to OrderModel events"""
 
-    dto_model = OrderModel
+    dto_model = OrderModel  # type: ignore[assignment]
     event_topic = "orders"
 
 
