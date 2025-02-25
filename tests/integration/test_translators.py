@@ -13,7 +13,15 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-"""Integration tests for the TranslatorConverter behavior"""
+"""Integration tests for the TranslatorConverter behavior.
+
+There are 4 event schemas defined, which go to three different topics.
+Two of them are outbox events, the other two are non-outbox events.
+There are three translators defined: one for each of the outbox events and one
+that handles both kinds of non-outbox event.
+"""
+
+from unittest.mock import AsyncMock
 
 import pytest
 from pydantic import BaseModel, Field
@@ -22,6 +30,7 @@ from hexkit.custom_types import Ascii
 from hexkit.protocols.daosub import DaoSubscriberProtocol
 from hexkit.protocols.eventsub import EventSubscriberProtocol
 from hexkit.providers.akafka import KafkaEventSubscriber, TranslatorConverter
+from hexkit.providers.akafka.config import KafkaConfig
 from hexkit.providers.akafka.testutils import (
     KafkaFixture,
     kafka_container_fixture,  # noqa: F401
@@ -106,17 +115,9 @@ class DummyEventSubTranslator(EventSubscriberProtocol):
 
 async def test_merged_translators(kafka: KafkaFixture):
     """Test combining outbox sub translators and non-outbox sub translators in
-    the KafkaEventSubscriber
+    the KafkaEventSubscriber, where the two varieties consume from different topics.
     """
     config = kafka.config
-
-    non_outbox_translator = DummyEventSubTranslator()
-    user_translator = OutboxUserTranslator()
-    order_translator = OutboxOrderTranslator()
-
-    super_translator = TranslatorConverter(
-        translators=[non_outbox_translator, user_translator, order_translator]
-    )
 
     test_event = SomeEvent()
     test_event2 = SomeEvent2()
@@ -149,6 +150,15 @@ async def test_merged_translators(kafka: KafkaFixture):
         key=test_event2.my_other_id,
     )
 
+    # Create the translators, then bundle them into one via the TranslatorConverter
+    non_outbox_translator = DummyEventSubTranslator()
+    user_translator = OutboxUserTranslator()
+    order_translator = OutboxOrderTranslator()
+
+    super_translator = TranslatorConverter(
+        translators=[non_outbox_translator, user_translator, order_translator]
+    )
+
     async with KafkaEventSubscriber.construct(
         config=config,
         translator=super_translator,
@@ -157,3 +167,72 @@ async def test_merged_translators(kafka: KafkaFixture):
         await subscriber.run(forever=False)
         await subscriber.run(forever=False)
         await subscriber.run(forever=False)
+
+
+async def test_merged_translators_retry_topic(kafka: KafkaFixture):
+    """Test combining outbox sub translators and non-outbox sub translators in
+    the KafkaEventSubscriber while consuming from the retry topic.
+    """
+    config_dict = kafka.config.model_dump()
+    config_dict["kafka_enable_dlq"] = True
+    config = KafkaConfig(**config_dict)
+
+    test_event = SomeEvent()
+    test_event2 = SomeEvent2()
+    user_event = UserModel()
+    order_event = OrderModel()
+
+    # Publish an event of each type
+    await kafka.publish_event(
+        payload=user_event.model_dump(),
+        topic=f"{config.service_name}-retry",
+        type_="upserted",
+        key=user_event.name,
+        headers={"original_topic": "users"},
+    )
+    await kafka.publish_event(
+        payload=order_event.model_dump(),
+        topic=f"{config.service_name}-retry",
+        type_="upserted",
+        key=order_event.order_id,
+        headers={"original_topic": "orders"},
+    )
+    await kafka.publish_event(
+        payload=test_event.model_dump(),
+        topic=f"{config.service_name}-retry",
+        type_="test_event",
+        key=test_event.my_cool_id,
+        headers={"original_topic": "test-events"},
+    )
+    await kafka.publish_event(
+        payload=test_event2.model_dump(),
+        topic=f"{config.service_name}-retry",
+        type_="test_event2",
+        key=test_event2.my_other_id,
+        headers={"original_topic": "test-events"},
+    )
+
+    non_outbox_translator = DummyEventSubTranslator()
+    user_translator = OutboxUserTranslator()
+    order_translator = OutboxOrderTranslator()
+
+    super_translator = TranslatorConverter(
+        translators=[non_outbox_translator, user_translator, order_translator]
+    )
+
+    async with KafkaEventSubscriber.construct(
+        config=config, translator=super_translator, dlq_publisher=AsyncMock()
+    ) as subscriber:
+        await subscriber.run(forever=False)
+        await subscriber.run(forever=False)
+        await subscriber.run(forever=False)
+        await subscriber.run(forever=False)
+
+    # Test that all events are consumed just like they would be from the original topics
+    assert len(non_outbox_translator.consumed) == 2
+    assert [e[0] for e in non_outbox_translator.consumed] == [
+        test_event.model_dump(),
+        test_event2.model_dump(),
+    ]
+    assert user_translator.upserts == [(user_event.name, user_event)]
+    assert order_translator.upserts == [(order_event.order_id, order_event)]
