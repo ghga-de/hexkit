@@ -154,8 +154,9 @@ def test_record_compiler(caplog):
 
 
 @pytest.mark.parametrize("exc_info", [False, True])
+@pytest.mark.parametrize("exc_text", [False, True])
 @pytest.mark.parametrize("include_traceback", [False, True])
-def test_json_formatter(exc_info, include_traceback, caplog):
+def test_json_formatter(exc_info, exc_text, include_traceback, caplog):
     """Test that the JsonFormatter works like expected"""
     formatter = JsonFormatter(include_traceback=include_traceback)
 
@@ -182,6 +183,11 @@ def test_json_formatter(exc_info, include_traceback, caplog):
     record_compiler = RecordCompiler(config=DEFAULT_CONFIG)
     record_compiler.handle(record)
 
+    assert bool(record.exc_text) == exc_info
+    if not exc_text:
+        # remove the cached traceback for this test
+        record.exc_text = None
+
     # format with the json formatter
     output = formatter.format(record)
 
@@ -200,16 +206,16 @@ def test_json_formatter(exc_info, include_traceback, caplog):
         assert exception.pop("message") == "This is a test exception"
         if include_traceback:
             assert "traceback" in exception
-            exc_text = exception.pop("traceback")
-            assert exc_text
-            assert "Traceback (most recent call last):" in exc_text
-            assert "File" in exc_text
-            assert "tests/unit/test_logging.p" in exc_text
-            assert "line" in exc_text
-            assert "in test_json_formatter" in exc_text
-            assert 'raise ValueError("This is a test exception")' in exc_text
-            assert "ValueError: This is a test exception" in exc_text
-            assert exc_text.count("\n") == 3
+            tb = exception.pop("traceback")
+            assert tb
+            assert "Traceback (most recent call last):" in tb
+            assert "File" in tb
+            assert "tests/unit/test_logging.p" in tb
+            assert "line" in tb
+            assert "in test_json_formatter" in tb
+            assert 'raise ValueError("This is a test exception")' in tb
+            assert "ValueError: This is a test exception" in tb
+            assert tb.count("\n") == 3
         assert not exception  # no other properties should be present
     else:
         assert "exception" not in json_log

@@ -118,13 +118,17 @@ class JsonFormatter(Formatter):
         output["details"] = log_record["details"]
 
         if log_record["exc_info"]:
-            exc_type, exc_value = log_record["exc_info"][:2]
+            exc_info = log_record["exc_info"]
+            exc_type, exc_value = exc_info[:2]
             exception = {
                 "type": exc_type.__name__,
                 "message": str(exc_value),
             }
             if self._include_traceback:
                 exc_text = log_record["exc_text"]
+                if not exc_text:
+                    # if there is not pre-formatted cached traceback, create it
+                    exc_text = super().formatException(exc_info)
                 if exc_text:
                     exception["traceback"] = exc_text
             output["exception"] = exception
