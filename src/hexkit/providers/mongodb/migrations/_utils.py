@@ -109,9 +109,9 @@ class MigrationDefinition:
             #  index copying via this method. Otherwise we can't be sure it wasn't
             #  handled some other way
             await self.drop_old_collections(enforce_indexes=copy_indexes)
-        except BaseException as exc:
+        except BaseException:
             try:
-                for staged in self._staged_collections:
+                for staged in list(self._staged_collections):
                     await self.unstage_collection(staged)
                     await self._db.drop_collection(self.new_temp_name(staged))
             except BaseException as exc_in_cleanup:
@@ -122,9 +122,7 @@ class MigrationDefinition:
                     str(exc_in_cleanup),
                 )
                 raise
-            log.critical(
-                "Migration failed but cleanup was successful. Error: %s", str(exc)
-            )
+            log.critical("Migration failed but cleanup was successful.")
             raise
 
     @staticmethod

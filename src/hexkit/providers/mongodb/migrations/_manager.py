@@ -72,11 +72,8 @@ class DbVersionRecord(TypedDict):
 class MigrationStepError(RuntimeError):
     """Raised when a specific migration step fails, e.g. migrating from v4 to v5"""
 
-    def __init__(self, *, current_ver: int, target_ver: int, err_info: str):
-        msg = (
-            f"Unable to migrate from DB version {current_ver} to {target_ver}."
-            + f" Cause:\n  '{err_info}'"
-        )
+    def __init__(self, *, current_ver: int, target_ver: int):
+        msg = f"Unable to migrate from DB version {current_ver} to {target_ver}."
         super().__init__(msg)
 
 
@@ -325,7 +322,6 @@ class MigrationManager:
                 error = MigrationStepError(
                     current_ver=version - 1,
                     target_ver=self.target_ver,
-                    err_info=str(exc),
                 )
                 log.critical(error)
                 raise error from exc
