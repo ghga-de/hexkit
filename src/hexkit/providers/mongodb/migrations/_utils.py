@@ -195,7 +195,10 @@ class MigrationDefinition:
 
         # Don't do anything if the collection doesn't exist
         if original_coll_name not in await self._db.list_collection_names():
-            log.warning("Collection '%s' not found, can't stage.", original_coll_name)
+            log.warning(
+                "Skipped staging for collection '%s' because it was not found.",
+                original_coll_name,
+            )
             return
 
         # Rename the old collection by giving it a prefix

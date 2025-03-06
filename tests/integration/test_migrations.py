@@ -38,6 +38,22 @@ from hexkit.providers.mongodb.testutils import (
 
 pytestmark = pytest.mark.asyncio()
 
+TEST_COLL_NAME = "testCollection"
+
+
+class V2BasicMigration(MigrationDefinition):
+    """Basic migration with minimal functionality and which doesn't copy indexes"""
+
+    version = 2
+
+    async def apply(self):
+        """Forward migration function"""
+        async with self.auto_finalize(TEST_COLL_NAME, copy_indexes=False):
+            await self.migrate_docs_in_collection(
+                coll_name=TEST_COLL_NAME,
+                change_function=dummy_change_function,
+            )
+
 
 async def dummy_change_function(doc):
     """Does nothing"""
@@ -130,17 +146,7 @@ async def test_drop_or_rename_nonexistent_collection(mongodb: MongoDbFixture):
     version_coll = get_version_coll(client, config)
     assert_not_versioned(version_coll)
 
-    class V2DummyMigration(MigrationDefinition):
-        version = 2
-
-        async def apply(self):
-            async with self.auto_finalize("doesnotexist", copy_indexes=False):
-                await self.migrate_docs_in_collection(
-                    coll_name="doesnotexist",
-                    change_function=dummy_change_function,
-                )
-
-    migration_map: MigrationMap = {2: V2DummyMigration}
+    migration_map: MigrationMap = {2: V2BasicMigration}
 
     await run_db_migrations(
         config=config, target_version=2, migration_map=migration_map
@@ -176,8 +182,7 @@ async def test_copy_indexes(mongodb: MongoDbFixture, indexes: list[IndexModel]):
     assert_not_versioned(version_coll)
 
     # Insert some test data
-    coll_name = "testDocs"
-    collection = client[config.db_name][coll_name]
+    collection = client[config.db_name][TEST_COLL_NAME]
     collection.insert_one(DummyObject(title="doc1", length=100).model_dump())
     collection.insert_one(DummyObject(title="doc2", length=200).model_dump())
     collection.insert_one(DummyObject(title="doc3", length=50).model_dump())
@@ -212,9 +217,9 @@ async def test_copy_indexes(mongodb: MongoDbFixture, indexes: list[IndexModel]):
         version = 2
 
         async def apply(self):
-            async with self.auto_finalize(coll_name, copy_indexes=True):
+            async with self.auto_finalize(TEST_COLL_NAME, copy_indexes=True):
                 await self.migrate_docs_in_collection(
-                    coll_name=coll_name,
+                    coll_name=TEST_COLL_NAME,
                     change_function=dummy_change_function,
                 )
 
@@ -244,24 +249,14 @@ async def test_migration_without_copied_index(mongodb: MongoDbFixture):
     assert_not_versioned(version_coll)
 
     # Insert test data
-    coll_name = "testDocs"
-    collection = client[config.db_name][coll_name]
+    collection = client[config.db_name][TEST_COLL_NAME]
     collection.insert_one(DummyObject(title="doc1", length=100).model_dump())
 
     collection.create_index([("title", pymongo.ASCENDING)], name="byTitle")
 
     # Create the migration class (same as previous test, minus indexing)
-    class V2MigrationWithIndexing(MigrationDefinition):
-        version = 2
 
-        async def apply(self):
-            async with self.auto_finalize(coll_name, copy_indexes=False):
-                await self.migrate_docs_in_collection(
-                    coll_name=coll_name,
-                    change_function=dummy_change_function,
-                )
-
-    migration_map: MigrationMap = {2: V2MigrationWithIndexing}
+    migration_map: MigrationMap = {2: V2BasicMigration}
     await run_db_migrations(
         config=config, target_version=2, migration_map=migration_map
     )
@@ -309,3 +304,35 @@ async def test_stage_unstage(mongodb: MongoDbFixture):
 
     migdef = TestMig(db=db, is_final_migration=False, unapplying=False)
     await migdef.apply()
+
+
+async def test_unapply_not_defined(mongodb: MongoDbFixture):
+    """Verify that an error is raised when triggering a backward migration
+    on a migration definition that doesn't have `unapply()` defined.
+    """
+    config = make_mig_config(mongodb.config)
+    client = mongodb.client
+    collection = client[config.db_name][TEST_COLL_NAME]
+    collection.insert_one(DummyObject(title="doc1", length=100).model_dump())
+
+    migration_map: MigrationMap = {2: V2BasicMigration}
+
+    await run_db_migrations(
+        config=config, target_version=2, migration_map=migration_map
+    )
+
+    # Check that we're now set to version 3 in the DB
+    version_collection = get_version_coll(client=client, config=config)
+    version_docs = version_collection.find().to_list()
+    assert len(version_docs) == 2
+    assert version_docs[-1]["version"] == 2
+    assert version_docs[-1]["migration_type"] == "FORWARD"
+
+    # Now run migrations with v1 as the target, in order to go backward and trigger error
+    with pytest.raises(
+        RuntimeError,
+        match="Planning to unapply migration v2, but it doesn't subclass `Reversible`!",
+    ):
+        await run_db_migrations(
+            config=config, target_version=1, migration_map=migration_map
+        )
