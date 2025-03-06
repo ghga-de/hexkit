@@ -29,6 +29,7 @@ from hexkit.providers.mongodb.migrations import (
     MigrationDefinition,
     MigrationManager,
     MigrationMap,
+    Reversible,
 )
 from hexkit.providers.mongodb.testutils import (
     MongoDbFixture,
@@ -321,7 +322,7 @@ async def test_unapply_not_defined(mongodb: MongoDbFixture):
         config=config, target_version=2, migration_map=migration_map
     )
 
-    # Check that we're now set to version 3 in the DB
+    # Check that we're now set to version 2 in the DB
     version_collection = get_version_coll(client=client, config=config)
     version_docs = version_collection.find().to_list()
     assert len(version_docs) == 2
@@ -336,3 +337,40 @@ async def test_unapply_not_defined(mongodb: MongoDbFixture):
         await run_db_migrations(
             config=config, target_version=1, migration_map=migration_map
         )
+
+
+async def test_successful_unapply(mongodb: MongoDbFixture):
+    """Verify that it's possible to unapply/perform reverse migrations"""
+    config = make_mig_config(mongodb.config)
+    client = mongodb.client
+    collection = client[config.db_name][TEST_COLL_NAME]
+    collection.insert_one(DummyObject(title="doc1", length=100).model_dump())
+
+    class V2ReversibleMigration(V2BasicMigration, Reversible):
+        """Reversible version of the basic migration class"""
+
+        async def unapply(self):
+            async with self.auto_finalize(TEST_COLL_NAME, copy_indexes=False):
+                await self.migrate_docs_in_collection(
+                    coll_name=TEST_COLL_NAME,
+                    change_function=dummy_change_function,
+                )
+
+    migration_map: MigrationMap = {2: V2ReversibleMigration}
+
+    # Run initial application (init + v2)
+    await run_db_migrations(
+        config=config, target_version=2, migration_map=migration_map
+    )
+
+    # Run to unapply
+    await run_db_migrations(
+        config=config, target_version=1, migration_map=migration_map
+    )
+
+    # Verify that a 3rd record is inserted, reflecting the reversion from v2 to v1
+    version_collection = get_version_coll(client=client, config=config)
+    version_docs = version_collection.find().to_list()
+    assert len(version_docs) == 3
+    assert version_docs[-1]["version"] == 1
+    assert version_docs[-1]["migration_type"] == "BACKWARD"
