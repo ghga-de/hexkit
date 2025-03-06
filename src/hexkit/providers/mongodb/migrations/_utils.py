@@ -19,7 +19,7 @@ from abc import ABC, abstractmethod
 from collections.abc import Awaitable, Callable
 from contextlib import asynccontextmanager
 from copy import deepcopy
-from typing import Any
+from typing import Any, Optional, Union
 
 from motor.motor_asyncio import AsyncIOMotorDatabase
 from pydantic import BaseModel
@@ -82,7 +82,7 @@ class MigrationDefinition:
 
     @asynccontextmanager
     async def auto_finalize(
-        self, coll_names: str | list[str], copy_indexes: bool = False
+        self, coll_names: Union[str, list[str]], copy_indexes: bool = False
     ):
         """Use within `apply()` or `unapply()` as a context manager to automatically
         stage the temporary migrated collections for the specified collection names and
@@ -153,7 +153,7 @@ class MigrationDefinition:
         *,
         coll_name: str,
         change_function: Callable[[Document], Awaitable[Document]],
-        validation_model: type[BaseModel] | None = None,
+        validation_model: Optional[type[BaseModel]] = None,
         id_field: str = "",
         force_validate: bool = False,
     ):
@@ -240,7 +240,7 @@ class MigrationDefinition:
         self._staged_collections.remove(original_coll_name)
         log.debug("Unstaged changes for collection %s", original_coll_name)
 
-    async def stage_new_collections(self, original_coll_names: str | list[str]):
+    async def stage_new_collections(self, original_coll_names: Union[str, list[str]]):
         """Rename old collections to temporarily move them aside without dropping them,
         then remove the temporary prefix from the migrated collections.
 
@@ -285,7 +285,7 @@ class MigrationDefinition:
                 dest_coll_name,
             )
 
-    async def auto_copy_indexes(self, *, coll_names: str | list[str]):
+    async def auto_copy_indexes(self, *, coll_names: Union[str, list[str]]):
         """Copy the indexes from old collections to new."""
         if isinstance(coll_names, str):
             coll_names = [coll_names]
