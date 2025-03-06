@@ -256,14 +256,31 @@ class MigrationDefinition:
         doesn't suffice.
         """
         source_collection = self._db[source_coll_name]
-        indexes = await source_collection.list_indexes().to_list()
-        count = len(indexes)
+        index_info = await source_collection.index_information()
+        count = len(index_info)
 
-        dest_collection = self._db[dest_coll_name]
-        await dest_collection.create_indexes(indexes)
-        log.debug(
-            "Copied %i indexes from %s to %s", count, source_coll_name, dest_coll_name
-        )
+        if count:
+            dest_collection = self._db[dest_coll_name]
+
+            for name, index in index_info.items():
+                key = index.pop("key")
+                index.pop("v", "")
+                index.pop("ns", "")
+                await dest_collection.create_index(keys=key, name=name, **index)
+
+            # await dest_collection.create_indexes(indexes)
+            log.debug(
+                "Copied %i indexes from %s to %s",
+                count,
+                source_coll_name,
+                dest_coll_name,
+            )
+        else:
+            log.debug(
+                "No indexes available to copy from %s to %s",
+                source_coll_name,
+                dest_coll_name,
+            )
 
     async def auto_copy_indexes(self, *, coll_names: str | list[str]):
         """Copy the indexes from old collections to new."""
