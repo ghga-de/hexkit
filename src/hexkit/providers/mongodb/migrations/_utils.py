@@ -23,6 +23,7 @@ from typing import Any, Optional, Union
 
 from motor.motor_asyncio import AsyncIOMotorDatabase
 from pydantic import BaseModel
+from pymongo import InsertOne
 
 from hexkit.providers.mongodb.provider import document_to_dto, dto_to_document
 
@@ -148,7 +149,7 @@ class MigrationDefinition:
         """Add `self._old_prefix` to a list of plain collection names."""
         return [self.old_temp_name(name) for name in coll_name]
 
-    async def migrate_docs_in_collection(
+    async def migrate_docs_in_collection(  # noqa: PLR0913
         self,
         *,
         coll_name: str,
@@ -156,12 +157,16 @@ class MigrationDefinition:
         validation_model: Optional[type[BaseModel]] = None,
         id_field: str = "",
         force_validate: bool = False,
+        batch_size: int = 1000,
     ):
         """Migrate a collection by calling `change_function` on each document within.
 
         If `validation_model` is supplied, model will be used to cross-check the
         resulting doc data when this is the last migration to be applied/unapplied OR
         `always_validate` is True.
+
+        `batch_size` controls how the size of bulk inserts as well as the max number
+        of documents retrieved at a time by the cursor.
         """
         if coll_name in self._staged_collections:
             raise RuntimeError("Collections already staged, changes shouldn't be made.")
@@ -174,8 +179,9 @@ class MigrationDefinition:
         await self._db.drop_collection(temp_new_coll_name)
         temp_new_collection = self._db[temp_new_coll_name]
 
-        # naive implementation - update to use batching and bulk inserts
-        async for doc in old_collection.find():
+        # Cursor automatically retrieves batches as needed - we just handle insertion
+        inserts = []
+        async for doc in old_collection.find(batch_size=batch_size):
             output_doc = await method(doc)
 
             # do validation against model only if we're on the last migration because
@@ -183,8 +189,16 @@ class MigrationDefinition:
             if validation_model and (self._is_final_migration or force_validate):
                 validate_doc(output_doc, model=validation_model, id_field=id_field)
 
-            # insert into new collection
-            await temp_new_collection.insert_one(output_doc)
+            # Queue the insert and flush if ready
+            inserts.append(InsertOne(output_doc))
+            if len(inserts) >= batch_size:
+                await temp_new_collection.insert_many(inserts)
+                inserts.clear()
+
+        # Flush any waiting inserts
+        if inserts:
+            await temp_new_collection.bulk_write(inserts)
+
         log.debug("Changes applied to collection '%s' %s", coll_name, self._log_blurb)
 
     async def stage_collection(self, original_coll_name: str):
@@ -265,13 +279,13 @@ class MigrationDefinition:
         if count:
             dest_collection = self._db[dest_coll_name]
 
+            # Copy indexes along with any options (e.g. 'unique', 'background', etc.)
             for name, index in index_info.items():
                 key = index.pop("key")
                 index.pop("v", "")
                 index.pop("ns", "")
                 await dest_collection.create_index(keys=key, name=name, **index)
 
-            # await dest_collection.create_indexes(indexes)
             log.debug(
                 "Copied %i indexes from %s to %s",
                 count,
