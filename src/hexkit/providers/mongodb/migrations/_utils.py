@@ -23,7 +23,6 @@ from typing import Any, Optional, Union
 
 from motor.motor_asyncio import AsyncIOMotorDatabase
 from pydantic import BaseModel
-from pymongo import InsertOne
 
 from hexkit.providers.mongodb.provider import document_to_dto, dto_to_document
 
@@ -190,14 +189,14 @@ class MigrationDefinition:
                 validate_doc(output_doc, model=validation_model, id_field=id_field)
 
             # Queue the insert and flush if ready
-            inserts.append(InsertOne(output_doc))
+            inserts.append(output_doc)
             if len(inserts) >= batch_size:
                 await temp_new_collection.insert_many(inserts)
                 inserts.clear()
 
         # Flush any waiting inserts
         if inserts:
-            await temp_new_collection.bulk_write(inserts)
+            await temp_new_collection.insert_many(inserts)
 
         log.debug("Changes applied to collection '%s' %s", coll_name, self._log_blurb)
 

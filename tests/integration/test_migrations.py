@@ -53,6 +53,7 @@ class V2BasicMigration(MigrationDefinition):
             await self.migrate_docs_in_collection(
                 coll_name=TEST_COLL_NAME,
                 change_function=dummy_change_function,
+                batch_size=10,
             )
 
 
@@ -374,3 +375,26 @@ async def test_successful_unapply(mongodb: MongoDbFixture):
     assert len(version_docs) == 3
     assert version_docs[-1]["version"] == 1
     assert version_docs[-1]["migration_type"] == "BACKWARD"
+
+
+async def test_batch_processing(mongodb: MongoDbFixture):
+    """Verify that all documents are migrated when the collection is larger than
+    the batch size.
+    """
+    config = make_mig_config(mongodb.config)
+    client = mongodb.client
+    collection = client[config.db_name][TEST_COLL_NAME]
+
+    # insert a quantity of docs that will require a final insert_many() call.
+    #  using 35 because the batch size on our migration is 10 (so 3.5 batches)
+    quantity = 35
+    for _ in range(quantity):
+        collection.insert_one(DummyObject(title="doc1", length=100).model_dump())
+
+    migration_map: MigrationMap = {2: V2BasicMigration}
+
+    await run_db_migrations(
+        config=config, target_version=2, migration_map=migration_map
+    )
+    new_collection = client[config.db_name][TEST_COLL_NAME]
+    assert new_collection.count_documents(filter={}) == quantity
