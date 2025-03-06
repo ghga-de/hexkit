@@ -304,7 +304,7 @@ class MigrationManager:
         migrations = [self._fetch_migration_cls(ver) for ver in ver_sequence]
         unapplying = self._migration_type == "BACKWARD"
         # Execute & time each migration in order to get to the target DB version
-        for version, migration_cls in zip(ver_sequence, migrations, strict=True):
+        for version, migration_cls in zip(ver_sequence, migrations):
             try:
                 # Determine if this is the last migration to apply/unapply
                 is_final_migration = version == ver_sequence[-1]
