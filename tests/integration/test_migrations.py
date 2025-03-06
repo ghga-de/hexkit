@@ -15,6 +15,7 @@
 """Tests for database migrations"""
 
 from datetime import datetime, timedelta, timezone
+from unittest.mock import AsyncMock
 
 import pymongo
 import pytest
@@ -398,3 +399,39 @@ async def test_batch_processing(mongodb: MongoDbFixture):
     )
     new_collection = client[config.db_name][TEST_COLL_NAME]
     assert new_collection.count_documents(filter={}) == quantity
+
+
+async def test_migration_idempotence(mongodb: MongoDbFixture):
+    """Test that nothing changes when running db version check multiple times"""
+    config = make_mig_config(mongodb.config)
+    client = mongodb.client
+    collection = client[config.db_name][TEST_COLL_NAME]
+    collection.insert_one(DummyObject(title="doc1", length=100).model_dump())
+
+    migration_map: MigrationMap = {2: V2BasicMigration}
+
+    await run_db_migrations(
+        config=config, target_version=2, migration_map=migration_map
+    )
+
+    class CaptureDummy(MigrationDefinition):
+        """Class to capture migration calls"""
+
+        version = 2
+        apply = AsyncMock()
+
+    migration_map[2] = CaptureDummy
+
+    # run the migration again but with a dummy to capture execution
+    await run_db_migrations(
+        config=config, target_version=2, migration_map=migration_map
+    )
+
+    CaptureDummy.apply.assert_not_called()
+
+    # Check the version records (should only be 2, not 3)
+    version_coll = get_version_coll(client, config)
+    versions = version_coll.find().sort("completed", 1).to_list()
+    assert len(versions) == 2
+    assert versions[0]["version"] == 1
+    assert versions[1]["version"] == 2
