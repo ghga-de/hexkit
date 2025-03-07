@@ -201,7 +201,10 @@ class MigrationDefinition:
         log.debug("Changes applied to collection '%s' %s", coll_name, self._log_blurb)
 
     async def stage_collection(self, original_coll_name: str):
-        """Stage a single collection"""
+        """Stage a single collection.
+
+        Do not call until finished with all changes to the collection.
+        """
         # Don't do anything if it's already staged
         if original_coll_name in self._staged_collections:
             return
@@ -257,7 +260,7 @@ class MigrationDefinition:
         """Rename old collections to temporarily move them aside without dropping them,
         then remove the temporary prefix from the migrated collections.
 
-        Assumes apply or unapply has completed.
+        Do not call until finished making changes to (migrating) the collections.
         """
         if isinstance(original_coll_names, str):
             original_coll_names = [original_coll_names]
@@ -269,7 +272,7 @@ class MigrationDefinition:
         """Copy the indexes from `source_coll_name` to `dest_coll_name`.
 
         This function can be used for manual index copying when `auto_copy_indexes`
-        doesn't suffice.
+        doesn't suffice. Normally, prefer to use `auto_copy_indexes`.
         """
         source_collection = self._db[source_coll_name]
         index_info = await source_collection.index_information()
@@ -299,7 +302,9 @@ class MigrationDefinition:
             )
 
     async def auto_copy_indexes(self, *, coll_names: Union[str, list[str]]):
-        """Copy the indexes from old collections to new."""
+        """Copy the indexes from old collections to new, and remember that the indexes
+        have been copied for these collections.
+        """
         if isinstance(coll_names, str):
             coll_names = [coll_names]
         for coll_name in coll_names:
@@ -323,7 +328,7 @@ class MigrationDefinition:
         - `enforce_indexes`: Raise an error if indexes haven't been copied over to the
             replacement collections. This is not always useful, since the collections
             might undergo changes that make old indexes obsolete. This should be set to
-            True for modifications that don't involve changes to the collections' indexes.
+            True for migrations that don't involve changes to the collections' indexes.
         """
         if enforce_indexes and not self._indexes_copied:
             raise RuntimeError("Indexes have not been applied to staged collections")

@@ -15,6 +15,7 @@
 """Tests for database migrations"""
 
 import time
+from contextlib import nullcontext
 from datetime import datetime, timedelta, timezone
 from unittest.mock import AsyncMock
 
@@ -208,7 +209,7 @@ async def test_copy_indexes(mongodb: MongoDbFixture, indexes: list[IndexModel]):
     if indexes:
         collection.create_indexes(indexes)
 
-    # Verify index info
+    # Verify created index info
     index_info = collection.index_information()
     created_indexes = [_ for _ in index_info.items()][1:]
     assert len(created_indexes) == len(indexes)
@@ -221,14 +222,17 @@ async def test_copy_indexes(mongodb: MongoDbFixture, indexes: list[IndexModel]):
             assert created_index[expected_option] == expected_value
 
     class V2MigrationWithIndexing(MigrationDefinition):
+        """Dummy migration set up to copy indexes"""
+
         version = 2
 
         async def apply(self):
-            async with self.auto_finalize(TEST_COLL_NAME, copy_indexes=True):
-                await self.migrate_docs_in_collection(
-                    coll_name=TEST_COLL_NAME,
-                    change_function=dummy_change_function,
-                )
+            await self.migrate_docs_in_collection(
+                coll_name=TEST_COLL_NAME,
+                change_function=dummy_change_function,
+            )
+            await self.stage_new_collections(TEST_COLL_NAME)
+            await self.auto_copy_indexes(coll_names=TEST_COLL_NAME)
 
     migration_map = {2: V2MigrationWithIndexing}
     await run_db_migrations(
@@ -455,3 +459,35 @@ async def test_waiting(mongodb: MongoDbFixture):
             await mm.migrate_or_wait()
         elapsed = time.perf_counter() - start_time
         assert elapsed > config.migration_max_wait_sec
+
+
+@pytest.mark.parametrize("copy_indexes", [True, False])
+async def test_enforcing_index_copy(mongodb: MongoDbFixture, copy_indexes: bool):
+    """Test the behavior of `drop_old_collections()` when `enforce_indexes` is True."""
+    config = make_mig_config(mongodb.config)
+    client = mongodb.client
+    collection = client[config.db_name][TEST_COLL_NAME]
+    collection.insert_one(DummyObject(title="doc1", length=100).model_dump())
+
+    class V2EnforceIndexes(MigrationDefinition):
+        """Migration that enforces index copying before dropping collections."""
+
+        version = 2
+
+        async def apply(self):
+            """Apply the migration"""
+            # await self.migrate_docs_in_collection(
+            #     coll_name=TEST_COLL_NAME,
+            #     change_function=dummy_change_function,
+            # )
+
+            if copy_indexes:
+                await self.auto_copy_indexes(coll_names=TEST_COLL_NAME)
+            with pytest.raises(RuntimeError) if not copy_indexes else nullcontext():
+                await self.drop_old_collections(enforce_indexes=True)
+
+    migration_map = {2: V2EnforceIndexes}
+
+    await run_db_migrations(
+        config=config, target_version=2, migration_map=migration_map
+    )
