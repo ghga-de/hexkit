@@ -42,6 +42,7 @@ def now_as_utc() -> datetime:
 
 
 def duration_in_ms(duration: float) -> int:
+    """Returns the duration (seconds) expressed as milliseconds"""
     return int(duration * 1000)
 
 
