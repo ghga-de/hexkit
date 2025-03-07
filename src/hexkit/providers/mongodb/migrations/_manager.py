@@ -19,7 +19,7 @@ from asyncio import sleep
 from contextlib import asynccontextmanager, suppress
 from datetime import datetime, timezone
 from time import perf_counter, time
-from typing import Literal, TypedDict
+from typing import Literal, Optional, TypedDict
 
 from motor.motor_asyncio import AsyncIOMotorClient, AsyncIOMotorDatabase
 from pydantic import Field
@@ -59,11 +59,11 @@ class MigrationConfig(MongoDbConfig):
         description="The number of seconds to wait before checking the DB version again",
         examples=[5, 30, 180],
     )
-    migration_max_wait_sec: int = Field(
-        default=600,
+    migration_max_wait_sec: Optional[int] = Field(
+        default=None,
         description="The maximum number of seconds to wait for migrations to complete"
         + " before raising an error.",
-        examples=[300, 600, 3600],
+        examples=[None, 300, 600, 3600],
     )
 
 
@@ -100,7 +100,7 @@ class DbVersioningInitError(RuntimeError):
         super().__init__(msg)
 
 
-class MigrationTimeout(RuntimeError):
+class MigrationTimeoutError(RuntimeError):
     """Raised when running migrations exceed the configured `migration_max_wait_sec`."""
 
     def __init__(self, *, limit: int):
@@ -392,6 +392,6 @@ class MigrationManager:
         limit = self.config.migration_max_wait_sec
         while not await self._migrate_db():
             elapsed = perf_counter() - start_time
-            if elapsed > limit:
-                raise MigrationTimeout(limit=limit)
+            if limit and elapsed > limit:
+                raise MigrationTimeoutError(limit=limit)
             await sleep(self.config.migration_wait_sec)

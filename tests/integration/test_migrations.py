@@ -33,7 +33,7 @@ from hexkit.providers.mongodb.migrations import (
     MigrationMap,
     Reversible,
 )
-from hexkit.providers.mongodb.migrations._manager import MigrationTimeout
+from hexkit.providers.mongodb.migrations._manager import MigrationTimeoutError
 from hexkit.providers.mongodb.testutils import (
     MongoDbFixture,
     mongodb_container_fixture,  # noqa: F401
@@ -444,6 +444,8 @@ async def test_migration_idempotence(mongodb: MongoDbFixture):
 async def test_waiting(mongodb: MongoDbFixture):
     """Test that migrate_or_wait() waits the configured amount of time."""
     config = make_mig_config(mongodb.config)
+    assert config.migration_max_wait_sec
+    assert 0 < config.migration_max_wait_sec < 5
     async with MigrationManager(
         config=config, target_version=1, migration_map={}
     ) as mm:
@@ -451,7 +453,7 @@ async def test_waiting(mongodb: MongoDbFixture):
         mm._migrate_db.return_value = False  # force it to wait
 
         start_time = time.perf_counter()
-        with pytest.raises(MigrationTimeout):
+        with pytest.raises(MigrationTimeoutError):
             await mm.migrate_or_wait()
         elapsed = time.perf_counter() - start_time
         assert elapsed > config.migration_max_wait_sec
