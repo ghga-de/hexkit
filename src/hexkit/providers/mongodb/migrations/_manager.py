@@ -288,7 +288,7 @@ class MigrationManager:
     def _fetch_migration_cls(self, version: int) -> MigrationCls:
         """Return the stored migration for the specified version.
 
-        Raise an error if the  doesn't exist or doesn't implement unapply when needed.
+        Raise an error if the class doesn't exist or doesn't implement unapply when needed.
         """
         try:
             migration_cls = self.migration_map[version]
