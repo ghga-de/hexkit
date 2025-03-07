@@ -35,6 +35,10 @@ def validate_doc(doc: Document, *, model: type[BaseModel], id_field: str):
     """Ensure that new content passes model validation.
 
     Also check that `dto_to_document` results in the same document.
+
+    Raises:
+    - `ValidationError`: If the doc cannot be used to populate the model.
+    - `RuntimeError`: If the model can be populated, but there's a mismatch.
     """
     as_model = document_to_dto(deepcopy(doc), id_field=id_field, dto_model=model)
     doc_from_model = dto_to_document(as_model, id_field=id_field)

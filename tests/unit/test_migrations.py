@@ -18,11 +18,13 @@
 from unittest.mock import AsyncMock, Mock
 
 import pytest
+from pydantic import BaseModel, ValidationError
 
 from hexkit.providers.mongodb.migrations import (
     MigrationDefinition,
     MigrationManager,
     Reversible,
+    validate_doc,
 )
 
 
@@ -124,3 +126,28 @@ def test_fetch_migration_cls():
     # Just to be thorough
     with pytest.raises(NotImplementedError):
         mm._fetch_migration_cls(4)
+
+
+def test_validate_doc():
+    """Check that `validate_doc` does what it's supposed to."""
+
+    class DummyObject(BaseModel):
+        """A dummy object that can be used to test model/doc validation."""
+
+        title: str
+        length: int
+
+    # Happy path
+    doc = {"_id": "Test Title", "length": 100}
+    id_field = "title"
+    validate_doc(doc=doc, model=DummyObject, id_field=id_field)
+
+    # Migrated document missing required field
+    invalid_doc = {"_id": "Test Title", "bad_field": 100}
+    with pytest.raises(ValidationError):
+        validate_doc(doc=invalid_doc, model=DummyObject, id_field=id_field)
+
+    # Migrated document contains extra field
+    valid_but_wrong_doc = {"_id": "Test Title", "length": 100, "extra_field": "abc"}
+    with pytest.raises(RuntimeError):
+        validate_doc(doc=valid_but_wrong_doc, model=DummyObject, id_field=id_field)
