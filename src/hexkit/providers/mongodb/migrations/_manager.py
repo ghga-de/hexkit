@@ -18,7 +18,7 @@ import logging
 from asyncio import sleep
 from contextlib import asynccontextmanager, suppress
 from datetime import datetime, timezone
-from time import time
+from time import perf_counter, time
 from typing import Literal, TypedDict
 
 from motor.motor_asyncio import AsyncIOMotorClient, AsyncIOMotorDatabase
@@ -59,6 +59,12 @@ class MigrationConfig(MongoDbConfig):
         description="The number of seconds to wait before checking the DB version again",
         examples=[5, 30, 180],
     )
+    migration_max_wait_sec: int = Field(
+        default=600,
+        description="The maximum number of seconds to wait for migrations to complete"
+        + " before raising an error.",
+        examples=[300, 600, 3600],
+    )
 
 
 class DbVersionRecord(TypedDict):
@@ -81,21 +87,24 @@ class MigrationStepError(RuntimeError):
 class DbLockError(RuntimeError):
     """Raised when the DB lock can't be released or acquired due to an error."""
 
-    def __init__(
-        self, *, op: Literal["acquire", "release"], coll_name: str, err_info: str
-    ):
-        msg = (
-            f"Failed to {op} the lock in collection {coll_name}."
-            + f" Error details:\n  '{err_info}'"
-        )
+    def __init__(self, *, op: Literal["acquire", "release"], coll_name: str):
+        msg = f"Failed to {op} the lock in collection {coll_name} due to an error."
         super().__init__(msg)
 
 
 class DbVersioningInitError(RuntimeError):
     """Raised when DB versioning initialization fails due to an error."""
 
-    def __init__(self, *, err_info: str):
-        msg = f"DB versioning initialization failed. Error details:\n  {err_info}"
+    def __init__(self):
+        msg = "DB versioning initialization failed, likely due to a database error."
+        super().__init__(msg)
+
+
+class MigrationTimeout(RuntimeError):
+    """Raised when running migrations exceed the configured `migration_max_wait_sec`."""
+
+    def __init__(self, *, limit: int):
+        msg = f"Timeout occurred - migration duration exceeded {limit} seconds."
         super().__init__(msg)
 
 
@@ -125,7 +134,7 @@ class MigrationManager:
 
     def migrate_my_service():
         # Called before starting my_service
-        config = Config()
+        config = Config()s
 
         async with MigrationManager(config, DB_VERSION, MY_MIGRATION_MAP) as mm:
             await mm.migrate_or_wait()
@@ -210,7 +219,7 @@ class MigrationManager:
                 self._lock_acquired = True
                 log.info("Database lock acquired")
         except BaseException as exc:
-            error = DbLockError(op="acquire", coll_name=coll_name, err_info=str(exc))
+            error = DbLockError(op="acquire", coll_name=coll_name)
             log.error(error)
             raise error from exc
 
@@ -231,7 +240,7 @@ class MigrationManager:
             await version_coll.find_one_and_delete({"lock_acquired": True})
             self._lock_acquired = False
         except BaseException as exc:
-            error = DbLockError(op="release", coll_name=coll_name, err_info=str(exc))
+            error = DbLockError(op="release", coll_name=coll_name)
             log.critical(error)
             raise error from exc
         log.info("Database lock released")
@@ -342,7 +351,7 @@ class MigrationManager:
             try:
                 init_complete = await self._initialize_versioning()
             except BaseException as exc:
-                error = DbVersioningInitError(err_info=str(exc))
+                error = DbVersioningInitError()
                 log.critical(error)
                 raise error from exc
             if not init_complete:
@@ -379,5 +388,10 @@ class MigrationManager:
             raise RuntimeError("MigrationManager must be used as a context manager")
 
         # need to implement some kind of total time limit, warning logging, etc. later
+        start_time = perf_counter()
+        limit = self.config.migration_max_wait_sec
         while not await self._migrate_db():
+            elapsed = perf_counter() - start_time
+            if elapsed > limit:
+                raise MigrationTimeout(limit=limit)
             await sleep(self.config.migration_wait_sec)

@@ -14,6 +14,7 @@
 # limitations under the License.
 """Tests for database migrations"""
 
+import time
 from datetime import datetime, timedelta, timezone
 from unittest.mock import AsyncMock
 
@@ -32,6 +33,7 @@ from hexkit.providers.mongodb.migrations import (
     MigrationMap,
     Reversible,
 )
+from hexkit.providers.mongodb.migrations._manager import MigrationTimeout
 from hexkit.providers.mongodb.testutils import (
     MongoDbFixture,
     mongodb_container_fixture,  # noqa: F401
@@ -85,7 +87,8 @@ async def run_db_migrations(
 def make_mig_config(
     config: MongoDbConfig,
     db_version_collection: str = "versioningTests",
-    migration_wait_sec: int = 2,
+    migration_wait_sec: int = 1,
+    migration_max_wait_sec: int = 1,
 ) -> MigrationConfig:
     """Create an instance of MigrationConfig from kwargs and MongoDbConfig instance"""
     return MigrationConfig(
@@ -94,6 +97,7 @@ def make_mig_config(
         mongo_timeout=config.mongo_timeout,
         db_version_collection=db_version_collection,
         migration_wait_sec=migration_wait_sec,
+        migration_max_wait_sec=migration_max_wait_sec,
     )
 
 
@@ -435,3 +439,19 @@ async def test_migration_idempotence(mongodb: MongoDbFixture):
     assert len(versions) == 2
     assert versions[0]["version"] == 1
     assert versions[1]["version"] == 2
+
+
+async def test_waiting(mongodb: MongoDbFixture):
+    """Test that migrate_or_wait() waits the configured amount of time."""
+    config = make_mig_config(mongodb.config)
+    async with MigrationManager(
+        config=config, target_version=1, migration_map={}
+    ) as mm:
+        mm._migrate_db = AsyncMock()
+        mm._migrate_db.return_value = False  # force it to wait
+
+        start_time = time.perf_counter()
+        with pytest.raises(MigrationTimeout):
+            await mm.migrate_or_wait()
+        elapsed = time.perf_counter() - start_time
+        assert elapsed > config.migration_max_wait_sec
