@@ -16,6 +16,7 @@
 
 import logging
 from asyncio import sleep
+from collections.abc import Mapping
 from contextlib import asynccontextmanager, suppress
 from datetime import datetime, timezone
 from time import perf_counter, time
@@ -33,7 +34,7 @@ log = logging.getLogger(__name__)
 
 MigrationType = Literal["FORWARD", "BACKWARD"]
 MigrationCls = type[MigrationDefinition]
-MigrationMap = dict[int, MigrationCls]
+MigrationMap = Mapping[int, MigrationCls]
 
 
 def now_as_utc() -> datetime:

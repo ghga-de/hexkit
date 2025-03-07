@@ -153,7 +153,7 @@ async def test_drop_or_rename_nonexistent_collection(mongodb: MongoDbFixture):
     version_coll = get_version_coll(client, config)
     assert_not_versioned(version_coll)
 
-    migration_map: MigrationMap = {2: V2BasicMigration}
+    migration_map = {2: V2BasicMigration}
 
     await run_db_migrations(
         config=config, target_version=2, migration_map=migration_map
@@ -230,7 +230,7 @@ async def test_copy_indexes(mongodb: MongoDbFixture, indexes: list[IndexModel]):
                     change_function=dummy_change_function,
                 )
 
-    migration_map: MigrationMap = {2: V2MigrationWithIndexing}
+    migration_map = {2: V2MigrationWithIndexing}
     await run_db_migrations(
         config=config, target_version=2, migration_map=migration_map
     )
@@ -263,7 +263,7 @@ async def test_migration_without_copied_index(mongodb: MongoDbFixture):
 
     # Create the migration class (same as previous test, minus indexing)
 
-    migration_map: MigrationMap = {2: V2BasicMigration}
+    migration_map = {2: V2BasicMigration}
     await run_db_migrations(
         config=config, target_version=2, migration_map=migration_map
     )
@@ -322,7 +322,7 @@ async def test_unapply_not_defined(mongodb: MongoDbFixture):
     collection = client[config.db_name][TEST_COLL_NAME]
     collection.insert_one(DummyObject(title="doc1", length=100).model_dump())
 
-    migration_map: MigrationMap = {2: V2BasicMigration}
+    migration_map = {2: V2BasicMigration}
 
     await run_db_migrations(
         config=config, target_version=2, migration_map=migration_map
@@ -362,7 +362,7 @@ async def test_successful_unapply(mongodb: MongoDbFixture):
                     change_function=dummy_change_function,
                 )
 
-    migration_map: MigrationMap = {2: V2ReversibleMigration}
+    migration_map = {2: V2ReversibleMigration}
 
     # Run initial application (init + v2)
     await run_db_migrations(
@@ -396,7 +396,7 @@ async def test_batch_processing(mongodb: MongoDbFixture):
     for _ in range(quantity):
         collection.insert_one(DummyObject(title="doc1", length=100).model_dump())
 
-    migration_map: MigrationMap = {2: V2BasicMigration}
+    migration_map = {2: V2BasicMigration}
 
     await run_db_migrations(
         config=config, target_version=2, migration_map=migration_map
@@ -412,7 +412,7 @@ async def test_migration_idempotence(mongodb: MongoDbFixture):
     collection = client[config.db_name][TEST_COLL_NAME]
     collection.insert_one(DummyObject(title="doc1", length=100).model_dump())
 
-    migration_map: MigrationMap = {2: V2BasicMigration}
+    migration_map = {2: V2BasicMigration}
 
     await run_db_migrations(
         config=config, target_version=2, migration_map=migration_map
@@ -424,12 +424,10 @@ async def test_migration_idempotence(mongodb: MongoDbFixture):
         version = 2
         apply = AsyncMock()
 
-    migration_map[2] = CaptureDummy
+    dummy_map = {2: CaptureDummy}
 
     # run the migration again but with a dummy to capture execution
-    await run_db_migrations(
-        config=config, target_version=2, migration_map=migration_map
-    )
+    await run_db_migrations(config=config, target_version=2, migration_map=dummy_map)
 
     CaptureDummy.apply.assert_not_called()
 
