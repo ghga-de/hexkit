@@ -46,7 +46,7 @@ from hexkit.providers.akafka.testutils import (
     kafka_fixture,  # noqa: F401
 )
 
-from ..fixtures.kafka_secrets import KafkaSecrets
+from ...fixtures.kafka_secrets import KafkaSecrets
 
 pytestmark = pytest.mark.asyncio()
 
