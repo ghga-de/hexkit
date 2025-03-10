@@ -46,19 +46,18 @@ pytestmark = pytest.mark.asyncio()
 TEST_COLL_NAME = "testCollection"
 
 
-class V2BasicMigration(MigrationDefinition):
-    """Basic migration with minimal functionality and which doesn't copy indexes"""
+class DummyObject(BaseModel):
+    """A dummy object that can be used to fill a test DB."""
 
-    version = 2
+    title: str
+    length: int
 
-    async def apply(self):
-        """Forward migration function"""
-        async with self.auto_finalize(TEST_COLL_NAME, copy_indexes=False):
-            await self.migrate_docs_in_collection(
-                coll_name=TEST_COLL_NAME,
-                change_function=dummy_change_function,
-                batch_size=10,
-            )
+
+async def add_title_prefix(doc):
+    """Change function that prefixes title fields with 'Title: '"""
+    id_field = "title" if "title" in doc else "_id"
+    doc[id_field] = "Title: " + doc[id_field]
+    return doc
 
 
 async def dummy_change_function(doc):
@@ -66,11 +65,20 @@ async def dummy_change_function(doc):
     return doc
 
 
-class DummyObject(BaseModel):
-    """A dummy object that can be used to fill a test DB."""
+class V2BasicMigration(MigrationDefinition):
+    """Basic migration with minimal functionality and which doesn't copy indexes"""
 
-    title: str
-    length: int
+    version = 2
+
+    async def apply(self):
+        """Forward migration function"""
+        await self.migrate_docs_in_collection(
+            coll_name=TEST_COLL_NAME,
+            change_function=add_title_prefix,
+            batch_size=10,
+        )
+        await self.stage_new_collections(TEST_COLL_NAME)
+        await self.drop_old_collections(enforce_indexes=False)
 
 
 async def run_db_migrations(
@@ -418,9 +426,15 @@ async def test_migration_idempotence(mongodb: MongoDbFixture):
 
     migration_map = {2: V2BasicMigration}
 
+    # Run the migration once
     await run_db_migrations(
         config=config, target_version=2, migration_map=migration_map
     )
+
+    # Make sure the change function was applied (title field val now begins w/ "Title: ")
+    docs = collection.find().to_list()
+    assert len(docs) == 1
+    assert docs[0]["title"] == "Title: doc1"
 
     class CaptureDummy(MigrationDefinition):
         """Class to capture migration calls"""
@@ -434,6 +448,11 @@ async def test_migration_idempotence(mongodb: MongoDbFixture):
     await run_db_migrations(config=config, target_version=2, migration_map=dummy_map)
 
     CaptureDummy.apply.assert_not_called()
+
+    # Make sure the change function was now run again (title field unchanged)
+    docs = collection.find().to_list()
+    assert len(docs) == 1
+    assert docs[0]["title"] == "Title: doc1"
 
     # Check the version records (should only be 2, not 3)
     version_coll = get_version_coll(client, config)
@@ -476,11 +495,6 @@ async def test_enforcing_index_copy(mongodb: MongoDbFixture, copy_indexes: bool)
 
         async def apply(self):
             """Apply the migration"""
-            # await self.migrate_docs_in_collection(
-            #     coll_name=TEST_COLL_NAME,
-            #     change_function=dummy_change_function,
-            # )
-
             if copy_indexes:
                 await self.auto_copy_indexes(coll_names=TEST_COLL_NAME)
             with pytest.raises(RuntimeError) if not copy_indexes else nullcontext():
@@ -491,3 +505,81 @@ async def test_enforcing_index_copy(mongodb: MongoDbFixture, copy_indexes: bool)
     await run_db_migrations(
         config=config, target_version=2, migration_map=migration_map
     )
+
+
+@pytest.mark.parametrize("error", [True, False], ids=["WithError", "NoError"])
+async def test_auto_finalize(mongodb: MongoDbFixture, error: bool):
+    """Ensure that `.auto_finalize()` works as expected.
+
+    Specifically, test that it stages changes and drops temporary collections,
+    and that it attempts cleanup when an error occurs.
+    """
+    coll_names = ["books", "movies"]
+    config = make_mig_config(mongodb.config)
+    client = mongodb.client
+    db = client[config.db_name]
+
+    # Insert some test data into two different collections
+    book_collection = db["books"]
+    movie_collection = db["movies"]
+    book1 = {"_id": "The Handmaid's Tale", "length": 311}
+    book2 = {"_id": "The Origins of Totalitarianism", "length": 477}
+    book_collection.insert_one(book1)
+    book_collection.insert_one(book2)
+    movie1 = {"_id": "Don't Look Up", "length": 138}
+    movie2 = {"_id": "Idiocracy", "length": 84}
+    movie_collection.insert_one(movie1)
+    movie_collection.insert_one(movie2)
+
+    class AutoFinalizeTester(MigrationDefinition):
+        """A migration class that contains test logic"""
+
+        version = 2
+
+        async def apply(self):
+            """Test logic for `.auto_finalize()`"""
+            async with self.auto_finalize(coll_names=coll_names, copy_indexes=False):
+                # Migrate books collection
+                await self.migrate_docs_in_collection(
+                    coll_name="books",
+                    change_function=add_title_prefix,
+                    validation_model=DummyObject,
+                    id_field="title",
+                    force_validate=True,
+                )
+                # Migrate movies collection
+                await self.migrate_docs_in_collection(
+                    coll_name="movies",
+                    change_function=add_title_prefix,
+                    validation_model=DummyObject,
+                    id_field="title",
+                    force_validate=True,
+                )
+                if error:
+                    raise RuntimeError("Intentionally crashing migration")
+
+    migration_map = {2: AutoFinalizeTester}
+
+    with pytest.raises(RuntimeError) if error else nullcontext():
+        await run_db_migrations(
+            config=config, target_version=2, migration_map=migration_map
+        )
+
+    # Verify that the tmp collections are gone and the changes are reflected in the
+    #  permanent collection
+    assert "tmp_v2_new_books" not in db.list_collection_names()
+    assert "tmp_v2_new_movies" not in db.list_collection_names()
+    assert "tmp_v2_old_books" not in db.list_collection_names()
+    assert "tmp_v2_old_movies" not in db.list_collection_names()
+
+    final_books_collection = db["books"]
+    final_books = final_books_collection.find().to_list()
+    assert len(final_books) == 2
+    book_changes_applied = final_books[0]["_id"].startswith("Title: ")
+    assert book_changes_applied != error
+
+    final_movies_collection = db["movies"]
+    final_movies = final_movies_collection.find().to_list()
+    assert len(final_movies) == 2
+    movies_changes_applied = final_movies[0]["_id"].startswith("Title: ")
+    assert movies_changes_applied != error
