@@ -115,9 +115,15 @@ class MigrationDefinition:
             await self.drop_old_collections(enforce_indexes=copy_indexes)
         except BaseException:
             try:
-                for staged in list(self._staged_collections):
-                    await self.unstage_collection(staged)
-                    await self._db.drop_collection(self.new_temp_name(staged))
+                # Attempt to revert collections back to original state
+                for coll_name in coll_names:
+                    # If the collection was staged already, unstage it
+                    if coll_name in self._staged_collections:
+                        await self.unstage_collection(coll_name)
+                    # The only collections to drop are the tmp_vN_new_ collections
+                    #  because the tmp_vN_old_ collections were renamed to original name
+                    # If the new tmp collection was never created, this has no effect
+                    await self._db.drop_collection(self.new_temp_name(coll_name))
             except BaseException as exc_in_cleanup:
                 log.critical(
                     "Error occurred while cleaning up migration failure. State cannot"
