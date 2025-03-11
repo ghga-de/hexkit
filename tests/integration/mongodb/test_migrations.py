@@ -140,7 +140,7 @@ async def test_normal_migration(mongodb: MongoDbFixture):
     # Insert test data and then update the test data with anticipated migration changes
     for doc in [doc1, doc2, doc3]:
         collection.insert_one(doc)
-        doc["_id"] = f"Title: {doc["_id"]}"
+        doc["_id"] = f'Title: {doc["_id"]}'
 
     # Run the migration
     migration_map = {2: V2BasicMigration}
@@ -172,8 +172,8 @@ async def test_v1_init(mongodb: MongoDbFixture):
     assert len(versions) == 1
     verdoc = versions[0]
     assert verdoc["version"] == 1
-    completed = verdoc["completed"]
-    assert datetime.fromisoformat(completed) - now < timedelta(seconds=3)
+    completed = verdoc["completed"].astimezone(timezone.utc)
+    assert completed - now < timedelta(seconds=3)
     assert verdoc["backward"] == False
     assert isinstance(verdoc["total_duration_ms"], int)
 

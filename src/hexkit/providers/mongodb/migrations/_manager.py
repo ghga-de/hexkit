@@ -71,7 +71,7 @@ class DbVersionRecord(TypedDict):
     """Model containing information about DB versions and how they were achieved."""
 
     version: int
-    completed: str
+    completed: datetime
     backward: bool
     total_duration_ms: int
 
@@ -172,7 +172,10 @@ class MigrationManager:
 
     async def __aenter__(self):
         """Set up database client and database reference"""
-        self.client = AsyncIOMotorClient(str(self.config.mongo_dsn.get_secret_value()))
+        self.client = AsyncIOMotorClient(
+            str(self.config.mongo_dsn.get_secret_value()),
+            tz_aware=True,
+        )
         self.db = self.client[self.config.db_name]
         self._entered = True
         return self
@@ -216,7 +219,7 @@ class MigrationManager:
                     {
                         "_id": 0,
                         "lock_acquired": True,
-                        "acquired_at": now_as_utc().isoformat(),
+                        "acquired_at": now_as_utc(),
                     }
                 )
                 self._lock_acquired = True
@@ -252,7 +255,7 @@ class MigrationManager:
         """Insert a DbVersionRecord with processing information"""
         record = DbVersionRecord(
             version=version,
-            completed=now_as_utc().isoformat(),
+            completed=now_as_utc(),
             backward=self._backward,
             total_duration_ms=total_duration_ms,
         )
