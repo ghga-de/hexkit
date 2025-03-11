@@ -130,15 +130,15 @@ class MigrationManager:
     Example usage:
     ```
     from my_service.config import Config  # inherits from MongoDbConfig
-    from <module with this class> import MigrationManager
-    from <module with migration code> import V2Migration, V3Migration
+    from hexkit.providers.mongodb.migrations import MigrationManager
+    from my_service.migrations import V2Migration, V3Migration
 
     DB_VERSION = 2  # the current expected DB version
     MY_MIGRATION_MAP = {2: V2Migration, 3: V3Migration} # etc.
 
     def migrate_my_service():
         # Called before starting my_service
-        config = Config()s
+        config = Config()
 
         async with MigrationManager(config, DB_VERSION, MY_MIGRATION_MAP) as mm:
             await mm.migrate_or_wait()
