@@ -162,7 +162,7 @@ class MigrationManager:
         - `migration_map`: A dict with the MigrationDefinition class for each db version
         """
         if target_version < 1:
-            raise RuntimeError("Expected database version must be 1 or greater")
+            raise ValueError("Expected database version must be 1 or greater")
 
         self.config = config
         self.target_ver = target_version
