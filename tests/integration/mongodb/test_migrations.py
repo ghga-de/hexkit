@@ -125,6 +125,32 @@ def assert_not_versioned(version_coll):
     assert not versions
 
 
+async def test_normal_migration(mongodb: MongoDbFixture):
+    """Run a basic migration and check for the results."""
+    config = make_migration_config(mongodb.config)
+    client = mongodb.client
+    db = client[config.db_name]
+    collection = db[TEST_COLL_NAME]
+
+    # Create test data
+    doc1 = {"_id": "item1", "length": 100}
+    doc2 = {"_id": "item2", "length": 101}
+    doc3 = {"_id": "item3", "length": 102}
+
+    # Insert test data and then update the test data with anticipated migration changes
+    for doc in [doc1, doc2, doc3]:
+        collection.insert_one(doc)
+        doc["_id"] = f"Title: {doc["_id"]}"
+
+    # Run the migration
+    migration_map = {2: V2BasicMigration}
+    await run_db_migrations(config, 2, migration_map)
+
+    # Verify the changes have been made
+    docs = collection.find().sort("length", pymongo.ASCENDING).to_list()
+    assert docs == [doc1, doc2, doc3]
+
+
 async def test_v1_init(mongodb: MongoDbFixture):
     """Test that v1 setup is done right.
 
