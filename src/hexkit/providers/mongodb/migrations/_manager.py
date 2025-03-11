@@ -112,8 +112,11 @@ class MigrationTimeoutError(RuntimeError):
 def _get_db_version_from_records(version_docs: list[DbVersionRecord]) -> int:
     """Gets the current DB version from the documents found in the version collection."""
     # Make sure we know what the latest version is, not just the max
-    version_docs.sort(key=lambda doc: doc["completed"])
-    return version_docs[-1]["version"] if version_docs else 0
+    return max(
+        version_docs,
+        key=lambda doc: (doc["completed"], doc["version"]),
+        default={"version": 0},
+    )["version"]
 
 
 class MigrationManager:
