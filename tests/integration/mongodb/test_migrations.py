@@ -93,7 +93,7 @@ async def run_db_migrations(
         await mm.migrate_or_wait()
 
 
-def make_mig_config(
+def make_migration_config(
     config: MongoDbConfig,
     db_version_collection: str = "versioningTests",
     migration_wait_sec: int = 1,
@@ -110,7 +110,7 @@ def make_mig_config(
     )
 
 
-def get_version_coll(client: MongoClient, config: MigrationConfig) -> Collection:
+def get_version_collection(client: MongoClient, config: MigrationConfig) -> Collection:
     """Get an instance of the db version collection.
 
     This returns the synchronous pymongo collection because it is accessed
@@ -132,9 +132,9 @@ async def test_v1_init(mongodb: MongoDbFixture):
     Then run the migrations.
     Then check that the collection has been created and has one entry.
     """
-    config = make_mig_config(mongodb.config)
+    config = make_migration_config(mongodb.config)
     client = mongodb.client
-    version_coll = get_version_coll(client, config)
+    version_coll = get_version_collection(client, config)
     assert_not_versioned(version_coll)
 
     # run the migration to set up the versioned DB
@@ -157,9 +157,9 @@ async def test_drop_or_rename_nonexistent_collection(mongodb: MongoDbFixture):
 
     The migrations should still complete and log the new DB version.
     """
-    config = make_mig_config(mongodb.config)
+    config = make_migration_config(mongodb.config)
     client = mongodb.client
-    version_coll = get_version_coll(client, config)
+    version_coll = get_version_collection(client, config)
     assert_not_versioned(version_coll)
 
     migration_map = {2: V2BasicMigration}
@@ -192,9 +192,9 @@ async def test_drop_or_rename_nonexistent_collection(mongodb: MongoDbFixture):
 )
 async def test_copy_indexes(mongodb: MongoDbFixture, indexes: list[IndexModel]):
     """Test the copy_indexes function"""
-    config = make_mig_config(mongodb.config)
+    config = make_migration_config(mongodb.config)
     client = mongodb.client
-    version_coll = get_version_coll(client, config)
+    version_coll = get_version_collection(client, config)
     assert_not_versioned(version_coll)
 
     # Insert some test data
@@ -262,9 +262,9 @@ async def test_migration_without_copied_index(mongodb: MongoDbFixture):
     """Verify that when a custom index DOES exist but we don't copy it, it doesn't
     appear on the new collection.
     """
-    config = make_mig_config(mongodb.config)
+    config = make_migration_config(mongodb.config)
     client = mongodb.client
-    version_coll = get_version_coll(client, config)
+    version_coll = get_version_collection(client, config)
     assert_not_versioned(version_coll)
 
     # Insert test data
@@ -287,7 +287,7 @@ async def test_migration_without_copied_index(mongodb: MongoDbFixture):
 
 async def test_stage_unstage(mongodb: MongoDbFixture):
     """Stage and immediately unstage a collection with collection name collisions."""
-    config = make_mig_config(mongodb.config)
+    config = make_migration_config(mongodb.config)
     client: AsyncIOMotorClient = AsyncIOMotorClient(
         str(config.mongo_dsn.get_secret_value())
     )
@@ -329,7 +329,7 @@ async def test_unapply_not_defined(mongodb: MongoDbFixture):
     """Verify that an error is raised when triggering a backward migration
     on a migration definition that doesn't have `unapply()` defined.
     """
-    config = make_mig_config(mongodb.config)
+    config = make_migration_config(mongodb.config)
     client = mongodb.client
     collection = client[config.db_name][TEST_COLL_NAME]
     collection.insert_one(DummyObject(title="doc1", length=100).model_dump())
@@ -341,7 +341,7 @@ async def test_unapply_not_defined(mongodb: MongoDbFixture):
     )
 
     # Check that we're now set to version 2 in the DB
-    version_collection = get_version_coll(client=client, config=config)
+    version_collection = get_version_collection(client=client, config=config)
     version_docs = version_collection.find().to_list()
     assert len(version_docs) == 2
     assert version_docs[-1]["version"] == 2
@@ -359,7 +359,7 @@ async def test_unapply_not_defined(mongodb: MongoDbFixture):
 
 async def test_successful_unapply(mongodb: MongoDbFixture):
     """Verify that it's possible to unapply/perform reverse migrations"""
-    config = make_mig_config(mongodb.config)
+    config = make_migration_config(mongodb.config)
     client = mongodb.client
     collection = client[config.db_name][TEST_COLL_NAME]
     collection.insert_one(DummyObject(title="doc1", length=100).model_dump())
@@ -387,7 +387,7 @@ async def test_successful_unapply(mongodb: MongoDbFixture):
     )
 
     # Verify that a 3rd record is inserted, reflecting the reversion from v2 to v1
-    version_collection = get_version_coll(client=client, config=config)
+    version_collection = get_version_collection(client=client, config=config)
     version_docs = version_collection.find().to_list()
     assert len(version_docs) == 3
     assert version_docs[-1]["version"] == 1
@@ -398,7 +398,7 @@ async def test_batch_processing(mongodb: MongoDbFixture):
     """Verify that all documents are migrated when the collection is larger than
     the batch size.
     """
-    config = make_mig_config(mongodb.config)
+    config = make_migration_config(mongodb.config)
     client = mongodb.client
     collection = client[config.db_name][TEST_COLL_NAME]
 
@@ -419,7 +419,7 @@ async def test_batch_processing(mongodb: MongoDbFixture):
 
 async def test_migration_idempotence(mongodb: MongoDbFixture):
     """Test that nothing changes when running db version check multiple times"""
-    config = make_mig_config(mongodb.config)
+    config = make_migration_config(mongodb.config)
     client = mongodb.client
     collection = client[config.db_name][TEST_COLL_NAME]
     collection.insert_one(DummyObject(title="doc1", length=100).model_dump())
@@ -455,7 +455,7 @@ async def test_migration_idempotence(mongodb: MongoDbFixture):
     assert docs[0]["title"] == "Title: doc1"
 
     # Check the version records (should only be 2, not 3)
-    version_coll = get_version_coll(client, config)
+    version_coll = get_version_collection(client, config)
     versions = version_coll.find().sort("completed", 1).to_list()
     assert len(versions) == 2
     assert versions[0]["version"] == 1
@@ -464,7 +464,7 @@ async def test_migration_idempotence(mongodb: MongoDbFixture):
 
 async def test_waiting(mongodb: MongoDbFixture):
     """Test that migrate_or_wait() waits the configured amount of time."""
-    config = make_mig_config(mongodb.config)
+    config = make_migration_config(mongodb.config)
     assert config.migration_max_wait_sec
     assert 0 < config.migration_max_wait_sec < 5
     async with MigrationManager(
@@ -483,7 +483,7 @@ async def test_waiting(mongodb: MongoDbFixture):
 @pytest.mark.parametrize("copy_indexes", [True, False])
 async def test_enforcing_index_copy(mongodb: MongoDbFixture, copy_indexes: bool):
     """Test the behavior of `drop_old_collections()` when `enforce_indexes` is True."""
-    config = make_mig_config(mongodb.config)
+    config = make_migration_config(mongodb.config)
     client = mongodb.client
     collection = client[config.db_name][TEST_COLL_NAME]
     collection.insert_one(DummyObject(title="doc1", length=100).model_dump())
@@ -515,7 +515,7 @@ async def test_auto_finalize(mongodb: MongoDbFixture, error: bool):
     and that it attempts cleanup when an error occurs.
     """
     coll_names = ["books", "movies"]
-    config = make_mig_config(mongodb.config)
+    config = make_migration_config(mongodb.config)
     client = mongodb.client
     db = client[config.db_name]
 
