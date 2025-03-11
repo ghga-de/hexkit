@@ -70,18 +70,18 @@ def test_get_old_temp_names(unapplying: bool):
 
 
 @pytest.mark.parametrize(
-    "start, target, expected, migration_type",
+    "start, target, expected, backward",
     [
-        (2, 2, [], "FORWARD"),
-        (10, 1, [10, 9, 8, 7, 6, 5, 4, 3, 2], "BACKWARD"),
-        (1, 4, [2, 3, 4], "FORWARD"),
-        (2, 1, [2], "BACKWARD"),
-        (1, 2, [2], "FORWARD"),
+        (2, 2, [], False),
+        (10, 1, [10, 9, 8, 7, 6, 5, 4, 3, 2], True),
+        (1, 4, [2, 3, 4], False),
+        (2, 1, [2], True),
+        (1, 2, [2], False),
     ],
     ids=["SameVer", "Backward10to1", "Forward1to4", "BackwardBy1", "ForwardBy1"],
 )
 def test_get_version_sequence(
-    start: int, target: int, expected: list[int], migration_type: str
+    start: int, target: int, expected: list[int], backward: bool
 ):
     """Test the output of MigrationManager._get_version_sequence()
 
@@ -89,7 +89,7 @@ def test_get_version_sequence(
     In the backward case, we don't want to unapply the target ver
     """
     mm = MigrationManager(config=Mock(), target_version=target, migration_map={})
-    mm._migration_type = migration_type  # type: ignore
+    mm._backward = backward
     seq = mm._get_version_sequence(current_ver=start)
     assert seq == expected
 
@@ -114,7 +114,7 @@ def test_fetch_migration_cls():
         mm._fetch_migration_cls(4)
 
     # set migration in reverse mode
-    mm._migration_type = "BACKWARD"
+    mm._backward = True
 
     # Dummy migration doesn't have 'unapply', so we expect an error on retrieving it
     with pytest.raises(RuntimeError):

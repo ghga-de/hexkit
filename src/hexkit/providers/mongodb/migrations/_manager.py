@@ -32,7 +32,6 @@ from ._utils import MigrationDefinition, Reversible
 
 log = logging.getLogger(__name__)
 
-MigrationType = Literal["FORWARD", "BACKWARD"]
 MigrationCls = type[MigrationDefinition]
 MigrationMap = Mapping[int, MigrationCls]
 
@@ -73,7 +72,7 @@ class DbVersionRecord(TypedDict):
 
     version: int
     completed: str
-    migration_type: MigrationType
+    backward: bool
     total_duration_ms: int
 
 
@@ -169,7 +168,7 @@ class MigrationManager:
         self.migration_map = migration_map
         self._lock_acquired = False
         self._entered = False
-        self._migration_type: MigrationType = "FORWARD"
+        self._backward: bool = False
 
     async def __aenter__(self):
         """Set up database client and database reference"""
@@ -254,7 +253,7 @@ class MigrationManager:
         record = DbVersionRecord(
             version=version,
             completed=now_as_utc().isoformat(),
-            migration_type=self._migration_type,
+            backward=self._backward,
             total_duration_ms=total_duration_ms,
         )
         version_collection = self.db[self.config.db_version_collection]
@@ -282,7 +281,7 @@ class MigrationManager:
         # in backward case, we don't want to unapply the target ver
         step_range = (
             range(current_ver, self.target_ver, -1)
-            if self._migration_type == "BACKWARD"
+            if self._backward
             else range(current_ver + 1, self.target_ver + 1)
         )
         steps = list(step_range)
@@ -295,18 +294,16 @@ class MigrationManager:
         """
         try:
             migration_cls = self.migration_map[version]
-            if self._migration_type == "BACKWARD" and not issubclass(
-                migration_cls, Reversible
-            ):
+            if self._backward and not issubclass(migration_cls, Reversible):
                 raise RuntimeError(
                     f"Planning to unapply migration v{version}, but"
                     + f" it doesn't subclass `{Reversible.__name__}`!"
                 )
             return migration_cls
         except KeyError as err:
-            mig_type = self._migration_type.lower()
+            migration_type = "backward" if self._backward else "forward"
             raise NotImplementedError(
-                f"No {mig_type} migration implemented for version {version}"
+                f"No {migration_type} migration implemented for version {version}"
             ) from err
 
     async def _perform_migrations(self, *, current_ver: int):
@@ -316,7 +313,7 @@ class MigrationManager:
         """
         ver_sequence = self._get_version_sequence(current_ver=current_ver)
         migrations = [self._fetch_migration_cls(ver) for ver in ver_sequence]
-        unapplying = self._migration_type == "BACKWARD"
+
         # Execute & time each migration in order to get to the target DB version
         for version, migration_cls in zip(ver_sequence, migrations):
             try:
@@ -326,12 +323,12 @@ class MigrationManager:
                 # instantiate MigrationDefinition
                 migration = migration_cls(
                     db=self.db,
-                    unapplying=unapplying,
+                    unapplying=self._backward,
                     is_final_migration=is_final_migration,
                 )
 
                 # Call apply/unapply based on migration type
-                await migration.unapply() if unapplying else await migration.apply()
+                await migration.unapply() if self._backward else await migration.apply()
             except BaseException as exc:
                 error = MigrationStepError(
                     current_ver=version - 1,
@@ -371,9 +368,8 @@ class MigrationManager:
             if not self._lock_acquired:
                 return False
 
-            self._migration_type = (
-                "FORWARD" if version < self.target_ver else "BACKWARD"
-            )
+            if version > self.target_ver:
+                self._backward = True
 
             start = time()
             await self._perform_migrations(current_ver=version)
