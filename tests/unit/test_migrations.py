@@ -139,8 +139,12 @@ def test_validate_doc():
 
     # Happy path
     doc = {"_id": "Test Title", "length": 100}
+    doc_copy = {**doc}
     id_field = "title"
     validate_doc(doc=doc, model=DummyObject, id_field=id_field)
+
+    # Verify the function didn't modify the input
+    assert doc == doc_copy
 
     # Migrated document missing required field
     invalid_doc = {"_id": "Test Title", "bad_field": 100}

@@ -18,7 +18,6 @@ import logging
 from abc import ABC, abstractmethod
 from collections.abc import Awaitable, Callable
 from contextlib import asynccontextmanager
-from copy import deepcopy
 from typing import Any, Optional, Union
 
 from motor.motor_asyncio import AsyncIOMotorDatabase
@@ -40,7 +39,9 @@ def validate_doc(doc: Document, *, model: type[BaseModel], id_field: str):
     - `ValidationError`: If the doc cannot be used to populate the model.
     - `RuntimeError`: If the model can be populated, but there's a mismatch.
     """
-    as_model = document_to_dto(deepcopy(doc), id_field=id_field, dto_model=model)
+    # document_to_dto() will modify the doc dict, so don't use the original dict
+    doc_copy = {**doc}
+    as_model = document_to_dto(doc_copy, id_field=id_field, dto_model=model)
     doc_from_model = dto_to_document(as_model, id_field=id_field)
     if doc != doc_from_model:
         raise RuntimeError(
