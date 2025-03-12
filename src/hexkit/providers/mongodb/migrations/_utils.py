@@ -175,7 +175,7 @@ class MigrationDefinition:
         resulting doc data when this is the last migration to be applied/unapplied OR
         `always_validate` is True.
 
-        `batch_size` controls how the size of bulk inserts as well as the max number
+        `batch_size` controls the size of bulk inserts as well as the max number
         of documents retrieved at a time by the cursor.
         """
         if coll_name in self._staged_collections:
