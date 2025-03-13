@@ -79,8 +79,11 @@ class DbVersionRecord(TypedDict):
 class MigrationStepError(RuntimeError):
     """Raised when a specific migration step fails, e.g. migrating from v4 to v5"""
 
-    def __init__(self, *, current_ver: int, target_ver: int):
-        msg = f"Unable to migrate from DB version {current_ver} to {target_ver}."
+    def __init__(self, *, migration_class: MigrationCls, backward: bool):
+        apply = "unapply" if backward else "apply"
+        version = migration_class.version
+        name = migration_class.__name__
+        msg = f"Unable to {apply} DB version {version} ({name})"
         super().__init__(msg)
 
 
@@ -318,10 +321,10 @@ class MigrationManager:
         migrations = [self._fetch_migration_cls(ver) for ver in ver_sequence]
 
         # Execute & time each migration in order to get to the target DB version
-        for version, migration_cls in zip(ver_sequence, migrations):
+        for migration_cls in migrations:
             try:
                 # Determine if this is the last migration to apply/unapply
-                is_final_migration = version == ver_sequence[-1]
+                is_final_migration = migration_cls.version == ver_sequence[-1]
 
                 # instantiate MigrationDefinition
                 migration = migration_cls(
@@ -334,8 +337,8 @@ class MigrationManager:
                 await migration.unapply() if self._backward else await migration.apply()
             except BaseException as exc:
                 error = MigrationStepError(
-                    current_ver=version - 1,
-                    target_ver=self.target_ver,
+                    migration_class=migration_cls,
+                    backward=self._backward,
                 )
                 log.critical(error)
                 raise error from exc

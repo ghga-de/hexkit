@@ -32,9 +32,12 @@ from hexkit.providers.mongodb.migrations import (
     MigrationDefinition,
     MigrationManager,
     MigrationMap,
+    MigrationStepError,
     Reversible,
 )
-from hexkit.providers.mongodb.migrations._manager import MigrationTimeoutError
+from hexkit.providers.mongodb.migrations._manager import (
+    MigrationTimeoutError,
+)
 from hexkit.providers.mongodb.testutils import (
     MongoDbFixture,
     mongodb_container_fixture,  # noqa: F401
@@ -609,3 +612,32 @@ async def test_auto_finalize(mongodb: MongoDbFixture, error: bool):
     assert len(final_movies) == 2
     movies_changes_applied = final_movies[0]["_id"].startswith("Title: ")
     assert movies_changes_applied != error
+
+
+async def test_version_in_backwards_migration_error(mongodb: MongoDbFixture):
+    """Check the MigrationStepError generated when a backwards migration fails"""
+    config = make_migration_config(mongodb.config)
+    client = mongodb.client
+    collection = client[config.db_name][TEST_COLL_NAME]
+    collection.insert_one(DummyObject(title="doc1", length=100).model_dump())
+
+    class ErrorMigration(V2BasicMigration, Reversible):
+        """Reversible version of the basic migration class"""
+
+        async def unapply(self):
+            raise RuntimeError("Test")
+
+    migration_map = {2: ErrorMigration}
+
+    # Run initial application (init + v2)
+    await run_db_migrations(
+        config=config, target_version=2, migration_map=migration_map
+    )
+
+    # Run to unapply and generate MigrationStepError
+    msg = "Unable to unapply DB version 2 (ErrorMigration)"
+    with pytest.raises(MigrationStepError) as err:
+        await run_db_migrations(
+            config=config, target_version=1, migration_map=migration_map
+        )
+    assert err.value.args[0] == msg
