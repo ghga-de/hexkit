@@ -16,7 +16,7 @@
 """Integration tests for the PersistentKafkaPublisher"""
 
 import asyncio
-from datetime import UTC, datetime, timedelta, timezone
+from datetime import datetime, timedelta, timezone
 from uuid import UUID
 
 import pytest
@@ -117,7 +117,7 @@ async def test_basic_publish(kafka: KafkaFixture, mongodb: MongoDbFixture):
 
     # Inspect the 'created' and 'id' fields
     timestamp = dto_dict.pop("created")
-    assert datetime.now(tz=UTC) - timestamp <= timedelta(seconds=30)
+    assert datetime.now(tz=timezone.utc) - timestamp <= timedelta(seconds=30)
 
     # Verify that the ID is a valid UUID (no error means it's valid)
     UUID(dto_dict.pop("id"))
