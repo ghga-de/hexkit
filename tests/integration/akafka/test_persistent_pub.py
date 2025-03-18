@@ -15,11 +15,7 @@
 
 """Integration tests for the PersistentKafkaPublisher"""
 
-# Test `published` is False before publish and True afterward
-# Test sorting by `created`
-# Test `publish_pending` and `republish` when DB is empty
-# Test collection name assignment
-# Test with error during publish (make sure dto left as unpublished)
+import asyncio
 from datetime import UTC, datetime, timedelta, timezone
 from uuid import UUID
 
@@ -129,13 +125,7 @@ async def test_basic_publish(kafka: KafkaFixture, mongodb: MongoDbFixture):
 
 
 async def test_republish(kafka: KafkaFixture, mongodb: MongoDbFixture):
-    """Test republishing with the PersistentKafkaPublisher.
-
-    This test verifies that;
-    - the event is stored in the database
-    - the event is marked as published after publishing completes
-    - the timestamp is created correctly
-    """
+    """Test republishing with the PersistentKafkaPublisher."""
     config = MongoKafkaConfig(
         **kafka.config.model_dump(), **mongodb.config.model_dump()
     )
@@ -147,7 +137,7 @@ async def test_republish(kafka: KafkaFixture, mongodb: MongoDbFixture):
     collection = db[collection_name]
     assert not collection.find().to_list()
 
-    # Publish an event, which should then be stored in the db
+    # Publish some events, which should then be stored in the db
     async with (
         PersistentKafkaPublisher.construct(
             config=config,
@@ -157,18 +147,20 @@ async def test_republish(kafka: KafkaFixture, mongodb: MongoDbFixture):
         kafka.record_events(in_topic=TEST_TOPIC, capture_headers=True) as recorder1,
         set_correlation_id(TEST_CORRELATION_ID),
     ):
-        await persistent_publisher.publish(
-            payload=TEST_PAYLOAD,
-            topic=TEST_TOPIC,
-            type_=TEST_TYPE,
-            key=TEST_KEY,
-            headers=None,
-        )
+        for i in range(3):
+            await asyncio.sleep(0.1)  # tests run fast, so leave gap in timestamps
+            await persistent_publisher.publish(
+                payload={"payload": i},
+                topic=TEST_TOPIC,
+                type_=TEST_TYPE,
+                key=TEST_KEY,
+                headers=None,
+            )
 
     docs = collection.find().to_list()
-    assert len(docs) == 1
+    assert len(docs) == 3
 
-    # Publish an event, which should then be stored in the db
+    # Republish the 3 stored events
     async with (
         PersistentKafkaPublisher.construct(
             config=config,
@@ -180,7 +172,7 @@ async def test_republish(kafka: KafkaFixture, mongodb: MongoDbFixture):
     ):
         await persistent_publisher.republish()
 
-    # Assert the published event is the same
+    # Assert the published event is the same and in the same order
     assert recorder1.recorded_events == recorder2.recorded_events
 
 
