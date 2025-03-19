@@ -60,7 +60,7 @@ class PersistentKafkaEvent(BaseModel):
     topic: Ascii = Field(..., description="The event topic")
     type_: Ascii = Field(..., description="The event type")
     payload: JsonObject = Field(..., description="The event payload")
-    key: Ascii = Field("", description="The event key")
+    key: Ascii = Field(..., description="The event key")
     headers: Mapping[str, str] = Field(
         default_factory=dict,
         description="Non-standard event headers. Correlation ID and event type are"
@@ -69,7 +69,7 @@ class PersistentKafkaEvent(BaseModel):
     )
     correlation_id: str = Field(..., description="The event correlation ID")
     created: datetime = Field(
-        ..., description="The timestamp of when the event was first published"
+        ..., description="The timestamp of when the event record was first inserted"
     )
     published: bool = Field(False, description="Whether the event has been published")
 
