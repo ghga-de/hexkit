@@ -89,8 +89,8 @@ class PersistentKafkaPublisher(EventPublisherProtocol):
         *,
         config: MongoKafkaConfig,
         dao_factory: MongoDbDaoFactory,
-        compacted_topics: Optional[list[str]] = None,
-        no_store: Optional[list[str]] = None,
+        compacted_topics: Optional[set[str]] = None,
+        no_store: Optional[set[str]] = None,
         collection_name: str = "",
         kafka_producer_cls: type[KafkaProducerCompatible] = AIOKafkaProducer,
     ):
@@ -101,12 +101,12 @@ class PersistentKafkaPublisher(EventPublisherProtocol):
             config:
                 Config parameters needed for connecting to Apache Kafka.
             compacted_topics:
-                A list of topics that should be compacted. For these topics, only the
+                A set of topics that should be compacted. For these topics, only the
                 latest event for a given key will be republished. Prior events for
                 a given key in a compacted topic are replaced by new events, so only
                 one event should be stored at a given time per key per topic.
             no_store:
-                A list of topics which should not be stored in the database. Events
+                A set of topics which should not be stored in the database. Events
                 for these topics will be published identically as they would be in
                 the `KafkaEventPublisher` class.
             collection_name:
@@ -116,13 +116,13 @@ class PersistentKafkaPublisher(EventPublisherProtocol):
             kafka_producer_cls:
                 Overwrite the used Kafka Producer class. Only intended for unit testing.
         """
-        compacted_topics = compacted_topics or []
-        no_store = no_store or []
+        compacted_topics = compacted_topics or set()
+        no_store = no_store or set()
 
-        conflicts = [topic for topic in no_store if topic in compacted_topics]
+        conflicts = no_store.intersection(compacted_topics)
         if conflicts:
             raise ValueError(
-                "List values for `no_store` and `compacted_topics` must be exclusive."
+                "Values for `no_store` and `compacted_topics` must be exclusive."
                 + f" Please review the following values: {', '.join(conflicts)}."
             )
 
@@ -148,8 +148,8 @@ class PersistentKafkaPublisher(EventPublisherProtocol):
         *,
         event_publisher: KafkaEventPublisher,
         dao: Dao[PersistentKafkaEvent],
-        compacted_topics: list[str],
-        no_store: list[str],
+        compacted_topics: set[str],
+        no_store: set[str],
     ):
         """Please do not call directly! Should be called by the `construct` method."""
         self._event_publisher = event_publisher

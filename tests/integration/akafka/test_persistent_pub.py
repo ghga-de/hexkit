@@ -256,7 +256,7 @@ async def test_compaction(kafka: KafkaFixture, mongodb: MongoDbFixture):
             config=config,
             dao_factory=dao_factory,
             collection_name=collection_name,
-            compacted_topics=[TEST_TOPIC],
+            compacted_topics={TEST_TOPIC},
         ) as persistent_publisher,
         kafka.record_events(
             in_topic=TEST_TOPIC, capture_headers=True
@@ -300,7 +300,7 @@ async def test_compaction(kafka: KafkaFixture, mongodb: MongoDbFixture):
             config=config,
             dao_factory=dao_factory,
             collection_name=collection_name,
-            compacted_topics=[TEST_TOPIC],
+            compacted_topics={TEST_TOPIC},
         ) as persistent_publisher,
         kafka.record_events(
             in_topic=TEST_TOPIC,
@@ -323,13 +323,13 @@ async def test_no_store(kafka: KafkaFixture, mongodb: MongoDbFixture):
     collection_name = f"{config.service_name}PersistedEvents"
     dao_factory = MongoDbDaoFactory(config=config)
 
-    # Publish an event, which should then be stored in the db
+    # Publish an event to a topic marked as 'no store'
     async with (
         PersistentKafkaPublisher.construct(
             config=config,
             dao_factory=dao_factory,
             collection_name=collection_name,
-            no_store=[TEST_TOPIC],
+            no_store={TEST_TOPIC},
         ) as persistent_publisher,
         kafka.record_events(in_topic=TEST_TOPIC, capture_headers=True) as recorder,
         set_correlation_id(TEST_CORRELATION_ID),
@@ -341,8 +341,9 @@ async def test_no_store(kafka: KafkaFixture, mongodb: MongoDbFixture):
             key=TEST_KEY,
             headers=None,
         )
-    assert len(recorder.recorded_events) == 1
 
+    # Verify that the event was published but not stored in the database
+    assert len(recorder.recorded_events) == 1
     collection = mongodb.client[config.db_name][collection_name]
     assert not collection.find().to_list()
 
@@ -354,13 +355,13 @@ async def test_conflicting_args():
             config=Mock(),
             dao_factory=AsyncMock(),
             collection_name="test_collection",
-            compacted_topics=["compacted", "conflict1", "conflict2"],
-            no_store=["conflict1", "conflict2", "no_store"],
+            compacted_topics={"compacted", "conflict1", "conflict2"},
+            no_store={"conflict1", "conflict2", "no_store"},
         ):
             assert False  # Should not get here
 
     msg = (
-        "List values for `no_store` and `compacted_topics` must be exclusive."
+        "Values for `no_store` and `compacted_topics` must be exclusive."
         + " Please review the following values: conflict1, conflict2."
     )
     assert err.value.args[0] == msg
