@@ -84,12 +84,13 @@ class PersistentKafkaPublisher(EventPublisherProtocol):
 
     @classmethod
     @asynccontextmanager
-    async def construct(
+    async def construct(  # noqa: PLR0913
         cls,
         *,
         config: MongoKafkaConfig,
         dao_factory: MongoDbDaoFactory,
         compacted_topics: Optional[list[str]] = None,
+        no_store: Optional[list[str]] = None,
         collection_name: str = "",
         kafka_producer_cls: type[KafkaProducerCompatible] = AIOKafkaProducer,
     ):
@@ -104,18 +105,33 @@ class PersistentKafkaPublisher(EventPublisherProtocol):
                 latest event for a given key will be republished. Prior events for
                 a given key in a compacted topic are replaced by new events, so only
                 one event should be stored at a given time per key per topic.
+            no_store:
+                A list of topics which should not be stored in the database. Events
+                for these topics will be published identically as they would be in
+                the `KafkaEventPublisher` class.
+            collection_name:
+                The name of the MongoDB collection in which to store events.
             dao_factory:
                 A MongoDbDaoFactory instance that can be used to create a DAO.
             kafka_producer_cls:
                 Overwrite the used Kafka Producer class. Only intended for unit testing.
         """
+        compacted_topics = compacted_topics or []
+        no_store = no_store or []
+
+        conflicts = [topic for topic in no_store if topic in compacted_topics]
+        if conflicts:
+            raise ValueError(
+                "List values for `no_store` and `compacted_topics` must be exclusive."
+                + f" Please review the following values: {', '.join(conflicts)}."
+            )
+
         collection_name = collection_name or f"{config.service_name}PersistedEvents"
         dao = await dao_factory.get_dao(
             name=collection_name,
             id_field="id",
             dto_model=PersistentKafkaEvent,
         )
-        compacted_topics = compacted_topics or []
         async with KafkaEventPublisher.construct(
             config=config,
             kafka_producer_cls=kafka_producer_cls,
@@ -124,6 +140,7 @@ class PersistentKafkaPublisher(EventPublisherProtocol):
                 event_publisher=event_publisher,
                 dao=dao,
                 compacted_topics=compacted_topics,
+                no_store=no_store,
             )
 
     def __init__(
@@ -132,11 +149,13 @@ class PersistentKafkaPublisher(EventPublisherProtocol):
         event_publisher: KafkaEventPublisher,
         dao: Dao[PersistentKafkaEvent],
         compacted_topics: list[str],
+        no_store: list[str],
     ):
         """Please do not call directly! Should be called by the `construct` method."""
         self._event_publisher = event_publisher
         self._dao = dao
         self._compacted_topics = compacted_topics
+        self._no_store = no_store
 
     async def _publish_validated(
         self,
@@ -156,13 +175,29 @@ class PersistentKafkaPublisher(EventPublisherProtocol):
         - `topic` (str): The event topic. ASCII characters only.
         - `headers`: Additional headers to attach to the event.
         """
+        # For topics that aren't meant to be stored, do normal publish and return
+        if topic in self._no_store:
+            await self._event_publisher.publish(
+                payload=payload,
+                topic=topic,
+                type_=type_,
+                key=key,
+                headers=headers,
+            )
+            return
+
+        # Otherwise, perform logic to upsert, publish, and update the event
         try:
             correlation_id = get_correlation_id()
         except CorrelationIdContextError:
             correlation_id = new_correlation_id()
 
         created = datetime.now(tz=timezone.utc)
+
+        # Create an event ID containing the topic and key for compacted topics, or a UUID otherwise
         event_id = f"{topic}:{key}" if topic in self._compacted_topics else str(uuid4())
+
+        # Create an instance of the pydantic model representing the event
         event = PersistentKafkaEvent(
             id=event_id,
             topic=topic,
@@ -175,7 +210,9 @@ class PersistentKafkaPublisher(EventPublisherProtocol):
             published=False,
         )
 
-        # Insert event initially as 'unpublished' before publishing
+        # Upsert the event initially as 'unpublished' before publishing. Upsertion
+        #  does the work to mimic topic compaction on selected topics due to the fixed
+        #  key. On non-compacted topics, there is no effect as the ID is a random UUID.
         await self._dao.upsert(event)
         await self._publish_and_update(event)
 

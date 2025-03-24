@@ -17,6 +17,7 @@
 
 import asyncio
 from datetime import datetime, timedelta, timezone
+from unittest.mock import AsyncMock, Mock
 from uuid import UUID
 
 import pytest
@@ -312,3 +313,54 @@ async def test_compaction(kafka: KafkaFixture, mongodb: MongoDbFixture):
 
     assert len(compact_recorder.recorded_events) == 1
     assert len(noncompact_recorder.recorded_events) == 2
+
+
+async def test_no_store(kafka: KafkaFixture, mongodb: MongoDbFixture):
+    """Test that events are not stored in the DB if their topic is marked `no_store`."""
+    config = MongoKafkaConfig(
+        **kafka.config.model_dump(), **mongodb.config.model_dump()
+    )
+    collection_name = f"{config.service_name}PersistedEvents"
+    dao_factory = MongoDbDaoFactory(config=config)
+
+    # Publish an event, which should then be stored in the db
+    async with (
+        PersistentKafkaPublisher.construct(
+            config=config,
+            dao_factory=dao_factory,
+            collection_name=collection_name,
+            no_store=[TEST_TOPIC],
+        ) as persistent_publisher,
+        kafka.record_events(in_topic=TEST_TOPIC, capture_headers=True) as recorder,
+        set_correlation_id(TEST_CORRELATION_ID),
+    ):
+        await persistent_publisher.publish(
+            payload=TEST_PAYLOAD,
+            topic=TEST_TOPIC,
+            type_=TEST_TYPE,
+            key=TEST_KEY,
+            headers=None,
+        )
+    assert len(recorder.recorded_events) == 1
+
+    collection = mongodb.client[config.db_name][collection_name]
+    assert not collection.find().to_list()
+
+
+async def test_conflicting_args():
+    """Test arg validation for the `compacted_topics` and `no_store` parameters."""
+    with pytest.raises(ValueError) as err:
+        async with PersistentKafkaPublisher.construct(
+            config=Mock(),
+            dao_factory=AsyncMock(),
+            collection_name="test_collection",
+            compacted_topics=["compacted", "conflict1", "conflict2"],
+            no_store=["conflict1", "conflict2", "no_store"],
+        ):
+            assert False  # Should not get here
+
+    msg = (
+        "List values for `no_store` and `compacted_topics` must be exclusive."
+        + " Please review the following values: conflict1, conflict2."
+    )
+    assert err.value.args[0] == msg
