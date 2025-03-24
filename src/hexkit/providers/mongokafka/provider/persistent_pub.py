@@ -54,7 +54,7 @@ class PersistentKafkaEvent(BaseModel):
     id: str = Field(
         ...,
         description="The unique ID of the event. If the topic is set to be compacted,"
-        + " the ID is set to the topic and key in the format <topic>,<key>. Otherwise"
+        + " the ID is set to the topic and key in the format <topic>:<key>. Otherwise"
         + " the ID is set to a random UUID.",
     )
     topic: Ascii = Field(..., description="The event topic")
@@ -90,7 +90,7 @@ class PersistentKafkaPublisher(EventPublisherProtocol):
         config: MongoKafkaConfig,
         dao_factory: MongoDbDaoFactory,
         compacted_topics: Optional[set[str]] = None,
-        no_store: Optional[set[str]] = None,
+        topics_not_stored: Optional[set[str]] = None,
         collection_name: str = "",
         kafka_producer_cls: type[KafkaProducerCompatible] = AIOKafkaProducer,
     ):
@@ -105,7 +105,7 @@ class PersistentKafkaPublisher(EventPublisherProtocol):
                 latest event for a given key will be republished. Prior events for
                 a given key in a compacted topic are replaced by new events, so only
                 one event should be stored at a given time per key per topic.
-            no_store:
+            topics_not_stored:
                 A set of topics which should not be stored in the database. Events
                 for these topics will be published identically as they would be in
                 the `KafkaEventPublisher` class.
@@ -117,13 +117,13 @@ class PersistentKafkaPublisher(EventPublisherProtocol):
                 Overwrite the used Kafka Producer class. Only intended for unit testing.
         """
         compacted_topics = compacted_topics or set()
-        no_store = no_store or set()
+        topics_not_stored = topics_not_stored or set()
 
-        conflicts = no_store.intersection(compacted_topics)
+        conflicts = topics_not_stored.intersection(compacted_topics)
         if conflicts:
-            conflict_list = sorted(list(conflicts))
+            conflict_list = sorted(conflicts)
             raise ValueError(
-                "Values for `no_store` and `compacted_topics` must be exclusive."
+                "Values for `topics_not_stored` and `compacted_topics` must be exclusive."
                 + f" Please review the following values: {', '.join(conflict_list)}."
             )
 
@@ -141,7 +141,7 @@ class PersistentKafkaPublisher(EventPublisherProtocol):
                 event_publisher=event_publisher,
                 dao=dao,
                 compacted_topics=compacted_topics,
-                no_store=no_store,
+                topics_not_stored=topics_not_stored,
             )
 
     def __init__(
@@ -150,13 +150,13 @@ class PersistentKafkaPublisher(EventPublisherProtocol):
         event_publisher: KafkaEventPublisher,
         dao: Dao[PersistentKafkaEvent],
         compacted_topics: set[str],
-        no_store: set[str],
+        topics_not_stored: set[str],
     ):
         """Please do not call directly! Should be called by the `construct` method."""
         self._event_publisher = event_publisher
         self._dao = dao
         self._compacted_topics = compacted_topics
-        self._no_store = no_store
+        self._topics_not_stored = topics_not_stored
 
     async def _publish_validated(
         self,
@@ -177,7 +177,7 @@ class PersistentKafkaPublisher(EventPublisherProtocol):
         - `headers`: Additional headers to attach to the event.
         """
         # For topics that aren't meant to be stored, do normal publish and return
-        if topic in self._no_store:
+        if topic in self._topics_not_stored:
             await self._event_publisher.publish(
                 payload=payload,
                 topic=topic,

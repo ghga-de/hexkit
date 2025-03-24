@@ -315,8 +315,8 @@ async def test_compaction(kafka: KafkaFixture, mongodb: MongoDbFixture):
     assert len(noncompact_recorder.recorded_events) == 2
 
 
-async def test_no_store(kafka: KafkaFixture, mongodb: MongoDbFixture):
-    """Test that events are not stored in the DB if their topic is marked `no_store`."""
+async def test_topics_not_stored(kafka: KafkaFixture, mongodb: MongoDbFixture):
+    """Test that events are not stored in the DB if their topic is marked `topics_not_stored`."""
     config = MongoKafkaConfig(
         **kafka.config.model_dump(), **mongodb.config.model_dump()
     )
@@ -329,7 +329,7 @@ async def test_no_store(kafka: KafkaFixture, mongodb: MongoDbFixture):
             config=config,
             dao_factory=dao_factory,
             collection_name=collection_name,
-            no_store={TEST_TOPIC},
+            topics_not_stored={TEST_TOPIC},
         ) as persistent_publisher,
         kafka.record_events(in_topic=TEST_TOPIC, capture_headers=True) as recorder,
         set_correlation_id(TEST_CORRELATION_ID),
@@ -349,19 +349,19 @@ async def test_no_store(kafka: KafkaFixture, mongodb: MongoDbFixture):
 
 
 async def test_conflicting_args():
-    """Test arg validation for the `compacted_topics` and `no_store` parameters."""
+    """Test arg validation for the `compacted_topics` and `topics_not_stored` parameters."""
     with pytest.raises(ValueError) as err:
         async with PersistentKafkaPublisher.construct(
             config=Mock(),
             dao_factory=AsyncMock(),
             collection_name="test_collection",
             compacted_topics={"compacted", "conflict1", "conflict2"},
-            no_store={"conflict1", "conflict2", "no_store"},
+            topics_not_stored={"conflict1", "conflict2", "no_store"},
         ):
             assert False  # Should not get here
 
     msg = (
-        "Values for `no_store` and `compacted_topics` must be exclusive."
+        "Values for `topics_not_stored` and `compacted_topics` must be exclusive."
         + " Please review the following values: conflict1, conflict2."
     )
     assert err.value.args[0] == msg
