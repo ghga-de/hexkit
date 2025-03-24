@@ -121,9 +121,10 @@ class PersistentKafkaPublisher(EventPublisherProtocol):
 
         conflicts = no_store.intersection(compacted_topics)
         if conflicts:
+            conflict_list = sorted(list(conflicts))
             raise ValueError(
                 "Values for `no_store` and `compacted_topics` must be exclusive."
-                + f" Please review the following values: {', '.join(conflicts)}."
+                + f" Please review the following values: {', '.join(conflict_list)}."
             )
 
         collection_name = collection_name or f"{config.service_name}PersistedEvents"
