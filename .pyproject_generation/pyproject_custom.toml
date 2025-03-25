@@ -1,6 +1,6 @@
 [project]
 name = "hexkit"
-version = "4.2.0"
+version = "4.3.0"
 description = "A Toolkit for Building Microservices using the Hexagonal Architecture"
 requires-python = ">=3.9"
 classifiers = [
@@ -10,25 +10,26 @@ classifiers = [
     "Programming Language :: Python :: 3.10",
     "Programming Language :: Python :: 3.11",
     "Programming Language :: Python :: 3.12",
+    "Programming Language :: Python :: 3.13",
     "License :: OSI Approved :: Apache Software License",
     "Topic :: Internet :: WWW/HTTP :: HTTP Servers",
     "Topic :: Software Development :: Libraries",
     "Intended Audience :: Developers",
 ]
 dependencies = [
-    "pydantic >=2, <3",
-    "pydantic_settings >=2, <3",
+    "pydantic >=2.10, <3",
+    "pydantic_settings >=2.8, <3",
     "PyYAML >=6, <7",
 ]
 
 [project.optional-dependencies]
 akafka = ["aiokafka~=0.12.0", "jsonschema >=4.23, <5"]
-s3 = ["boto3 >=1.35.80, <2", "botocore >=1.35.80, <2"]
-mongodb = ["motor >=3.5.0, <4"]
+s3 = ["boto3 >=1.37, <2", "botocore >=1.37, <2"]
+mongodb = ["motor >=3.7, <4"]
 
-test-akafka = ["hexkit[akafka]", "testcontainers[kafka] >=4.9.0, <5"]
-test-s3 = ["hexkit[s3]", "testcontainers >=4.9.0, <5"]
-test-mongodb = ["hexkit[mongodb]", "testcontainers[mongo] >=4.9.0, <5"]
+test-akafka = ["hexkit[akafka]", "testcontainers[kafka] >=4.9, <5"]
+test-s3 = ["hexkit[s3]", "testcontainers >=4.9, <5"]
+test-mongodb = ["hexkit[mongodb]", "testcontainers[mongo] >=4.9, <5"]
 test = ["hexkit[test-akafka,test-s3,test-mongodb]"]
 
 all = ["hexkit[test]"]
@@ -42,7 +43,7 @@ target-version = "py39"
 [tool.tox]
 legacy_tox_ini = """
     [tox]
-    env_list = py3{9,12}
+    env_list = py3{9,12,13}
 
     [gh-actions]
     python =
@@ -50,6 +51,7 @@ legacy_tox_ini = """
         3.10: py310
         3.11: py311
         3.12: py312
+        3.13: py313
 
     [testenv]
     pass_env =

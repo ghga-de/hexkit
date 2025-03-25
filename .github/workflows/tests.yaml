@@ -10,7 +10,7 @@ jobs:
 
     strategy:
       matrix:
-        python-version: ['3.9', '3.10', '3.11', '3.12']
+        python-version: ['3.9', '3.10', '3.11', '3.12', '3.13']
 
     steps:
       - name: Checkout repository
@@ -26,11 +26,11 @@ jobs:
       - name: Install tox plugin
         id: install-tox-gh-actions
         run: |
-          pip install --disable-pip-version-check "tox-gh-actions>=3.2,<4"
+          pip install --disable-pip-version-check "tox-gh-actions>=3.3,<4"
 
       - name: Run tests with Python ${{ matrix.python-version }}
         id: pytest
-        if: ${{ matrix.python-version != '3.12' }}
+        if: ${{ matrix.python-version != '3.13' }}
         run: |
           export ${{ steps.common.outputs.CONFIG_YAML_ENV_VAR_NAME }}="${{ steps.common.outputs.CONFIG_YAML }}"
 
@@ -38,7 +38,7 @@ jobs:
 
       - name: Run tests with Python ${{ matrix.python-version }} measuring coverage
         id: pytest-coverage
-        if: ${{ matrix.python-version == '3.12' }}
+        if: ${{ matrix.python-version == '3.13' }}
         run: |
           export ${{ steps.common.outputs.CONFIG_YAML_ENV_VAR_NAME }}="${{ steps.common.outputs.CONFIG_YAML }}"
 
@@ -46,7 +46,7 @@ jobs:
 
       - name: Upload coverage to coveralls
         id: coveralls
-        if: ${{ matrix.python-version == '3.12' }}
+        if: ${{ matrix.python-version == '3.13' }}
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |

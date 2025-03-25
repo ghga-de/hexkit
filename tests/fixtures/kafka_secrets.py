@@ -1,4 +1,4 @@
-# Copyright 2021 - 2024 Universität Tübingen, DKFZ, EMBL, and Universität zu Köln
+# Copyright 2021 - 2025 Universität Tübingen, DKFZ, EMBL, and Universität zu Köln
 # for the German Human Genome-Phenome Archive (GHGA)
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
@@ -24,7 +24,7 @@ from typing import Optional
 from cryptography import x509
 from cryptography.hazmat.primitives import hashes, serialization
 from cryptography.hazmat.primitives.asymmetric import rsa
-from cryptography.x509.oid import NameOID
+from cryptography.x509.oid import ExtendedKeyUsageOID, NameOID, ObjectIdentifier
 
 __all__ = ["KafkaSecrets"]
 
@@ -60,7 +60,7 @@ class KafkaSecrets:
         self.ca_cert = cert_to_pem(ca_cert)
 
         cert, key = generate_signed_cert(
-            cn=hostname, ca=ca_cert, ca_key=ca_key, days=days
+            cn=hostname, ca=ca_cert, ca_key=ca_key, client=False, days=days
         )
 
         self.broker_cert = cert_to_pem(cert)
@@ -69,7 +69,7 @@ class KafkaSecrets:
         self.broker_pwd = password
 
         cert, key = generate_signed_cert(
-            cn=hostname, ca=ca_cert, ca_key=ca_key, days=days
+            cn=hostname, ca=ca_cert, ca_key=ca_key, client=True, days=days
         )
 
         self.client_cert = cert_to_pem(cert)
@@ -115,56 +115,104 @@ def generate_key() -> rsa.RSAPrivateKey:
     return rsa.generate_private_key(public_exponent=65537, key_size=2048)
 
 
+def generate_cert(
+    subject: x509.Name,
+    issuer: x509.Name,
+    public_key: rsa.RSAPublicKey,
+    signing_key: rsa.RSAPrivateKey,
+    is_ca: bool,
+    days: int,
+    extended_key_usage: list[ObjectIdentifier],
+    issuer_key: rsa.RSAPublicKey,
+) -> x509.Certificate:
+    """Generate a certificate with the given parameters."""
+    return (
+        x509.CertificateBuilder()
+        .subject_name(subject)
+        .issuer_name(issuer)
+        .public_key(public_key)
+        .serial_number(x509.random_serial_number())
+        .not_valid_before(datetime.datetime.now(datetime.timezone.utc))
+        .not_valid_after(
+            datetime.datetime.now(datetime.timezone.utc) + datetime.timedelta(days=days)
+        )
+        .add_extension(
+            x509.BasicConstraints(ca=is_ca, path_length=None),
+            critical=True,
+        )
+        .add_extension(
+            x509.KeyUsage(
+                digital_signature=True,
+                key_encipherment=True,
+                content_commitment=False,
+                data_encipherment=False,
+                key_agreement=False,
+                key_cert_sign=is_ca,
+                crl_sign=is_ca,
+                encipher_only=False,
+                decipher_only=False,
+            ),
+            critical=True,
+        )
+        .add_extension(
+            x509.ExtendedKeyUsage(extended_key_usage),
+            critical=False,
+        )
+        .add_extension(
+            x509.SubjectKeyIdentifier.from_public_key(public_key),
+            critical=False,
+        )
+        .add_extension(
+            x509.AuthorityKeyIdentifier.from_issuer_public_key(issuer_key),
+            critical=False,
+        )
+        .sign(signing_key, hashes.SHA256())
+    )
+
+
+def generate_signed_cert(
+    cn: str,
+    ca: x509.Certificate,
+    ca_key: rsa.RSAPrivateKey,
+    client: bool = False,
+    days: int = 1,
+) -> tuple[x509.Certificate, rsa.RSAPrivateKey]:
+    """Generate a signed certificate with its private key."""
+    key = generate_key()
+    subject = x509.Name([x509.NameAttribute(NameOID.COMMON_NAME, cn)])
+    cert = generate_cert(
+        subject=subject,
+        issuer=ca.subject,
+        public_key=key.public_key(),
+        signing_key=ca_key,
+        is_ca=False,
+        days=days,
+        extended_key_usage=[
+            ExtendedKeyUsageOID.CLIENT_AUTH
+            if client
+            else ExtendedKeyUsageOID.SERVER_AUTH
+        ],
+        issuer_key=ca_key.public_key(),  # Use the CA's public key
+    )
+    return cert, key
+
+
 def generate_self_signed_cert(
     cn: str, days: int = 1
 ) -> tuple[x509.Certificate, rsa.RSAPrivateKey]:
     """Generate a self-signed certificate with its private key."""
     key = generate_key()
     subject = issuer = x509.Name([x509.NameAttribute(NameOID.COMMON_NAME, cn)])
-    cert = (
-        x509.CertificateBuilder()
-        .subject_name(subject)
-        .issuer_name(issuer)
-        .public_key(key.public_key())
-        .serial_number(x509.random_serial_number())
-        .not_valid_before(datetime.datetime.now(datetime.timezone.utc))
-        .not_valid_after(
-            datetime.datetime.now(datetime.timezone.utc) + datetime.timedelta(days=days)
-        )
-        .add_extension(
-            x509.BasicConstraints(ca=True, path_length=None),
-            critical=True,
-        )
-        .sign(key, hashes.SHA256())
-    )
-    return cert, key
-
-
-def generate_signed_cert(
-    cn: str, ca: x509.Certificate, ca_key: rsa.RSAPrivateKey, days: int = 1
-) -> tuple[x509.Certificate, rsa.RSAPrivateKey]:
-    """Generate a signed certificate with its private key."""
-    key = generate_key()
-    subject = x509.Name([x509.NameAttribute(NameOID.COMMON_NAME, cn)])
-    csr = (
-        x509.CertificateSigningRequestBuilder()
-        .subject_name(subject)
-        .sign(key, hashes.SHA256())
-    )
-    cert = (
-        x509.CertificateBuilder()
-        .subject_name(csr.subject)
-        .issuer_name(ca.subject)
-        .public_key(key.public_key())
-        .serial_number(x509.random_serial_number())
-        .not_valid_before(datetime.datetime.now(datetime.timezone.utc))
-        .not_valid_after(
-            datetime.datetime.now(datetime.timezone.utc) + datetime.timedelta(days=days)
-        )
-        .add_extension(
-            x509.BasicConstraints(ca=True, path_length=None),
-            critical=True,
-        )
-        .sign(ca_key, hashes.SHA256())
+    cert = generate_cert(
+        subject=subject,
+        issuer=issuer,
+        public_key=key.public_key(),
+        signing_key=key,
+        is_ca=True,
+        days=days,
+        extended_key_usage=[
+            ExtendedKeyUsageOID.SERVER_AUTH,
+        ],
+        issuer_key=key.public_key(),  # Use the same key for self-signed cert
     )
     return cert, key

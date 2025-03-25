@@ -1,4 +1,4 @@
-FROM mcr.microsoft.com/devcontainers/python:1-3.12-bookworm
+FROM mcr.microsoft.com/devcontainers/python:1.2.2-3.13-bookworm
 
 ENV PYTHONUNBUFFERED 1
 
@@ -10,7 +10,7 @@ RUN if [ "$USER_GID" != "1000" ] || [ "$USER_UID" != "1000" ]; then groupmod --g
 # Copy install script
 COPY ./dev_install /bin
 
-# Install secondary Python version
+# Install secondary Python versions
 USER vscode
 RUN <<EOF
 curl -sS https://pyenv.run | /bin/sh
@@ -23,7 +23,8 @@ echo "$INIT_PYENV" >> ~/.profile
 echo "$INIT_PYENV" >> ~/.bashrc
 . ~/.profile
 pyenv install --skip-existing 3.9
-pyenv global system 3.9
+pyenv install --skip-existing 3.12
+pyenv global system 3.12 3.9
 EOF
 
 CMD ["sleep", "infinity"]

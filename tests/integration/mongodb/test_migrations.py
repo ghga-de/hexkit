@@ -1,4 +1,4 @@
-# Copyright 2021 - 2024 Universität Tübingen, DKFZ, EMBL, and Universität zu Köln
+# Copyright 2021 - 2025 Universität Tübingen, DKFZ, EMBL, and Universität zu Köln
 # for the German Human Genome-Phenome Archive (GHGA)
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
@@ -143,7 +143,7 @@ async def test_normal_migration(mongodb: MongoDbFixture):
     # Insert test data and then update the test data with anticipated migration changes
     for doc in [doc1, doc2, doc3]:
         collection.insert_one(doc)
-        doc["_id"] = f'Title: {doc["_id"]}'
+        doc["_id"] = f"Title: {doc['_id']}"
 
     # Run the migration
     migration_map = {2: V2BasicMigration}
