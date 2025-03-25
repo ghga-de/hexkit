@@ -42,7 +42,7 @@ from hexkit.protocols.objstorage import ObjectStorageProtocol, PresignedPostURL
 from hexkit.utils import calc_part_size
 
 __all__ = ["ObjectStorageProtocol", "PresignedPostURL"]
-# Allow colon character in bucket names to accommodate Ceph multi tenancy S3
+# Allow colon character in bucket names to accommodate Ceph multi-tenancy S3
 botocore.handlers.VALID_BUCKET = re.compile(
     r"^(?:[a-zA-Z0-9_]{1,191}:)?[a-z0-9\-]{3,63}$"
 )
@@ -250,7 +250,7 @@ class S3ObjectStorage(ObjectStorageProtocol):
     async def _assert_bucket_exists(self, bucket_id: str) -> None:
         """Assert that the bucket with the specified ID (`bucket_id`) exists.
 
-        If if does not exist, a BucketNotFoundError is raised.
+        If it does not exist, a BucketNotFoundError is raised.
         """
         if not await self.does_bucket_exist(bucket_id):
             raise self.BucketNotFoundError(bucket_id=bucket_id)

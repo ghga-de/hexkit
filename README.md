@@ -4,7 +4,7 @@
 [![Coverage Status](https://coveralls.io/repos/github/ghga-de/hexkit/badge.svg?branch=main)](https://coveralls.io/github/ghga-de/hexkit?branch=main)
 
 # hexkit
-A chassis library for building domain-focused, infrastructure-agnostic and event-driven
+A chassis library for building domain-focused, infrastructure-agnostic, and event-driven
 microservices in Python.
 
 ## In a Nutshell
@@ -31,8 +31,8 @@ for an individual service is to implement service-specific translators between t
 service's ports and the general-purpose protocols (in addition to implementing the
 domain functionality of the service, of course).
 
-Hexkit is designed as a general-purpose library. However, currently, it only contains a
-very limited collection of protocol-provider pairs that are of immediate interest to the
+Hexkit is designed as a general-purpose library. However, it currently contains only
+a limited collection of protocol-provider pairs that are of immediate interest to the
 authors. We like to add support for more protocols and technologies over time.
 
 The following protocols and providers are currently available:
@@ -49,9 +49,9 @@ for the rest. For example, you could use hexkit for simplifying the exchange of 
 between microservices but use a classical web framework such as FastAPI for designing
 REST API and an ORM like SQLAlchemy for interacting with databases.
 
-Please also feel free to develop hexagonal components yourself (using the base classes of
-hexkit or not). Not every protocol or provider has to be general-purpose,
-however, if they are, please consider contributing them to hexkit.
+Feel free to develop hexagonal components yourself, whether or not you use the base
+classes of hexkit. Not every protocol or provider has to be general-purpose, however,
+if they are, please consider contributing them to hexkit.
 
 ## Getting started
 
@@ -87,25 +87,26 @@ The following extras are available:
 For setting up the development environment, we rely on the
 [devcontainer feature](https://code.visualstudio.com/docs/remote/containers) of vscode.
 
-To use it, you have to have Docker as well as vscode with its "Remote - Containers" extension (`ms-vscode-remote.remote-containers`) extension installed.
+To use it, you need Docker and VS Code with the "Remote - Containers" extension
+(`ms-vscode-remote.remote-containers`) installed.
 Then, you just have to open this repo in vscode and run the command
 `Remote-Containers: Reopen in Container` from the vscode "Command Palette".
 
 This will give you a full-fledged, pre-configured development environment including:
 - infrastructural dependencies of the service (databases, etc.)
 - all relevant vscode extensions pre-installed
-- pre-configured linting and auto-formating
+- pre-configured linting and auto-formatting
 - a pre-configured debugger
 - automatic license-header insertion
 
-Moreover, inside the devcontainer, there is follwing convenience command available
-(please type it in the integrated terminal of vscode):
+Additionally, the following convenience command is available inside the devcontainer
+(type it in the integrated terminal of VS Code):
 - `dev_install` - install the lib with all development dependencies and pre-commit hooks
 (please run that if you are starting the devcontainer for the first time
 or if added any python dependencies to the [`./setup.cfg`](./setup.cfg))
 
-If you prefer not to use vscode, you could get a similar setup (without the editor specific features)
-by running the following commands:
+If you prefer not to use vscode, you could get a similar setup (without the editor
+specific features) by running the following commands:
 ``` bash
 # Execute in the repo's root dir:
 cd ./.devcontainer
