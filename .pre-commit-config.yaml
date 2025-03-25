@@ -4,7 +4,7 @@
 default_language_version:
   python: python3.12
 
-minimum_pre_commit_version: 3.7.0
+minimum_pre_commit_version: 4.2.0
 
 repos:
   - repo: local

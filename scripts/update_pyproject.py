@@ -19,10 +19,10 @@
 """A script to update the pyproject.toml."""
 
 import sys
+import tomllib
 from pathlib import Path
 
 import tomli_w
-import tomllib
 
 from script_utils import cli
 
