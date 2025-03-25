@@ -10,6 +10,7 @@ classifiers = [
     "Programming Language :: Python :: 3.10",
     "Programming Language :: Python :: 3.11",
     "Programming Language :: Python :: 3.12",
+    "Programming Language :: Python :: 3.13",
     "License :: OSI Approved :: Apache Software License",
     "Topic :: Internet :: WWW/HTTP :: HTTP Servers",
     "Topic :: Software Development :: Libraries",
@@ -42,7 +43,7 @@ target-version = "py39"
 [tool.tox]
 legacy_tox_ini = """
     [tox]
-    env_list = py3{9,12}
+    env_list = py3{9,12,13}
 
     [gh-actions]
     python =
@@ -50,6 +51,7 @@ legacy_tox_ini = """
         3.10: py310
         3.11: py311
         3.12: py312
+        3.13: py313
 
     [testenv]
     pass_env =
