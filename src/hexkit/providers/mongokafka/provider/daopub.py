@@ -20,7 +20,6 @@ Require dependencies of the `akafka` and `mongodb` extras.
 """
 
 import json
-import logging
 from collections.abc import AsyncIterator, Awaitable, Collection, Mapping
 from contextlib import AbstractAsyncContextManager, asynccontextmanager, contextmanager
 from functools import partial
@@ -29,18 +28,16 @@ from typing import Any, Callable, Generic, Optional
 from aiokafka import AIOKafkaProducer
 from motor.core import AgnosticCollection
 from motor.motor_asyncio import AsyncIOMotorClient
-from pydantic import field_validator
 
 from hexkit.correlation import get_correlation_id, set_correlation_id
 from hexkit.custom_types import ID, JsonObject
 from hexkit.protocols.dao import Dao, Dto, ResourceNotFoundError
 from hexkit.protocols.daopub import DaoPublisher, DaoPublisherFactoryProtocol
 from hexkit.protocols.eventpub import EventPublisherProtocol
-from hexkit.providers.akafka import KafkaConfig, KafkaEventPublisher
+from hexkit.providers.akafka import KafkaEventPublisher
 from hexkit.providers.akafka.provider.daosub import CHANGE_EVENT_TYPE, DELETE_EVENT_TYPE
 from hexkit.providers.akafka.provider.eventpub import KafkaProducerCompatible
 from hexkit.providers.mongodb.provider import (
-    MongoDbConfig,
     MongoDbDao,
     get_single_hit,
     replace_id_field_in_find_mapping,
@@ -48,6 +45,7 @@ from hexkit.providers.mongodb.provider import (
     validate_find_mapping,
     value_to_document,
 )
+from hexkit.providers.mongokafka.provider import MongoKafkaConfig
 
 
 class ResourceDeletedError(RuntimeError):
@@ -450,20 +448,6 @@ class MongoKafkaDaoPublisher(Generic[Dto]):
 
         async for document in cursor:
             await self.publish_document(document)
-
-
-class MongoKafkaConfig(MongoDbConfig, KafkaConfig):
-    """Config parameters and their defaults."""
-
-    @field_validator("kafka_max_message_size", mode="after")
-    @classmethod
-    def validate_max_message_size(cls, value: int) -> int:
-        """Validate the maximum message size."""
-        if value > 2**24:  # 16 MiB
-            logging.warning(
-                f"Max message size ({value}) exceeds the 16 MiB document size limit for MongoDB!"
-            )
-        return value
 
 
 class MongoKafkaDaoPublisherFactory(DaoPublisherFactoryProtocol):
