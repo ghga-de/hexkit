@@ -12,19 +12,18 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-#
 
 """Providers that combine MongoDB and Kafka functionality"""
 
-from .provider import (
+from .config import MongoKafkaConfig
+from .daopub import (
     CHANGE_EVENT_TYPE,
     DELETE_EVENT_TYPE,
-    MongoKafkaConfig,
     MongoKafkaDaoPublisherFactory,
-    PersistentKafkaPublisher,
     document_to_dto,
     dto_to_document,
 )
+from .persistent_pub import PersistentKafkaPublisher
 
 __all__ = [
     "CHANGE_EVENT_TYPE",
