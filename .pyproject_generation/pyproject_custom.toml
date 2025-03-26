@@ -17,6 +17,7 @@ classifiers = [
     "Intended Audience :: Developers",
 ]
 dependencies = [
+    "opentelemetry-api>=1.31.1, <2",
     "pydantic >=2.10, <3",
     "pydantic_settings >=2.8, <3",
     "PyYAML >=6, <7",

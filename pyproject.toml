@@ -1,6 +1,6 @@
 [build-system]
 requires = [
-    "setuptools>=78.0.2",
+    "setuptools>=78.1",
 ]
 build-backend = "setuptools.build_meta"
 
@@ -27,6 +27,7 @@ name = "hexkit"
 version = "4.3.0"
 description = "A Toolkit for Building Microservices using the Hexagonal Architecture"
 dependencies = [
+    "opentelemetry-api>=1.31.1, <2",
     "pydantic >=2.10, <3",
     "pydantic_settings >=2.8, <3",
     "PyYAML >=6, <7",

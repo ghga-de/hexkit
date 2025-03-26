@@ -33,6 +33,9 @@ from datetime import datetime, timezone
 from typing import Any, Callable, Literal, Optional, Protocol, TypeVar, Union, cast
 
 from aiokafka import AIOKafkaConsumer
+from opentelemetry import trace
+from opentelemetry.propagate import extract
+from opentelemetry.propagators import textmap
 from pydantic import ValidationError
 
 from hexkit.base import InboundProviderBase
@@ -50,6 +53,32 @@ from hexkit.providers.akafka.provider.utils import (
 CHANGE_EVENT_TYPE = "upserted"
 DELETE_EVENT_TYPE = "deleted"
 EventOrDaoSubProtocol = Union[DaoSubscriberProtocol, EventSubscriberProtocol]
+TextmapHeaders = list[tuple[str, bytes]]
+
+tracer = trace.get_tracer_provider().get_tracer("hexkit.providers.akafka")
+
+
+class AIOKafkaOtelContextExtractor(textmap.Getter[TextmapHeaders]):
+    """OpenTelemetry context extractor.
+
+    This is slighlty adapted from the aiokafka instrumentation library.
+    """
+
+    def get(self, carrier: TextmapHeaders, key: str) -> Optional[list[str]]:
+        """Extract specific OpenTelemetry header from propagated context"""
+        if carrier is None:
+            return None
+
+        for item_key, value in carrier:
+            if item_key == key and value is not None:
+                return [value.decode()]
+        return None
+
+    def keys(self, carrier: TextmapHeaders) -> list[str]:
+        """Get all headers from propagated context"""
+        if carrier is None:
+            return []
+        return [key for (key, value) in carrier]
 
 
 class ComboTranslator(EventSubscriberProtocol):
@@ -610,39 +639,49 @@ class KafkaEventSubscriber(InboundProviderBase):
 
     async def _consume_event(self, event: ConsumerEvent) -> None:
         """Consume an event by passing it down to the translator via the protocol."""
-        event_id = get_event_id(event, service_name=self._service_name)
-        event_info = self._extract_info(event)
-        try:
-            self._validate_extracted_info(event_info)
-        except RuntimeError as err:
-            logging.info(
-                "Ignored event of type '%s': %s, errors: %s",
-                event_info.type_,
-                event_id,
-                str(err),
-            )
-            # Always acknowledge event receipt for ignored events
-            await self._consumer.commit()
-            return
+        otel_extractor = AIOKafkaOtelContextExtractor()
+        extracted_context = extract(
+            event.headers,
+            getter=otel_extractor,
+        )
+        with tracer.start_as_current_span(
+            name="KafkaEventSubscriber._consume_event", context=extracted_context
+        ):
+            event_id = get_event_id(event, service_name=self._service_name)
+            event_info = self._extract_info(event)
+            try:
+                self._validate_extracted_info(event_info)
+            except RuntimeError as err:
+                logging.info(
+                    "Ignored event of type '%s': %s, errors: %s",
+                    event_info.type_,
+                    event_id,
+                    str(err),
+                )
+                # Always acknowledge event receipt for ignored events
+                await self._consumer.commit()
+                return
 
-        try:
-            logging.info("Consuming event of type '%s': %s", event_info.type_, event_id)
-            correlation_id = event_info.headers[HeaderNames.CORRELATION_ID]
-            async with set_correlation_id(correlation_id):
-                await self._handle_consumption(event=event_info, event_id=event_id)
-        except Exception:
-            # Errors only bubble up here if the DLQ isn't used
-            logging.critical(
-                "An error occurred while processing event of type '%s': %s. It was NOT"
-                " placed in the DLQ topic (%s)",
-                event_info.type_,
-                event_id,
-                self._dlq_topic if self._enable_dlq else "DLQ is disabled",
-            )
-            raise
-        else:
-            # Only save consumed event offsets if it was successful or sent to DLQ
-            await self._consumer.commit()
+            try:
+                logging.info(
+                    "Consuming event of type '%s': %s", event_info.type_, event_id
+                )
+                correlation_id = event_info.headers[HeaderNames.CORRELATION_ID]
+                async with set_correlation_id(correlation_id):
+                    await self._handle_consumption(event=event_info, event_id=event_id)
+            except Exception:
+                # Errors only bubble up here if the DLQ isn't used
+                logging.critical(
+                    "An error occurred while processing event of type '%s': %s. It was NOT"
+                    " placed in the DLQ topic (%s)",
+                    event_info.type_,
+                    event_id,
+                    self._dlq_topic if self._enable_dlq else "DLQ is disabled",
+                )
+                raise
+            else:
+                # Only save consumed event offsets if it was successful or sent to DLQ
+                await self._consumer.commit()
 
     async def run(self, forever: bool = True) -> None:
         """Start consuming events and passing them down to the translator.
