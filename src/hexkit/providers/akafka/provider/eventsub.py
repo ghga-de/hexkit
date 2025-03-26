@@ -53,7 +53,7 @@ from hexkit.providers.akafka.provider.utils import (
 CHANGE_EVENT_TYPE = "upserted"
 DELETE_EVENT_TYPE = "deleted"
 EventOrDaoSubProtocol = Union[DaoSubscriberProtocol, EventSubscriberProtocol]
-TextmapHeaders = list[tuple[str, Optional[bytes]]]
+TextmapHeaders = list[tuple[str, bytes]]
 
 tracer = trace.get_tracer_provider().get_tracer("hexkit.providers.akafka")
 
@@ -642,7 +642,7 @@ class KafkaEventSubscriber(InboundProviderBase):
         otel_extractor = AIOKafkaOtelContextExtractor()
         extracted_context = extract(
             event.headers,
-            getter=otel_extractor,  # type: ignore
+            getter=otel_extractor,
         )
         with tracer.start_as_current_span(
             name="Consume event", context=extracted_context
