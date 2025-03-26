@@ -91,8 +91,8 @@ Then open this repository in VS Code and run the command
 This will give you a full-fledged, pre-configured development environment including:
 - infrastructural dependencies of the service (databases, etc.)
 - all relevant VS Code extensions pre-installed
-- preconfigured linting and auto-formatting
-- a preconfigured debugger
+- pre-configured linting and auto-formatting
+- a pre-configured debugger
 - automatic license-header insertion
 
 Moreover, inside the devcontainer, a command `dev_install` is available for convenience.
