@@ -52,15 +52,15 @@ attrs==25.3.0 \
     #   -c lock/requirements-dev.txt
     #   jsonschema
     #   referencing
-boto3==1.37.19 \
-    --hash=sha256:c69c90500f18fd72d782d1612170b7d3db9a98ed51a4da3bebe38e693497ebf8 \
-    --hash=sha256:fbfc2c43ad686b63c8aa02aee634c269f856eed68941d8e570cc45950be52130
+boto3==1.37.20 \
+    --hash=sha256:225dbc75d79816cb9b28cc74a63c9fa0f2d70530d603dacd82634f362f6679c1 \
+    --hash=sha256:87d9bd6ad49be754d4ae2724cfb892eb3f9f17bcafd781fb3ce0d98cc539bdd6
     # via
     #   -c lock/requirements-dev.txt
     #   hexkit (pyproject.toml)
-botocore==1.37.19 \
-    --hash=sha256:6e1337e73a6b8146c1ec20a6a72d67e2809bd4c0af076431fe6e1561e0c89415 \
-    --hash=sha256:eadcdc37de09df25cf1e62e8106660c61f60a68e984acfc1a8d43fb6267e53b8
+botocore==1.37.20 \
+    --hash=sha256:9295385740f9d30f9b679f76ee51f49b80ae73183d84d499c1c3f1d54d820f54 \
+    --hash=sha256:c34f4f25fda7c4f726adf5a948590bd6bd7892c05278d31e344b5908e7b43301
     # via
     #   -c lock/requirements-dev.txt
     #   hexkit (pyproject.toml)
@@ -168,6 +168,12 @@ charset-normalizer==3.4.1 \
     # via
     #   -c lock/requirements-dev.txt
     #   requests
+deprecated==1.2.18 \
+    --hash=sha256:422b6f6d859da6f2ef57857761bfb392480502a64c3028ca9bbe86085d72115d \
+    --hash=sha256:bd5011788200372a32418f888e326a09ff80d0214bd961147cfed01b5c018eec
+    # via
+    #   -c lock/requirements-dev.txt
+    #   opentelemetry-api
 dnspython==2.7.0 \
     --hash=sha256:b4c34b7d10b51bcc3a5071e7b8dee77939f1e878477eeecc965e9835f63c6c86 \
     --hash=sha256:ce9c432eda0dc91cf618a5cedf1a4e142651196bbcd2c80e89ed5a907e5cfaf1
@@ -186,6 +192,12 @@ idna==3.10 \
     # via
     #   -c lock/requirements-dev.txt
     #   requests
+importlib-metadata==8.6.1 \
+    --hash=sha256:02a89390c1e15fdfdc0d7c6b25cb3e62650d0494005c97d6f148bf5b9787525e \
+    --hash=sha256:310b41d755445d74569f993ccfc22838295d9fe005425094fad953d7f15c8580
+    # via
+    #   -c lock/requirements-dev.txt
+    #   opentelemetry-api
 jmespath==1.0.1 \
     --hash=sha256:02e2e4cc71b5bcab88332eebf907519190dd9e6e82107fa7f83b1003a6252980 \
     --hash=sha256:90261b206d6defd58fdd5e85f478bf633a2901798906be2ad389150c5c60edbe
@@ -208,6 +220,12 @@ jsonschema-specifications==2024.10.1 \
 motor==3.7.0 \
     --hash=sha256:0dfa1f12c812bd90819c519b78bed626b5a9dbb29bba079ccff2bfa8627e0fec \
     --hash=sha256:61bdf1afded179f008d423f98066348157686f25a90776ea155db5f47f57d605
+    # via
+    #   -c lock/requirements-dev.txt
+    #   hexkit (pyproject.toml)
+opentelemetry-api==1.31.1 \
+    --hash=sha256:137ad4b64215f02b3000a0292e077641c8611aab636414632a9b9068593b7e91 \
+    --hash=sha256:1511a3f470c9c8a32eeea68d4ea37835880c0eed09dd1a0187acc8b1301da0a1
     # via
     #   -c lock/requirements-dev.txt
     #   hexkit (pyproject.toml)
@@ -604,15 +622,14 @@ testcontainers==4.9.2 \
     # via
     #   -c lock/requirements-dev.txt
     #   hexkit (pyproject.toml)
-typing-extensions==4.12.2 \
-    --hash=sha256:04e5ca0351e0f3f85c6853954072df659d0d13fac324d0072316b67d7794700d \
-    --hash=sha256:1a7ead55c7e559dd4dee8856e3a88b41225abfe1ce8df57b7c13915fe121ffb8
+typing-extensions==4.13.0 \
+    --hash=sha256:0a4ac55a5820789d87e297727d229866c9650f6521b64206413c4fbada24d95b \
+    --hash=sha256:c8dd92cc0d6425a97c18fbb9d1954e5ff92c1ca881a309c45f06ebc0b79058e5
     # via
     #   -c lock/requirements-dev.txt
     #   aiokafka
     #   pydantic
     #   pydantic-core
-    #   referencing
     #   testcontainers
 urllib3==2.3.0 \
     --hash=sha256:1cee9ad369867bfdbbb48b7dd50374c0967a0bb7710050facf0dd6911440e3df \
@@ -705,4 +722,11 @@ wrapt==1.17.2 \
     --hash=sha256:ff04ef6eec3eee8a5efef2401495967a916feaa353643defcc03fc74fe213b58
     # via
     #   -c lock/requirements-dev.txt
+    #   deprecated
     #   testcontainers
+zipp==3.21.0 \
+    --hash=sha256:2c9958f6430a2040341a52eb608ed6dd93ef4392e02ffe219417c1b28b5dd1f4 \
+    --hash=sha256:ac1bbe05fd2991f160ebce24ffbac5f6d11d83dc90891255885223d42b3cd931
+    # via
+    #   -c lock/requirements-dev.txt
+    #   importlib-metadata

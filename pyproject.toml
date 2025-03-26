@@ -24,9 +24,10 @@ classifiers = [
     "Intended Audience :: Developers",
 ]
 name = "hexkit"
-version = "4.3.0"
+version = "4.4.0"
 description = "A Toolkit for Building Microservices using the Hexagonal Architecture"
 dependencies = [
+    "opentelemetry-api>=1.31.1, <2",
     "pydantic >=2.10, <3",
     "pydantic_settings >=2.8, <3",
     "PyYAML >=6, <7",
