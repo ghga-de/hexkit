@@ -645,7 +645,7 @@ class KafkaEventSubscriber(InboundProviderBase):
             getter=otel_extractor,
         )
         with tracer.start_as_current_span(
-            name="Consume event", context=extracted_context
+            name="KafkaEventSubscriber._consume_event", context=extracted_context
         ):
             event_id = get_event_id(event, service_name=self._service_name)
             event_info = self._extract_info(event)
