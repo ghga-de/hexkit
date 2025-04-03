@@ -390,9 +390,7 @@ class KafkaEventSubscriber(InboundProviderBase):
 
         if config.kafka_enable_dlq:
             if using_dlq_protocol:
-                updated_config = config.model_dump()
-                updated_config["kafka_enable_dlq"] = False
-                config = KafkaConfig(**updated_config)
+                config = config.model_copy(update={"kafka_enable_dlq": False})
                 logging.warning(
                     "Can't enable DLQ when using DLQSubscriberProtocol. Disabling DLQ."
                 )
