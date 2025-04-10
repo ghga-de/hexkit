@@ -1,4 +1,4 @@
-# Copyright 2021 - 2024 Universität Tübingen, DKFZ, EMBL, and Universität zu Köln
+# Copyright 2021 - 2025 Universität Tübingen, DKFZ, EMBL, and Universität zu Köln
 # for the German Human Genome-Phenome Archive (GHGA)
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
@@ -375,7 +375,7 @@ async def test_custom_id_generator(mongodb: MongoDbFixture):
     resource_blueprint = ExampleCreationDto(field_a="test1", field_b=27, field_c=True)
     for count in range(3):
         resource_inserted = await dao.insert(resource_blueprint)
-        assert resource_inserted.id == f"{prefix}-{count_offset+count}"
+        assert resource_inserted.id == f"{prefix}-{count_offset + count}"
 
 
 async def test_complex_models(mongodb: MongoDbFixture):

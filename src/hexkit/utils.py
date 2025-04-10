@@ -1,4 +1,4 @@
-# Copyright 2021 - 2024 Universität Tübingen, DKFZ, EMBL, and Universität zu Köln
+# Copyright 2021 - 2025 Universität Tübingen, DKFZ, EMBL, and Universität zu Köln
 # for the German Human Genome-Phenome Archive (GHGA)
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
@@ -69,7 +69,7 @@ def calc_part_size(*, file_size: int, preferred_part_size: Optional[int] = None)
 
     if file_size > FILE_SIZE_LIMIT:
         raise ValueError(
-            f"""Provided file size of {file_size/1024**4:2.f}TiB
+            f"""Provided file size of {file_size / 1024**4:2.f}TiB
             exceeds maximum allowed file size of 5 TiB"""
         )
 
