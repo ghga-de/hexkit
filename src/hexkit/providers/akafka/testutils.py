@@ -1,4 +1,4 @@
-# Copyright 2021 - 2024 Universität Tübingen, DKFZ, EMBL, and Universität zu Köln
+# Copyright 2021 - 2025 Universität Tübingen, DKFZ, EMBL, and Universität zu Köln
 # for the German Human Genome-Phenome Archive (GHGA)
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
@@ -153,7 +153,7 @@ def check_recorded_events(
 
     def get_field_mismatch_error(field, index):
         return get_detailed_error(
-            details=f"the {field} of the recorded event no. {index+1}"
+            details=f"the {field} of the recorded event no. {index + 1}"
             " does not match the expectations"
         )
 

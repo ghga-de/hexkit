@@ -1,4 +1,4 @@
-# Copyright 2021 - 2024 Universität Tübingen, DKFZ, EMBL, and Universität zu Köln
+# Copyright 2021 - 2025 Universität Tübingen, DKFZ, EMBL, and Universität zu Köln
 # for the German Human Genome-Phenome Archive (GHGA)
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
@@ -20,7 +20,7 @@ from copy import deepcopy
 from pathlib import Path
 from typing import Any
 
-import stringcase
+import casefy
 
 
 def exclude_from_dependency_list(*, package_name: str, dependencies: list) -> list:
@@ -44,7 +44,7 @@ def remove_self_dependencies(pyproject: dict) -> dict:
 
     project_metadata = modified_pyproject["project"]
 
-    package_name = stringcase.spinalcase(project_metadata.get("name"))
+    package_name = casefy.kebabcase(project_metadata.get("name"))
 
     if not package_name:
         raise ValueError("The provided project metadata does not contain a name.")
