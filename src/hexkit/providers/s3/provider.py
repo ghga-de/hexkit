@@ -409,20 +409,26 @@ class S3ObjectStorage(ObjectStorageProtocol):
 
         (S3 allows multiple ongoing multi-part uploads.)
         """
+        uploads = []
         try:
-            uploads_info = await asyncio.to_thread(
-                self._client.list_multipart_uploads,
+            response_iter = await asyncio.to_thread(
+                self._client.get_paginator("list_multipart_uploads").paginate,
                 Bucket=bucket_id,
             )
+            for response_page in response_iter:
+                uploads.extend(
+                    [
+                        upload["UploadId"]
+                        for upload in response_page.get("Uploads", [])
+                        if upload["Key"] == object_id
+                    ]
+                )
         except botocore.exceptions.ClientError as error:
             raise self._translate_s3_client_errors(
                 error, bucket_id=bucket_id, object_id=object_id
             ) from error
 
-        upload_list = uploads_info.get("Uploads", [])
-        return [
-            upload["UploadId"] for upload in upload_list if upload["Key"] == object_id
-        ]
+        return uploads
 
     async def _assert_no_multipart_upload(self, *, bucket_id: str, object_id: str):
         """Ensure that there are no active multi-part uploads for the given object."""
