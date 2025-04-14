@@ -467,7 +467,7 @@ class KafkaFixture:
             await self.admin_client.close()
             self.admin_client = None
 
-    async def get_cleanup_policy(self, *, topic: str) -> str | None:
+    async def get_cleanup_policy(self, *, topic: str) -> Optional[str]:
         """Get the current cleanup policy for a topic or None if the topic doesn't exist"""
         async with self.get_admin_client() as admin_client:
             config_response = await admin_client.describe_configs(
