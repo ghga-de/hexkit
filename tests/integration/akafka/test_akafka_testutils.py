@@ -539,7 +539,7 @@ async def test_clear_compacted_topics(kafka: KafkaFixture):
     """
     topic = "mytopic"
     await kafka.publish_event(
-        payload=make_payload(f"msg 1 for {topic}"), type_=TEST_TYPE, topic=topic
+        payload=make_payload(f"msg 2 for {topic}"), type_=TEST_TYPE, topic=topic
     )
     await kafka.set_cleanup_policy(topic=topic, policy="compact")
     assert await kafka.get_cleanup_policy(topic=topic) == "compact"
@@ -547,4 +547,7 @@ async def test_clear_compacted_topics(kafka: KafkaFixture):
     await kafka.clear_topics(topics=topic)
 
     # Verify that the cleanup policy was set back to 'compact'
+    await kafka.publish_event(
+        payload=make_payload(f"msg 2 for {topic}"), type_=TEST_TYPE, topic=topic
+    )
     assert await kafka.get_cleanup_policy(topic=topic) == "compact"

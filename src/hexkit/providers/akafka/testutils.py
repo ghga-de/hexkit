@@ -515,12 +515,13 @@ class KafkaFixture:
                 replication_factor=1,
                 topic_configs=topic_config,
             )
-            await admin_client.create_topics([new_topic], timeout_ms=10000)
+            print(str(await admin_client.create_topics([new_topic], timeout_ms=10000)))
 
     async def set_topic_config(self, *, topic: str, config: dict[str, Any]):
         """Set an arbitrary config value(s) for a topic"""
         async with self.get_admin_client() as admin_client:
-            await admin_client.alter_configs(
+            print(f"restoring config for {topic}")
+            x = await admin_client.alter_configs(
                 config_resources=[
                     ConfigResource(
                         ConfigResourceType.TOPIC,
@@ -529,6 +530,7 @@ class KafkaFixture:
                     )
                 ]
             )
+            print("  ", x)
 
     async def clear_topics(
         self,
@@ -542,41 +544,51 @@ class KafkaFixture:
         unless otherwise specified.
         """
         async with self.get_admin_client() as admin_client:
+            original_configs = {}
             original_policies = {}
-            try:
-                if topics is None:
-                    topics = await admin_client.list_topics()
-                elif isinstance(topics, str):
-                    topics = [topics]
-                if exclude_internal:
-                    topics = [topic for topic in topics if not topic.startswith("__")]
+            if topics is None:
+                topics = await admin_client.list_topics()
+            elif isinstance(topics, str):
+                topics = [topics]
+            if exclude_internal:
+                topics = [topic for topic in topics if not topic.startswith("__")]
 
-                # Record the current cleanup policies before modifying them
-                for topic in topics:
-                    policy = await self.get_cleanup_policy(topic=topic)
-                    if policy and "compact" in policy.split(","):
-                        original_policies[topic] = policy
-                        await self.set_cleanup_policy(topic=topic, policy="delete")
+            # Record the current cleanup policies before modifying them
+            simple_topics = []
+            for topic in topics:
+                policy = await self.get_cleanup_policy(topic=topic)
+                if policy and "compact" in policy.split(","):
+                    config = await self.get_all_topic_config(topic=topic)
+                    original_configs[topic] = config
+                    original_policies[topic] = policy
+                    await self.set_topic_config(
+                        topic=topic, config={"retention.ms": -1}
+                    )
+                    await self.set_cleanup_policy(topic=topic, policy="delete")
+                    simple_topics.append(topic)
+                else:
+                    simple_topics.append(topic)
 
-                topics_info = await admin_client.describe_topics(topics)
-                records_to_delete = {}
+            topics_info = await admin_client.describe_topics(simple_topics)
+            records_to_delete = {}
 
-                for topic_info in topics_info:
-                    for partition_info in topic_info["partitions"]:
-                        topic = topic_info["topic"]
-                        key = TopicPartition(
-                            topic=topic, partition=partition_info["partition"]
-                        )
-                        records_to_delete[key] = RecordsToDelete(before_offset=-1)
+            for topic_info in topics_info:
+                for partition_info in topic_info["partitions"]:
+                    topic = topic_info["topic"]
+                    key = TopicPartition(
+                        topic=topic, partition=partition_info["partition"]
+                    )
+                    records_to_delete[key] = RecordsToDelete(before_offset=-1)
 
-                # Perform the delete, ensuring the cleanup policy is always restored
-                if records_to_delete:
+            # Perform the delete for topics that already had a 'delete' cleanup policy
+            if records_to_delete:
+                try:
                     await admin_client.delete_records(
                         records_to_delete, timeout_ms=10000
                     )
-            finally:
-                for topic, policy in original_policies.items():
-                    await self.set_cleanup_policy(topic=topic, policy=policy)
+                finally:
+                    for topic, config in original_configs.items():
+                        await self.set_topic_config(topic=topic, config=config)
 
     @asynccontextmanager
     async def expect_events(
