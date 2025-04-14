@@ -469,30 +469,50 @@ class KafkaFixture:
 
     async def get_cleanup_policy(self, *, topic: str) -> Optional[str]:
         """Get the current cleanup policy for a topic or None if the topic doesn't exist"""
+        return await self.get_topic_config(topic=topic, config_name="cleanup.policy")
+
+    async def get_topic_config(self, *, topic: str, config_name: str) -> Optional[str]:
+        """Get the current config for a topic or None if the topic/config doesn't exist"""
         async with self.get_admin_client() as admin_client:
             config_response = await admin_client.describe_configs(
                 [ConfigResource(ConfigResourceType.TOPIC, name=topic)]
             )
         config_resources = config_response[0].resources[0]
         configs = config_resources[-1]
-        policy = None
+        value = None
+        config_name = config_name.lower()
         for item in configs:
-            if item[0] == "cleanup.policy":
-                policy = item[1]
+            if item[0].lower() == config_name:
+                value = item[1]
                 break
-        return policy
+        return value
 
     async def set_cleanup_policy(self, *, topic: str, policy: str):
         """Set the cleanup policy for the given topic. The topic must already exist."""
+        await self.set_topic_config(topic=topic, config={"cleanup.policy": policy})
+
+    async def get_all_topic_config(self, *, topic: str) -> dict[str, Any]:
+        """Get all the configuration for a topic"""
+        async with self.get_admin_client() as admin_client:
+            config_response = await admin_client.describe_configs(
+                [ConfigResource(ConfigResourceType.TOPIC, name=topic)]
+            )
+        config_resources = config_response[0].resources[0]
+        configs = config_resources[-1]
+        topic_config = dict()
+        for item in configs:
+            topic_config[item[0]] = item[1]
+        return topic_config
+
+    async def set_topic_config(self, *, topic: str, config: dict[str, Any]):
+        """Set an arbitrary config value(s) for a topic"""
         async with self.get_admin_client() as admin_client:
             await admin_client.alter_configs(
                 config_resources=[
                     ConfigResource(
                         ConfigResourceType.TOPIC,
                         name=topic,
-                        configs={
-                            "cleanup.policy": policy,
-                        },
+                        configs=config,
                     )
                 ]
             )
@@ -509,40 +529,44 @@ class KafkaFixture:
         unless otherwise specified.
         """
         async with self.get_admin_client() as admin_client:
-            original_policies = {}
-            try:
-                if topics is None:
-                    topics = await admin_client.list_topics()
-                elif isinstance(topics, str):
-                    topics = [topics]
-                if exclude_internal:
-                    topics = [topic for topic in topics if not topic.startswith("__")]
+            original_configs = {}
+            if topics is None:
+                topics = await admin_client.list_topics()
+            elif isinstance(topics, str):
+                topics = [topics]
+            if exclude_internal:
+                topics = [topic for topic in topics if not topic.startswith("__")]
 
-                # Record the current cleanup policies before modifying them
-                for topic in topics:
-                    policy = await self.get_cleanup_policy(topic=topic)
-                    if policy and "compact" in policy.split(","):
-                        original_policies[topic] = policy
-                        await self.set_cleanup_policy(topic=topic, policy="delete")
+            # Record the current cleanup policies before modifying them
+            for topic in topics:
+                policy = await self.get_cleanup_policy(topic=topic)
+                if policy and "compact" in policy.split(","):
+                    config = await self.get_all_topic_config(topic=topic)
+                    original_configs[topic] = config
+                    await self.set_topic_config(
+                        topic=topic, config={"retention.ms": -1}
+                    )
+                    await self.set_cleanup_policy(topic=topic, policy="delete")
 
-                topics_info = await admin_client.describe_topics(topics)
-                records_to_delete = {}
+            topics_info = await admin_client.describe_topics(topics)
+            records_to_delete = {
+                TopicPartition(
+                    topic=topic_info["topic"], partition=partition_info["partition"]
+                ): RecordsToDelete(before_offset=-1)
+                for topic_info in topics_info
+                for partition_info in topic_info["partitions"]
+            }
 
-                for topic_info in topics_info:
-                    for partition_info in topic_info["partitions"]:
-                        key = TopicPartition(
-                            topic=topic_info["topic"],
-                            partition=partition_info["partition"],
-                        )
-                        records_to_delete[key] = RecordsToDelete(before_offset=-1)
-                # Perform the delete, ensuring the cleanup policy is always restored
-                if records_to_delete:
+            # Perform the delete if there's anything to delete
+            if records_to_delete:
+                try:
                     await admin_client.delete_records(
                         records_to_delete, timeout_ms=10000
                     )
-            finally:
-                for topic, policy in original_policies.items():
-                    await self.set_cleanup_policy(topic=topic, policy=policy)
+                finally:
+                    # Always set the compacted topics back to their original config
+                    for topic, config in original_configs.items():
+                        await self.set_topic_config(topic=topic, config=config)
 
     @asynccontextmanager
     async def expect_events(
