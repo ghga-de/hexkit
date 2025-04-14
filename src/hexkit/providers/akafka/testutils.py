@@ -19,9 +19,7 @@
 Please note, only use for testing purposes.
 """
 
-import asyncio
 import json
-import logging
 from collections.abc import AsyncGenerator, Generator, Mapping, Sequence
 from contextlib import asynccontextmanager
 from dataclasses import dataclass
@@ -70,8 +68,6 @@ __all__ = [
     "kafka_fixture",
     "persistent_kafka_fixture",
 ]
-log = logging.getLogger("test10")
-log.setLevel("ERROR")
 
 
 @dataclass(frozen=True)
@@ -560,24 +556,18 @@ class KafkaFixture:
                     policy = await self.get_cleanup_policy(topic=topic)
                     if policy and "compact" in policy.split(","):
                         original_policies[topic] = policy
-                        await self.set_topic_config(
-                            topic=topic, config={"retention.ms": -1}
-                        )
                         await self.set_cleanup_policy(topic=topic, policy="delete")
 
                 topics_info = await admin_client.describe_topics(topics)
                 records_to_delete = {}
-                await asyncio.sleep(0.5)
 
                 for topic_info in topics_info:
                     for partition_info in topic_info["partitions"]:
                         topic = topic_info["topic"]
-
                         key = TopicPartition(
                             topic=topic, partition=partition_info["partition"]
                         )
-                        val = RecordsToDelete(before_offset=-1)
-                        records_to_delete[key] = val
+                        records_to_delete[key] = RecordsToDelete(before_offset=-1)
 
                 # Perform the delete, ensuring the cleanup policy is always restored
                 if records_to_delete:
@@ -586,9 +576,6 @@ class KafkaFixture:
                     )
             finally:
                 for topic, policy in original_policies.items():
-                    await self.set_topic_config(
-                        topic=topic, config={"retention.ms": 600}
-                    )
                     await self.set_cleanup_policy(topic=topic, policy=policy)
 
     @asynccontextmanager

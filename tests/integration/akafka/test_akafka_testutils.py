@@ -71,8 +71,7 @@ class DummyTranslator(EventSubscriberProtocol):
         self.consumed[topic].append(payload)
 
 
-@pytest.mark.parametrize("attempt", [1, 2, 3])
-async def test_clear_topics_specific(kafka: KafkaFixture, attempt: int):
+async def test_clear_topics_specific(kafka: KafkaFixture):
     """Make sure the reset function works."""
     partition_keep = TopicPartition("keep_topic", 0)
     partition_clear = TopicPartition("clear_topic", 0)
