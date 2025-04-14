@@ -470,30 +470,37 @@ class KafkaFixture:
 
     async def get_cleanup_policy(self, *, topic: str) -> Optional[str]:
         """Get the current cleanup policy for a topic or None if the topic doesn't exist"""
+        return await self.get_topic_config(topic=topic, config_name="cleanup.policy")
+
+    async def get_topic_config(self, *, topic: str, config_name: str) -> Optional[str]:
+        """Get the current config for a topic or None if the topic/config doesn't exist"""
         async with self.get_admin_client() as admin_client:
             config_response = await admin_client.describe_configs(
                 [ConfigResource(ConfigResourceType.TOPIC, name=topic)]
             )
         config_resources = config_response[0].resources[0]
         configs = config_resources[-1]
-        policy = None
+        value = None
+        config_name = config_name.lower()
         for item in configs:
-            if item[0] == "cleanup.policy":
-                policy = item[1]
+            if item[0].lower() == config_name:
+                value = item[1]
                 break
-        return policy
+        return value
 
     async def set_cleanup_policy(self, *, topic: str, policy: str):
         """Set the cleanup policy for the given topic. The topic must already exist."""
+        await self.set_topic_config(topic=topic, config={"cleanup.policy": policy})
+
+    async def set_topic_config(self, *, topic: str, config: dict[str, Any]):
+        """Set an arbitrary config value(s) for a topic"""
         async with self.get_admin_client() as admin_client:
             await admin_client.alter_configs(
                 config_resources=[
                     ConfigResource(
                         ConfigResourceType.TOPIC,
                         name=topic,
-                        configs={
-                            "cleanup.policy": policy,
-                        },
+                        configs=config,
                     )
                 ]
             )
@@ -524,6 +531,9 @@ class KafkaFixture:
                     policy = await self.get_cleanup_policy(topic=topic)
                     if policy and "compact" in policy.split(","):
                         original_policies[topic] = policy
+                        await self.set_topic_config(
+                            topic=topic, config={"retention.ms": -1}
+                        )
                         await self.set_cleanup_policy(topic=topic, policy="delete")
 
                 topics_info = await admin_client.describe_topics(topics)
@@ -533,6 +543,7 @@ class KafkaFixture:
                 for topic_info in topics_info:
                     for partition_info in topic_info["partitions"]:
                         topic = topic_info["topic"]
+
                         key = TopicPartition(
                             topic=topic, partition=partition_info["partition"]
                         )
@@ -546,6 +557,9 @@ class KafkaFixture:
                     )
             finally:
                 for topic, policy in original_policies.items():
+                    await self.set_topic_config(
+                        topic=topic, config={"retention.ms": 600}
+                    )
                     await self.set_cleanup_policy(topic=topic, policy=policy)
 
     @asynccontextmanager
