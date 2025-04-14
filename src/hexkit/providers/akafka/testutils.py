@@ -483,7 +483,7 @@ class KafkaFixture:
         return policy
 
     async def set_cleanup_policy(self, *, topic: str, policy: str):
-        """Set the cleanup policy"""
+        """Set the cleanup policy for the given topic. The topic must already exist."""
         async with self.get_admin_client() as admin_client:
             await admin_client.alter_configs(
                 config_resources=[
@@ -509,6 +509,7 @@ class KafkaFixture:
         unless otherwise specified.
         """
         async with self.get_admin_client() as admin_client:
+            original_policies = {}
             try:
                 if topics is None:
                     topics = await admin_client.list_topics()
@@ -518,7 +519,6 @@ class KafkaFixture:
                     topics = [topic for topic in topics if not topic.startswith("__")]
 
                 # Record the current cleanup policies before modifying them
-                original_policies = {}
                 for topic in topics:
                     policy = await self.get_cleanup_policy(topic=topic)
                     if policy and "compact" in policy.split(","):
@@ -538,7 +538,6 @@ class KafkaFixture:
             finally:
                 for topic, policy in original_policies.items():
                     await self.set_cleanup_policy(topic=topic, policy=policy)
-                await admin_client.close()
 
     @asynccontextmanager
     async def expect_events(
