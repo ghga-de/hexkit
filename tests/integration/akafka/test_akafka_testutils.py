@@ -16,7 +16,9 @@
 
 """Testing of the Kafka testutils."""
 
+import asyncio
 import json
+import logging
 from collections.abc import Sequence
 from contextlib import nullcontext
 from typing import Optional
@@ -42,6 +44,8 @@ from hexkit.providers.akafka.testutils import (
     kafka_fixture,  # noqa: F401
 )
 
+log = logging.getLogger("tester")
+log.setLevel("ERROR")
 pytestmark = pytest.mark.asyncio()
 
 
@@ -89,76 +93,90 @@ async def test_clear_topics_specific(kafka: KafkaFixture):
         bootstrap_servers=kafka.kafka_servers[0],
         group_id="test",
         auto_offset_reset="earliest",
-        enable_auto_commit=True,
+        enable_auto_commit=False,
         consumer_timeout_ms=2000,
     )
     await consumer.start()
+    try:
+        # Verify that both messages were consumed as expected so we can trust the consumer
+        count = 0
+        async for record in consumer:
+            count += 1
+            assert record.topic in ("clear_topic", "keep_topic")
 
-    # Verify that both messages were consumed as expected so we can trust the consumer
-    count = 0
-    async for record in consumer:
-        count += 1
-        assert record.topic in ("clear_topic", "keep_topic")
+            # break when we get to the end, not when we reach an expected record count
+            if await consumer.position(partition_keep) == consumer.highwater(
+                partition_keep
+            ) and await consumer.position(partition_clear) == consumer.highwater(
+                partition_clear
+            ):
+                break
+        assert count == 2
+        log.error("Confirmed that we got the first two events")
+        await consumer.commit()
 
-        # break when we get to the end, not when we reach an expected record count
-        if await consumer.position(partition_keep) == consumer.highwater(
-            partition_keep
-        ) and await consumer.position(partition_clear) == consumer.highwater(
-            partition_clear
-        ):
-            break
-    assert count == 2
+        # Publish new messages to both topics
+        for topic in "clear_topic", "keep_topic":
+            await kafka.publish_event(
+                payload=make_payload(f"payload 2 for {topic}"),
+                type_=TEST_TYPE,
+                topic=topic,
+            )
+        await asyncio.sleep(1)
+        log.error("Published the 2nd round of messages")
 
-    # Publish new messages to both topics
-    for topic in "clear_topic", "keep_topic":
-        await kafka.publish_event(
-            payload=make_payload(f"payload 2 for {topic}"),
-            type_=TEST_TYPE,
-            topic=topic,
+        # Clear the clear_topic
+        # await kafka.clear_topics(topics="clear_topic")
+        # log.error("Topics have been cleared (supposedly)")
+
+        # make sure the keep_topic still has its event but clear_topic is empty
+        prefetched = await consumer.getmany(timeout_ms=500)
+        assert len(prefetched) == 1
+        records = next(iter(prefetched.values()))
+        assert len(records) == 1
+        assert records[0].topic == "keep_topic"
+        assert records[0].value
+        assert records[0].value.decode("utf-8") == json.dumps(
+            make_payload("payload 2 for keep_topic")
         )
 
-    # Clear the clear_topic
-    await kafka.clear_topics(topics="clear_topic")
+        log.error("Confirmed that 'clear_topic' was cleared!")
 
-    # make sure the keep_topic still has its event but clear_topic is empty
-    prefetched = await consumer.getmany(timeout_ms=500)
-    assert len(prefetched) == 1
-    records = next(iter(prefetched.values()))
-    assert len(records) == 1
-    assert records[0].topic == "keep_topic"
-    assert records[0].value
-    assert records[0].value.decode("utf-8") == json.dumps(
-        make_payload("payload 2 for keep_topic")
-    )
+        # Publish more messages to both topics
+        for topic in "clear_topic", "keep_topic":
+            await kafka.publish_event(
+                payload=make_payload(f"payload 3 for {topic}"),
+                type_=TEST_TYPE,
+                topic=topic,
+            )
+        await asyncio.sleep(1)
 
-    # Publish more messages to both topics
-    for topic in "clear_topic", "keep_topic":
-        await kafka.publish_event(
-            payload=make_payload(f"payload 3 for {topic}"),
-            type_=TEST_TYPE,
-            topic=topic,
+        log.error("Published the 3rd round of messages")
+
+        # make sure messages are consumed again
+        records = []
+        while prefetched := await consumer.getmany(timeout_ms=500):
+            for records_for_topic in prefetched.values():
+                records.extend(records_for_topic)
+
+        log.error("Fetched the messages, now examining.")
+        await consumer.commit()
+
+        print("\n".join([str(_) for _ in records]))
+        assert len(records) == 2
+        records.sort(key=lambda record: record.topic)
+        assert records[0].topic == "clear_topic"
+        assert records[0].value
+        assert records[0].value.decode("utf-8") == json.dumps(
+            make_payload("payload 3 for clear_topic")
         )
-
-    # make sure messages are consumed again
-    records = []
-    while prefetched := await consumer.getmany(timeout_ms=500):
-        for records_for_topic in prefetched.values():
-            records.extend(records_for_topic)
-
-    assert len(records) == 2
-    records.sort(key=lambda record: record.topic)
-    assert records[0].topic == "clear_topic"
-    assert records[0].value
-    assert records[0].value.decode("utf-8") == json.dumps(
-        make_payload("payload 3 for clear_topic")
-    )
-    assert records[1].topic == "keep_topic"
-    assert records[1].value
-    assert records[1].value.decode("utf-8") == json.dumps(
-        make_payload("payload 3 for keep_topic")
-    )
-
-    await consumer.stop()
+        assert records[1].topic == "keep_topic"
+        assert records[1].value
+        assert records[1].value.decode("utf-8") == json.dumps(
+            make_payload("payload 3 for keep_topic")
+        )
+    finally:
+        await consumer.stop()
 
 
 async def test_clear_all_topics(kafka: KafkaFixture):

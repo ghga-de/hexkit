@@ -21,6 +21,7 @@ Please note, only use for testing purposes.
 
 import asyncio
 import json
+import logging
 from collections.abc import AsyncGenerator, Generator, Mapping, Sequence
 from contextlib import asynccontextmanager
 from dataclasses import dataclass
@@ -38,7 +39,7 @@ except ImportError:  # Python < 3.11
 import pytest
 import pytest_asyncio
 from aiokafka import AIOKafkaConsumer, TopicPartition
-from aiokafka.admin import AIOKafkaAdminClient, RecordsToDelete
+from aiokafka.admin import AIOKafkaAdminClient, NewTopic, RecordsToDelete
 from testcontainers.kafka import KafkaContainer
 
 from hexkit.custom_types import Ascii, JsonObject, PytestScope
@@ -69,6 +70,8 @@ __all__ = [
     "kafka_fixture",
     "persistent_kafka_fixture",
 ]
+log = logging.getLogger("test10")
+log.setLevel("ERROR")
 
 
 @dataclass(frozen=True)
@@ -491,6 +494,32 @@ class KafkaFixture:
     async def set_cleanup_policy(self, *, topic: str, policy: str):
         """Set the cleanup policy for the given topic. The topic must already exist."""
         await self.set_topic_config(topic=topic, config={"cleanup.policy": policy})
+
+    async def get_all_topic_config(self, *, topic: str) -> dict[str, Any]:
+        """Get all the configuration for a topic"""
+        async with self.get_admin_client() as admin_client:
+            config_response = await admin_client.describe_configs(
+                [ConfigResource(ConfigResourceType.TOPIC, name=topic)]
+            )
+        config_resources = config_response[0].resources[0]
+        configs = config_resources[-1]
+        topic_config = dict()
+        for item in configs:
+            topic_config[item[0]] = item[1]
+        return topic_config
+
+    async def create_configured_topic(
+        self, *, topic: str, topic_config: dict[str, Any]
+    ) -> None:
+        """Create a topic and apply all relevant configuration"""
+        async with self.get_admin_client() as admin_client:
+            new_topic = NewTopic(
+                name=topic,
+                num_partitions=1,
+                replication_factor=1,
+                topic_configs=topic_config,
+            )
+            await admin_client.create_topics([new_topic], timeout_ms=10000)
 
     async def set_topic_config(self, *, topic: str, config: dict[str, Any]):
         """Set an arbitrary config value(s) for a topic"""
