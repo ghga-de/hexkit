@@ -531,6 +531,10 @@ class KafkaFixture:
                 for topic_info in topics_info:
                     for partition_info in topic_info["partitions"]:
                         topic = topic_info["topic"]
+                        cur_policy = await self.get_cleanup_policy(topic=topic)
+                        assert cur_policy == "delete", (  # noqa: S101
+                            f"Policy for {topic} is not 'delete'"
+                        )
                         key = TopicPartition(
                             topic=topic, partition=partition_info["partition"]
                         )
