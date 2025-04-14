@@ -518,3 +518,18 @@ async def test_capture_headers(
     )
     with pytest.raises(ValidationError) if expected_error else nullcontext():
         await event_recorder.__aexit__(None, None, None)
+
+
+async def test_clear_compacted_topics(kafka: KafkaFixture):
+    """Verify that the Kafka test fixture can clear compacted topics without
+    encountering a policy violation error.
+    """
+    topic = "mytopic"
+    await kafka.publish_event(
+        payload=make_payload(f"msg 1 for {topic}"), type_=TEST_TYPE, topic=topic
+    )
+    await kafka.set_cleanup_policy(topic=topic, policy="compact")
+    await kafka.clear_topics(topics=topic)
+
+    # Verify that the cleanup policy was set back to 'compact'
+    assert await kafka.get_cleanup_policy(topic=topic) == "compact"

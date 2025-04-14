@@ -26,6 +26,8 @@ from dataclasses import dataclass
 from functools import partial
 from typing import Any, Optional, Union
 
+from aiokafka.admin.config_resource import ConfigResource, ConfigResourceType
+
 try:
     from typing import Self
 except ImportError:  # Python < 3.11
@@ -411,6 +413,7 @@ class KafkaFixture:
         self.config = config
         self.kafka_servers = kafka_servers
         self.publisher = publisher
+        self.admin_client: Optional[AIOKafkaAdminClient] = None
 
     async def publish_event(
         self,
@@ -442,6 +445,58 @@ class KafkaFixture:
             capture_headers=capture_headers,
         )
 
+    @asynccontextmanager
+    async def get_admin_client(self):
+        """An async context manager that provides a running AIOKafkaAdminClient
+        as a singleton instance.
+
+        If a running client already exists, it is yielded directly.
+        If not, this is considered the root use of the CM, so we start a new client,
+        yield it, then close the client within a `finally` block.
+        """
+        if self.admin_client:
+            yield self.admin_client
+            return
+
+        # No running client exists, so create one and make sure to clean up afterward.
+        self.admin_client = AIOKafkaAdminClient(bootstrap_servers=self.kafka_servers)
+        await self.admin_client.start()
+        try:
+            yield self.admin_client
+        finally:
+            await self.admin_client.close()
+            self.admin_client = None
+
+    async def get_cleanup_policy(self, *, topic: str) -> str | None:
+        """Get the current cleanup policy for a topic or None if the topic doesn't exist"""
+        async with self.get_admin_client() as admin_client:
+            config_response = await admin_client.describe_configs(
+                [ConfigResource(ConfigResourceType.TOPIC, name=topic)]
+            )
+        config_resources = config_response[0].resources[0]
+        configs = config_resources[-1]
+        policy = None
+        for item in configs:
+            if item[0] == "cleanup.policy":
+                policy = item[1]
+                break
+        return policy
+
+    async def set_cleanup_policy(self, *, topic: str, policy: str):
+        """Set the cleanup policy"""
+        async with self.get_admin_client() as admin_client:
+            await admin_client.alter_configs(
+                config_resources=[
+                    ConfigResource(
+                        ConfigResourceType.TOPIC,
+                        name=topic,
+                        configs={
+                            "cleanup.policy": policy,
+                        },
+                    )
+                ]
+            )
+
     async def clear_topics(
         self,
         *,
@@ -453,26 +508,37 @@ class KafkaFixture:
         If no topics are specified, all topics will be cleared, except internal topics
         unless otherwise specified.
         """
-        admin_client = AIOKafkaAdminClient(bootstrap_servers=self.kafka_servers)
-        await admin_client.start()
-        try:
-            if topics is None:
-                topics = await admin_client.list_topics()
-            elif isinstance(topics, str):
-                topics = [topics]
-            if exclude_internal:
-                topics = [topic for topic in topics if not topic.startswith("__")]
-            topics_info = await admin_client.describe_topics(topics)
-            records_to_delete = {
-                TopicPartition(
-                    topic=topic_info["topic"], partition=partition_info["partition"]
-                ): RecordsToDelete(before_offset=-1)
-                for topic_info in topics_info
-                for partition_info in topic_info["partitions"]
-            }
-            await admin_client.delete_records(records_to_delete, timeout_ms=10000)
-        finally:
-            await admin_client.close()
+        async with self.get_admin_client() as admin_client:
+            try:
+                if topics is None:
+                    topics = await admin_client.list_topics()
+                elif isinstance(topics, str):
+                    topics = [topics]
+                if exclude_internal:
+                    topics = [topic for topic in topics if not topic.startswith("__")]
+
+                # Record the current cleanup policies before modifying them
+                original_policies = {}
+                for topic in topics:
+                    policy = await self.get_cleanup_policy(topic=topic)
+                    if policy and "compact" in policy.split(","):
+                        original_policies[topic] = policy
+                        await self.set_cleanup_policy(topic=topic, policy="delete")
+
+                topics_info = await admin_client.describe_topics(topics)
+                records_to_delete = {
+                    TopicPartition(
+                        topic=topic_info["topic"], partition=partition_info["partition"]
+                    ): RecordsToDelete(before_offset=-1)
+                    for topic_info in topics_info
+                    for partition_info in topic_info["partitions"]
+                }
+                # Perform the delete, ensuring the cleanup policy is always restored
+                await admin_client.delete_records(records_to_delete, timeout_ms=10000)
+            finally:
+                for topic, policy in original_policies.items():
+                    await self.set_cleanup_policy(topic=topic, policy=policy)
+                await admin_client.close()
 
     @asynccontextmanager
     async def expect_events(
