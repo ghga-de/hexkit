@@ -526,15 +526,20 @@ class KafkaFixture:
                         await self.set_cleanup_policy(topic=topic, policy="delete")
 
                 topics_info = await admin_client.describe_topics(topics)
-                records_to_delete = {
-                    TopicPartition(
-                        topic=topic_info["topic"], partition=partition_info["partition"]
-                    ): RecordsToDelete(before_offset=-1)
-                    for topic_info in topics_info
-                    for partition_info in topic_info["partitions"]
-                }
+                records_to_delete = {}
+
+                for topic_info in topics_info:
+                    for partition_info in topic_info["partitions"]:
+                        key = TopicPartition(
+                            topic=topic_info["topic"],
+                            partition=partition_info["partition"],
+                        )
+                        records_to_delete[key] = RecordsToDelete(before_offset=-1)
                 # Perform the delete, ensuring the cleanup policy is always restored
-                await admin_client.delete_records(records_to_delete, timeout_ms=10000)
+                if records_to_delete:
+                    await admin_client.delete_records(
+                        records_to_delete, timeout_ms=10000
+                    )
             finally:
                 for topic, policy in original_policies.items():
                     await self.set_cleanup_policy(topic=topic, policy=policy)
