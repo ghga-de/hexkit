@@ -83,7 +83,7 @@ async def test_clear_topics_specific(kafka: KafkaFixture):
             topic=topic,
         )
 
-    consumer = AIOKafkaConsumer(
+    consumer1 = AIOKafkaConsumer(
         "clear_topic",
         "keep_topic",
         bootstrap_servers=kafka.kafka_servers[0],
@@ -92,73 +92,86 @@ async def test_clear_topics_specific(kafka: KafkaFixture):
         enable_auto_commit=True,
         consumer_timeout_ms=2000,
     )
-    await consumer.start()
+    await consumer1.start()
+    try:
+        # Verify that both messages were consumed as expected so we can trust the consumer
+        count = 0
+        async for record in consumer1:
+            count += 1
+            assert record.topic in ("clear_topic", "keep_topic")
 
-    # Verify that both messages were consumed as expected so we can trust the consumer
-    count = 0
-    async for record in consumer:
-        count += 1
-        assert record.topic in ("clear_topic", "keep_topic")
+            # break when we get to the end, not when we reach an expected record count
+            if await consumer1.position(partition_keep) == consumer1.highwater(
+                partition_keep
+            ) and await consumer1.position(partition_clear) == consumer1.highwater(
+                partition_clear
+            ):
+                break
+        assert count == 2
+    finally:
+        await consumer1.stop()
 
-        # break when we get to the end, not when we reach an expected record count
-        if await consumer.position(partition_keep) == consumer.highwater(
-            partition_keep
-        ) and await consumer.position(partition_clear) == consumer.highwater(
-            partition_clear
-        ):
-            break
-    assert count == 2
+        # Publish new messages to both topics
+        for topic in "clear_topic", "keep_topic":
+            await kafka.publish_event(
+                payload=make_payload(f"payload 2 for {topic}"),
+                type_=TEST_TYPE,
+                topic=topic,
+            )
 
-    # Publish new messages to both topics
-    for topic in "clear_topic", "keep_topic":
-        await kafka.publish_event(
-            payload=make_payload(f"payload 2 for {topic}"),
-            type_=TEST_TYPE,
-            topic=topic,
+        # Clear the clear_topic before consuming the message that was published there
+        await kafka.clear_topics(topics="clear_topic")
+
+    consumer2 = AIOKafkaConsumer(
+        "clear_topic",
+        "keep_topic",
+        bootstrap_servers=kafka.kafka_servers[0],
+        group_id="test",
+        auto_offset_reset="earliest",
+        enable_auto_commit=True,
+        consumer_timeout_ms=2000,
+    )
+    await consumer2.start()
+    try:
+        # make sure the keep_topic still has its event but clear_topic is empty
+        prefetched = await consumer2.getmany(timeout_ms=500)
+        assert len(prefetched) == 1
+        records = next(iter(prefetched.values()))
+        assert len(records) == 1
+        assert records[0].topic == "keep_topic"
+        assert records[0].value
+        assert records[0].value.decode("utf-8") == json.dumps(
+            make_payload("payload 2 for keep_topic")
         )
 
-    # Clear the clear_topic
-    await kafka.clear_topics(topics="clear_topic")
+        # Publish more messages to both topics
+        for topic in "clear_topic", "keep_topic":
+            await kafka.publish_event(
+                payload=make_payload(f"payload 3 for {topic}"),
+                type_=TEST_TYPE,
+                topic=topic,
+            )
 
-    # make sure the keep_topic still has its event but clear_topic is empty
-    prefetched = await consumer.getmany(timeout_ms=500)
-    assert len(prefetched) == 1
-    records = next(iter(prefetched.values()))
-    assert len(records) == 1
-    assert records[0].topic == "keep_topic"
-    assert records[0].value
-    assert records[0].value.decode("utf-8") == json.dumps(
-        make_payload("payload 2 for keep_topic")
-    )
+        # make sure messages are consumed again
+        records = []
+        while prefetched := await consumer2.getmany(timeout_ms=500):
+            for records_for_topic in prefetched.values():
+                records.extend(records_for_topic)
 
-    # Publish more messages to both topics
-    for topic in "clear_topic", "keep_topic":
-        await kafka.publish_event(
-            payload=make_payload(f"payload 3 for {topic}"),
-            type_=TEST_TYPE,
-            topic=topic,
+        assert len(records) == 2
+        records.sort(key=lambda record: record.topic)
+        assert records[0].topic == "clear_topic"
+        assert records[0].value
+        assert records[0].value.decode("utf-8") == json.dumps(
+            make_payload("payload 3 for clear_topic")
         )
-
-    # make sure messages are consumed again
-    records = []
-    while prefetched := await consumer.getmany(timeout_ms=500):
-        for records_for_topic in prefetched.values():
-            records.extend(records_for_topic)
-
-    assert len(records) == 2
-    records.sort(key=lambda record: record.topic)
-    assert records[0].topic == "clear_topic"
-    assert records[0].value
-    assert records[0].value.decode("utf-8") == json.dumps(
-        make_payload("payload 3 for clear_topic")
-    )
-    assert records[1].topic == "keep_topic"
-    assert records[1].value
-    assert records[1].value.decode("utf-8") == json.dumps(
-        make_payload("payload 3 for keep_topic")
-    )
-
-    await consumer.stop()
+        assert records[1].topic == "keep_topic"
+        assert records[1].value
+        assert records[1].value.decode("utf-8") == json.dumps(
+            make_payload("payload 3 for keep_topic")
+        )
+    finally:
+        await consumer2.stop()
 
 
 async def test_clear_all_topics(kafka: KafkaFixture):
@@ -526,9 +539,11 @@ async def test_clear_compacted_topics(kafka: KafkaFixture):
     """
     topic = "mytopic"
     await kafka.publish_event(
-        payload=make_payload(f"msg 1 for {topic}"), type_=TEST_TYPE, topic=topic
+        payload=make_payload(f"msg 2 for {topic}"), type_=TEST_TYPE, topic=topic
     )
     await kafka.set_cleanup_policy(topic=topic, policy="compact")
+    assert await kafka.get_cleanup_policy(topic=topic) == "compact"
+
     await kafka.clear_topics(topics=topic)
 
     # Verify that the cleanup policy was set back to 'compact'
