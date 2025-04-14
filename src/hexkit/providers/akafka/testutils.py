@@ -530,12 +530,18 @@ class KafkaFixture:
         """
         async with self.get_admin_client() as admin_client:
             original_configs = {}
-            if topics is None:
-                topics = await admin_client.list_topics()
+            available_topics = await admin_client.list_topics()
+            if not topics:
+                topics = available_topics
             elif isinstance(topics, str):
                 topics = [topics]
             if exclude_internal:
-                topics = [topic for topic in topics if not topic.startswith("__")]
+                topics = [topic for topic in topics if not topic.startswith("__")]  # type: ignore
+
+            # Filter out any topics that don't exist
+            topics = [topic for topic in topics if topic in available_topics]  # type: ignore
+            if not topics:
+                return
 
             # Record the current cleanup policies before modifying them
             for topic in topics:
