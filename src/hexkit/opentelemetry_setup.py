@@ -14,17 +14,41 @@
 # limitations under the License.
 """OpenTelemetry specific configuration code. This is gated behind the opentelemetry extra."""
 
+import os
+from typing import Callable
+
 from opentelemetry import trace
 from opentelemetry.exporter.otlp.proto.http.trace_exporter import OTLPSpanExporter
+from opentelemetry.sdk.environment_variables import OTEL_EXPORTER_OTLP_PROTOCOL
 from opentelemetry.sdk.resources import SERVICE_NAME, Resource
 from opentelemetry.sdk.trace import TracerProvider
 from opentelemetry.sdk.trace.export import BatchSpanProcessor
 
 
-def configure_tracer(service_name: str):
-    """Set up a global tracer for a specific service."""
+def configure_tracer(service_name: str, protocol: str = "http/protobuf"):
+    """Set up a global tracer for a specific service using the given exporter protocol."""
+    # opentelemetry distro sets this to grpc, but in the current context http/protobuf is prefered
+    os.environ.setdefault(OTEL_EXPORTER_OTLP_PROTOCOL, protocol)
+
     resource = Resource(attributes={SERVICE_NAME: service_name})
     trace_provider = TracerProvider(resource=resource)
     processor = BatchSpanProcessor(OTLPSpanExporter())
     trace_provider.add_span_processor(processor)
     trace.set_tracer_provider(trace_provider)
+
+
+class SpanTracer:
+    """Custom tracer class providing a decorator to autpopulate span names."""
+
+    def __init__(self, name):
+        self.tracer = trace.get_tracer(name)
+
+    def start_span(self, function: Callable):
+        """Decorator function starting a span populated with the function __qualname__"""
+
+        def traced_function(*args, **kwargs):
+            name = function.__qualname__
+            with self.tracer.start_as_current_span(name):
+                return function(*args, **kwargs)
+
+        return traced_function
