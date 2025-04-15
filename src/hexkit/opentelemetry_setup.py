@@ -27,7 +27,7 @@ from opentelemetry.sdk.trace.export import BatchSpanProcessor
 
 def configure_tracer(service_name: str, protocol: str = "http/protobuf"):
     """Set up a global tracer for a specific service using the given exporter protocol."""
-    # opentelemetry distro sets this to grpc, but in the current context http/protobuf is prefered
+    # opentelemetry distro sets this to grpc, but in the current context http/protobuf is preferred
     os.environ.setdefault(OTEL_EXPORTER_OTLP_PROTOCOL, protocol)
 
     resource = Resource(attributes={SERVICE_NAME: service_name})
