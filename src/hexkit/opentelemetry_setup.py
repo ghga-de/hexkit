@@ -44,7 +44,7 @@ class SpanTracer:
         self.tracer = trace.get_tracer(name)
 
     def start_span(self, function: Callable):
-        """Decorator function starting a span populated with the function __qualname__"""
+        """Decorator function starting a span populated with the __qualname__ of the wrapped function"""
 
         def traced_function(*args, **kwargs):
             name = function.__qualname__
