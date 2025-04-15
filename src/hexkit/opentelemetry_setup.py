@@ -43,12 +43,21 @@ class SpanTracer:
     def __init__(self, name):
         self.tracer = trace.get_tracer(name)
 
-    def start_span(self, function: Callable):
+    def start_span(
+        self,
+        function: Callable,
+        record_exception: bool = False,
+        set_status_on_exception: bool = False,
+    ):
         """Decorator function starting a span populated with the __qualname__ of the wrapped function"""
 
         def traced_function(*args, **kwargs):
             name = function.__qualname__
-            with self.tracer.start_as_current_span(name):
+            with self.tracer.start_as_current_span(
+                name,
+                record_exception=record_exception,
+                set_status_on_exception=set_status_on_exception,
+            ):
                 return function(*args, **kwargs)
 
         return traced_function
