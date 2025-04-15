@@ -479,8 +479,6 @@ class KafkaFixture:
             config_list = await admin_client.describe_configs(
                 [ConfigResource(ConfigResourceType.TOPIC, name=topic)]
             )
-        # with open("layer0.txt", "w") as f:
-        #     f.write(str(config_list))
 
         # We only requested one topic, so get the first/only element from the list
         config_response = config_list[0]
