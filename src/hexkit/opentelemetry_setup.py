@@ -56,7 +56,6 @@ class SpanTracer:
                     record_exception=record_exception,
                     set_status_on_exception=set_status_on_exception,
                 ):
-                    print(name)
                     return function(*args, **kwargs)
 
             return traced_function
