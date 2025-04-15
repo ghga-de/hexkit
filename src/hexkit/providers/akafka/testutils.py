@@ -475,13 +475,30 @@ class KafkaFixture:
     async def get_topic_config(self, *, topic: str, config_name: str) -> Optional[str]:
         """Get the current config for a topic or None if the topic/config doesn't exist"""
         async with self.get_admin_client() as admin_client:
-            config_response = await admin_client.describe_configs(
+            # fetch a list containing a response for each requested topic
+            config_list = await admin_client.describe_configs(
                 [ConfigResource(ConfigResourceType.TOPIC, name=topic)]
             )
-        config_resources = config_response[0].resources[0]
-        configs = config_resources[-1]
+        # with open("layer0.txt", "w") as f:
+        #     f.write(str(config_list))
+
+        # We only requested one topic, so get the first/only element from the list
+        config_response = config_list[0]
+
+        # Each config response has a 'resources' attribute
+        resources = config_response.resources
+
+        # The resources attr is a list containing one tuple for each requested topic.
+        #  We only requested one topic, so our target is the first element.
+        requested_resource = resources[0]
+
+        # The resource itself is a list, and the topic config is at the end
+        configs = requested_resource[-1]
         value = None
         config_name = config_name.lower()
+
+        # The `configs` item is a list of tuples, where each tuple is a config item
+        # The first item is the config name, the second is the value, and the rest are ancillary
         for item in configs:
             if item[0].lower() == config_name:
                 value = item[1]
