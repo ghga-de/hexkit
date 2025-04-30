@@ -182,6 +182,7 @@ disable_error_code = "import"
 show_error_codes = true
 exclude = [
     "build/lib/",
+    "docs/",
 ]
 warn_redundant_casts = true
 warn_unused_ignores = true
