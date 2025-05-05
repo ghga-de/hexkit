@@ -15,7 +15,9 @@
 """OpenTelemetry specific configuration code. This is gated behind the opentelemetry extra."""
 
 import os
-from typing import Callable
+from collections import defaultdict
+from functools import partial
+from typing import Callable, Literal, Optional
 
 from opentelemetry import trace
 from opentelemetry.exporter.otlp.proto.http.trace_exporter import OTLPSpanExporter
@@ -24,17 +26,65 @@ from opentelemetry.sdk.resources import SERVICE_NAME, Resource
 from opentelemetry.sdk.trace import TracerProvider
 from opentelemetry.sdk.trace.export import BatchSpanProcessor
 
+tracer_decorator = Callable[[Optional[str], bool, bool], Callable]
 
-def configure_tracer(service_name: str, protocol: str = "http/protobuf"):
+CONFIGURED_TRACERS: dict[str, "SpanTracer"] = dict()
+
+
+def configure_tracer(
+    service_name: str,
+    protocol: Literal["grpc", "http/protobuf"] = "http/protobuf",
+    enable_otel: bool = False,
+):
     """Set up a global tracer for a specific service using the given exporter protocol."""
     # opentelemetry distro sets this to grpc, but in the current context http/protobuf is preferred
     os.environ.setdefault(OTEL_EXPORTER_OTLP_PROTOCOL, protocol)
+    # In any case disable OpenTelemetry metrics and logs explicitly
 
-    resource = Resource(attributes={SERVICE_NAME: service_name})
-    trace_provider = TracerProvider(resource=resource)
-    processor = BatchSpanProcessor(OTLPSpanExporter())
-    trace_provider.add_span_processor(processor)
-    trace.set_tracer_provider(trace_provider)
+    if enable_otel:
+        resource = Resource(attributes={SERVICE_NAME: service_name})
+        trace_provider = TracerProvider(resource=resource)
+        processor = BatchSpanProcessor(OTLPSpanExporter())
+        trace_provider.add_span_processor(processor)
+        trace.set_tracer_provider(trace_provider)
+        global CONFIGURED_TRACERS, CONFIGURED_DECORATORS
+        CONFIGURED_TRACERS[service_name] = SpanTracer(service_name)
+        partial(_with_configured_tracer, service_name=service_name)
+    else:
+        ...
+
+
+def _with_configured_tracer(
+    *,
+    service_name: str | None = None,
+    record_exception: bool = False,
+    set_status_on_exception: bool = False,
+) -> Callable:
+    """Returns decorated or undecorated function depending on if TRACER is instantiated.
+
+    Should be used as a decorator.
+    """
+
+    def wrapper(function: Callable):
+        # Caller did not have any time to do initialization yet or otel is disabled
+        if service_name is None:
+            return function
+        tracer = CONFIGURED_TRACERS.get(service_name)
+        if tracer is None:
+            return function
+
+        # There's a configured tracer present
+        return tracer.start_span(
+            record_exception=record_exception,
+            set_status_on_exception=set_status_on_exception,
+        )(function)
+
+    return wrapper
+
+
+CONFIGURED_DECORATORS: dict[str, tracer_decorator] = defaultdict(
+    _with_configured_tracer
+)
 
 
 class SpanTracer:
