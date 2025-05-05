@@ -60,7 +60,8 @@ def configure_tracer(
             logger.warning(
                 "OpenTelemetry configuration code should only be run once. "
                 "If it has been run with a different service name than %s before, "
-                "the tracer and resource name will likely be wrong in some cases."
+                "the tracer and resource name will likely be wrong in some cases.",
+                service_name,
             )
         resource = Resource(attributes={SERVICE_NAME: service_name})
         # Replace the default static sampler with a probabilistic one
@@ -97,7 +98,7 @@ def configure_tracer(
         os.environ.setdefault(OTEL_SDK_DISABLED, "true")
 
 
-def with_configured_tracer(
+def start_span(
     *,
     record_exception: bool = False,
     set_status_on_exception: bool = False,
