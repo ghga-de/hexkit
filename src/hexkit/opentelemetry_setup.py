@@ -16,7 +16,7 @@
 
 import logging
 import os
-from typing import Callable, Literal, Optional
+from typing import Annotated, Callable, Literal, Optional
 
 from opentelemetry import trace
 from opentelemetry.environment_variables import (
@@ -33,29 +33,90 @@ from opentelemetry.sdk.resources import SERVICE_NAME, Resource
 from opentelemetry.sdk.trace import TracerProvider
 from opentelemetry.sdk.trace.export import BatchSpanProcessor
 from opentelemetry.sdk.trace.sampling import ParentBasedTraceIdRatio
+from pydantic import Field
+from pydantic_settings import BaseSettings
+from typing_extensions import deprecated
 
 TRACER: Optional["SpanTracer"] = None
 
 logger = logging.getLogger(__name__)
 
 
-def configure_tracer(
-    *,
-    service_name: str,
-    enable_otel: bool = False,
-    protocol: Literal["grpc", "http/protobuf"] = "http/protobuf",
-    sampling_rate: float = 1,
-):
-    """Set up a global tracer for a specific service using the given exporter protocol."""
+class SpanTracer:
+    """Custom tracer class providing a decorator to autpopulate span names."""
+
+    def __init__(self, name):
+        self.tracer = trace.get_tracer(name)
+
+    def start_span(
+        self, *, record_exception: bool = False, set_status_on_exception: bool = False
+    ):
+        """Decorator function starting a span populated with the __qualname__ of the wrapped function"""
+
+        def outer_wrapper(function: Callable):
+            def traced_function(*args, **kwargs):
+                name = function.__qualname__
+                with self.tracer.start_as_current_span(
+                    name,
+                    record_exception=record_exception,
+                    set_status_on_exception=set_status_on_exception,
+                ):
+                    return function(*args, **kwargs)
+
+            return traced_function
+
+        return outer_wrapper
+
+
+class OpenTelemetryConfig(BaseSettings):
+    """OpenTelemetry specific configuration options"""
+
+    enable_opentelemetry: bool = Field(
+        default=False,
+        description="If set to true, this will run necessary setup code."
+        "If set to false, environment variables are set that should also effectively "
+        "disable autoinstrumentation",
+    )
+    samplig_rate: Annotated[float, Field(strict=True, ge=0, le=1)] = Field(
+        default=1.0,
+        description="Determines which proportion of spans should be sampled. "
+        "A value of 1.0 means all and is equivalent to the previous behaviour. "
+        "Setting this to 0 will result in no spans being sampled, but this does not "
+        "automatically set `enable_opentelemetry` to False.",
+    )
+    protocol: Literal["grpc", "http/protobuf"] = Field(
+        default="http/protobuf",
+        description="Specifies which protocol should be used by exporters.",
+    )
+
+
+def configure_opentelemetry(*, service_name: str, config: OpenTelemetryConfig):
+    """Configure all needed parts of OpenTelemetry.
+
+    Setup of the TracerProvider is done programmatically, all other configuration exports
+    OpenTelemetry specific environment variables.
+    """
+    configure_tracer(service_name=service_name, config=config)
+
+
+@deprecated(
+    "This function will be removed in v5. Use `configure_opentelemetry instead.`"
+)
+def configure_tracer(*, service_name: str, config: OpenTelemetryConfig):
+    """Configure all needed parts of OpenTelemetry.
+
+    Setup of the TracerProvider is done programmatically, all other configuration exports
+    OpenTelemetry specific environment variables.
+    """
     global TRACER
     # opentelemetry distro sets this to grpc, but in the current context http/protobuf is preferred
-    os.environ.setdefault(OTEL_EXPORTER_OTLP_PROTOCOL, protocol)
+    os.environ.setdefault(OTEL_EXPORTER_OTLP_PROTOCOL, config.protocol)
     # Disable OpenTelemetry metrics and logs explicitly as they are not processed in the backend currently
     # This overwrites the defaults of `otlp` set in opentelemetry distro
     os.environ.setdefault(OTEL_METRICS_EXPORTER, "none")
     os.environ.setdefault(OTEL_LOGS_EXPORTER, "none")
 
-    if enable_otel:
+    if config.enable_opentelemetry:
         if TRACER is not None:
             logger.warning(
                 "OpenTelemetry configuration code should only be run once. "
@@ -64,25 +125,13 @@ def configure_tracer(
                 service_name,
             )
         resource = Resource(attributes={SERVICE_NAME: service_name})
-        # Replace the default static sampler with a probabilistic one
-        # With the default sampling rate, behaviour does not change, but this allows to
-        # introduce head sampling by adjusting a config option on the service side later on
-        if sampling_rate > 1:
-            sampling_rate = 1
-            logger.info(
-                "Provided sampling rate has to be between 0 and 1. Adjusted from %i to 1.",
-                sampling_rate,
-            )
-        elif sampling_rate < 0:
-            sampling_rate = 0
-            logger.info(
-                "Provided sampling rate has to be between 0 and 1. Adjusted from %i to 0.",
-                sampling_rate,
-            )
-        # Initiate a sampler that honors parent span sampling decisions
+        # Replace the default static sampler with a probabilistic one that honors parent
+        # span sampling decisions
         # This should consistently yield full traces within a service but not necessarily
         # across service boundaries
-        sampler = ParentBasedTraceIdRatio(rate=sampling_rate)
+        # With the default sampling rate, behaviour does not change, but this allows to
+        # introduce head sampling by adjusting a config option on the service side later on
+        sampler = ParentBasedTraceIdRatio(rate=config.samplig_rate)
 
         # Initialize service specific TracerProvider
         trace_provider = TracerProvider(resource=resource, sampler=sampler)
@@ -119,29 +168,3 @@ def start_span(
         )(function)
 
     return wrapper
-
-
-class SpanTracer:
-    """Custom tracer class providing a decorator to autpopulate span names."""
-
-    def __init__(self, name):
-        self.tracer = trace.get_tracer(name)
-
-    def start_span(
-        self, *, record_exception: bool = False, set_status_on_exception: bool = False
-    ):
-        """Decorator function starting a span populated with the __qualname__ of the wrapped function"""
-
-        def outer_wrapper(function: Callable):
-            def traced_function(*args, **kwargs):
-                name = function.__qualname__
-                with self.tracer.start_as_current_span(
-                    name,
-                    record_exception=record_exception,
-                    set_status_on_exception=set_status_on_exception,
-                ):
-                    return function(*args, **kwargs)
-
-            return traced_function
-
-        return outer_wrapper
