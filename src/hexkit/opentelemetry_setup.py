@@ -75,7 +75,7 @@ class OpenTelemetryConfig(BaseSettings):
         default=False,
         description="If set to true, this will run necessary setup code."
         "If set to false, environment variables are set that should also effectively "
-        "disable autoinstrumentation",
+        "disable autoinstrumentation.",
     )
     samplig_rate: Annotated[float, Field(strict=True, ge=0, le=1)] = Field(
         default=1.0,
