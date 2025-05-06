@@ -110,11 +110,11 @@ def configure_tracer(*, service_name: str, config: OpenTelemetryConfig):
     """
     global TRACER
     # opentelemetry distro sets this to grpc, but in the current context http/protobuf is preferred
-    os.environ.setdefault(OTEL_EXPORTER_OTLP_PROTOCOL, config.protocol)
+    os.environ[OTEL_EXPORTER_OTLP_PROTOCOL] = config.protocol
     # Disable OpenTelemetry metrics and logs explicitly as they are not processed in the backend currently
     # This overwrites the defaults of `otlp` set in opentelemetry distro
-    os.environ.setdefault(OTEL_METRICS_EXPORTER, "none")
-    os.environ.setdefault(OTEL_LOGS_EXPORTER, "none")
+    os.environ[OTEL_METRICS_EXPORTER] = "none"
+    os.environ[OTEL_LOGS_EXPORTER] = "none"
 
     if config.enable_opentelemetry:
         if TRACER is not None:
@@ -143,8 +143,8 @@ def configure_tracer(*, service_name: str, config: OpenTelemetryConfig):
         # Currently OTEL_SDK_DISABLED doesn't seem to be honored by all implementations yet
         # It seems to be working well enough for the Python implementation, but to be on
         # the safe side, let's explicitly disable the trace exporter for now
-        os.environ.setdefault(OTEL_TRACES_EXPORTER, "none")
-        os.environ.setdefault(OTEL_SDK_DISABLED, "true")
+        os.environ[OTEL_TRACES_EXPORTER] = "none"
+        os.environ[OTEL_SDK_DISABLED] = "true"
 
 
 def start_span(
