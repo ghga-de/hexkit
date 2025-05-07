@@ -77,14 +77,14 @@ class OpenTelemetryConfig(BaseSettings):
         "If set to false, environment variables are set that should also effectively "
         "disable autoinstrumentation.",
     )
-    samplig_rate: Annotated[float, Field(strict=True, ge=0, le=1)] = Field(
+    otel_trace_sampling_rate: Annotated[float, Field(strict=True, ge=0, le=1)] = Field(
         default=1.0,
         description="Determines which proportion of spans should be sampled. "
         "A value of 1.0 means all and is equivalent to the previous behaviour. "
         "Setting this to 0 will result in no spans being sampled, but this does not "
         "automatically set `enable_opentelemetry` to False.",
     )
-    protocol: Literal["grpc", "http/protobuf"] = Field(
+    otel_exporter_protocol: Literal["grpc", "http/protobuf"] = Field(
         default="http/protobuf",
         description="Specifies which protocol should be used by exporters.",
     )
@@ -110,7 +110,7 @@ def configure_tracer(*, service_name: str, config: OpenTelemetryConfig):
     """
     global TRACER
     # opentelemetry distro sets this to grpc, but in the current context http/protobuf is preferred
-    os.environ[OTEL_EXPORTER_OTLP_PROTOCOL] = config.protocol
+    os.environ[OTEL_EXPORTER_OTLP_PROTOCOL] = config.otel_exporter_protocol
     # Disable OpenTelemetry metrics and logs explicitly as they are not processed in the backend currently
     # This overwrites the defaults of `otlp` set in opentelemetry distro
     os.environ[OTEL_METRICS_EXPORTER] = "none"
@@ -131,7 +131,7 @@ def configure_tracer(*, service_name: str, config: OpenTelemetryConfig):
         # across service boundaries
         # With the default sampling rate, behaviour does not change, but this allows to
         # introduce head sampling by adjusting a config option on the service side later on
-        sampler = ParentBasedTraceIdRatio(rate=config.samplig_rate)
+        sampler = ParentBasedTraceIdRatio(rate=config.otel_trace_sampling_rate)
 
         # Initialize service specific TracerProvider
         trace_provider = TracerProvider(resource=resource, sampler=sampler)
