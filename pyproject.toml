@@ -48,16 +48,37 @@ s3 = [
 mongodb = [
     "motor >=3.7, <4",
 ]
-opentelemetry = [
+opentelemetry-base = [
     "opentelemetry-sdk >=1.31.1, <2",
     "opentelemetry-exporter-otlp-proto-http >=1.31.1, <2",
     "opentelemetry-distro >=0.52b1",
     "opentelemetry-instrumentation >=0.52b1",
-    "opentelemetry-instrumentation-aiokafka >=0.52b1",
-    "opentelemetry-instrumentation-botocore >=0.52b1",
-    "opentelemetry-instrumentation-fastapi >=0.52b1",
     "opentelemetry-instrumentation-httpx >=0.52b1",
+]
+opentelemetry-akafka = [
+    "hexkit[opentelemetry-base]",
+    "hexkit[akafka]",
+    "opentelemetry-instrumentation-aiokafka >=0.52b1",
+]
+opentelemetry-mongodb = [
+    "hexkit[opentelemetry-base]",
+    "hexkit[mongodb]",
     "opentelemetry-instrumentation-pymongo >=0.52b1",
+]
+opentelemetry-fastapi = [
+    "hexkit[opentelemetry-base]",
+    "opentelemetry-instrumentation-fastapi >=0.52b1",
+]
+opentelemetry-s3 = [
+    "hexkit[opentelemetry-base]",
+    "hexkit[s3]",
+    "opentelemetry-instrumentation-botocore >=0.52b1",
+]
+opentelemetry = [
+    "hexkit[opentelemetry-akafka]",
+    "hexkit[opentelemetry-mongodb]",
+    "hexkit[opentelemetry-fastapi]",
+    "hexkit[opentelemetry-s3]",
 ]
 test-akafka = [
     "hexkit[akafka]",
