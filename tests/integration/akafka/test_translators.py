@@ -185,28 +185,28 @@ async def test_merged_translators_retry_topic(kafka: KafkaFixture):
     # Publish an event of each type
     await kafka.publish_event(
         payload=user_event.model_dump(),
-        topic=f"{config.service_name}-retry",
+        topic=f"retry-{config.service_name}",
         type_="upserted",
         key=user_event.name,
         headers={"original_topic": "users"},
     )
     await kafka.publish_event(
         payload=order_event.model_dump(),
-        topic=f"{config.service_name}-retry",
+        topic=f"retry-{config.service_name}",
         type_="upserted",
         key=order_event.order_id,
         headers={"original_topic": "orders"},
     )
     await kafka.publish_event(
         payload=test_event.model_dump(),
-        topic=f"{config.service_name}-retry",
+        topic=f"retry-{config.service_name}",
         type_="test_event",
         key=test_event.my_cool_id,
         headers={"original_topic": "test-events"},
     )
     await kafka.publish_event(
         payload=test_event2.model_dump(),
-        topic=f"{config.service_name}-retry",
+        topic=f"retry-{config.service_name}",
         type_="test_event2",
         key=test_event2.my_other_id,
         headers={"original_topic": "test-events"},

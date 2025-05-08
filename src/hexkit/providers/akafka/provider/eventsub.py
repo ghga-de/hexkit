@@ -395,7 +395,7 @@ class KafkaEventSubscriber(InboundProviderBase):
                     "Can't enable DLQ when using DLQSubscriberProtocol. Disabling DLQ."
                 )
             else:
-                topics.append(config.service_name + "-retry")
+                topics.append("retry-" + config.service_name)
                 if dlq_publisher is None:
                     error = ValueError(
                         "A publisher is required when the DLQ is enabled."
@@ -460,7 +460,7 @@ class KafkaEventSubscriber(InboundProviderBase):
             [] if self._using_dlq_protocol else translator.types_of_interest  # type: ignore
         )
         self._dlq_publisher = dlq_publisher
-        self._retry_topic = config.service_name + "-retry"
+        self._retry_topic = "retry-" + config.service_name
         self._dlq_topic = config.kafka_dlq_topic
         self._service_name = config.service_name
         self._max_retries = config.kafka_max_retries
