@@ -35,7 +35,6 @@ from opentelemetry.sdk.trace.export import BatchSpanProcessor
 from opentelemetry.sdk.trace.sampling import ParentBasedTraceIdRatio
 from pydantic import Field
 from pydantic_settings import BaseSettings
-from typing_extensions import deprecated
 
 TRACER: Optional["SpanTracer"] = None
 
@@ -88,21 +87,14 @@ class OpenTelemetryConfig(BaseSettings):
         default="http/protobuf",
         description="Specifies which protocol should be used by exporters.",
     )
+    otel_exporter_endpoint: str = Field(
+        default=...,
+        description="Base endpoint URL for the collector that receives content from the exporter.",
+        examples=["http://localhost:4318"],
+    )
 
 
 def configure_opentelemetry(*, service_name: str, config: OpenTelemetryConfig):
-    """Configure all needed parts of OpenTelemetry.
-
-    Setup of the TracerProvider is done programmatically, all other configuration exports
-    OpenTelemetry specific environment variables.
-    """
-    configure_tracer(service_name=service_name, config=config)
-
-
-@deprecated(
-    "This function will be removed in v5. Use `configure_opentelemetry instead.`"
-)
-def configure_tracer(*, service_name: str, config: OpenTelemetryConfig):
     """Configure all needed parts of OpenTelemetry.
 
     Setup of the TracerProvider is done programmatically, all other configuration exports
