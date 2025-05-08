@@ -53,13 +53,13 @@ attrs==25.3.0 \
     # via
     #   jsonschema
     #   referencing
-boto3==1.38.8 \
-    --hash=sha256:6bbc75bb51be9c5a33d07a4adf13d133c60f77b7c47bef1c46fda90b1297a867 \
-    --hash=sha256:f3a4d79f499f567d327d2d8846d02ad18244d2927f88858a42a2438f52d9a0ef
+boto3==1.38.10 \
+    --hash=sha256:26113a47d549bc3c46dbf56c8ab74f272c3da55df23e2c460fcf3c6c64d54dce \
+    --hash=sha256:af4c78a3faa1a56cbaeb9e06cd5580772138be519fc6e740b81db586d5d1910c
     # via hexkit (pyproject.toml)
-botocore==1.38.8 \
-    --hash=sha256:68d739300cc94232373517b27c5570de6ae6d809a2db644f30219f5c8e0371ce \
-    --hash=sha256:f6ae08a56fe94e18d2aa223611a3b5e94123315d0cb3cb85764b029b2326c710
+botocore==1.38.10 \
+    --hash=sha256:5244454bb9e8fbb6510145d1554e82fd243e8583507d83077ecf4f8efb66cb46 \
+    --hash=sha256:c531c13803e0fad5b395c5ccab4c11ac88acfccde71c9b998df6fa841392a8fc
     # via
     #   hexkit (pyproject.toml)
     #   boto3
@@ -1214,9 +1214,9 @@ uv==0.7.2 \
     --hash=sha256:e1e4394b54bc387f227ca1b2aa0348d35f6455b6168ca1826c1dc5f4fc3e8d20 \
     --hash=sha256:e4d1652fe3608fa564dbeaeb2465208f691ac04b57f655ebef62e9ec6d37103d
     # via -r lock/requirements-dev-template.in
-virtualenv==20.31.0 \
-    --hash=sha256:82195319e2e9394cf17ee1646780e90d8370be35065af4f98e060c9e88d2e5ba \
-    --hash=sha256:931d8d4c1a35e4737aa9a06bc495221c7600196e9da52dae78c318904e2d2284
+virtualenv==20.31.1 \
+    --hash=sha256:65442939608aeebb9284cd30baca5865fcd9f12b58bb740a24b220030df46d26 \
+    --hash=sha256:f448cd2f1604c831afb9ea238021060be2c0edbcad8eb0a4e8b4e14ff11a5482
     # via
     #   pre-commit
     #   tox
