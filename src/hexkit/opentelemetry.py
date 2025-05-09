@@ -26,6 +26,7 @@ from opentelemetry.environment_variables import (
 )
 from opentelemetry.exporter.otlp.proto.http.trace_exporter import OTLPSpanExporter
 from opentelemetry.sdk.environment_variables import (
+    OTEL_EXPORTER_OTLP_ENDPOINT,
     OTEL_EXPORTER_OTLP_PROTOCOL,
     OTEL_SDK_DISABLED,
 )
@@ -33,9 +34,8 @@ from opentelemetry.sdk.resources import SERVICE_NAME, Resource
 from opentelemetry.sdk.trace import TracerProvider
 from opentelemetry.sdk.trace.export import BatchSpanProcessor
 from opentelemetry.sdk.trace.sampling import ParentBasedTraceIdRatio
-from pydantic import Field
+from pydantic import AnyHttpUrl, Field
 from pydantic_settings import BaseSettings
-from typing_extensions import deprecated
 
 TRACER: Optional["SpanTracer"] = None
 
@@ -88,6 +88,11 @@ class OpenTelemetryConfig(BaseSettings):
         default="http/protobuf",
         description="Specifies which protocol should be used by exporters.",
     )
+    otel_exporter_endpoint: AnyHttpUrl = Field(
+        default=...,
+        description="Base endpoint URL for the collector that receives content from the exporter.",
+        examples=["http://localhost:4318"],
+    )
 
 
 def configure_opentelemetry(*, service_name: str, config: OpenTelemetryConfig):
@@ -96,21 +101,10 @@ def configure_opentelemetry(*, service_name: str, config: OpenTelemetryConfig):
     Setup of the TracerProvider is done programmatically, all other configuration exports
     OpenTelemetry specific environment variables.
     """
-    configure_tracer(service_name=service_name, config=config)
-
-
-@deprecated(
-    "This function will be removed in v5. Use `configure_opentelemetry instead.`"
-)
-def configure_tracer(*, service_name: str, config: OpenTelemetryConfig):
-    """Configure all needed parts of OpenTelemetry.
-
-    Setup of the TracerProvider is done programmatically, all other configuration exports
-    OpenTelemetry specific environment variables.
-    """
     global TRACER
     # opentelemetry distro sets this to grpc, but in the current context http/protobuf is preferred
     os.environ[OTEL_EXPORTER_OTLP_PROTOCOL] = config.otel_exporter_protocol
+    os.environ[OTEL_EXPORTER_OTLP_ENDPOINT] = str(config.otel_exporter_endpoint)
     # Disable OpenTelemetry metrics and logs explicitly as they are not processed in the backend currently
     # This overwrites the defaults of `otlp` set in opentelemetry distro
     os.environ[OTEL_METRICS_EXPORTER] = "none"
