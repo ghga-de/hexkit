@@ -104,7 +104,7 @@ def configure_opentelemetry(*, service_name: str, config: OpenTelemetryConfig):
     global TRACER
     # opentelemetry distro sets this to grpc, but in the current context http/protobuf is preferred
     os.environ[OTEL_EXPORTER_OTLP_PROTOCOL] = config.otel_exporter_protocol
-    os.environ[OTEL_EXPORTER_OTLP_ENDPOINT] = config.otel_exporter_endpoint
+    os.environ[OTEL_EXPORTER_OTLP_ENDPOINT] = str(config.otel_exporter_endpoint)
     # Disable OpenTelemetry metrics and logs explicitly as they are not processed in the backend currently
     # This overwrites the defaults of `otlp` set in opentelemetry distro
     os.environ[OTEL_METRICS_EXPORTER] = "none"
