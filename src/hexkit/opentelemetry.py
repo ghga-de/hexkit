@@ -34,7 +34,7 @@ from opentelemetry.sdk.resources import SERVICE_NAME, Resource
 from opentelemetry.sdk.trace import TracerProvider
 from opentelemetry.sdk.trace.export import BatchSpanProcessor
 from opentelemetry.sdk.trace.sampling import ParentBasedTraceIdRatio
-from pydantic import Field
+from pydantic import AnyHttpUrl, Field
 from pydantic_settings import BaseSettings
 
 TRACER: Optional["SpanTracer"] = None
@@ -88,7 +88,7 @@ class OpenTelemetryConfig(BaseSettings):
         default="http/protobuf",
         description="Specifies which protocol should be used by exporters.",
     )
-    otel_exporter_endpoint: str = Field(
+    otel_exporter_endpoint: AnyHttpUrl = Field(
         default=...,
         description="Base endpoint URL for the collector that receives content from the exporter.",
         examples=["http://localhost:4318"],
