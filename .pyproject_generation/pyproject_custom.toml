@@ -1,6 +1,6 @@
 [project]
 name = "hexkit"
-version = "5.1.0"
+version = "5.1.1"
 description = "A Toolkit for Building Microservices using the Hexagonal Architecture"
 requires-python = ">=3.9"
 classifiers = [
@@ -30,7 +30,6 @@ mongodb = ["motor >=3.7, <4"]
 opentelemetry-base = [
     "opentelemetry-sdk >=1.31.1, <2",
     "opentelemetry-exporter-otlp >=1.31.1, <2",
-    "opentelemetry-distro >=0.52b1",
     "opentelemetry-instrumentation >=0.52b1",
     "opentelemetry-instrumentation-httpx >=0.52b1",
 ]

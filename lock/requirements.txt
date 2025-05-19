@@ -300,7 +300,6 @@ opentelemetry-api==1.33.1 \
     # via
     #   -c lock/requirements-dev.txt
     #   hexkit (pyproject.toml)
-    #   opentelemetry-distro
     #   opentelemetry-exporter-otlp-proto-grpc
     #   opentelemetry-exporter-otlp-proto-http
     #   opentelemetry-instrumentation
@@ -313,12 +312,6 @@ opentelemetry-api==1.33.1 \
     #   opentelemetry-propagator-aws-xray
     #   opentelemetry-sdk
     #   opentelemetry-semantic-conventions
-opentelemetry-distro==0.54b1 \
-    --hash=sha256:009486513b32b703e275bb2f9ccaf5791676bbf5e2dcfdd90201ddc8f56f122b \
-    --hash=sha256:61d6b97bb7a245fddbb829345bb4ad18be39eb52f770fab89a127107fca3149f
-    # via
-    #   -c lock/requirements-dev.txt
-    #   hexkit (pyproject.toml)
 opentelemetry-exporter-otlp==1.33.1 \
     --hash=sha256:4d050311ea9486e3994575aa237e32932aad58330a31fba24fdba5c0d531cf04 \
     --hash=sha256:9bcf1def35b880b55a49e31ebd63910edac14b294fd2ab884953c4deaff5b300
@@ -350,7 +343,6 @@ opentelemetry-instrumentation==0.54b1 \
     # via
     #   -c lock/requirements-dev.txt
     #   hexkit (pyproject.toml)
-    #   opentelemetry-distro
     #   opentelemetry-instrumentation-aiokafka
     #   opentelemetry-instrumentation-asgi
     #   opentelemetry-instrumentation-botocore
@@ -413,7 +405,6 @@ opentelemetry-sdk==1.33.1 \
     # via
     #   -c lock/requirements-dev.txt
     #   hexkit (pyproject.toml)
-    #   opentelemetry-distro
     #   opentelemetry-exporter-otlp-proto-grpc
     #   opentelemetry-exporter-otlp-proto-http
 opentelemetry-semantic-conventions==0.54b1 \
