@@ -37,7 +37,7 @@ from hexkit.correlation import (
     new_correlation_id,
     validate_correlation_id,
 )
-from hexkit.custom_types import Ascii, JsonObject
+from hexkit.custom_types import Ascii, JsonObject, KafkaCompressionType
 from hexkit.protocols.eventpub import EventPublisherProtocol
 from hexkit.providers.akafka.config import KafkaConfig
 from hexkit.providers.akafka.provider.utils import (
@@ -61,6 +61,7 @@ class KafkaProducerCompatible(Protocol):
         key_serializer: Callable[[Any], bytes],
         value_serializer: Callable[[Any], bytes],
         max_request_size: int,
+        compression_type: Optional[KafkaCompressionType] = None,
     ):
         """
         Initialize the producer with some config params.
@@ -76,6 +77,8 @@ class KafkaProducerCompatible(Protocol):
                 Function to serialize the values into bytes.
             max_request_size:
                 Maximum sendable message size.
+            compression_type:
+                Compression type to use for messages. Defaults to None.
         """
         ...
 
@@ -124,6 +127,7 @@ class KafkaEventPublisher(EventPublisherProtocol):
             key_serializer=lambda key: key.encode("ascii"),
             value_serializer=cls._default_event_value_serializer,
             max_request_size=config.kafka_max_message_size,
+            compression_type=config.kafka_compression_type,
         )
 
         try:

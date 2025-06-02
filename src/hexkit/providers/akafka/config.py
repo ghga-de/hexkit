@@ -16,10 +16,12 @@
 
 """Apache Kafka specific configuration."""
 
-from typing import Literal
+from typing import Literal, Optional
 
 from pydantic import Field, NonNegativeInt, PositiveInt, SecretStr
 from pydantic_settings import BaseSettings
+
+from hexkit.custom_types import KafkaCompressionType
 
 
 class KafkaConfig(BaseSettings):
@@ -116,4 +118,13 @@ class KafkaConfig(BaseSettings):
         ),
         title="Kafka Retry Backoff",
         examples=[0, 1, 2, 3, 5],
+    )
+    kafka_compression_type: Optional[KafkaCompressionType] = Field(
+        default=None,
+        description=(
+            "The compression type used for messages. Valid values are: none, gzip,"
+            + " snappy, lz4, zstd."
+        ),
+        title="Kafka Compression Type",
+        examples=["gzip", "snappy", "lz4", "zstd"],
     )
