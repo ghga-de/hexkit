@@ -68,6 +68,9 @@ async def test_event_compression(
     type_ = "test_type"
     key = "test_key"
     topic = "test_topic"
+
+    # Prepare a payload that is large enough to trigger the max message size limit
+    # but small enough to fit into the max message size limit when compressed.
     payload: JsonObject = {
         "test_str": "A"
         * ((max_message_size) - len(f"topic:{topic}, type:{type_}, key:{key}")),
@@ -78,17 +81,19 @@ async def test_event_compression(
         if not compression_type
         else nullcontext()
     ):
-        async with kafka.expect_events(
-            events=[ExpectedEvent(payload=payload, type_=type_, key=key)],
-            in_topic=topic,
+        async with (
+            kafka.expect_events(
+                events=[ExpectedEvent(payload=payload, type_=type_, key=key)],
+                in_topic=topic,
+            ),
+            KafkaEventPublisher.construct(config=config) as event_publisher,
         ):
-            async with KafkaEventPublisher.construct(config=config) as event_publisher:
-                await event_publisher.publish(
-                    payload=payload,
-                    type_=type_,
-                    key=key,
-                    topic=topic,
-                )
+            await event_publisher.publish(
+                payload=payload,
+                type_=type_,
+                key=key,
+                topic=topic,
+            )
 
 
 async def test_kafka_event_publisher(kafka: KafkaFixture):
