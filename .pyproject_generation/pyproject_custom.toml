@@ -1,10 +1,10 @@
 [project]
 name = "hexkit"
-version = "5.1.1"
+version = "5.2.0"
 description = "A Toolkit for Building Microservices using the Hexagonal Architecture"
 requires-python = ">=3.9"
 classifiers = [
-    "Development Status :: 1 - Planning",
+    "Development Status :: 5 - Production/Stable",
     "Operating System :: POSIX :: Linux",
     "Programming Language :: Python :: 3.9",
     "Programming Language :: Python :: 3.10",
