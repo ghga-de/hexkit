@@ -122,9 +122,12 @@ class KafkaConfig(BaseSettings):
     kafka_compression_type: Optional[KafkaCompressionType] = Field(
         default=None,
         description=(
-            "The compression type used for messages. Valid values are: none, gzip,"
-            + " snappy, lz4, zstd."
+            "The compression type used for messages. Valid values are: None, gzip,"
+            + " snappy, lz4, and zstd. If None, no compression is applied. This"
+            + " setting is only relevant for the producer and has no effect on the"
+            + " consumer. If set to a value, the producer will compress messages before"
+            + " sending them to the Kafka broker."
         ),
         title="Kafka Compression Type",
-        examples=["gzip", "snappy", "lz4", "zstd"],
+        examples=[None, "gzip", "snappy", "lz4", "zstd"],
     )
