@@ -80,9 +80,25 @@ class KafkaConfig(BaseSettings):
     )
     kafka_max_message_size: PositiveInt = Field(
         default=1024 * 1024,  # 1 MiB
-        description="The largest message size that can be transmitted, in bytes. Only"
-        + " services that have a need to send/receive larger messages should set this.",
+        description="The largest message size that can be transmitted, in bytes, before"
+        + " compression. Only services that have a need to send/receive larger"
+        + " messages should set this. When used alongside compression, this value"
+        + " can be set to something greater than the broker's `message.max.bytes`"
+        + " field, which effectively concerns the compressed message size.",
         examples=[1024 * 1024, 16 * 1024 * 1024],
+    )
+    kafka_compression_type: Optional[KafkaCompressionType] = Field(
+        default=None,
+        description=(
+            "The compression type used for messages. Valid values are: None, gzip,"
+            + " snappy, lz4, and zstd. If None, no compression is applied. This"
+            + " setting is only relevant for the producer and has no effect on the"
+            + " consumer. If set to a value, the producer will compress messages before"
+            + " sending them to the Kafka broker. If unsure, zstd provides a good"
+            + " balance between speed and compression ratio."
+        ),
+        title="Kafka Compression Type",
+        examples=[None, "gzip", "snappy", "lz4", "zstd"],
     )
     kafka_max_retries: NonNegativeInt = Field(
         default=0,
@@ -118,16 +134,4 @@ class KafkaConfig(BaseSettings):
         ),
         title="Kafka Retry Backoff",
         examples=[0, 1, 2, 3, 5],
-    )
-    kafka_compression_type: Optional[KafkaCompressionType] = Field(
-        default=None,
-        description=(
-            "The compression type used for messages. Valid values are: None, gzip,"
-            + " snappy, lz4, and zstd. If None, no compression is applied. This"
-            + " setting is only relevant for the producer and has no effect on the"
-            + " consumer. If set to a value, the producer will compress messages before"
-            + " sending them to the Kafka broker."
-        ),
-        title="Kafka Compression Type",
-        examples=[None, "gzip", "snappy", "lz4", "zstd"],
     )
