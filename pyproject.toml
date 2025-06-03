@@ -11,7 +11,7 @@ authors = [
 ]
 requires-python = ">=3.9"
 classifiers = [
-    "Development Status :: 1 - Planning",
+    "Development Status :: 5 - Production/Stable",
     "Operating System :: POSIX :: Linux",
     "Programming Language :: Python :: 3.9",
     "Programming Language :: Python :: 3.10",
@@ -24,7 +24,7 @@ classifiers = [
     "Intended Audience :: Developers",
 ]
 name = "hexkit"
-version = "5.1.1"
+version = "5.2.0"
 description = "A Toolkit for Building Microservices using the Hexagonal Architecture"
 dependencies = [
     "opentelemetry-api >=1.31.1, <2",
@@ -38,7 +38,7 @@ text = "Apache 2.0"
 
 [project.optional-dependencies]
 akafka = [
-    "aiokafka~=0.12.0",
+    "aiokafka[zstd,lz4,snappy]~=0.12.0",
     "jsonschema >=4.23, <5",
 ]
 s3 = [

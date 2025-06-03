@@ -96,3 +96,6 @@ AsyncContextConstructable = Any
 
 # The possible scopes for pytest fixtures
 PytestScope = Literal["session", "package", "module", "class", "function"]
+
+# The possible compression types for Kafka messages
+KafkaCompressionType = Literal["gzip", "snappy", "lz4", "zstd"]

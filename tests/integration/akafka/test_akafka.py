@@ -21,7 +21,7 @@ from contextlib import nullcontext
 from datetime import date, datetime, timezone
 from os import environ
 from pathlib import Path
-from typing import cast
+from typing import Optional, cast
 from unittest.mock import AsyncMock
 
 import pytest
@@ -31,7 +31,7 @@ from aiokafka.errors import MessageSizeTooLargeError
 from aiokafka.structs import TopicPartition
 from pydantic import SecretStr
 
-from hexkit.custom_types import Ascii, JsonObject
+from hexkit.custom_types import Ascii, JsonObject, KafkaCompressionType
 from hexkit.protocols.eventsub import EventSubscriberProtocol
 from hexkit.providers.akafka import (
     KafkaConfig,
@@ -49,6 +49,56 @@ from hexkit.providers.akafka.testutils import (
 from ...fixtures.kafka_secrets import KafkaSecrets
 
 pytestmark = pytest.mark.asyncio()
+
+
+@pytest.mark.parametrize("compression_type", ["gzip", "lz4", "zstd", "snappy", None])
+async def test_event_compression(
+    kafka: KafkaFixture, compression_type: Optional[KafkaCompressionType]
+):
+    """Test compression config is actually applied.
+
+    The `max_message_size` value refers to the maximum *uncompressed* message that
+    can be sent. The maximum message size the broker will accept is not controlled
+    through `hexkit` (as of v5.2.0) and the default value is 1 MiB. For the test, we
+    set the max uncompressed size to something greater than the broker's limit and
+    publish a message around that size.
+    We expect all compression types to reduce the message size to within the broker's
+    limit, while the control test (no compression) should raise an error.
+    """
+    max_message_size = 3 * 1024 * 1024  # 3 MiB uncompressed limit
+    config = KafkaConfig(
+        service_name="test_publisher",
+        service_instance_id="1",
+        kafka_servers=kafka.kafka_servers,
+        kafka_max_message_size=max_message_size,
+        kafka_compression_type=compression_type,
+    )
+
+    type_ = "test_type"
+    key = "test_key"
+    topic = "test_topic"
+
+    # Prepare a payload that is too big for the broker but okay for the producer
+    payload: JsonObject = {"test_str": "A" * int(max_message_size * 0.9)}
+
+    with (
+        pytest.raises(MessageSizeTooLargeError)
+        if not compression_type
+        else nullcontext()
+    ):
+        async with (
+            kafka.expect_events(
+                events=[ExpectedEvent(payload=payload, type_=type_, key=key)],
+                in_topic=topic,
+            ),
+            KafkaEventPublisher.construct(config=config) as event_publisher,
+        ):
+            await event_publisher.publish(
+                payload=payload,
+                type_=type_,
+                key=key,
+                topic=topic,
+            )
 
 
 async def test_kafka_event_publisher(kafka: KafkaFixture):
