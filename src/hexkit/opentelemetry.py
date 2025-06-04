@@ -103,7 +103,7 @@ class OpenTelemetryDistro(BaseDistro):
     """
 
     def _configure(self, **kwargs):
-        pass
+        logger.info("Successfully called custom hexkit distro configuration.")
 
 
 def configure_opentelemetry(*, service_name: str, config: OpenTelemetryConfig):
