@@ -25,6 +25,7 @@ from opentelemetry.environment_variables import (
     OTEL_TRACES_EXPORTER,
 )
 from opentelemetry.exporter.otlp.proto.http.trace_exporter import OTLPSpanExporter
+from opentelemetry.instrumentation.distro import BaseDistro
 from opentelemetry.sdk.environment_variables import (
     OTEL_EXPORTER_OTLP_ENDPOINT,
     OTEL_EXPORTER_OTLP_PROTOCOL,
@@ -93,6 +94,16 @@ class OpenTelemetryConfig(BaseSettings):
         description="Base endpoint URL for the collector that receives content from the exporter.",
         examples=["http://localhost:4318"],
     )
+
+
+class OpenTelemetryDistro(BaseDistro):
+    """
+    Custom OpenTelemetry Distro configuring a default set of configuration
+    based on a config file.
+    """
+
+    def _configure(self, **kwargs):
+        pass
 
 
 def configure_opentelemetry(*, service_name: str, config: OpenTelemetryConfig):
