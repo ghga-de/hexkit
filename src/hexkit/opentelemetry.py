@@ -154,8 +154,8 @@ def configure_opentelemetry(*, service_name: str, config: OpenTelemetryConfig):
 
 def start_span(
     *,
-    record_exception: bool = False,
-    set_status_on_exception: bool = False,
+    record_exception: bool = True,
+    set_status_on_exception: bool = True,
 ) -> Callable:
     """Returns decorated or undecorated function depending on if TRACER is instantiated.
 
