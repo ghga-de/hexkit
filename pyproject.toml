@@ -102,6 +102,9 @@ all = [
 [project.urls]
 Repository = "https://github.com/ghga-de/hexkit"
 
+[project.entry-points.opentelemetry_distro]
+hexkit_distro = "hexkit.opentelemetry:HexkitDistro"
+
 [tool.setuptools.packages.find]
 where = [
     "src",

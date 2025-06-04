@@ -96,7 +96,7 @@ class OpenTelemetryConfig(BaseSettings):
     )
 
 
-class OpenTelemetryDistro(BaseDistro):
+class HexkitDistro(BaseDistro):
     """
     Custom OpenTelemetry Distro configuring a default set of configuration
     based on a config file.
