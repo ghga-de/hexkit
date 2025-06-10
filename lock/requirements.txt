@@ -964,6 +964,7 @@ typing-extensions==4.14.0 \
     #   opentelemetry-semantic-conventions
     #   pydantic
     #   pydantic-core
+    #   referencing
     #   testcontainers
     #   typing-inspection
 typing-inspection==0.4.1 \
