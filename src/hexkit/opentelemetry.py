@@ -25,7 +25,9 @@ from opentelemetry.environment_variables import (
     OTEL_TRACES_EXPORTER,
 )
 from opentelemetry.exporter.otlp.proto.http.trace_exporter import OTLPSpanExporter
-from opentelemetry.instrumentation.distro import BaseDistro
+from opentelemetry.instrumentation.distro import (  # type: ignore[attr-defined]
+    BaseDistro,
+)
 from opentelemetry.sdk.environment_variables import (
     OTEL_EXPORTER_OTLP_ENDPOINT,
     OTEL_EXPORTER_OTLP_PROTOCOL,
@@ -103,7 +105,7 @@ class HexkitDistro(BaseDistro):
     """
 
     def _configure(self, **kwargs):
-        logger.info("Successfully called custom hexkit distro configuration.")
+        """Custom DefaultDistro iplementation to provide autoinstrumentation entry points."""
 
 
 def configure_opentelemetry(*, service_name: str, config: OpenTelemetryConfig):
