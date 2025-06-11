@@ -19,3 +19,5 @@ example_data/README.md
 
 .devcontainer/Dockerfile
 .readme_generation/README.md
+
+lock/requirements-dev-template.in
