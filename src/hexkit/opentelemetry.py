@@ -106,6 +106,8 @@ class HexkitDistro(BaseDistro):
 
     def _configure(self, **kwargs):
         """Custom DefaultDistro iplementation to provide autoinstrumentation entry points."""
+        # disable by default, opt into via `configure_opentelemetry`
+        os.environ[OTEL_SDK_DISABLED] = "true"
 
 
 def configure_opentelemetry(*, service_name: str, config: OpenTelemetryConfig):
@@ -131,6 +133,7 @@ def configure_opentelemetry(*, service_name: str, config: OpenTelemetryConfig):
                 "the tracer and resource name will likely be wrong in some cases.",
                 service_name,
             )
+        os.environ[OTEL_SDK_DISABLED] = "false"
         resource = Resource(attributes={SERVICE_NAME: service_name})
         # Replace the default static sampler with a probabilistic one that honors parent
         # span sampling decisions
