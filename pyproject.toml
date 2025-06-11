@@ -24,7 +24,7 @@ classifiers = [
     "Intended Audience :: Developers",
 ]
 name = "hexkit"
-version = "5.2.0"
+version = "5.3.0"
 description = "A Toolkit for Building Microservices using the Hexagonal Architecture"
 dependencies = [
     "opentelemetry-api >=1.31.1, <2",
@@ -101,6 +101,9 @@ all = [
 
 [project.urls]
 Repository = "https://github.com/ghga-de/hexkit"
+
+[project.entry-points.opentelemetry_distro]
+hexkit_distro = "hexkit.opentelemetry:HexkitDistro"
 
 [tool.setuptools.packages.find]
 where = [
