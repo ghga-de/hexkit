@@ -106,7 +106,6 @@ class HexkitDistro(BaseDistro):
 
     def _configure(self, **kwargs):
         """Custom DefaultDistro iplementation to provide autoinstrumentation entry points."""
-        # disable by default, opt into via `configure_opentelemetry`
 
 
 def configure_opentelemetry(*, service_name: str, config: OpenTelemetryConfig):
