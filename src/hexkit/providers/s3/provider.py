@@ -228,7 +228,7 @@ class S3ObjectStorage(ObjectStorageProtocol):
                 cls._format_s3_error_code(error_code)
             )
 
-        return exception
+        return exception.with_traceback(source_exception.__traceback__)
 
     async def _does_bucket_exist(self, bucket_id: str) -> bool:
         """Check whether a bucket with the specified ID (`bucket_id`) exists.
