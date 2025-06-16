@@ -17,7 +17,7 @@
 
 # Architectural Concepts
 
-(intro)
+This section introduces some key architectural concepts within Hexkit.
 
 # Concepts
 - [Triple Hexagonal Architecture](triple_hexagonal_arch.md)
