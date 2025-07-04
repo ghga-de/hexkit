@@ -584,17 +584,12 @@ async def test_republishing(mongo_kafka: MongoKafkaFixture):
             key=str(example.id),
         )
 
-        async with kafka.expect_events(
-            events=[expected_event],
-            in_topic=EXAMPLE_TOPIC,
-        ):
+        # initial insert:
+        async with kafka.expect_events(events=[expected_event], in_topic=EXAMPLE_TOPIC):
             await dao.insert(example)
 
         # republish:
-        async with kafka.expect_events(
-            events=[expected_event],
-            in_topic=EXAMPLE_TOPIC,
-        ):
+        async with kafka.expect_events(events=[expected_event], in_topic=EXAMPLE_TOPIC):
             await dao.republish()
 
 
@@ -801,11 +796,11 @@ async def test_mongokafka_dao_correlation_id_delete(mongo_kafka: MongoKafkaFixtu
         assert inserted
         metadata = inserted.pop("__metadata__")
         assert inserted == {
-            "_id": str(example.id),
+            "_id": example.id,
             "field_a": "test",
             "field_b": 42,
             "field_c": True,
-            "field_d": example.field_d.isoformat(),
+            "field_d": example.field_d,
             "field_e": str(example.field_e),
         }
         assert metadata == {
@@ -824,7 +819,7 @@ async def test_mongokafka_dao_correlation_id_delete(mongo_kafka: MongoKafkaFixtu
             )
             assert deleted
             metadata = deleted.pop("__metadata__")
-            assert deleted == {"_id": str(example.id)}
+            assert deleted == {"_id": example.id}
             assert metadata == {
                 "correlation_id": temp_correlation_id,
                 "deleted": True,
@@ -851,8 +846,7 @@ async def test_documents_without_metadata(mongo_kafka: MongoKafkaFixture):
 
     # Insert two documents without metadata
     db_name = mongo_kafka.config.db_name
-    connection_str = str(mongo_kafka.config.mongo_dsn.get_secret_value())
-    mongo_client: MongoClient = MongoClient(connection_str)
+    mongo_client: MongoClient = mongo_kafka.mongodb.client
     mongo_client[db_name]["example"].insert_one(doc1)
     mongo_client[db_name]["example"].insert_one(doc2)
 

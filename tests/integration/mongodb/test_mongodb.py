@@ -38,6 +38,7 @@ from hexkit.providers.mongodb.testutils import (
     mongodb_container_fixture,  # noqa: F401
     mongodb_fixture,  # noqa: F401
 )
+from hexkit.utils import now_utc_without_micros
 
 pytestmark = pytest.mark.asyncio()
 
@@ -54,7 +55,7 @@ class ExampleDto(BaseModel):
     field_a: str = Field(default="test")
     field_b: int = Field(default=42)
     field_c: bool = Field(default=True)
-    field_d: datetime = Field(default_factory=datetime.now)
+    field_d: datetime = Field(default_factory=now_utc_without_micros)
     field_e: Path = Field(default_factory=Path.cwd)
 
 
@@ -128,10 +129,8 @@ async def test_dao_find_all_with_id(mongodb: MongoDbFixture):
     resource = ExampleDto()
     await dao.insert(resource)
 
-    str_id = str(resource.id)
-
     # retrieve the resource with find_all
-    resources_read = [x async for x in dao.find_all(mapping={"id": str_id})]
+    resources_read = [x async for x in dao.find_all(mapping={"id": resource.id})]
     assert len(resources_read) == 1
     assert resources_read[0].id == resource.id
 
@@ -141,19 +140,21 @@ async def test_dao_find_all_with_id(mongodb: MongoDbFixture):
 
     # make sure other fields beside ID aren't getting ignored
     no_results_multifield = [
-        x async for x in dao.find_all(mapping={"id": str_id, "field_b": 134293487})
+        x async for x in dao.find_all(mapping={"id": resource.id, "field_b": 134293487})
     ]
     assert len(no_results_multifield) == 0
 
     multifield_found = [
         x
-        async for x in dao.find_all(mapping={"id": str_id, "field_b": resource.field_b})
+        async for x in dao.find_all(
+            mapping={"id": resource.id, "field_b": resource.field_b}
+        )
     ]
     assert len(multifield_found) == 1
     assert multifield_found[0] == resource
 
     # find_one calls find_all, so double check that it works there too
-    result = await dao.find_one(mapping={"id": str_id})
+    result = await dao.find_one(mapping={"id": resource.id})
     assert result == resource
 
 

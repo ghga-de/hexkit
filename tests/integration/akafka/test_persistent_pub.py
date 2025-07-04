@@ -23,6 +23,7 @@ from uuid import UUID
 import pytest
 
 from hexkit.providers.mongodb.provider import MongoDbDaoFactory
+from hexkit.utils import now_utc_without_micros
 
 pytestmark = pytest.mark.asyncio()
 from hexkit.correlation import set_correlation_id
@@ -210,14 +211,14 @@ async def test_publish_pending(kafka: KafkaFixture, mongodb: MongoDbFixture):
 
         # Insert an event manually in the database, marked as unpublished
         event = {
-            "_id": TEST_UUID,
+            "_id": "40a7a7c5-1e2f-4a1f-b053-cf918edd1b40",
             "topic": TEST_TOPIC,
             "type_": TEST_TYPE,
             "key": TEST_KEY,
             "payload": {"new": "payload"},
             "headers": {},
             "correlation_id": TEST_CORRELATION_ID,
-            "created": datetime.now(tz=timezone.utc).isoformat(),
+            "created": now_utc_without_micros(),
             "published": False,
         }
         collection = mongodb.client[config.db_name][collection_name]

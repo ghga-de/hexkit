@@ -18,7 +18,7 @@
 Apache Kafka-specific subscriber provider corresponding to the
 `EventSubscriberProtocol`.
 
-Require dependencies of the `akafka` extra. See the `setup.cfg`.
+Require dependencies of the `akafka` extra. See the `pyproject.toml`.
 """
 
 import asyncio
@@ -49,6 +49,7 @@ from hexkit.providers.akafka.provider.utils import (
     generate_client_id,
     generate_ssl_context,
 )
+from hexkit.utils import now_utc_without_micros
 
 CHANGE_EVENT_TYPE = "upserted"
 DELETE_EVENT_TYPE = "deleted"
@@ -205,11 +206,6 @@ def utc_datetime_from_millis(millis: int) -> datetime:
     return datetime.fromtimestamp(millis / 1000, tz=timezone.utc)
 
 
-def now_as_utc() -> datetime:
-    """Return the current timestamp with UTC timezone"""
-    return datetime.now().astimezone(tz=timezone.utc)
-
-
 @dataclass
 class ExtractedEventInfo:
     """A class encapsulating the data extracted from a `ConsumerEvent`-like object.
@@ -252,7 +248,11 @@ class DLQEventInfo(ExtractedEventInfo):
 
     def __init__(self, event: Optional[ConsumerEvent] = None, **kwargs):
         """Initialize an instance of ExtractedEventInfo."""
-        timestamp = utc_datetime_from_millis(event.timestamp) if event else now_as_utc()
+        timestamp = (
+            utc_datetime_from_millis(event.timestamp)
+            if event
+            else now_utc_without_micros()
+        )
         self.timestamp = kwargs.pop("timestamp", timestamp)
         super().__init__(event=event, **kwargs)
 

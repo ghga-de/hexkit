@@ -38,6 +38,7 @@ from hexkit.providers.mongodb.migrations import (
 from hexkit.providers.mongodb.migrations._manager import (
     MigrationTimeoutError,
 )
+from hexkit.providers.mongodb.provider import get_configured_mongo_client
 from hexkit.providers.mongodb.testutils import (
     MongoDbFixture,
     mongodb_container_fixture,  # noqa: F401
@@ -303,7 +304,6 @@ async def test_migration_without_copied_index(mongodb: MongoDbFixture):
     collection.create_index([("title", pymongo.ASCENDING)], name="byTitle")
 
     # Create the migration class (same as previous test, minus indexing)
-
     migration_map = {2: V2BasicMigration}
     await run_db_migrations(
         config=config, target_version=2, migration_map=migration_map
@@ -317,9 +317,7 @@ async def test_migration_without_copied_index(mongodb: MongoDbFixture):
 async def test_stage_unstage(mongodb: MongoDbFixture):
     """Stage and immediately unstage a collection with collection name collisions."""
     config = make_migration_config(mongodb.config)
-    client: AsyncIOMotorClient = AsyncIOMotorClient(
-        str(config.mongo_dsn.get_secret_value())
-    )
+    client = get_configured_mongo_client(config=config, client_cls=AsyncIOMotorClient)
     db = client.get_database(config.db_name)
     coll_name = "coll1"
     collection = client[config.db_name][coll_name]

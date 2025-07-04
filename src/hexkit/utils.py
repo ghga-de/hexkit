@@ -18,6 +18,7 @@
 from collections.abc import Collection
 from contextlib import asynccontextmanager
 from contextvars import ContextVar
+from datetime import datetime, timezone
 from typing import Any, Optional
 
 from pydantic import BaseModel
@@ -124,3 +125,13 @@ async def set_context_var(context_var: ContextVar, value: Any):
     token = context_var.set(value)
     yield
     context_var.reset(token)
+
+
+def now_utc_without_micros() -> datetime:
+    """Return the current UTC time without microseconds.
+
+    This is useful for producing a datetime that is consistent
+    with MongoDB's millisecond precision.
+    """
+    current_time = datetime.now(timezone.utc)
+    return current_time.replace(microsecond=current_time.microsecond // 1000 * 1000)

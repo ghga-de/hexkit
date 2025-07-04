@@ -29,7 +29,11 @@ from pymongo.errors import ExecutionTimeout, OperationFailure
 from testcontainers.mongodb import MongoDbContainer
 
 from hexkit.custom_types import PytestScope
-from hexkit.providers.mongodb.provider import MongoDbConfig, MongoDbDaoFactory
+from hexkit.providers.mongodb.provider import (
+    MongoDbConfig,
+    MongoDbDaoFactory,
+    get_configured_mongo_client,
+)
 
 MONGODB_IMAGE = "mongo:7.0.15"
 
@@ -42,6 +46,7 @@ __all__ = [
     "MongoDbFixture",
     "clean_mongodb_fixture",
     "get_clean_mongodb_fixture",
+    "get_configured_mongo_client",
     "get_mongodb_container_fixture",
     "get_persistent_mongodb_fixture",
     "mongodb_container_fixture",
@@ -129,7 +134,9 @@ def _persistent_mongodb_fixture(
     """
     config = mongodb_container.mongodb_config
     dao_factory = MongoDbDaoFactory(config=config)
-    client = mongodb_container.get_connection_client()
+
+    # Instead of `.get_connection_client()`, manually create it with correct codec opts
+    client = get_configured_mongo_client(config=config, client_cls=MongoClient)
     yield MongoDbFixture(
         client=client,
         config=config,

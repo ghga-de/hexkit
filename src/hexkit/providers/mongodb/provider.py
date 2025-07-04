@@ -21,19 +21,17 @@ Utilities for testing are located in `./testutils.py`.
 
 # ruff: noqa: PLR0913
 
-import json
 from collections.abc import AsyncIterator, Collection, Mapping
 from contextlib import AbstractAsyncContextManager, contextmanager
-from datetime import date, datetime
 from functools import partial
 from pathlib import Path
-from typing import Any, Callable, Generic, Optional, Union
-from uuid import UUID
+from typing import Any, Callable, Generic, Optional, TypeVar, Union
 
 from motor.core import AgnosticCollection
 from motor.motor_asyncio import AsyncIOMotorClient
 from pydantic import Field, MongoDsn, PositiveInt, Secret
 from pydantic_settings import BaseSettings
+from pymongo import MongoClient
 from pymongo.errors import DuplicateKeyError, PyMongoError
 
 from hexkit.custom_types import ID
@@ -55,6 +53,7 @@ __all__ = [
     "MongoDbConfig",
     "MongoDbDao",
     "MongoDbDaoFactory",
+    "make_mongo_compatible",
     "translate_pymongo_errors",
 ]
 
@@ -73,6 +72,27 @@ def translate_pymongo_errors():
         raise DaoError(str(exc)) from exc
 
 
+def make_mongo_compatible(value: Any) -> Any:
+    """Convert values with non-standard types to strings.
+
+    The primary type to convert is `Path`, which is not natively supported by
+    MongoDB. This function converts `Path` objects to strings, allowing them to be
+    stored in MongoDB documents without issues.
+
+    The passed object can be a scalar value or a dictionary which can be nested.
+    """
+    if isinstance(value, dict):  # recursively convert all values
+        return {k: make_mongo_compatible(v) for k, v in value.items()}
+    if isinstance(value, list):
+        return [make_mongo_compatible(v) for v in value]
+    if isinstance(value, tuple):
+        return tuple(make_mongo_compatible(v) for v in value)
+    if isinstance(value, Path):
+        return str(value)
+    else:
+        return value
+
+
 def document_to_dto(
     document: dict[str, Any], *, id_field: str, dto_model: type[Dto]
 ) -> Dto:
@@ -87,22 +107,10 @@ def dto_to_document(dto: Dto, *, id_field: str) -> dict[str, Any]:
     """Converts a DTO into a representation that is a compatible document for a
     MongoDB Database.
     """
-    document = json.loads(dto.model_dump_json())
+    document = make_mongo_compatible(dto.model_dump())
     document["_id"] = document.pop(id_field)
 
     return document
-
-
-def value_to_document(value: Any) -> Any:
-    """Converts the value of a DTO field to the value used in the database.
-
-    This should be compatible with the conversion done in 'dto_to_document'.
-    """
-    if isinstance(value, (UUID, Path)):
-        return str(value)
-    if isinstance(value, (date, datetime)):
-        return value.isoformat()
-    return value
 
 
 def validate_find_mapping(mapping: Mapping[str, Any], *, dto_model: type[Dto]):
@@ -172,7 +180,6 @@ class MongoDbDao(Generic[Dto]):
         collection: AgnosticCollection,
         document_to_dto: Callable[[dict[str, Any]], Dto],
         dto_to_document: Callable[[Dto], dict[str, Any]],
-        value_to_document: Callable[[Any], Any],
     ):
         """Initialize the DAO.
 
@@ -190,17 +197,12 @@ class MongoDbDao(Generic[Dto]):
             dto_to_document:
                 A callable that takes a DTO model and returns a representation that is
                 a compatible document for a MongoDB database.
-            value_to_document:
-                A callable that takes a single DTO value and returns the representation
-                of the value that is stored in the MongoDB database.
-                This must be compatible with the conversion done by 'dto_to_document'.
         """
         self._collection = collection
         self._dto_model = dto_model
         self._id_field = id_field
         self._document_to_dto = document_to_dto
         self._dto_to_document = dto_to_document
-        self._value_to_document = value_to_document
 
     async def get_by_id(self, id_: ID) -> Dto:
         """Get a resource by providing its ID.
@@ -214,8 +216,6 @@ class MongoDbDao(Generic[Dto]):
         Raises:
             ResourceNotFoundError: when resource with the specified id_ was not found
         """
-        id_ = self._value_to_document(id_)
-
         with translate_pymongo_errors():
             document = await self._collection.find_one({"_id": id_})
 
@@ -257,7 +257,6 @@ class MongoDbDao(Generic[Dto]):
         Raises:
             ResourceNotFoundError: when resource with the specified id_ was not found
         """
-        id_ = self._value_to_document(id_)
         with translate_pymongo_errors():
             result = await self._collection.delete_one({"_id": id_})
 
@@ -315,31 +314,13 @@ class MongoDbDao(Generic[Dto]):
         """
         validate_find_mapping(mapping, dto_model=self._dto_model)
         mapping = replace_id_field_in_find_mapping(mapping, self._id_field)
+        mapping = make_mongo_compatible(mapping)
 
         with translate_pymongo_errors():
-            cursor = self._collection.find(filter=self._convert_filter_values(mapping))
+            cursor = self._collection.find(filter=mapping)
 
             async for document in cursor:
                 yield self._document_to_dto(document)
-
-    def _convert_filter_values(self, value: Any) -> Any:
-        """Convert filter values with non-standard types.
-
-        This makes the values findable in the database where they are stored
-        in standard JSON format (i.e. UUID, date and datetime object as strings).
-
-        The passed object can be a scalar value or a dictionary which can be nested.
-        """
-        if isinstance(value, dict):  # recursively convert all values
-            convert = self._convert_filter_values
-            return {k: convert(v) for k, v in value.items()}
-        if isinstance(value, list):
-            convert = self._convert_filter_values
-            return [convert(v) for v in value]
-        if isinstance(value, tuple):
-            convert = self._convert_filter_values
-            return tuple(convert(v) for v in value)
-        return self._value_to_document(value)
 
     @classmethod
     def with_transaction(cls) -> AbstractAsyncContextManager["Dao[Dto]"]:
@@ -421,6 +402,37 @@ class MongoDbConfig(BaseSettings):
     )
 
 
+# TODO: swap out AsyncIOMotorClient with AsyncMongoClient in next commit
+ClientType = TypeVar("ClientType", AsyncIOMotorClient, MongoClient)
+
+
+def get_configured_mongo_client(
+    *,
+    config: MongoDbConfig,
+    client_cls: type[ClientType],
+) -> ClientType:
+    """Creates a configured MongoDB client based on the provided configuration,
+    with the timeout, uuid representation, and timezone awareness set.
+
+    Args:
+        config: MongoDB-specific configuration parameters.
+        client_cls: The class of the MongoDB client to instantiate.
+
+    Returns:
+        A MongoDB client instance configured with the provided parameters.
+    """
+    timeout_ms = (
+        int(config.mongo_timeout * 1000) if config.mongo_timeout is not None else None
+    )
+
+    return client_cls(
+        str(config.mongo_dsn.get_secret_value()),
+        timeoutMS=timeout_ms,
+        uuidRepresentation="standard",
+        tz_aware=True,
+    )
+
+
 class MongoDbDaoFactory(DaoFactoryProtocol):
     """A MongoDB-based provider implementing the DaoFactoryProtocol."""
 
@@ -435,18 +447,12 @@ class MongoDbDaoFactory(DaoFactoryProtocol):
             config: MongoDB-specific config parameters.
         """
         self._config = config
-        timeout_ms = (
-            int(config.mongo_timeout * 1000)
-            if config.mongo_timeout is not None
-            else None
-        )
 
         # get a database-specific client:
-        self._client: AsyncIOMotorClient = AsyncIOMotorClient(
-            str(self._config.mongo_dsn.get_secret_value()),
-            timeoutMS=timeout_ms,
+        self._client = get_configured_mongo_client(
+            config=config, client_cls=AsyncIOMotorClient
         )
-        self._db = self._client[self._config.db_name]
+        self._db = self._client.get_database(self._config.db_name)
 
     def __repr__(self) -> str:  # noqa: D105
         return f"{self.__class__.__qualname__}(config={repr(self._config)})"
@@ -484,5 +490,4 @@ class MongoDbDaoFactory(DaoFactoryProtocol):
                 document_to_dto, id_field=id_field, dto_model=dto_model
             ),
             dto_to_document=partial(dto_to_document, id_field=id_field),
-            value_to_document=value_to_document,
         )
