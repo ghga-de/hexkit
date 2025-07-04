@@ -39,7 +39,7 @@ from opentelemetry.propagators import textmap
 from pydantic import ValidationError
 
 from hexkit.base import InboundProviderBase
-from hexkit.correlation import set_correlation_id
+from hexkit.correlation import correlation_id_from_str, set_correlation_id
 from hexkit.custom_types import Ascii, JsonObject
 from hexkit.protocols.daosub import DaoSubscriberProtocol, DtoValidationError
 from hexkit.protocols.eventpub import EventPublisherProtocol
@@ -665,6 +665,7 @@ class KafkaEventSubscriber(InboundProviderBase):
                     "Consuming event of type '%s': %s", event_info.type_, event_id
                 )
                 correlation_id = event_info.headers[HeaderNames.CORRELATION_ID]
+                correlation_id = correlation_id_from_str(correlation_id)
                 async with set_correlation_id(correlation_id):
                     await self._handle_consumption(event=event_info, event_id=event_id)
             except Exception:

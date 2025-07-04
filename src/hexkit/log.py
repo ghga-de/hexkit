@@ -24,9 +24,7 @@ from typing import Any, Literal, Optional
 from pydantic import Field
 from pydantic_settings import BaseSettings
 
-from hexkit.correlation import (
-    correlation_id_var,
-)
+from hexkit.correlation import correlation_id_var
 
 __all__ = [
     "JsonFormatter",

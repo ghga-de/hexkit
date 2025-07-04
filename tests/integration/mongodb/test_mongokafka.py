@@ -81,7 +81,7 @@ EXAMPLE_TOPIC = "example"
 
 
 @pytest.fixture(autouse=True)
-def correlation_id_fixture() -> Generator[str, None, None]:
+def correlation_id_fixture() -> Generator[UUID4, None, None]:
     """Provides a new correlation ID for each test case."""
     # Note: Using an async fixture doesn't work reliably with older Python versions,
     # because the context is not preserved even with pytest-asyncio 0.25.
@@ -109,7 +109,7 @@ class DummyOutboxSubscriber(DaoSubscriberProtocol[ExampleDto]):
         It is a list of tuples, each containing the resource ID and, in case of a
         change event, the dto.
         """
-        self.received: list[tuple[str, str, Optional[ExampleDto]]] = []
+        self.received: list[tuple[str, UUID4, Optional[ExampleDto]]] = []
 
     async def changed(self, resource_id: str, update: ExampleDto) -> None:
         """Consume change event (created or updated) for the given resource."""

@@ -34,10 +34,9 @@ from stream_calc.config import Config
 from stream_calc.main import main
 
 DEFAULT_CONFIG = Config()
-VALID_CORRELATION_ID = "7041eb31-7333-4b57-97d7-90f5562c3383"
 CORRELATION_ID_HEADER = (
     "correlation_id",
-    bytes(VALID_CORRELATION_ID, encoding="ascii"),
+    bytes("7041eb31-7333-4b57-97d7-90f5562c3383", encoding="ascii"),
 )
 
 

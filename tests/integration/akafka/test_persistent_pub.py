@@ -48,8 +48,7 @@ TEST_TOPIC = "my-topic"
 TEST_TYPE = "my_type"
 TEST_PAYLOAD = {"some": "payload"}
 TEST_KEY = "somekey123"
-TEST_CORRELATION_ID = "9ef5956f-be9c-427a-ab4a-42ae1e231c86"
-TEST_UUID = "40a7a7c5-1e2f-4a1f-b053-cf918edd1b40"
+TEST_CORRELATION_ID = UUID("9ef5956f-be9c-427a-ab4a-42ae1e231c86")
 
 
 async def test_basic_publish(kafka: KafkaFixture, mongodb: MongoDbFixture):
