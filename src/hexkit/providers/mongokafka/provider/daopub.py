@@ -25,8 +25,8 @@ from functools import partial
 from typing import Any, Callable, Generic, Optional
 
 from aiokafka import AIOKafkaProducer
-from pymongo import AsyncMongoClient
-from pymongo.asynchronous.collection import AsyncCollection
+from motor.core import AgnosticCollection
+from motor.motor_asyncio import AsyncIOMotorClient
 
 from hexkit.correlation import get_correlation_id, set_correlation_id
 from hexkit.custom_types import ID, JsonObject
@@ -102,7 +102,7 @@ def get_change_publish_func(
     event_topic: str,
     dto_to_event: Callable[[Dto], Optional[JsonObject]],
     event_publisher: EventPublisherProtocol,
-    collection: AsyncCollection,
+    collection: AgnosticCollection,
 ) -> Callable[[Dto], Awaitable[None]]:
     """Generate a function that publishes change events for a specific type of resource."""
 
@@ -130,7 +130,7 @@ def get_change_publish_func(
 def get_delete_publish_func(
     event_topic: str,
     event_publisher: EventPublisherProtocol,
-    collection: AsyncCollection,
+    collection: AgnosticCollection,
 ) -> Callable[[Any], Awaitable[None]]:
     """Generate a function that publishes deletion events for a specific type of
     resource.
@@ -190,7 +190,7 @@ class MongoKafkaDaoPublisher(Generic[Dto]):
         *,
         id_field: str,
         dto_model: type[Dto],
-        collection: AsyncCollection,
+        collection: AgnosticCollection,
         dao: MongoDbDao[Dto],
         publish_change: Callable[[Dto], Awaitable[None]],
         publish_delete: Callable[[Any], Awaitable[None]],
@@ -205,7 +205,7 @@ class MongoKafkaDaoPublisher(Generic[Dto]):
             dto_model:
                 A DTO (Data Transfer Object) model describing the shape of resources.
             collection:
-                A collection object from the async pymongo library.
+                A collection object from the motor library.
             dao:
                 The actual DAO implementation that provides the database-specific
                 functionality.
@@ -462,7 +462,7 @@ class MongoKafkaDaoPublisherFactory(DaoPublisherFactoryProtocol):
 
         # get a database-specific client:
         self._client = get_configured_mongo_client(
-            config=config, client_cls=AsyncMongoClient
+            config=config, client_cls=AsyncIOMotorClient
         )
 
         self._db = self._client.get_database(self._config.db_name)

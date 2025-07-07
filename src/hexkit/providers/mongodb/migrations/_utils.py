@@ -20,8 +20,8 @@ from collections.abc import Awaitable, Callable
 from contextlib import asynccontextmanager
 from typing import Any, Optional, Union
 
+from motor.motor_asyncio import AsyncIOMotorDatabase
 from pydantic import BaseModel
-from pymongo.asynchronous.database import AsyncDatabase
 
 from hexkit.providers.mongodb.provider import document_to_dto, dto_to_document
 
@@ -59,7 +59,7 @@ class MigrationDefinition:
     def __init__(
         self,
         *,
-        db: AsyncDatabase,
+        db: AsyncIOMotorDatabase,
         unapplying: bool,
         is_final_migration: bool,
     ):
