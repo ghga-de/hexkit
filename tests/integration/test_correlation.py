@@ -47,6 +47,7 @@ from hexkit.providers.akafka.testutils import (
     kafka_fixture,  # noqa: F401
 )
 from hexkit.utils import set_context_var
+from tests.fixtures.utils import TEST_FILE_DIR
 
 pytestmark = pytest.mark.asyncio()
 
@@ -54,6 +55,7 @@ pytestmark = pytest.mark.asyncio()
 random.seed(17)
 
 VALID_CORRELATION_ID = UUID("7041eb31-7333-4b57-97d7-90f5562c3383")
+SAMPLE_UUID_PATH = TEST_FILE_DIR / "sample_uuids.txt"
 
 
 async def set_id_sleep_resume(correlation_id: UUID4):
@@ -84,7 +86,7 @@ async def test_correlation_id_isolation():
     """Make sure correlation IDs are isolated to the respective async task and that
     there's no interference from task switching.
     """
-    with open("tests/fixtures/test_files/sample_uuids.txt") as f:
+    with open(SAMPLE_UUID_PATH) as f:
         uuids = [UUID(line.strip()) for line in f.readlines()]
     tasks = [set_id_sleep_resume(uuid) for uuid in uuids]
     await asyncio.gather(*tasks)
