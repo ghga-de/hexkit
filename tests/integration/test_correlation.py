@@ -21,7 +21,7 @@ import random
 from collections import namedtuple
 from contextlib import nullcontext
 from contextvars import ContextVar
-from typing import Any, Optional
+from typing import Any, Optional, Union
 from unittest.mock import AsyncMock, Mock
 from uuid import UUID
 
@@ -205,7 +205,7 @@ async def test_context_var_setter():
     ],
 )
 async def test_correlation_consuming(
-    expected_correlation_id: str | UUID4,
+    expected_correlation_id: Union[str, UUID4],
     cid_in_header: bool,
     exception,
 ):
