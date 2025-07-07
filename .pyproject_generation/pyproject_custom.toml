@@ -26,7 +26,7 @@ dependencies = [
 [project.optional-dependencies]
 akafka = ["aiokafka[zstd,lz4,snappy]~=0.12.0", "jsonschema >=4.23, <5"]
 s3 = ["boto3 >=1.37, <2", "botocore >=1.37, <2"]
-mongodb = ["motor >=3.7, <4"]
+mongodb = ["pymongo >= 4, <5"]
 opentelemetry-base = [
     "opentelemetry-sdk >=1.31.1, <2",
     "opentelemetry-exporter-otlp >=1.31.1, <2",

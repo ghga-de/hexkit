@@ -27,11 +27,10 @@ from functools import partial
 from pathlib import Path
 from typing import Any, Callable, Generic, Optional, TypeVar, Union
 
-from motor.core import AgnosticCollection
-from motor.motor_asyncio import AsyncIOMotorClient
 from pydantic import Field, MongoDsn, PositiveInt, Secret
 from pydantic_settings import BaseSettings
-from pymongo import MongoClient
+from pymongo import AsyncMongoClient, MongoClient
+from pymongo.asynchronous.collection import AsyncCollection
 from pymongo.errors import DuplicateKeyError, PyMongoError
 
 from hexkit.custom_types import ID
@@ -177,7 +176,7 @@ class MongoDbDao(Generic[Dto]):
         *,
         dto_model: type[Dto],
         id_field: str,
-        collection: AgnosticCollection,
+        collection: AsyncCollection,
         document_to_dto: Callable[[dict[str, Any]], Dto],
         dto_to_document: Callable[[Dto], dict[str, Any]],
     ):
@@ -190,7 +189,7 @@ class MongoDbDao(Generic[Dto]):
                 The name of the field of the `dto_model` that serves as resource ID.
                 (DAO implementation might use this field as primary key.)
             collection:
-                A collection object from the motor library.
+                A collection object from the async pymongo library.
             document_to_dto:
                 A callable that takes a document obtained from the MongoDB database
                 and returns a DTO model-compliant representation.
@@ -402,8 +401,7 @@ class MongoDbConfig(BaseSettings):
     )
 
 
-# TODO: swap out AsyncIOMotorClient with AsyncMongoClient in next commit
-ClientType = TypeVar("ClientType", AsyncIOMotorClient, MongoClient)
+ClientType = TypeVar("ClientType", AsyncMongoClient, MongoClient)
 
 
 def get_configured_mongo_client(
@@ -450,7 +448,7 @@ class MongoDbDaoFactory(DaoFactoryProtocol):
 
         # get a database-specific client:
         self._client = get_configured_mongo_client(
-            config=config, client_cls=AsyncIOMotorClient
+            config=config, client_cls=AsyncMongoClient
         )
         self._db = self._client.get_database(self._config.db_name)
 

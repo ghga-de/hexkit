@@ -101,7 +101,7 @@ async def test_basic_publish(kafka: KafkaFixture, mongodb: MongoDbFixture):
     assert recorder.recorded_events
     assert len(recorder.recorded_events) == 1
     event = recorder.recorded_events[0]
-    assert event.headers == {"correlation_id": TEST_CORRELATION_ID}
+    assert event.headers == {"correlation_id": str(TEST_CORRELATION_ID)}
     assert event.key == TEST_KEY
     assert event.type_ == TEST_TYPE
     assert event.payload == TEST_PAYLOAD

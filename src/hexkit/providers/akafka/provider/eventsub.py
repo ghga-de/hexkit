@@ -665,8 +665,7 @@ class KafkaEventSubscriber(InboundProviderBase):
                     "Consuming event of type '%s': %s", event_info.type_, event_id
                 )
                 correlation_id = event_info.headers[HeaderNames.CORRELATION_ID]
-                correlation_id = correlation_id_from_str(correlation_id)
-                async with set_correlation_id(correlation_id):
+                async with set_correlation_id(correlation_id_from_str(correlation_id)):
                     await self._handle_consumption(event=event_info, event_id=event_id)
             except Exception:
                 # Errors only bubble up here if the DLQ isn't used
