@@ -34,7 +34,6 @@ from hexkit.providers.s3.testutils import (
     upload_part,
     upload_part_of_size,
 )
-from tests.fixtures.utils import assert_logged
 
 EXAMPLE_BUCKETS = [
     "example-bucket-1",
@@ -589,9 +588,9 @@ async def test_handling_multiple_subsequent_uploads(abort_first: bool, s3: S3Fix
     )
 
 
-async def test_concurrent_copy_requests(s3: S3Fixture, caplog):
-    """Ensure subsequent copy requests for a given file don't initiate new S3 copy
-    operations if one is already underway.
+async def test_concurrent_copy_requests(s3: S3Fixture):
+    """Ensure subsequent copy requests for a given file initiate new S3 copy
+    operations even if one is already underway.
     """
     source_bucket_id = "source-bucket"
     source_object_id = "source-object"
@@ -607,10 +606,6 @@ async def test_concurrent_copy_requests(s3: S3Fixture, caplog):
         mock = Mock()
         s3.storage._client.copy = mock
 
-        # Clear caplog buffer and enable capturing INFO-level logs
-        caplog.clear()
-        caplog.set_level("INFO")
-
         # Attempt to copy the object temp file to the destination bucket/object
         await s3.storage.copy_object(
             source_bucket_id=source_bucket_id,
@@ -619,12 +614,5 @@ async def test_concurrent_copy_requests(s3: S3Fixture, caplog):
             dest_object_id=dest_object_id,
         )
 
-        # Check that the client copy method was not called and that a message was logged
-        mock.assert_not_called()
-        assert_logged(
-            "INFO",
-            f"Upload or copy operation already exists for object id '{dest_object_id}'"
-            + f" in bucket '{dest_bucket_id}'.",
-            caplog.records,
-            parse=True,
-        )
+        # Check that the client copy method was called
+        mock.assert_called()
