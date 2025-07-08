@@ -18,7 +18,7 @@
 Apache Kafka-specific subscriber provider corresponding to the
 `EventSubscriberProtocol`.
 
-Require dependencies of the `akafka` extra. See the `setup.cfg`.
+Require dependencies of the `akafka` extra. See the `pyproject.toml`.
 """
 
 import asyncio
@@ -39,7 +39,7 @@ from opentelemetry.propagators import textmap
 from pydantic import ValidationError
 
 from hexkit.base import InboundProviderBase
-from hexkit.correlation import set_correlation_id
+from hexkit.correlation import correlation_id_from_str, set_correlation_id
 from hexkit.custom_types import Ascii, JsonObject
 from hexkit.protocols.daosub import DaoSubscriberProtocol, DtoValidationError
 from hexkit.protocols.eventpub import EventPublisherProtocol
@@ -49,6 +49,7 @@ from hexkit.providers.akafka.provider.utils import (
     generate_client_id,
     generate_ssl_context,
 )
+from hexkit.utils import now_utc_ms_prec
 
 CHANGE_EVENT_TYPE = "upserted"
 DELETE_EVENT_TYPE = "deleted"
@@ -200,14 +201,9 @@ class ConsumerEvent(Protocol):
     timestamp: int
 
 
-def utc_datetime_from_millis(millis: int) -> datetime:
+def utc_datetime_from_ms(millis: int) -> datetime:
     """Convert an integer representing milliseconds to a timestamp"""
     return datetime.fromtimestamp(millis / 1000, tz=timezone.utc)
-
-
-def now_as_utc() -> datetime:
-    """Return the current timestamp with UTC timezone"""
-    return datetime.now().astimezone(tz=timezone.utc)
 
 
 @dataclass
@@ -252,7 +248,9 @@ class DLQEventInfo(ExtractedEventInfo):
 
     def __init__(self, event: Optional[ConsumerEvent] = None, **kwargs):
         """Initialize an instance of ExtractedEventInfo."""
-        timestamp = utc_datetime_from_millis(event.timestamp) if event else now_as_utc()
+        timestamp = (
+            utc_datetime_from_ms(event.timestamp) if event else now_utc_ms_prec()
+        )
         self.timestamp = kwargs.pop("timestamp", timestamp)
         super().__init__(event=event, **kwargs)
 
@@ -665,7 +663,7 @@ class KafkaEventSubscriber(InboundProviderBase):
                     "Consuming event of type '%s': %s", event_info.type_, event_id
                 )
                 correlation_id = event_info.headers[HeaderNames.CORRELATION_ID]
-                async with set_correlation_id(correlation_id):
+                async with set_correlation_id(correlation_id_from_str(correlation_id)):
                     await self._handle_consumption(event=event_info, event_id=event_id)
             except Exception:
                 # Errors only bubble up here if the DLQ isn't used

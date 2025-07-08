@@ -27,6 +27,7 @@ from pydantic import Field
 from pymongo.errors import DuplicateKeyError
 
 from hexkit.providers.mongodb import MongoDbConfig
+from hexkit.providers.mongodb.provider import get_configured_mongo_client
 
 from ._utils import MigrationDefinition, Reversible
 
@@ -175,9 +176,8 @@ class MigrationManager:
 
     async def __aenter__(self):
         """Set up database client and database reference"""
-        self.client = AsyncIOMotorClient(
-            str(self.config.mongo_dsn.get_secret_value()),
-            tz_aware=True,
+        self.client = get_configured_mongo_client(
+            config=self.config, client_cls=AsyncIOMotorClient
         )
         self.db = self.client[self.config.db_name]
         self._entered = True

@@ -35,7 +35,6 @@ from hexkit.correlation import (
     CorrelationIdContextError,
     get_correlation_id,
     new_correlation_id,
-    validate_correlation_id,
 )
 from hexkit.custom_types import Ascii, JsonObject, KafkaCompressionType
 from hexkit.protocols.eventpub import EventPublisherProtocol
@@ -198,8 +197,6 @@ class KafkaEventPublisher(EventPublisherProtocol):
             correlation_id = new_correlation_id()
             logging.info("Generated new correlation ID: %s", correlation_id)
 
-        validate_correlation_id(correlation_id)
-
         # Create a shallow copy of the headers
         headers_copy = dict(headers)
 
@@ -212,7 +209,7 @@ class KafkaEventPublisher(EventPublisherProtocol):
                 logging.warning(log_msg, extra={header: headers_copy[header]})
 
         headers_copy["type"] = type_
-        headers_copy["correlation_id"] = correlation_id
+        headers_copy["correlation_id"] = str(correlation_id)
         encoded_headers_list = [(k, v.encode("ascii")) for k, v in headers_copy.items()]
 
         await self._producer.send_and_wait(

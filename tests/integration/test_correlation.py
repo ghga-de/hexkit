@@ -21,14 +21,17 @@ import random
 from collections import namedtuple
 from contextlib import nullcontext
 from contextvars import ContextVar
-from typing import Optional
+from typing import Any, Optional, Union
 from unittest.mock import AsyncMock, Mock
+from uuid import UUID
 
 import pytest
+from pydantic import UUID4
 
 from hexkit.correlation import (
     CorrelationIdContextError,
     InvalidCorrelationIdError,
+    correlation_id_from_str,
     correlation_id_var,
     get_correlation_id,
     set_correlation_id,
@@ -44,16 +47,18 @@ from hexkit.providers.akafka.testutils import (
     kafka_fixture,  # noqa: F401
 )
 from hexkit.utils import set_context_var
+from tests.fixtures.utils import TEST_FILE_DIR
 
 pytestmark = pytest.mark.asyncio()
 
 # Set seed to avoid non-deterministic outcomes with random.random()
 random.seed(17)
 
-VALID_CORRELATION_ID = "7041eb31-7333-4b57-97d7-90f5562c3383"
+VALID_CORRELATION_ID = UUID("7041eb31-7333-4b57-97d7-90f5562c3383")
+SAMPLE_UUID_PATH = TEST_FILE_DIR / "sample_uuids.txt"
 
 
-async def set_id_sleep_resume(correlation_id: str):
+async def set_id_sleep_resume(correlation_id: UUID4):
     """An async task to set the correlation ID ContextVar and yield control temporarily
     back to the event loop before resuming.
     Test with a sleep time of 0-2s and a random combination of context
@@ -67,7 +72,8 @@ async def set_id_sleep_resume(correlation_id: str):
             assert correlation_id_var.get() == correlation_id, "Correlation ID changed"
 
         # make sure value is reset after exiting context manager
-        assert correlation_id_var.get() == ""
+        with pytest.raises(LookupError):
+            correlation_id_var.get()
     else:
         token = correlation_id_var.set(correlation_id)  # Set correlation ID for task
         await asyncio.sleep(random.random() * 2)  # Yield control to the event loop
@@ -80,24 +86,39 @@ async def test_correlation_id_isolation():
     """Make sure correlation IDs are isolated to the respective async task and that
     there's no interference from task switching.
     """
-    tasks = [set_id_sleep_resume(f"test_{n}") for n in range(100)]
+    with open(SAMPLE_UUID_PATH) as f:
+        uuids = [UUID(line.strip()) for line in f.readlines()]
+    tasks = [set_id_sleep_resume(uuid) for uuid in uuids]
     await asyncio.gather(*tasks)
 
 
 @pytest.mark.parametrize(
     "correlation_id,exception",
     [
+        (([1, 2, 3]), InvalidCorrelationIdError),
+        (123456, InvalidCorrelationIdError),
         ("BAD_ID", InvalidCorrelationIdError),
         ("", InvalidCorrelationIdError),
-        (VALID_CORRELATION_ID, None),
+        (str(VALID_CORRELATION_ID), InvalidCorrelationIdError),
     ],
 )
 async def test_correlation_id_validation(
-    correlation_id: str, exception: Optional[type[Exception]]
+    correlation_id: Any, exception: Optional[type[Exception]]
 ):
     """Ensure an error is raised when correlation ID validation fails."""
     with pytest.raises(exception) if exception else nullcontext():
-        validate_correlation_id(correlation_id)
+        converted_cid = validate_correlation_id(correlation_id)
+        assert isinstance(converted_cid, UUID) if not exception else True
+
+
+async def test_correlation_id_from_str():
+    """Ensure that a string can be converted to a UUID4."""
+    converted_cid = correlation_id_from_str(str(VALID_CORRELATION_ID))
+    assert isinstance(converted_cid, UUID)
+    assert converted_cid == VALID_CORRELATION_ID
+
+    with pytest.raises(InvalidCorrelationIdError):
+        correlation_id_from_str("invalid_uuid_string")
 
 
 @pytest.mark.parametrize(
@@ -109,7 +130,7 @@ async def test_correlation_id_validation(
     ],
 )
 async def test_set_correlation_id(
-    correlation_id: str, exception: Optional[type[Exception]]
+    correlation_id: Any, exception: Optional[type[Exception]]
 ):
     """Ensure correct error is raised when passing an invalid or empty string to
     `set_correlation_id`.
@@ -120,28 +141,35 @@ async def test_set_correlation_id(
 
 
 async def test_set_new_correlation_id():
-    """Ensure a new correlation id can be set temporarily."""
+    """Ensure a new random correlation id can be set temporarily."""
     async with set_new_correlation_id() as correlation_id:
         assert get_correlation_id() == correlation_id
+    # assert that the context var is reset after exiting the context manager
+    with pytest.raises(CorrelationIdContextError):
+        get_correlation_id()
 
 
-@pytest.mark.parametrize(
-    "correlation_id,exception",
-    [
-        ("12345", InvalidCorrelationIdError),
-        ("", CorrelationIdContextError),
-        (VALID_CORRELATION_ID, None),
-    ],
-)
-async def test_get_correlation_id(
-    correlation_id: str, exception: Optional[type[Exception]]
-):
-    """Ensure an error is raised when calling `get_correlation_id` for an empty id or
-    invalid ID.
+async def test_get_correlation_id_nominal():
+    """Ensure that `get_correlation_id` returns the correct value."""
+    async with set_context_var(correlation_id_var, VALID_CORRELATION_ID):
+        get_correlation_id()
+
+
+async def test_get_correlation_id_unset():
+    """Ensure an error is raised when calling `get_correlation_id` without a set ID."""
+    with pytest.raises(CorrelationIdContextError):
+        get_correlation_id()
+
+
+async def test_get_correlation_id_invalid_value():
+    """Ensure an error is raised calling `get_correlation_id` when the context var
+    is set to an invalid value (not a valid UUID or empty string). How this value gets
+    there is not important for this test, it just needs to be invalid.
     """
-    async with set_context_var(correlation_id_var, correlation_id):
-        with pytest.raises(exception) if exception else nullcontext():
-            get_correlation_id()
+    # Set the context var to an invalid value
+    correlation_id_var.set("invalid_value")  # type: ignore
+    with pytest.raises(InvalidCorrelationIdError):
+        get_correlation_id()
 
 
 async def test_context_var_setter():
@@ -179,7 +207,7 @@ async def test_context_var_setter():
     ],
 )
 async def test_correlation_consuming(
-    expected_correlation_id: str,
+    expected_correlation_id: Union[str, UUID4],
     cid_in_header: bool,
     exception,
 ):
@@ -197,7 +225,7 @@ async def test_correlation_consuming(
     # include the correlation ID header if the test case calls for it
     if cid_in_header:
         headers.append(
-            ("correlation_id", bytes(expected_correlation_id, encoding="ascii"))
+            ("correlation_id", bytes(str(expected_correlation_id), encoding="ascii"))
         )
 
     # establish a mock event object:
@@ -270,8 +298,8 @@ async def test_correlation_consuming(
         (VALID_CORRELATION_ID, True, None),
         ("invalid", False, InvalidCorrelationIdError),
         ("invalid", True, InvalidCorrelationIdError),
-        ("", False, CorrelationIdContextError),
-        ("", True, None),
+        ("", False, InvalidCorrelationIdError),
+        ("", True, InvalidCorrelationIdError),
     ],
     ids=[
         "valid_id_without_generate_flag",

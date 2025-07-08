@@ -20,6 +20,7 @@ from collections import namedtuple
 from contextlib import nullcontext
 from typing import Optional
 from unittest.mock import AsyncMock, Mock
+from uuid import UUID
 
 import pytest
 
@@ -33,10 +34,10 @@ from hexkit.providers.akafka import (
 
 pytestmark = pytest.mark.asyncio()
 
-VALID_CORRELATION_ID = "7041eb31-7333-4b57-97d7-90f5562c3383"
+VALID_CORRELATION_ID = UUID("7041eb31-7333-4b57-97d7-90f5562c3383")
 CORRELATION_ID_HEADER = (
     "correlation_id",
-    bytes(VALID_CORRELATION_ID, encoding="ascii"),
+    bytes(str(VALID_CORRELATION_ID), encoding="ascii"),
 )
 
 

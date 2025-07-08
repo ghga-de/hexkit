@@ -23,6 +23,7 @@ from uuid import UUID
 import pytest
 
 from hexkit.providers.mongodb.provider import MongoDbDaoFactory
+from hexkit.utils import now_utc_ms_prec
 
 pytestmark = pytest.mark.asyncio()
 from hexkit.correlation import set_correlation_id
@@ -47,8 +48,7 @@ TEST_TOPIC = "my-topic"
 TEST_TYPE = "my_type"
 TEST_PAYLOAD = {"some": "payload"}
 TEST_KEY = "somekey123"
-TEST_CORRELATION_ID = "9ef5956f-be9c-427a-ab4a-42ae1e231c86"
-TEST_UUID = "40a7a7c5-1e2f-4a1f-b053-cf918edd1b40"
+TEST_CORRELATION_ID = UUID("9ef5956f-be9c-427a-ab4a-42ae1e231c86")
 
 
 async def test_basic_publish(kafka: KafkaFixture, mongodb: MongoDbFixture):
@@ -101,7 +101,7 @@ async def test_basic_publish(kafka: KafkaFixture, mongodb: MongoDbFixture):
     assert recorder.recorded_events
     assert len(recorder.recorded_events) == 1
     event = recorder.recorded_events[0]
-    assert event.headers == {"correlation_id": TEST_CORRELATION_ID}
+    assert event.headers == {"correlation_id": str(TEST_CORRELATION_ID)}
     assert event.key == TEST_KEY
     assert event.type_ == TEST_TYPE
     assert event.payload == TEST_PAYLOAD
@@ -210,14 +210,14 @@ async def test_publish_pending(kafka: KafkaFixture, mongodb: MongoDbFixture):
 
         # Insert an event manually in the database, marked as unpublished
         event = {
-            "_id": TEST_UUID,
+            "_id": "40a7a7c5-1e2f-4a1f-b053-cf918edd1b40",
             "topic": TEST_TOPIC,
             "type_": TEST_TYPE,
             "key": TEST_KEY,
             "payload": {"new": "payload"},
             "headers": {},
             "correlation_id": TEST_CORRELATION_ID,
-            "created": datetime.now(tz=timezone.utc).isoformat(),
+            "created": now_utc_ms_prec(),
             "published": False,
         }
         collection = mongodb.client[config.db_name][collection_name]

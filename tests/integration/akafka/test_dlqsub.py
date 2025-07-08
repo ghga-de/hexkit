@@ -20,6 +20,7 @@ from dataclasses import replace
 from datetime import datetime
 from typing import Optional
 from unittest.mock import Mock
+from uuid import UUID
 
 import pytest
 from pydantic import BaseModel
@@ -60,7 +61,7 @@ TEST_EVENT = ExtractedEventInfo(
     key="key",
 )
 
-TEST_CORRELATION_ID = "81e9b4f6-ed56-4779-94e2-421d7f286837"
+TEST_CORRELATION_ID = UUID("81e9b4f6-ed56-4779-94e2-421d7f286837")
 TEST_DLQ_EVENT = ExtractedEventInfo(
     payload=TEST_EVENT.payload,
     type_=TEST_TYPE,

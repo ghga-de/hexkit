@@ -20,6 +20,7 @@ import json
 from collections.abc import Sequence
 from contextlib import nullcontext, suppress
 from typing import Optional
+from uuid import UUID
 
 import pytest
 from aiokafka import AIOKafkaConsumer
@@ -45,8 +46,8 @@ from hexkit.providers.akafka.testutils import (
 pytestmark = pytest.mark.asyncio()
 
 
-DEFAULT_CORRELATION_ID = "513ed283-478e-428e-8c2f-ff6da36a9527"
-OTHER_CORRELATION_ID = "d4fd8051-293b-4cce-9970-6b78ca149bc0"
+DEFAULT_CORRELATION_ID = UUID("513ed283-478e-428e-8c2f-ff6da36a9527")
+OTHER_CORRELATION_ID = UUID("d4fd8051-293b-4cce-9970-6b78ca149bc0")
 
 TEST_TYPE = "test_type"
 TEST_TOPIC1 = "topic1"
@@ -241,13 +242,13 @@ async def test_clear_all_topics(kafka: KafkaFixture):
                     payload={"test_content": "Hello"},
                     type_="test_hello",
                     key="test_key",
-                    headers={"correlation_id": DEFAULT_CORRELATION_ID},
+                    headers={"correlation_id": str(DEFAULT_CORRELATION_ID)},
                 ),
                 RecordedEvent(
                     payload={"test_content": "World"},
                     type_="test_world",
                     key="test_key",
-                    headers={"correlation_id": DEFAULT_CORRELATION_ID},
+                    headers={"correlation_id": str(DEFAULT_CORRELATION_ID)},
                 ),
             ],
             True,
@@ -483,7 +484,7 @@ async def test_expect_events_mismatch(
 @pytest.mark.parametrize("capture_headers", [True, False])
 async def test_capture_headers(
     expected_headers: Optional[dict[str, str]],
-    recorded_correlation_id: str,
+    recorded_correlation_id: UUID,
     capture_headers: bool,
     kafka: KafkaFixture,
 ):
@@ -531,7 +532,7 @@ async def test_capture_headers(
     # and 2. capture headers flag isn't set or expected/recorded headers don't match
     expected_error = expected_headers and (
         not capture_headers
-        or expected_headers.get("correlation_id", "") != recorded_correlation_id
+        or expected_headers.get("correlation_id", "") != str(recorded_correlation_id)
     )
     with pytest.raises(ValidationError) if expected_error else nullcontext():
         await event_recorder.__aexit__(None, None, None)

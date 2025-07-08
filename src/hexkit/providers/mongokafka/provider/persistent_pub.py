@@ -26,7 +26,7 @@ from typing import Optional
 from uuid import uuid4
 
 from aiokafka import AIOKafkaProducer
-from pydantic import BaseModel, Field
+from pydantic import UUID4, BaseModel, Field
 
 from hexkit.correlation import (
     CorrelationIdContextError,
@@ -35,7 +35,7 @@ from hexkit.correlation import (
     set_correlation_id,
 )
 from hexkit.custom_types import Ascii, JsonObject
-from hexkit.protocols.dao import Dao
+from hexkit.protocols.dao import Dao, UUID4Field
 from hexkit.protocols.eventpub import EventPublisherProtocol
 from hexkit.providers.akafka.provider.eventpub import (
     KafkaEventPublisher,
@@ -67,7 +67,7 @@ class PersistentKafkaEvent(BaseModel):
         + " transmitted as event headers, but added as such within the publisher"
         + " protocol. The headers here are any additional header that need to be sent.",
     )
-    correlation_id: str = Field(..., description="The event correlation ID")
+    correlation_id: UUID4 = UUID4Field(description="The event correlation ID")
     created: datetime = Field(
         ..., description="The timestamp of when the event record was first inserted"
     )
