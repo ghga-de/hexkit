@@ -23,7 +23,7 @@ from uuid import UUID
 import pytest
 
 from hexkit.providers.mongodb.provider import MongoDbDaoFactory
-from hexkit.utils import now_utc_without_micros
+from hexkit.utils import now_utc_ms_prec
 
 pytestmark = pytest.mark.asyncio()
 from hexkit.correlation import set_correlation_id
@@ -217,7 +217,7 @@ async def test_publish_pending(kafka: KafkaFixture, mongodb: MongoDbFixture):
             "payload": {"new": "payload"},
             "headers": {},
             "correlation_id": TEST_CORRELATION_ID,
-            "created": now_utc_without_micros(),
+            "created": now_utc_ms_prec(),
             "published": False,
         }
         collection = mongodb.client[config.db_name][collection_name]

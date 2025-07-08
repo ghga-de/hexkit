@@ -49,7 +49,7 @@ from hexkit.providers.akafka.provider.utils import (
     generate_client_id,
     generate_ssl_context,
 )
-from hexkit.utils import now_utc_without_micros
+from hexkit.utils import now_utc_ms_prec
 
 CHANGE_EVENT_TYPE = "upserted"
 DELETE_EVENT_TYPE = "deleted"
@@ -201,7 +201,7 @@ class ConsumerEvent(Protocol):
     timestamp: int
 
 
-def utc_datetime_from_millis(millis: int) -> datetime:
+def utc_datetime_from_ms(millis: int) -> datetime:
     """Convert an integer representing milliseconds to a timestamp"""
     return datetime.fromtimestamp(millis / 1000, tz=timezone.utc)
 
@@ -249,9 +249,7 @@ class DLQEventInfo(ExtractedEventInfo):
     def __init__(self, event: Optional[ConsumerEvent] = None, **kwargs):
         """Initialize an instance of ExtractedEventInfo."""
         timestamp = (
-            utc_datetime_from_millis(event.timestamp)
-            if event
-            else now_utc_without_micros()
+            utc_datetime_from_ms(event.timestamp) if event else now_utc_ms_prec()
         )
         self.timestamp = kwargs.pop("timestamp", timestamp)
         super().__init__(event=event, **kwargs)

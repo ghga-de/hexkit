@@ -38,7 +38,7 @@ from hexkit.providers.mongodb.testutils import (
     mongodb_container_fixture,  # noqa: F401
     mongodb_fixture,  # noqa: F401
 )
-from hexkit.utils import now_utc_without_micros
+from hexkit.utils import now_utc_ms_prec
 
 pytestmark = pytest.mark.asyncio()
 
@@ -55,7 +55,7 @@ class ExampleDto(BaseModel):
     field_a: str = Field(default="test")
     field_b: int = Field(default=42)
     field_c: bool = Field(default=True)
-    field_d: datetime = Field(default_factory=now_utc_without_micros)
+    field_d: datetime = Field(default_factory=now_utc_ms_prec)
     field_e: Path = Field(default_factory=Path.cwd)
 
 

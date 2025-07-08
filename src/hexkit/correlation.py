@@ -54,7 +54,7 @@ class InvalidCorrelationIdError(RuntimeError):
     """Raised when a correlation ID fails validation."""
 
     def __init__(self, *, correlation_id: Any):
-        message = f"Invalid correlation ID: '{correlation_id}'"
+        message = f"Invalid correlation ID: {correlation_id!r}"
         super().__init__(message)
 
 

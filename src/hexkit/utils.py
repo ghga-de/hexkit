@@ -127,7 +127,7 @@ async def set_context_var(context_var: ContextVar, value: Any):
     context_var.reset(token)
 
 
-def now_utc_without_micros() -> datetime:
+def now_utc_ms_prec() -> datetime:
     """Return the current UTC time without microseconds.
 
     This is useful for producing a datetime that is consistent
