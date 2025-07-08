@@ -18,6 +18,7 @@ import logging
 import os
 from typing import Annotated, Callable, Literal, Optional
 
+from importlib_metadata import EntryPoint
 from opentelemetry import trace
 from opentelemetry.environment_variables import (
     OTEL_LOGS_EXPORTER,
@@ -107,6 +108,21 @@ class HexkitDistro(BaseDistro):
     def _configure(self, **kwargs):
         """Custom DefaultDistro iplementation to provide autoinstrumentation entry points."""
 
+    def load_instrumentor(  # pylint: disable=no-self-use
+        self, entry_point: EntryPoint, **kwargs
+    ):
+        """Takes an instrumentation entry point and activates it by instantiating
+        and calling instrument() on it.
+        This is called for each opentelemetry_instrumentor entry point by auto
+        instrumentation.
+
+        Distros can override this method to customize the behavior by
+        inspecting each entry point and configuring them in special ways,
+        passing additional arguments, load a replacement/fork instead,
+        skip loading entirely, etc.
+        """
+        super().load_instrumentor(entry_point, **kwargs)
+
 
 def configure_opentelemetry(*, service_name: str, config: OpenTelemetryConfig):
     """Configure all needed parts of OpenTelemetry.
@@ -117,13 +133,25 @@ def configure_opentelemetry(*, service_name: str, config: OpenTelemetryConfig):
     global TRACER
     # opentelemetry distro sets this to grpc, but in the current context http/protobuf is preferred
     os.environ[OTEL_EXPORTER_OTLP_PROTOCOL] = config.otel_exporter_protocol
+    logger.debug(
+        "Setting OTEL_EXPORTER_OTLP_PROTOCOL to %s", config.otel_exporter_protocol
+    )
     os.environ[OTEL_EXPORTER_OTLP_ENDPOINT] = str(config.otel_exporter_endpoint)
+    logger.debug(
+        "Setting OTEL_EXPORTER_OTLP_ENDPOINT to %s", config.otel_exporter_endpoint
+    )
     # Disable OpenTelemetry metrics and logs explicitly as they are not processed in the backend currently
     # This overwrites the defaults of `otlp` set in opentelemetry distro
     os.environ[OTEL_METRICS_EXPORTER] = "none"
+    logger.debug("Setting OTEL_METRICS_EXPORTER to none")
     os.environ[OTEL_LOGS_EXPORTER] = "none"
+    logger.debug("Setting OTEL_LOGS_EXPORTER to none")
 
     if config.enable_opentelemetry:
+        logger.info(
+            "OpenTelemetry is enabled, setting up TracerProvider and SpanTracer for service %s",
+            service_name,
+        )
         if TRACER is not None:
             logger.warning(
                 "OpenTelemetry configuration code should only be run once. "
@@ -150,8 +178,13 @@ def configure_opentelemetry(*, service_name: str, config: OpenTelemetryConfig):
         # Currently OTEL_SDK_DISABLED doesn't seem to be honored by all implementations yet
         # It seems to be working well enough for the Python implementation, but to be on
         # the safe side, let's explicitly disable the trace exporter for now
+        logger.info(
+            "OpenTelemetry is disabled, setting environment variables to disable tracing."
+        )
         os.environ[OTEL_TRACES_EXPORTER] = "none"
+        logger.debug("Setting OTEL_TRACES_EXPORTER to none")
         os.environ[OTEL_SDK_DISABLED] = "true"
+        logger.debug("Setting OTEL_SDK_DISABLED to true")
 
 
 def start_span(
