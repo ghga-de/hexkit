@@ -40,7 +40,6 @@ from hexkit.providers.mongodb.provider import (
     MongoDbDao,
     get_configured_mongo_client,
     get_single_hit,
-    make_mongo_compatible,
     replace_id_field_in_find_mapping,
     translate_pymongo_errors,
     validate_find_mapping,
@@ -83,8 +82,12 @@ def dto_to_document(
 ) -> dict[str, Any]:
     """Converts a DTO into a representation that is a compatible document for a
     MongoDB Database.
+
+    If there is a non-serializable field in the DTO, it will raise an error.
+    Such DTOs should implement appropriate serialization methods or use a different
+    data type for the field.
     """
-    document = make_mongo_compatible(dto.model_dump())
+    document = dto.model_dump()
     document["_id"] = document.pop(id_field)
 
     correlation_id = get_correlation_id()
@@ -356,7 +359,6 @@ class MongoKafkaDaoPublisher(Generic[Dto]):
         """
         validate_find_mapping(mapping, dto_model=self._dto_model)
         mapping = replace_id_field_in_find_mapping(mapping, self._id_field)
-        mapping = make_mongo_compatible(mapping)
 
         with translate_pymongo_errors():
             cursor = self._collection.find(filter=mapping)

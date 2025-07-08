@@ -19,12 +19,9 @@
 Utilities for testing are located in `./testutils.py`.
 """
 
-# ruff: noqa: PLR0913
-
 from collections.abc import AsyncIterator, Collection, Mapping
 from contextlib import AbstractAsyncContextManager, contextmanager
 from functools import partial
-from pathlib import Path
 from typing import Any, Callable, Generic, Optional, TypeVar, Union
 
 from motor.core import AgnosticCollection
@@ -53,7 +50,6 @@ __all__ = [
     "MongoDbConfig",
     "MongoDbDao",
     "MongoDbDaoFactory",
-    "make_mongo_compatible",
     "translate_pymongo_errors",
 ]
 
@@ -72,27 +68,6 @@ def translate_pymongo_errors():
         raise DaoError(str(exc)) from exc
 
 
-def make_mongo_compatible(value: Any) -> Any:
-    """Convert values with non-standard types to strings.
-
-    The primary type to convert is `Path`, which is not natively supported by
-    MongoDB. This function converts `Path` objects to strings, allowing them to be
-    stored in MongoDB documents without issues.
-
-    The passed object can be a scalar value or a dictionary which can be nested.
-    """
-    if isinstance(value, dict):  # recursively convert all values
-        return {k: make_mongo_compatible(v) for k, v in value.items()}
-    if isinstance(value, list):
-        return [make_mongo_compatible(v) for v in value]
-    if isinstance(value, tuple):
-        return tuple(make_mongo_compatible(v) for v in value)
-    if isinstance(value, Path):
-        return str(value)
-    else:
-        return value
-
-
 def document_to_dto(
     document: dict[str, Any], *, id_field: str, dto_model: type[Dto]
 ) -> Dto:
@@ -106,8 +81,12 @@ def document_to_dto(
 def dto_to_document(dto: Dto, *, id_field: str) -> dict[str, Any]:
     """Converts a DTO into a representation that is a compatible document for a
     MongoDB Database.
+
+    If there is a non-serializable field in the DTO, it will raise an error.
+    Such DTOs should implement appropriate serialization methods or use a different
+    data type for the field.
     """
-    document = make_mongo_compatible(dto.model_dump())
+    document = dto.model_dump()
     document["_id"] = document.pop(id_field)
 
     return document
@@ -314,7 +293,6 @@ class MongoDbDao(Generic[Dto]):
         """
         validate_find_mapping(mapping, dto_model=self._dto_model)
         mapping = replace_id_field_in_find_mapping(mapping, self._id_field)
-        mapping = make_mongo_compatible(mapping)
 
         with translate_pymongo_errors():
             cursor = self._collection.find(filter=mapping)

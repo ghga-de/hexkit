@@ -380,7 +380,7 @@ async def test_complex_models(mongo_kafka: MongoKafkaFixture):
                 "field_b": nested.field_b,
                 "field_c": nested.field_c,
                 "field_d": nested.field_d,
-                "field_e": nested.field_e,
+                "field_e": str(nested.field_e),
             }
             mappings: list[dict[str, Any]] = [
                 {"id": resource.id},

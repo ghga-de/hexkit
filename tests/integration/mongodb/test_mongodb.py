@@ -22,7 +22,7 @@ from pathlib import Path
 from typing import Any, Optional, Union, cast
 
 import pytest
-from pydantic import UUID4, BaseModel, ConfigDict, Field
+from pydantic import UUID4, BaseModel, ConfigDict, Field, field_serializer
 
 from hexkit.protocols.dao import (
     Dao,
@@ -57,6 +57,11 @@ class ExampleDto(BaseModel):
     field_c: bool = Field(default=True)
     field_d: datetime = Field(default_factory=now_utc_ms_prec)
     field_e: Path = Field(default_factory=Path.cwd)
+
+    @field_serializer("field_e")
+    def serialize_field_e(self, value: Path) -> str:
+        """Serialize field_e to a string."""
+        return str(value)
 
 
 class CustomIdGenerator:
@@ -397,7 +402,7 @@ async def test_complex_models(mongodb: MongoDbFixture):
             "field_b": nested.field_b,
             "field_c": nested.field_c,
             "field_d": nested.field_d,
-            "field_e": nested.field_e,
+            "field_e": str(nested.field_e),
         }
         mappings: list[dict[str, Any]] = [
             {"id": resource.id},
