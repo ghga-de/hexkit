@@ -186,6 +186,10 @@ def configure_opentelemetry(*, service_name: str, config: OpenTelemetryConfig):
         os.environ[OTEL_SDK_DISABLED] = "true"
         logger.debug("Setting OTEL_SDK_DISABLED to true")
 
+    for key, value in os.environ.items():
+        if key.startswith("OTEL_"):
+            logger.debug("OpenTelemetry environment variable %s=%s", key, value)
+
 
 def start_span(
     *,
