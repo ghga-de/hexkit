@@ -17,6 +17,7 @@
 """Testing the `translators.eventsub` module."""
 
 from unittest.mock import AsyncMock
+from uuid import UUID
 
 import pytest
 
@@ -54,8 +55,9 @@ async def test_event_problem_receiver(
     problem_receiver = EventProblemReceiver(
         config=EventProblemReceiverConfig(), problem_handler=problem_handler
     )
+    event_id = UUID("12345678-1234-5678-1234-567812345678")
     await problem_receiver.consume(
-        payload=payload, type_=type_, topic=topic, key="test"
+        payload=payload, type_=type_, topic=topic, key="test", event_id=event_id
     )
 
     # check the published event:
@@ -73,11 +75,12 @@ async def test_event_problem_receiver_with_missing_field():
     problem_receiver = EventProblemReceiver(
         config=EventProblemReceiverConfig(), problem_handler=problem_handler
     )
+    event_id = UUID("12345678-1234-5678-1234-567812345678")
     with pytest.raises(
         EventProblemReceiver.MalformedPayloadError,
         match="did not contain the expected field 'multiplicand'",
     ):
         await problem_receiver.consume(
-            payload=payload, type_=type_, topic=topic, key="test"
+            payload=payload, type_=type_, topic=topic, key="test", event_id=event_id
         )
     problem_handler.multiply.assert_not_awaited()
