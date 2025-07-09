@@ -20,6 +20,8 @@ from abc import ABC, abstractmethod
 from collections.abc import Mapping
 from datetime import datetime
 
+from pydantic import UUID4
+
 from hexkit.custom_types import Ascii, JsonObject
 from hexkit.utils import check_ascii
 
@@ -54,6 +56,7 @@ class EventSubscriberProtocol(ABC):
         type_: Ascii,
         topic: Ascii,
         key: Ascii,
+        event_id: UUID4,
     ) -> None:
         """Receive an event of interest and process it according to its type.
 
@@ -62,6 +65,7 @@ class EventSubscriberProtocol(ABC):
             type_: The type of the event.
             topic: Name of the topic the event was published to.
             key: A key used for routing the event.
+            event_id: The unique identifier of the event.
         """
         check_ascii(type_, topic)
 
@@ -69,7 +73,7 @@ class EventSubscriberProtocol(ABC):
             check_ascii(key)
 
         await self._consume_validated(
-            payload=payload, type_=type_, topic=topic, key=key
+            payload=payload, type_=type_, topic=topic, key=key, event_id=event_id
         )
 
     @abstractmethod
@@ -80,6 +84,7 @@ class EventSubscriberProtocol(ABC):
         type_: Ascii,
         topic: Ascii,
         key: Ascii,
+        event_id: UUID4,
     ) -> None:
         """
         Receive and process an event with already validated topic, type, and key.
@@ -89,6 +94,7 @@ class EventSubscriberProtocol(ABC):
             type_: The type of the event.
             topic: Name of the topic the event was published to.
             key: A key used for routing the event.
+            event_id: The unique identifier of the event.
         """
         ...
 
@@ -114,6 +120,7 @@ class DLQSubscriberProtocol(ABC):
         type_: Ascii,
         topic: Ascii,
         key: Ascii,
+        event_id: UUID4,
         timestamp: datetime,
         headers: Mapping[str, str],
     ) -> None:
@@ -124,6 +131,7 @@ class DLQSubscriberProtocol(ABC):
             type_: The type of the event.
             topic: Name of the topic the event was published to.
             key: A key used for routing the event.
+            event_id: The unique identifier of the event.
             timestamp: The timestamp assigned by either the publisher or the broker.
             headers: The event headers containing important metadata.
         """
@@ -137,6 +145,7 @@ class DLQSubscriberProtocol(ABC):
             type_=type_,
             topic=topic,
             key=key,
+            event_id=event_id,
             timestamp=timestamp,
             headers=headers,
         )
@@ -149,6 +158,7 @@ class DLQSubscriberProtocol(ABC):
         type_: Ascii,
         topic: Ascii,
         key: Ascii,
+        event_id: UUID4,
         timestamp: datetime,
         headers: Mapping[str, str],
     ) -> None:
@@ -160,6 +170,7 @@ class DLQSubscriberProtocol(ABC):
             type_: The type of the event.
             topic: Name of the topic the event was published to.
             key: A key used for routing the event.
+            event_id: The unique identifier of the event.
             timestamp: The timestamp assigned by either the publisher or the broker.
             headers: The event headers containing important metadata.
         """

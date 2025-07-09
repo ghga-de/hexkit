@@ -16,13 +16,14 @@
 
 """An implementation of the DaoPublisherFactoryProtocol based on MongoDB and Apache Kafka.
 
-Require dependencies of the `akafka` and `mongodb` extras.
+Requires dependencies of the `akafka` and `mongodb` extras.
 """
 
 from collections.abc import AsyncIterator, Awaitable, Collection, Mapping
 from contextlib import AbstractAsyncContextManager, asynccontextmanager, contextmanager
 from functools import partial
 from typing import Any, Callable, Generic, Optional
+from uuid import uuid4
 
 from aiokafka import AIOKafkaProducer
 from motor.core import AgnosticCollection
@@ -95,6 +96,7 @@ def dto_to_document(
         "deleted": False,
         "published": published,
         "correlation_id": correlation_id,
+        "last_event_id": None,
     }
 
     return document
@@ -112,16 +114,18 @@ def get_change_publish_func(
     async def publish_change(dto: Dto) -> None:
         """Publishes a change event and marks the change as published."""
         payload = dto_to_event(dto)
+        document = dto_to_document(dto, id_field=id_field, published=True)
         if payload is not None:
+            event_id = uuid4()
             await event_publisher.publish(
                 payload=payload,
                 type_=CHANGE_EVENT_TYPE,
                 # here we assume that the ID is a string, an int or a UUID
                 key=str(getattr(dto, id_field)),
                 topic=event_topic,
+                event_id=event_id,
             )
-
-        document = dto_to_document(dto, id_field=id_field, published=True)
+            document["__metadata__"]["last_event_id"] = event_id
         with translate_pymongo_errors():
             await collection.replace_one(
                 {"_id": document["_id"]}, document, upsert=True
@@ -141,11 +145,13 @@ def get_delete_publish_func(
 
     async def publish_deletion(id_: ID) -> None:
         """Publishes a deletion event and marks the deletion as published."""
+        event_id = uuid4()
         await event_publisher.publish(
             payload={},
             type_=DELETE_EVENT_TYPE,
             key=str(id_),
             topic=event_topic,
+            event_id=event_id,
         )
 
         correlation_id = get_correlation_id()  # Get active correlation first
@@ -155,6 +161,7 @@ def get_delete_publish_func(
                 "deleted": True,
                 "published": True,
                 "correlation_id": correlation_id,
+                "last_event_id": event_id,
             },
         }
         with translate_pymongo_errors():

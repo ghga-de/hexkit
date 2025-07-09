@@ -25,6 +25,7 @@ from uuid import UUID
 import pytest
 from aiokafka import AIOKafkaConsumer
 from aiokafka.structs import TopicPartition
+from pydantic import UUID4
 
 from hexkit.correlation import set_correlation_id
 from hexkit.custom_types import Ascii, JsonObject
@@ -53,6 +54,7 @@ TEST_TYPE = "test_type"
 TEST_TOPIC1 = "topic1"
 TEST_TOPIC2 = "topic2"
 TEST_TOPICS = [TEST_TOPIC1, TEST_TOPIC2]
+TEST_EVENT_ID = "f8b1c0d2-3e4f-4a5b-8c6d-7e8f9a0b1c2d"
 
 
 def make_payload(msg: str) -> JsonObject:
@@ -71,7 +73,13 @@ class DummyTranslator(EventSubscriberProtocol):
         }
 
     async def _consume_validated(
-        self, *, payload: JsonObject, type_: Ascii, topic: Ascii, key: Ascii
+        self,
+        *,
+        payload: JsonObject,
+        type_: Ascii,
+        topic: Ascii,
+        key: Ascii,
+        event_id: UUID4,
     ):
         self.consumed[topic].append(payload)
 
@@ -227,11 +235,13 @@ async def test_clear_all_topics(kafka: KafkaFixture):
                     payload={"test_content": "Hello"},
                     type_="test_hello",
                     key="test_key",
+                    event_id=TEST_EVENT_ID,
                 ),
                 RecordedEvent(
                     payload={"test_content": "World"},
                     type_="test_world",
                     key="test_key",
+                    event_id=TEST_EVENT_ID,
                 ),
             ],
             False,
@@ -242,12 +252,14 @@ async def test_clear_all_topics(kafka: KafkaFixture):
                     payload={"test_content": "Hello"},
                     type_="test_hello",
                     key="test_key",
+                    event_id=TEST_EVENT_ID,
                     headers={"correlation_id": str(DEFAULT_CORRELATION_ID)},
                 ),
                 RecordedEvent(
                     payload={"test_content": "World"},
                     type_="test_world",
                     key="test_key",
+                    event_id=TEST_EVENT_ID,
                     headers={"correlation_id": str(DEFAULT_CORRELATION_ID)},
                 ),
             ],
@@ -281,6 +293,7 @@ async def test_event_recorder(
                 payload=event.payload,
                 type_=event.type_,
                 key=event.key,
+                event_id=UUID(event.event_id),
                 topic=topic,
             )
 
@@ -336,11 +349,13 @@ async def test_expect_events_happy(kafka: KafkaFixture):
             payload={"test_content": "Hello"},
             type_="test_hello",
             key="test_key",
+            event_id=TEST_EVENT_ID,
         ),
         RecordedEvent(
             payload={"test_content": "World"},
             type_="test_world",
             key="test_key",
+            event_id=TEST_EVENT_ID,
         ),
     ]
     topic = "test_topic"
@@ -370,57 +385,91 @@ async def test_expect_events_happy(kafka: KafkaFixture):
         # event payload wrong:
         [
             RecordedEvent(
-                payload={"test_content": "Hello"}, type_="test_hello", key="test_key"
+                payload={"test_content": "Hello"},
+                type_="test_hello",
+                key="test_key",
+                event_id=TEST_EVENT_ID,
             ),
             RecordedEvent(
-                payload={"test_content": "Wörld"}, type_="test_world", key="test_key"
+                payload={"test_content": "Wörld"},
+                type_="test_world",
+                key="test_key",
+                event_id=TEST_EVENT_ID,
             ),
         ],
         # event type wrong:
         [
             RecordedEvent(
-                payload={"test_content": "Hello"}, type_="test_hello", key="test_key"
+                payload={"test_content": "Hello"},
+                type_="test_hello",
+                key="test_key",
+                event_id=TEST_EVENT_ID,
             ),
             RecordedEvent(
-                payload={"test_content": "World"}, type_="test_woerld", key="test_key"
+                payload={"test_content": "World"},
+                type_="test_woerld",
+                key="test_key",
+                event_id=TEST_EVENT_ID,
             ),
         ],
         # event key wrong:
         [
             RecordedEvent(
-                payload={"test_content": "Hello"}, type_="test_hello", key="wrong_key"
+                payload={"test_content": "Hello"},
+                type_="test_hello",
+                key="wrong_key",
+                event_id=TEST_EVENT_ID,
             ),
             RecordedEvent(
-                payload={"test_content": "World"}, type_="test_world", key="wrong_key"
+                payload={"test_content": "World"},
+                type_="test_world",
+                key="wrong_key",
+                event_id=TEST_EVENT_ID,
             ),
         ],
         # one event missing:
         [
             RecordedEvent(
-                payload={"test_content": "Hello"}, type_="test_hello", key="test_key"
+                payload={"test_content": "Hello"},
+                type_="test_hello",
+                key="test_key",
+                event_id=TEST_EVENT_ID,
             ),
         ],
         # one event too much:
         [
             RecordedEvent(
-                payload={"test_content": "Hello"}, type_="test_hello", key="test_key"
+                payload={"test_content": "Hello"},
+                type_="test_hello",
+                key="test_key",
+                event_id=TEST_EVENT_ID,
             ),
             RecordedEvent(
-                payload={"test_content": "World"}, type_="test_world", key="test_key"
+                payload={"test_content": "World"},
+                type_="test_world",
+                key="test_key",
+                event_id=TEST_EVENT_ID,
             ),
             RecordedEvent(
                 payload={"test_content": "unexpected"},
                 type_="test_unexpected",
                 key="test_key",
+                event_id=TEST_EVENT_ID,
             ),
         ],
         # wrong sequence:
         [
             RecordedEvent(
-                payload={"test_content": "World"}, type_="test_world", key="test_key"
+                payload={"test_content": "World"},
+                type_="test_world",
+                key="test_key",
+                event_id=TEST_EVENT_ID,
             ),
             RecordedEvent(
-                payload={"test_content": "Hello"}, type_="test_hello", key="test_key"
+                payload={"test_content": "Hello"},
+                type_="test_hello",
+                key="test_key",
+                event_id=TEST_EVENT_ID,
             ),
         ],
     ],

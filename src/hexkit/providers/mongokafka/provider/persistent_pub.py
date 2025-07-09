@@ -21,7 +21,7 @@ Requires dependencies of the `akafka` and `mongodb` extras.
 
 from collections.abc import Mapping
 from contextlib import asynccontextmanager
-from datetime import datetime, timezone
+from datetime import datetime
 from typing import Optional
 from uuid import uuid4
 
@@ -46,24 +46,26 @@ from hexkit.providers.mongodb.provider import (
     translate_pymongo_errors,
 )
 from hexkit.providers.mongokafka.provider.config import MongoKafkaConfig
+from hexkit.utils import now_utc_ms_prec
 
 
 class PersistentKafkaEvent(BaseModel):
     """A model representing a kafka event to be published and stored in the database."""
 
-    id: str = Field(
+    compaction_key: str = Field(
         ...,
         description="The unique ID of the event. If the topic is set to be compacted,"
         + " the ID is set to the topic and key in the format <topic>:<key>. Otherwise"
-        + " the ID is set to a random UUID.",
+        + " the ID is set to the actual event ID.",
     )
     topic: Ascii = Field(..., description="The event topic")
-    type_: Ascii = Field(..., description="The event type")
     payload: JsonObject = Field(..., description="The event payload")
     key: Ascii = Field(..., description="The event key")
+    type_: Ascii = Field(..., description="The event type")
+    event_id: Optional[UUID4] = Field(default=None, description="The event ID")
     headers: Mapping[str, str] = Field(
         default_factory=dict,
-        description="Non-standard event headers. Correlation ID and event type are"
+        description="Event ID and other event headers. Correlation ID and event type are"
         + " transmitted as event headers, but added as such within the publisher"
         + " protocol. The headers here are any additional header that need to be sent.",
     )
@@ -130,7 +132,7 @@ class PersistentKafkaPublisher(EventPublisherProtocol):
         collection_name = collection_name or f"{config.service_name}PersistedEvents"
         dao = await dao_factory.get_dao(
             name=collection_name,
-            id_field="id",
+            id_field="compaction_key",
             dto_model=PersistentKafkaEvent,
         )
         async with KafkaEventPublisher.construct(
@@ -158,13 +160,14 @@ class PersistentKafkaPublisher(EventPublisherProtocol):
         self._compacted_topics = compacted_topics
         self._topics_not_stored = topics_not_stored
 
-    async def _publish_validated(
+    async def _publish_validated(  # noqa: PLR0913
         self,
         *,
         payload: JsonObject,
         type_: Ascii,
         key: Ascii,
         topic: Ascii,
+        event_id: UUID4,
         headers: Mapping[str, str],
     ) -> None:
         """Publish an event with already validated topic and type.
@@ -174,6 +177,7 @@ class PersistentKafkaPublisher(EventPublisherProtocol):
         - `type_` (str): The event type. ASCII characters only.
         - `key` (str): The event key. ASCII characters only.
         - `topic` (str): The event topic. ASCII characters only.
+        - `event_id` (UUID): The event ID.
         - `headers`: Additional headers to attach to the event.
         """
         # For topics that aren't meant to be stored, do normal publish and return
@@ -183,6 +187,7 @@ class PersistentKafkaPublisher(EventPublisherProtocol):
                 topic=topic,
                 type_=type_,
                 key=key,
+                event_id=event_id,
                 headers=headers,
             )
             return
@@ -193,20 +198,24 @@ class PersistentKafkaPublisher(EventPublisherProtocol):
         except CorrelationIdContextError:
             correlation_id = new_correlation_id()
 
-        created = datetime.now(tz=timezone.utc)
+        created = now_utc_ms_prec()
 
-        # Create an event ID containing the topic and key for compacted topics, or a UUID otherwise
-        event_id = f"{topic}:{key}" if topic in self._compacted_topics else str(uuid4())
+        # Create an compaction key containing the topic and key for compacted topics.
+        # If the topic is not compacted, just use the event ID.
+        compaction_key = (
+            f"{topic}:{key}" if topic in self._compacted_topics else str(event_id)
+        )
 
         # Create an instance of the pydantic model representing the event
         event = PersistentKafkaEvent(
-            id=event_id,
+            compaction_key=compaction_key,
             topic=topic,
             type_=type_,
             key=key,
             payload=payload,
             headers=headers,
             correlation_id=correlation_id,
+            event_id=event_id,
             created=created,
             published=False,
         )
@@ -225,6 +234,7 @@ class PersistentKafkaPublisher(EventPublisherProtocol):
                 type_=event.type_,
                 key=event.key,
                 payload=event.payload,
+                event_id=event.event_id,
                 headers=event.headers,
             )
 
@@ -243,6 +253,11 @@ class PersistentKafkaPublisher(EventPublisherProtocol):
         events.sort(key=lambda x: x.created)
 
         for event in events:
+            # If there's no event ID, generate a new UUID. It will get stored when the
+            # event is published. Set `published` to `False` to trigger an update.
+            if not event.event_id:
+                event.event_id = uuid4()
+                event.published = False
             await self._publish_and_update(event)
 
     async def republish(self) -> None:
@@ -253,4 +268,9 @@ class PersistentKafkaPublisher(EventPublisherProtocol):
             events = self._dao.find_all(mapping={})
 
         async for event in events:
+            # If there's no event ID, generate a new UUID. It will get stored when the
+            # event is published. Set `published` to `False` to trigger an update.
+            if not event.event_id:
+                event.event_id = uuid4()
+                event.published = False
             await self._publish_and_update(event)

@@ -145,6 +145,7 @@ async def test_kafka_event_subscriber(kafka: KafkaFixture):
     type_ = "test_type"
     key = "test_key"
     topic = "test_topic"
+    event_id = uuid.uuid4()
 
     # create protocol-compatible translator mock:
     translator = AsyncMock()
@@ -152,7 +153,9 @@ async def test_kafka_event_subscriber(kafka: KafkaFixture):
     translator.types_of_interest = [type_]
 
     # publish one event:
-    await kafka.publish_event(topic=topic, payload=payload, key=key, type_=type_)
+    await kafka.publish_event(
+        topic=topic, payload=payload, key=key, type_=type_, event_id=event_id
+    )
 
     # setup the provider:
     config = KafkaConfig(
@@ -169,7 +172,7 @@ async def test_kafka_event_subscriber(kafka: KafkaFixture):
 
     # check if the translator was called correctly:
     translator.consume.assert_awaited_once_with(
-        payload=payload, type_=type_, topic=topic, key=key
+        payload=payload, type_=type_, topic=topic, key=key, event_id=event_id
     )
 
 
@@ -190,6 +193,7 @@ async def test_kafka_ssl(tmp_path: Path):
     type_ = "test_type"
     key = "test_key"
     topic = "test_topic"
+    event_id = uuid.UUID("12345678-1234-5678-1234-567812345678")
 
     with KafkaSSLContainer(
         cert=secrets.broker_cert,
@@ -217,6 +221,7 @@ async def test_kafka_ssl(tmp_path: Path):
                 type_=type_,
                 key=key,
                 topic=topic,
+                event_id=event_id,
             )
 
         translator = AsyncMock()
@@ -230,7 +235,7 @@ async def test_kafka_ssl(tmp_path: Path):
             await event_subscriber.run(forever=False)
 
         translator.consume.assert_awaited_once_with(
-            payload=payload, type_=type_, topic=topic, key=key
+            payload=payload, type_=type_, topic=topic, key=key, event_id=event_id
         )
 
 
@@ -243,7 +248,14 @@ async def test_consumer_commit_mode(kafka: KafkaFixture):
 
     error_message = "Consumer crashed successfully."
 
-    async def crash(*, payload: JsonObject, type_: Ascii, topic: Ascii, key: Ascii):
+    async def crash(
+        *,
+        payload: JsonObject,
+        type_: Ascii,
+        topic: Ascii,
+        key: Ascii,
+        event_id: uuid.UUID,
+    ):
         """Drop-in replacement for patch testing the consume method."""
         raise ValueError(error_message)
 

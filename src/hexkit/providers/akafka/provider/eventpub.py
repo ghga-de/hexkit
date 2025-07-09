@@ -30,6 +30,7 @@ from typing import Any, Callable, Optional, Protocol
 from uuid import UUID
 
 from aiokafka import AIOKafkaProducer
+from pydantic import UUID4
 
 from hexkit.correlation import (
     CorrelationIdContextError,
@@ -170,13 +171,14 @@ class KafkaEventPublisher(EventPublisherProtocol):
             return value.isoformat()
         raise TypeError(f"Object of type {type(value)} is not JSON serializable")
 
-    async def _publish_validated(
+    async def _publish_validated(  # noqa: PLR0913
         self,
         *,
         payload: JsonObject,
         type_: Ascii,
         key: Ascii,
         topic: Ascii,
+        event_id: UUID4,
         headers: Mapping[str, str],
     ) -> None:
         """Publish an event with already validated topic and type.
@@ -186,6 +188,7 @@ class KafkaEventPublisher(EventPublisherProtocol):
         - `type_` (str): The event type. ASCII characters only.
         - `key` (str): The event key. ASCII characters only.
         - `topic` (str): The event topic. ASCII characters only.
+        - `event_id` (UUID): The event ID.
         - `headers`: Additional headers to attach to the event.
         """
         try:
@@ -209,6 +212,7 @@ class KafkaEventPublisher(EventPublisherProtocol):
                 logging.warning(log_msg, extra={header: headers_copy[header]})
 
         headers_copy["type"] = type_
+        headers_copy["event_id"] = str(event_id)
         headers_copy["correlation_id"] = str(correlation_id)
         encoded_headers_list = [(k, v.encode("ascii")) for k, v in headers_copy.items()]
 
