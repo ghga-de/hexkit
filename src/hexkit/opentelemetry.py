@@ -121,6 +121,7 @@ class HexkitDistro(BaseDistro):
         passing additional arguments, load a replacement/fork instead,
         skip loading entirely, etc.
         """
+        logger.debug("Loading OpenTelemetry instrumentor %s", entry_point.name)
         super().load_instrumentor(entry_point, **kwargs)
 
 
