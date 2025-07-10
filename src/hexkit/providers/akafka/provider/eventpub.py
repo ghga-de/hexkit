@@ -198,7 +198,7 @@ class KafkaEventPublisher(EventPublisherProtocol):
                 raise
 
             correlation_id = new_correlation_id()
-            logging.info("Generated new correlation ID: %s", correlation_id)
+            logging.info("Generated new correlation ID: %s.", correlation_id)
 
         # Create a shallow copy of the headers
         headers_copy = dict(headers)
@@ -218,4 +218,11 @@ class KafkaEventPublisher(EventPublisherProtocol):
 
         await self._producer.send_and_wait(
             topic, key=key, value=payload, headers=encoded_headers_list
+        )
+        logging.info(
+            "Published event: topic=%s, type=%s, key=%s, event_id=%s.",
+            topic,
+            type_,
+            key,
+            event_id,
         )

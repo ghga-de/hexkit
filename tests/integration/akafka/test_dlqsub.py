@@ -332,12 +332,12 @@ async def test_send_to_dlq_after_retries_exhausted(
     await kafka.publisher.publish(**TEST_EVENT.asdict())
 
     # Set up dummies and consume the event
-    dummy_publisher = DummyPublisher()
+    dummy_dlq_publisher = DummyPublisher()
     translator = DummyTranslator(
         topics_of_interest=[TEST_TOPIC], types_of_interest=[TEST_TYPE], fail=True
     )
     async with KafkaEventSubscriber.construct(
-        config=config, translator=translator, dlq_publisher=dummy_publisher
+        config=config, translator=translator, dlq_publisher=dummy_dlq_publisher
     ) as event_subscriber:
         with pytest.raises(RuntimeError) if not enable_dlq else nullcontext():
             await event_subscriber.run(forever=False)
@@ -349,7 +349,7 @@ async def test_send_to_dlq_after_retries_exhausted(
     assert_logged(
         "WARNING",
         "Failed initial attempt to consume event. Topic=test-topic, type=test_type,"
-        + f" event_id={TEST_EVENT.event_id}.",
+        + f" key=key, event_id={TEST_EVENT_ID}.",
         caplog_debug.records,
     )
 
@@ -358,8 +358,8 @@ async def test_send_to_dlq_after_retries_exhausted(
         backoff_time = config.kafka_retry_backoff * 2 ** (n - 1)
         assert_logged(
             "INFO",
-            f"Retry {n} of {max_retries} for event of type 'test_type' on topic"
-            + f" 'test-topic' with key 'key', beginning in {backoff_time} seconds.",
+            f"Retry {n} of {max_retries} for event beginning in {backoff_time} seconds."
+            + f" Topic=test-topic, type=test_type, key=key, event_id={TEST_EVENT_ID}.",
             caplog_debug.records,
         )
 
@@ -371,12 +371,12 @@ async def test_send_to_dlq_after_retries_exhausted(
         assert_not_logged("WARNING", retry_log, caplog_debug.records)
 
     # If the DLQ is enabled, we expect the event to be published to the DLQ topic once
-    assert len(dummy_publisher.published) == int(enable_dlq)
+    assert len(dummy_dlq_publisher.published) == int(enable_dlq)
 
     # Verify that the event has the original topic, original event ID, and service name
     if enable_dlq:
-        assert dummy_publisher.published
-        published_event = dummy_publisher.published[0]
+        assert dummy_dlq_publisher.published
+        published_event = dummy_dlq_publisher.published[0]
         published_headers = published_event.headers
         assert HeaderNames.ORIGINAL_EVENT_ID in published_headers
         assert published_headers[HeaderNames.ORIGINAL_EVENT_ID] == str(TEST_EVENT_ID)
@@ -384,12 +384,14 @@ async def test_send_to_dlq_after_retries_exhausted(
         assert published_headers[HeaderNames.ORIGINAL_TOPIC] == TEST_TOPIC
         assert HeaderNames.SERVICE_NAME in published_headers
         assert published_headers[HeaderNames.SERVICE_NAME] == config.service_name
-        assert published_event.event_id != TEST_EVENT_ID  # should have new ID for DLQ
 
-    if enable_dlq:
+        dlq_event_id = published_event.event_id
+        assert dlq_event_id != TEST_EVENT_ID  # should have new ID for DLQ
+
         assert_logged(
             "INFO",
-            "Published event to DLQ topic 'dlq'",
+            f"Published event to DLQ topic 'dlq'. DLQ event_id={dlq_event_id},"
+            + f" original_event_id={TEST_EVENT_ID}.",
             caplog_debug.records,
             parse=True,
         )
@@ -397,8 +399,8 @@ async def test_send_to_dlq_after_retries_exhausted(
         assert_logged(
             "CRITICAL",
             "Failed to process event. It was NOT placed in the DLQ topic"
-            + f" (DLQ is disabled). Topic={TEST_TOPIC}, type={TEST_TYPE},"
-            + f" event_id={TEST_EVENT.event_id}.",
+            + " (DLQ is disabled). Topic=test-topic, type=test_type, key=key,"
+            + f" event_id={TEST_EVENT_ID}.",
             caplog_debug.records,
             parse=True,
         )
@@ -430,8 +432,8 @@ async def test_consume_retry_without_og_topic(kafka: KafkaFixture, caplog_debug)
 
     assert_logged(
         "INFO",
-        f"Ignored event. Topic={retry_topic}, type={event.type_},"
-        + f" event_id={event.event_id}, errors: topic is empty",
+        f"Ignored event. Topic={retry_topic}, type={event.type_}, key={event.key},"
+        + f" event_id={event.event_id}, errors: topic is empty.",
         caplog_debug.records,
         parse=True,
     )
@@ -461,8 +463,8 @@ async def test_no_retries_no_dlq_original_error(kafka: KafkaFixture, caplog_debu
     assert_logged(
         "CRITICAL",
         message="Failed to process event. It was NOT placed in the DLQ topic"
-        + f" (DLQ is disabled). Topic={TEST_TOPIC}, type={TEST_TYPE},"
-        + f" event_id={TEST_EVENT.event_id}.",
+        + " (DLQ is disabled). Topic=test-topic, type=test_type,"
+        + f" key=key, event_id={TEST_EVENT_ID}.",
         records=caplog_debug.records,
         parse=True,
     )

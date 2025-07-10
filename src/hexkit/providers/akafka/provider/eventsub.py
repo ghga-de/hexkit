@@ -262,7 +262,7 @@ class ExtractedEventInfo:
                 # Generate a new UUID if no event_id header is found, but log a warning
                 new_event_id = uuid4()
                 logging.warning(
-                    "No event_id header found in the event. Generated a new one: %s",
+                    "No event_id header found in the event. Generated a new one: %s.",
                     new_event_id,
                 )
                 self.event_id = new_event_id
@@ -524,7 +524,12 @@ class KafkaEventSubscriber(InboundProviderBase):
         - `exc`: The exception that caused the event to be published to the DLQ.
         """
         dlq_event_id = uuid4()
-        logging.debug("About to publish an event to DLQ topic '%s'", self._dlq_topic)
+        logging.debug(
+            "About to publish event to DLQ topic '%s'. DLQ event_id=%s, original_event_id=%s.",
+            self._dlq_topic,
+            dlq_event_id,
+            event.event_id,
+        )
         await self._dlq_publisher.publish(  # type: ignore
             payload=event.payload,
             type_=event.type_,
@@ -539,7 +544,12 @@ class KafkaEventSubscriber(InboundProviderBase):
                 HeaderNames.SERVICE_NAME: self._service_name,
             },
         )
-        logging.info("Published event to DLQ topic '%s'", self._dlq_topic)
+        logging.info(
+            "Published event to DLQ topic '%s'. DLQ event_id=%s, original_event_id=%s.",
+            self._dlq_topic,
+            dlq_event_id,
+            event.event_id,
+        )
 
     async def _retry_event(self, *, event: ExtractedEventInfo, retries_left: int):
         """Retry the event until the maximum number of retries is reached.
@@ -564,14 +574,15 @@ class KafkaEventSubscriber(InboundProviderBase):
         backoff_time = self._retry_backoff * 2 ** (retry_number - 1)
         try:
             logging.info(
-                "Retry %i of %i for event of type '%s' on topic '%s' with key '%s',"
-                + " beginning in %i seconds.",
+                "Retry %i of %i for event beginning in %i seconds. Topic=%s,"
+                + " type=%s, key=%s, event_id=%s.",
                 retry_number,
                 self._max_retries,
-                event.type_,
-                event.topic,
-                event.key,
                 backoff_time,
+                event.topic,
+                event.type_,
+                event.key,
+                event.event_id,
             )
             await asyncio.sleep(backoff_time)
             await self._translator_consume(event=event)
@@ -609,9 +620,11 @@ class KafkaEventSubscriber(InboundProviderBase):
             await self._translator_consume(event=event)
         except Exception as underlying_error:
             logging.warning(
-                "Failed initial attempt to consume event. Topic=%s, type=%s, event_id=%s.",
+                "Failed initial attempt to consume event. Topic=%s, type=%s,"
+                + " key=%s, event_id=%s.",
                 event.topic,
                 event.type_,
+                event.key,
                 event.event_id,
             )
 
@@ -691,20 +704,24 @@ class KafkaEventSubscriber(InboundProviderBase):
                 self._validate_extracted_info(event_info)
             except RuntimeError as err:
                 logging.info(
-                    "Ignored event. Topic=%s, type=%s, event_id=%s, errors: %s",
+                    "Ignored event. Topic=%s, type=%s, key=%s, event_id=%s, errors: %s.",
                     event.topic,  # use actual topic, not event_info.topic
                     event_info.type_,
+                    event.key,
                     event_info.event_id,
                     str(err),
-                )
-                # Always acknowledge event receipt for ignored events
+                )  # ^ Depending on error, log arg(s) can be empty. Error will explain.
+
+                # Always acknowledge event receipt for ignored events:
                 await self._consumer.commit()
                 return
 
             try:
                 logging.info(
-                    "Consuming event of type '%s': %s",
+                    "Ignored event. Topic=%s, type=%s, key=%s, event_id=%s.",
+                    event_info.topic,
                     event_info.type_,
+                    event.key,
                     event_info.event_id,
                 )
                 correlation_id = event_info.headers[HeaderNames.CORRELATION_ID]
@@ -714,10 +731,11 @@ class KafkaEventSubscriber(InboundProviderBase):
                 # Errors only bubble up here if the DLQ isn't used
                 logging.critical(
                     "Failed to process event. It was NOT placed in the DLQ topic (%s)."
-                    + " Topic=%s, type=%s, event_id=%s.",
+                    + " Topic=%s, type=%s, key=%s, event_id=%s.",
                     self._dlq_topic if self._enable_dlq else "DLQ is disabled",
                     event_info.topic,
                     event_info.type_,
+                    event.key,
                     event_info.event_id,
                 )
                 raise
