@@ -45,7 +45,7 @@ from hexkit.providers.akafka.provider.utils import (
     generate_ssl_context,
 )
 
-RESERVED_HEADERS = ["type", "correlation_id"]
+RESERVED_HEADERS = ["type", "correlation_id", "event_id"]
 
 
 class KafkaProducerCompatible(Protocol):

@@ -45,6 +45,7 @@ from hexkit.providers.akafka.testutils import (
     kafka_container_fixture,  # noqa: F401
     kafka_fixture,  # noqa: F401
 )
+from tests.fixtures.utils import assert_logged
 
 from ...fixtures.kafka_secrets import KafkaSecrets
 
@@ -398,3 +399,69 @@ async def test_consuming_with_size_limit(kafka: KafkaFixture, too_big: bool):
         config=consumer_config, translator=translator
     ) as subscriber:
         await subscriber.run(forever=False)
+
+
+async def test_publish_event_id_conflict(kafka: KafkaFixture, caplog):
+    """Test that when calling `.publish()` with both the event_id and event ID header
+    specified, the kwarg is used to overwrite the header value and we get a log warning.
+    """
+    type_ = "test_type"
+    key = "test_key"
+    topic = "test_topic"
+    kw_event_id = uuid.uuid4()
+    header_event_id = uuid.uuid4()
+    assert kw_event_id != header_event_id
+
+    # Publish the first event
+    async with kafka.record_events(in_topic=topic) as recorder:
+        await kafka.publish_event(
+            payload={"test_content": "First Event"},
+            type_=type_,
+            key=key,
+            topic=topic,
+            event_id=kw_event_id,
+            headers={"event_id": str(header_event_id)},
+        )
+    assert len(recorder.recorded_events) == 1
+    assert recorder.recorded_events[0].event_id == str(kw_event_id)
+
+    assert_logged(
+        level="WARNING",
+        message="The 'event_id' header shouldn't be supplied, but was. Overwriting.",
+        records=caplog.records,
+        parse=True,
+    )
+
+
+async def test_publish_with_event_id_header(kafka: KafkaFixture, caplog):
+    """Test that when calling `.publish()` with an event ID header and *no* event_id
+    kwarg, the supplied event ID header is overwritten with a new UUID.
+
+    This is the same as how the correlation ID header works. To supply a known event ID,
+    the user must use the `event_id` kwarg.
+    """
+    type_ = "test_type"
+    key = "test_key"
+    topic = "test_topic"
+    event_id = uuid.uuid4()
+
+    # Publish the event with an event ID header
+    async with kafka.record_events(in_topic=topic) as recorder:
+        await kafka.publish_event(
+            payload={"test_content": "Event with Header"},
+            type_=type_,
+            key=key,
+            topic=topic,
+            headers={"event_id": str(event_id)},
+        )
+
+    assert len(recorder.recorded_events) == 1
+    assert recorder.recorded_events[0].event_id != str(event_id)
+    assert uuid.UUID(recorder.recorded_events[0].event_id)
+
+    assert_logged(
+        level="WARNING",
+        message="The 'event_id' header shouldn't be supplied, but was. Overwriting.",
+        records=caplog.records,
+        parse=True,
+    )
