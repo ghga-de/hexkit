@@ -120,36 +120,35 @@ async def test_mongodb_timeout():
         db_name="test",
     )
 
-    dao_factory = MongoDbDaoFactory(config=config)
+    async with MongoDbDaoFactory.construct(config=config) as dao_factory:
+        dao = await dao_factory.get_dao(
+            name="example",
+            dto_model=ExampleDto,
+            id_field="id",
+        )
 
-    dao = await dao_factory.get_dao(
-        name="example",
-        dto_model=ExampleDto,
-        id_field="id",
-    )
+        resource = ExampleDto(bool_field=True, int_field=42, str_field="test")
 
-    resource = ExampleDto(bool_field=True, int_field=42, str_field="test")
+        with pytest.raises(DbTimeoutError):
+            await dao.insert(resource)
 
-    with pytest.raises(DbTimeoutError):
-        await dao.insert(resource)
+        with pytest.raises(DbTimeoutError):
+            await dao.get_by_id(resource.id)
 
-    with pytest.raises(DbTimeoutError):
-        await dao.get_by_id(resource.id)
+        with pytest.raises(DbTimeoutError):
+            await dao.find_one(mapping={"id": str(resource.id)})
 
-    with pytest.raises(DbTimeoutError):
-        await dao.find_one(mapping={"id": str(resource.id)})
+        with pytest.raises(DbTimeoutError):
+            [hit async for hit in dao.find_all(mapping={})]
 
-    with pytest.raises(DbTimeoutError):
-        [hit async for hit in dao.find_all(mapping={})]
+        with pytest.raises(DbTimeoutError):
+            await dao.update(resource)
 
-    with pytest.raises(DbTimeoutError):
-        await dao.update(resource)
+        with pytest.raises(DbTimeoutError):
+            await dao.upsert(resource)
 
-    with pytest.raises(DbTimeoutError):
-        await dao.upsert(resource)
-
-    with pytest.raises(DbTimeoutError):
-        await dao.delete(resource.id)
+        with pytest.raises(DbTimeoutError):
+            await dao.delete(resource.id)
 
 
 async def test_db_timeout_error_translator():

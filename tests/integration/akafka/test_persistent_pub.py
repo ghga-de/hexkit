@@ -22,7 +22,6 @@ from uuid import UUID
 
 import pytest
 
-from hexkit.providers.mongodb.provider import MongoDbDaoFactory
 from hexkit.utils import now_utc_ms_prec
 
 pytestmark = pytest.mark.asyncio()
@@ -63,7 +62,6 @@ async def test_basic_publish(kafka: KafkaFixture, mongodb: MongoDbFixture):
         **kafka.config.model_dump(), **mongodb.config.model_dump()
     )
     collection_name = f"{config.service_name}PersistedEvents"
-    dao_factory = MongoDbDaoFactory(config=config)
 
     expected_db_event = {
         "topic": TEST_TOPIC,
@@ -84,7 +82,7 @@ async def test_basic_publish(kafka: KafkaFixture, mongodb: MongoDbFixture):
     async with (
         PersistentKafkaPublisher.construct(
             config=config,
-            dao_factory=dao_factory,
+            dao_factory=mongodb.dao_factory,
             collection_name=collection_name,
         ) as persistent_publisher,
         kafka.record_events(in_topic=TEST_TOPIC, capture_headers=True) as recorder,
@@ -131,7 +129,6 @@ async def test_republish(kafka: KafkaFixture, mongodb: MongoDbFixture):
         **kafka.config.model_dump(), **mongodb.config.model_dump()
     )
     collection_name = f"{config.service_name}PersistedEvents"
-    dao_factory = MongoDbDaoFactory(config=config)
 
     # First, make sure the collection is empty
     db = mongodb.client.get_database(config.db_name)
@@ -142,7 +139,7 @@ async def test_republish(kafka: KafkaFixture, mongodb: MongoDbFixture):
     async with (
         PersistentKafkaPublisher.construct(
             config=config,
-            dao_factory=dao_factory,
+            dao_factory=mongodb.dao_factory,
             collection_name=collection_name,
         ) as persistent_publisher,
         kafka.record_events(in_topic=TEST_TOPIC, capture_headers=True) as recorder1,
@@ -165,7 +162,7 @@ async def test_republish(kafka: KafkaFixture, mongodb: MongoDbFixture):
     async with (
         PersistentKafkaPublisher.construct(
             config=config,
-            dao_factory=dao_factory,
+            dao_factory=mongodb.dao_factory,
             collection_name=collection_name,
         ) as persistent_publisher,
         kafka.record_events(in_topic=TEST_TOPIC, capture_headers=True) as recorder2,
@@ -185,13 +182,12 @@ async def test_publish_pending(kafka: KafkaFixture, mongodb: MongoDbFixture):
         **kafka.config.model_dump(), **mongodb.config.model_dump()
     )
     collection_name = f"{config.service_name}PersistedEvents"
-    dao_factory = MongoDbDaoFactory(config=config)
 
     # Publish an event, which should then be stored in the db
     async with (
         PersistentKafkaPublisher.construct(
             config=config,
-            dao_factory=dao_factory,
+            dao_factory=mongodb.dao_factory,
             collection_name=collection_name,
         ) as persistent_publisher,
         set_correlation_id(TEST_CORRELATION_ID),
@@ -246,7 +242,6 @@ async def test_compaction(kafka: KafkaFixture, mongodb: MongoDbFixture):
         **kafka.config.model_dump(), **mongodb.config.model_dump()
     )
     collection_name = f"{config.service_name}PersistedEvents"
-    dao_factory = MongoDbDaoFactory(config=config)
 
     payload1 = TEST_PAYLOAD
     payload2 = {"some": "payload2"}
@@ -254,7 +249,7 @@ async def test_compaction(kafka: KafkaFixture, mongodb: MongoDbFixture):
     async with (
         PersistentKafkaPublisher.construct(
             config=config,
-            dao_factory=dao_factory,
+            dao_factory=mongodb.dao_factory,
             collection_name=collection_name,
             compacted_topics={TEST_TOPIC},
         ) as persistent_publisher,
@@ -298,7 +293,7 @@ async def test_compaction(kafka: KafkaFixture, mongodb: MongoDbFixture):
     async with (
         PersistentKafkaPublisher.construct(
             config=config,
-            dao_factory=dao_factory,
+            dao_factory=mongodb.dao_factory,
             collection_name=collection_name,
             compacted_topics={TEST_TOPIC},
         ) as persistent_publisher,
@@ -321,13 +316,12 @@ async def test_topics_not_stored(kafka: KafkaFixture, mongodb: MongoDbFixture):
         **kafka.config.model_dump(), **mongodb.config.model_dump()
     )
     collection_name = f"{config.service_name}PersistedEvents"
-    dao_factory = MongoDbDaoFactory(config=config)
 
     # Publish an event to a topic marked as 'no store'
     async with (
         PersistentKafkaPublisher.construct(
             config=config,
-            dao_factory=dao_factory,
+            dao_factory=mongodb.dao_factory,
             collection_name=collection_name,
             topics_not_stored={TEST_TOPIC},
         ) as persistent_publisher,

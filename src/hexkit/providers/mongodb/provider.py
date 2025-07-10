@@ -20,15 +20,14 @@ Utilities for testing are located in `./testutils.py`.
 """
 
 from collections.abc import AsyncIterator, Collection, Mapping
-from contextlib import AbstractAsyncContextManager, contextmanager
+from contextlib import AbstractAsyncContextManager, asynccontextmanager, contextmanager
 from functools import partial
 from typing import Any, Callable, Generic, Optional, TypeVar, Union
 
-from motor.core import AgnosticCollection
-from motor.motor_asyncio import AsyncIOMotorClient
 from pydantic import Field, MongoDsn, PositiveInt, Secret
 from pydantic_settings import BaseSettings
-from pymongo import MongoClient
+from pymongo import AsyncMongoClient, MongoClient
+from pymongo.asynchronous.collection import AsyncCollection
 from pymongo.errors import DuplicateKeyError, PyMongoError
 
 from hexkit.custom_types import ID
@@ -156,7 +155,7 @@ class MongoDbDao(Generic[Dto]):
         *,
         dto_model: type[Dto],
         id_field: str,
-        collection: AgnosticCollection,
+        collection: AsyncCollection,
         document_to_dto: Callable[[dict[str, Any]], Dto],
         dto_to_document: Callable[[Dto], dict[str, Any]],
     ):
@@ -169,7 +168,7 @@ class MongoDbDao(Generic[Dto]):
                 The name of the field of the `dto_model` that serves as resource ID.
                 (DAO implementation might use this field as primary key.)
             collection:
-                A collection object from the motor library.
+                A collection object from the pymongo async library.
             document_to_dto:
                 A callable that takes a document obtained from the MongoDB database
                 and returns a DTO model-compliant representation.
@@ -380,7 +379,52 @@ class MongoDbConfig(BaseSettings):
     )
 
 
-ClientType = TypeVar("ClientType", AsyncIOMotorClient, MongoClient)
+class ConfiguredMongoClient:
+    """A context manager for a configured MongoDB client, sync or async.
+
+    Usage:
+        ```python
+        from hexkit.providers.mongodb import MongoDbConfig, ConfiguredMongoClient
+
+        with ConfiguredMongoClient(config=MongoDbConfig(...)) as client:
+            # Use the client here
+            pass
+        # Client is automatically closed after exiting the context manager
+
+        async with ConfiguredMongoClient(config=MongoDbConfig(...)) as client:
+            # Use the async client here
+            pass
+    """
+
+    config: MongoDbConfig
+
+    def __init__(self, *, config: MongoDbConfig):
+        self._config = config
+
+    async def __aenter__(self) -> AsyncMongoClient:
+        """Enter a context manager and return the _asynchronous_ MongoDB client."""
+        self._async_client = get_configured_mongo_client(
+            config=self._config, client_cls=AsyncMongoClient
+        )
+        return self._async_client
+
+    async def __aexit__(self, exc_type_, exc_value, exc_tb):
+        """Close the async MongoDB client."""
+        await self._async_client.close()
+
+    def __enter__(self) -> MongoClient:
+        """Enter a context manager and return the _synchronous_ MongoDB client."""
+        self._client = get_configured_mongo_client(
+            config=self._config, client_cls=MongoClient
+        )
+        return self._client
+
+    def __exit__(self, exc_type_, exc_value, exc_tb):
+        """Close the synchronous MongoDB client."""
+        self._client.close()
+
+
+ClientType = TypeVar("ClientType", AsyncMongoClient, MongoClient)
 
 
 def get_configured_mongo_client(
@@ -413,23 +457,35 @@ def get_configured_mongo_client(
 class MongoDbDaoFactory(DaoFactoryProtocol):
     """A MongoDB-based provider implementing the DaoFactoryProtocol."""
 
+    @classmethod
+    @asynccontextmanager
+    async def construct(
+        cls,
+        *,
+        config: MongoDbConfig,
+    ):
+        """Yields a MongoDbDaoFactory instance with the provided configuration.
+
+        The client connection is established and closed automatically.
+        """
+        async with ConfiguredMongoClient(config=config) as client:
+            # The client is an instance of AsyncMongoClient
+            yield cls(config=config, client=client)
+
     def __init__(
         self,
         *,
         config: MongoDbConfig,
+        client: AsyncMongoClient,
     ):
         """Initialize the provider with configuration parameter.
 
         Args:
             config: MongoDB-specific config parameters.
+            client: An instance of an async MongoDB client.
         """
         self._config = config
-
-        # get a database-specific client:
-        self._client = get_configured_mongo_client(
-            config=config, client_cls=AsyncIOMotorClient
-        )
-        self._db = self._client.get_database(self._config.db_name)
+        self._db = client.get_database(self._config.db_name)
 
     def __repr__(self) -> str:  # noqa: D105
         return f"{self.__class__.__qualname__}(config={repr(self._config)})"

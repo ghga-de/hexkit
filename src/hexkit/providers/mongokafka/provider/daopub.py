@@ -25,8 +25,8 @@ from functools import partial
 from typing import Any, Callable, Generic, Optional
 
 from aiokafka import AIOKafkaProducer
-from motor.core import AgnosticCollection
-from motor.motor_asyncio import AsyncIOMotorClient
+from pymongo import AsyncMongoClient
+from pymongo.asynchronous.collection import AsyncCollection
 
 from hexkit.correlation import get_correlation_id, set_correlation_id
 from hexkit.custom_types import ID, JsonObject
@@ -37,8 +37,8 @@ from hexkit.providers.akafka import KafkaEventPublisher
 from hexkit.providers.akafka.provider.daosub import CHANGE_EVENT_TYPE, DELETE_EVENT_TYPE
 from hexkit.providers.akafka.provider.eventpub import KafkaProducerCompatible
 from hexkit.providers.mongodb.provider import (
+    ConfiguredMongoClient,
     MongoDbDao,
-    get_configured_mongo_client,
     get_single_hit,
     replace_id_field_in_find_mapping,
     translate_pymongo_errors,
@@ -105,7 +105,7 @@ def get_change_publish_func(
     event_topic: str,
     dto_to_event: Callable[[Dto], Optional[JsonObject]],
     event_publisher: EventPublisherProtocol,
-    collection: AgnosticCollection,
+    collection: AsyncCollection,
 ) -> Callable[[Dto], Awaitable[None]]:
     """Generate a function that publishes change events for a specific type of resource."""
 
@@ -133,7 +133,7 @@ def get_change_publish_func(
 def get_delete_publish_func(
     event_topic: str,
     event_publisher: EventPublisherProtocol,
-    collection: AgnosticCollection,
+    collection: AsyncCollection,
 ) -> Callable[[Any], Awaitable[None]]:
     """Generate a function that publishes deletion events for a specific type of
     resource.
@@ -193,7 +193,7 @@ class MongoKafkaDaoPublisher(Generic[Dto]):
         *,
         id_field: str,
         dto_model: type[Dto],
-        collection: AgnosticCollection,
+        collection: AsyncCollection,
         dao: MongoDbDao[Dto],
         publish_change: Callable[[Dto], Awaitable[None]],
         publish_delete: Callable[[Any], Awaitable[None]],
@@ -208,7 +208,7 @@ class MongoKafkaDaoPublisher(Generic[Dto]):
             dto_model:
                 A DTO (Data Transfer Object) model describing the shape of resources.
             collection:
-                A collection object from the motor library.
+                A collection object from the pymongo async library.
             dao:
                 The actual DAO implementation that provides the database-specific
                 functionality.
@@ -444,6 +444,7 @@ class MongoKafkaDaoPublisherFactory(DaoPublisherFactoryProtocol):
         kafka_producer_cls: type[KafkaProducerCompatible] = AIOKafkaProducer,
     ):
         """Setup and teardown an instance of the provider.
+        This method will automatically close the DB connection upon exit.
 
         Args:
             config: MongoDB-specific config parameters.
@@ -451,23 +452,26 @@ class MongoKafkaDaoPublisherFactory(DaoPublisherFactoryProtocol):
         Returns:
             An instance of the provider.
         """
-        async with KafkaEventPublisher.construct(
-            config=config, kafka_producer_cls=kafka_producer_cls
-        ) as event_publisher:
-            yield cls(config=config, event_publisher=event_publisher)
+        async with (
+            ConfiguredMongoClient(config=config) as client,
+            KafkaEventPublisher.construct(
+                config=config, kafka_producer_cls=kafka_producer_cls
+            ) as event_publisher,
+        ):
+            # get a database-specific client:
+            yield cls(config=config, event_publisher=event_publisher, db_client=client)
 
     def __init__(
-        self, *, config: MongoKafkaConfig, event_publisher: EventPublisherProtocol
+        self,
+        *,
+        config: MongoKafkaConfig,
+        event_publisher: EventPublisherProtocol,
+        db_client: AsyncMongoClient,
     ):
         """Please do not call directly! Should be called by the `construct` method."""
         self._config = config
 
-        # get a database-specific client:
-        self._client = get_configured_mongo_client(
-            config=config, client_cls=AsyncIOMotorClient
-        )
-
-        self._db = self._client.get_database(self._config.db_name)
+        self._db = db_client.get_database(self._config.db_name)
 
         self._event_publisher = event_publisher
 
