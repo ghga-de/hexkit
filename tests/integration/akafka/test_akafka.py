@@ -465,3 +465,69 @@ async def test_publish_with_event_id_header(kafka: KafkaFixture, caplog):
         records=caplog.records,
         parse=True,
     )
+
+
+@pytest.mark.parametrize(
+    "event_id_header, log_msg",
+    [
+        (None, "No event_id header found."),
+        ("invalid_uuid", "Invalid event_id encountered: invalid_uuid."),
+        ("", "No event_id header found."),
+    ],
+    ids=["None", "InvalidHeader", "EmptyString"],
+)
+async def test_invalid_or_missing_event_id_header(
+    kafka: KafkaFixture, caplog, event_id_header: str | None, log_msg: str
+):
+    """Test that when consuming an event with an invalid or missing event ID header,
+    a new value is generated and a warning is logged.
+    """
+    type_ = "test_type"
+    key = "test_key"
+    topic = "test_topic"
+    headers = [
+        ("correlation_id", b"15e84fc8-ec8d-4d78-81a8-15beb6d7a254"),
+        ("type", type_.encode("ascii")),
+    ]
+    if event_id_header is not None:
+        headers.append(("event_id", event_id_header.encode("ascii")))
+
+    # Publish the event without an event ID header
+    await kafka.publisher._producer.send_and_wait(
+        topic=topic, key=key, value={"dummy": "data"}, headers=headers
+    )
+
+    class Translator(EventSubscriberProtocol):
+        """Dummy translator"""
+
+        topics_of_interest = [topic]
+        types_of_interest = [type_]
+        event_id: uuid.UUID
+
+        async def _consume_validated(
+            self,
+            payload: JsonObject,
+            type_: Ascii,
+            topic: Ascii,
+            key: Ascii,
+            event_id: uuid.UUID,
+        ):
+            """Dummy consume method to record the event ID."""
+            self.event_id = event_id
+
+    translator = Translator()
+    async with KafkaEventSubscriber.construct(
+        config=kafka.config, translator=translator
+    ) as subscriber:
+        # Consume the event
+        await subscriber.run(forever=False)
+
+    assert isinstance(translator.event_id, uuid.UUID)
+    assert translator.event_id != event_id_header
+
+    assert_logged(
+        level="WARNING",
+        message=log_msg + f" Generated a new one: {translator.event_id}.",
+        records=caplog.records,
+        parse=True,
+    )

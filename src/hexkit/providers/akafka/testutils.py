@@ -346,7 +346,6 @@ class EventRecorder:
 
         recorded_events: list[RecordedEvent] = []
 
-        # TODO: should I delete event ID from the headers, like with the type?
         for raw_event in raw_events:
             headers = headers_as_dict(raw_event)
             type_ = headers.get("type", "")

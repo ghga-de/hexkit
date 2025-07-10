@@ -256,27 +256,24 @@ class ExtractedEventInfo:
             self.event_id = event_id
         else:
             # If no event_id kwarg is provided (usual case), extract it from the headers
-            event_id_str = self.headers.pop(HeaderNames.EVENT_ID, None)
-            # TODO: Think about whether it makes sense to raise an error here vs log
-            if not event_id_str:
-                # Generate a new UUID if no event_id header is found, but log a warning
+            event_id_str = self.headers.pop(HeaderNames.EVENT_ID, "")
+            try:
+                self.event_id = UUID(event_id_str)
+            except ValueError:
+                # Generate a new UUID, but log a warning including the encountered value
                 new_event_id = uuid4()
+                found_val = (
+                    f"Invalid event_id encountered: {event_id_str}"
+                    if event_id_str
+                    else "No event_id header found"
+                )
+
                 logging.warning(
-                    "No event_id header found in the event. Generated a new one: %s.",
+                    "%s. Generated a new one: %s.",
+                    found_val,
                     new_event_id,
                 )
                 self.event_id = new_event_id
-            else:
-                # Finally, validate the event_id string and convert it to a UUID
-                try:
-                    self.event_id = UUID(event_id_str)
-                except ValueError as err:
-                    value_error = ValueError(
-                        f"Invalid event_id header value: {event_id_str}. "
-                        + "It must be a valid UUID4 string."
-                    )
-                    logging.error(value_error)
-                    raise value_error from err
 
     @property
     def encoded_headers(self) -> list[tuple[str, bytes]]:
