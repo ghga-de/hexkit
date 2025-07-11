@@ -28,7 +28,7 @@ from pymongo.asynchronous.database import AsyncDatabase
 from pymongo.errors import DuplicateKeyError
 
 from hexkit.providers.mongodb import MongoDbConfig
-from hexkit.providers.mongodb.provider import get_configured_mongo_client
+from hexkit.providers.mongodb.provider import ConfiguredMongoClient
 
 from ._utils import MigrationDefinition, Reversible
 
@@ -177,7 +177,7 @@ class MigrationManager:
 
     async def __aenter__(self):
         """Set up database client and database reference"""
-        self.client = get_configured_mongo_client(
+        self.client = ConfiguredMongoClient.get_client(
             config=self.config, client_cls=AsyncMongoClient
         )
         self.db = self.client[self.config.db_name]

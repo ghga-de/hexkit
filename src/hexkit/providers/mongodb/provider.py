@@ -46,6 +46,7 @@ from hexkit.protocols.dao import (
 from hexkit.utils import FieldNotInModelError, validate_fields_in_model
 
 __all__ = [
+    "ConfiguredMongoClient",
     "MongoDbConfig",
     "MongoDbDao",
     "MongoDbDaoFactory",
@@ -379,6 +380,9 @@ class MongoDbConfig(BaseSettings):
     )
 
 
+ClientType = TypeVar("ClientType", AsyncMongoClient, MongoClient)
+
+
 class ConfiguredMongoClient:
     """A context manager for a configured MongoDB client, sync or async.
 
@@ -389,11 +393,12 @@ class ConfiguredMongoClient:
         with ConfiguredMongoClient(config=MongoDbConfig(...)) as client:
             # Use the client here
             pass
-        # Client is automatically closed after exiting the context manager
 
         async with ConfiguredMongoClient(config=MongoDbConfig(...)) as client:
             # Use the async client here
             pass
+
+        # Client is automatically closed after exiting the context manager
     """
 
     config: MongoDbConfig
@@ -403,7 +408,7 @@ class ConfiguredMongoClient:
 
     async def __aenter__(self) -> AsyncMongoClient:
         """Enter a context manager and return the _asynchronous_ MongoDB client."""
-        self._async_client = get_configured_mongo_client(
+        self._async_client = self.get_client(
             config=self._config, client_cls=AsyncMongoClient
         )
         return self._async_client
@@ -414,44 +419,44 @@ class ConfiguredMongoClient:
 
     def __enter__(self) -> MongoClient:
         """Enter a context manager and return the _synchronous_ MongoDB client."""
-        self._client = get_configured_mongo_client(
-            config=self._config, client_cls=MongoClient
-        )
+        self._client = self.get_client(config=self._config, client_cls=MongoClient)
         return self._client
 
     def __exit__(self, exc_type_, exc_value, exc_tb):
         """Close the synchronous MongoDB client."""
         self._client.close()
 
+    @classmethod
+    def get_client(
+        cls,
+        *,
+        config: MongoDbConfig,
+        client_cls: type[ClientType],
+    ) -> ClientType:
+        """Creates a configured MongoDB client based on the provided configuration,
+        with the timeout, uuid representation, and timezone awareness set.
 
-ClientType = TypeVar("ClientType", AsyncMongoClient, MongoClient)
+        *Does not* automatically close the client!
 
+        Args:
+            config: MongoDB-specific configuration parameters.
+            client_cls: The class of the MongoDB client to instantiate.
 
-def get_configured_mongo_client(
-    *,
-    config: MongoDbConfig,
-    client_cls: type[ClientType],
-) -> ClientType:
-    """Creates a configured MongoDB client based on the provided configuration,
-    with the timeout, uuid representation, and timezone awareness set.
+        Returns:
+            A MongoDB client instance configured with the provided parameters.
+        """
+        timeout_ms = (
+            int(config.mongo_timeout * 1000)
+            if config.mongo_timeout is not None
+            else None
+        )
 
-    Args:
-        config: MongoDB-specific configuration parameters.
-        client_cls: The class of the MongoDB client to instantiate.
-
-    Returns:
-        A MongoDB client instance configured with the provided parameters.
-    """
-    timeout_ms = (
-        int(config.mongo_timeout * 1000) if config.mongo_timeout is not None else None
-    )
-
-    return client_cls(
-        str(config.mongo_dsn.get_secret_value()),
-        timeoutMS=timeout_ms,
-        uuidRepresentation="standard",
-        tz_aware=True,
-    )
+        return client_cls(
+            str(config.mongo_dsn.get_secret_value()),
+            timeoutMS=timeout_ms,
+            uuidRepresentation="standard",
+            tz_aware=True,
+        )
 
 
 class MongoDbDaoFactory(DaoFactoryProtocol):

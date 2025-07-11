@@ -31,9 +31,9 @@ from testcontainers.mongodb import MongoDbContainer
 
 from hexkit.custom_types import PytestScope
 from hexkit.providers.mongodb.provider import (
+    ConfiguredMongoClient,
     MongoDbConfig,
     MongoDbDaoFactory,
-    get_configured_mongo_client,
 )
 
 MONGODB_IMAGE = "mongo:7.0.15"
@@ -134,15 +134,12 @@ async def _persistent_mongodb_fixture(
     """
     config = mongodb_container.mongodb_config
     async with MongoDbDaoFactory.construct(config=config) as dao_factory:
-        # Instead of `.get_connection_client()`, manually create it with correct codec opts
-        client = get_configured_mongo_client(config=config, client_cls=MongoClient)
-        yield MongoDbFixture(
-            client=client,
-            config=config,
-            dao_factory=dao_factory,
-        )
-
-        client.close()
+        with ConfiguredMongoClient(config=config) as sync_client:
+            yield MongoDbFixture(
+                client=sync_client,
+                config=config,
+                dao_factory=dao_factory,
+            )
 
 
 def get_persistent_mongodb_fixture(
