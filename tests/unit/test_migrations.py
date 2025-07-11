@@ -15,7 +15,9 @@
 
 """Unit tests for the MongoDB migration tools"""
 
+from datetime import datetime
 from unittest.mock import AsyncMock, Mock
+from uuid import UUID
 
 import pytest
 from pydantic import BaseModel, ValidationError
@@ -25,6 +27,11 @@ from hexkit.providers.mongodb.migrations import (
     MigrationManager,
     Reversible,
     validate_doc,
+)
+from hexkit.providers.mongodb.migrations.helpers import (
+    convert_outbox_correlation_id_v6,
+    convert_persistent_event_v6,
+    convert_uuids_and_datetimes_v6,
 )
 
 
@@ -155,3 +162,85 @@ def test_validate_doc():
     valid_but_wrong_doc = {"_id": "Test Title", "length": 100, "extra_field": "abc"}
     with pytest.raises(RuntimeError):
         validate_doc(doc=valid_but_wrong_doc, model=DummyObject, id_field=id_field)
+
+
+@pytest.mark.asyncio
+async def test_v6_uuid_datetime_conversion():
+    """Test the prefab uuid/datetime change function for Hexkit v6."""
+    test_uuid = UUID("625f4c14-f09f-4826-beed-9c7a0feee707")
+    doc = {
+        "_id": "item1",
+        "some_uuid": str(test_uuid),
+        "some_datetime": "2023-10-01T12:34:56.789123+00:00",
+    }
+
+    new_dt = datetime.fromisoformat(doc["some_datetime"])
+    new_dt = new_dt.replace(microsecond=new_dt.microsecond // 1000 * 1000)
+    expected_doc = {
+        "_id": "item1",
+        "some_uuid": test_uuid,
+        "some_datetime": new_dt,
+    }
+
+    # Define the migration
+    change_function = convert_uuids_and_datetimes_v6(
+        uuid_fields=["some_uuid"],
+        date_fields=["some_datetime"],
+    )
+
+    assert await change_function(doc) == expected_doc
+
+
+@pytest.mark.parametrize("compacted", [True, False])
+@pytest.mark.asyncio
+async def test_v6_persistent_event_updater(compacted: bool, monkeypatch):
+    """Test the hexkit v6 migration helper for persistent events."""
+    _id = "topic:key" if compacted else "ff6285b8-e440-4e1b-a36c-834d53c53078"
+    doc = {
+        "_id": _id,
+        "created": "2023-10-01T12:34:56.789123+00:00",
+        "correlation_id": "625f4c14-f09f-4826-beed-9c7a0feee707",
+    }
+
+    new_event_id = UUID("ff6285b8-e440-4e1b-a36c-834d53c53078")
+    created = datetime.fromisoformat(doc["created"])
+    created = created.replace(microsecond=created.microsecond // 1000 * 1000)
+    expected_doc = {
+        "_id": _id,
+        "created": created,
+        "event_id": new_event_id if compacted else UUID(_id),
+        "correlation_id": UUID(doc["correlation_id"]),
+    }
+
+    # if compacted topic, we have to generate a new random event_id, so patch that:
+    if compacted:
+        monkeypatch.setattr(
+            "hexkit.providers.mongodb.migrations.helpers.uuid4",
+            lambda: new_event_id,
+        )
+
+    assert await convert_persistent_event_v6(doc) == expected_doc
+
+
+@pytest.mark.asyncio
+async def test_v6_outbox_event_updater():
+    """Test the hexkit v6 migration helper for outbox event correlation IDs."""
+    doc = {
+        "_id": "outbox123",
+        "__metadata__": {
+            "correlation_id": "625f4c14-f09f-4826-beed-9c7a0feee707",
+            "published": False,
+            "deleted": False,
+        },
+    }
+
+    expected_doc = {
+        "_id": "outbox123",
+        "__metadata__": {
+            "correlation_id": UUID("625f4c14-f09f-4826-beed-9c7a0feee707"),
+            "published": False,
+            "deleted": False,
+        },
+    }
+
+    assert await convert_outbox_correlation_id_v6(doc) == expected_doc
