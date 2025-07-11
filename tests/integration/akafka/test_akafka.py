@@ -21,7 +21,7 @@ from contextlib import nullcontext
 from datetime import date, datetime, timezone
 from os import environ
 from pathlib import Path
-from typing import Optional, Union, cast
+from typing import Optional, cast
 from unittest.mock import AsyncMock
 
 import pytest
@@ -412,7 +412,7 @@ async def test_publish_event_id_conflict(kafka: KafkaFixture, caplog):
     header_event_id = uuid.uuid4()
     assert kw_event_id != header_event_id
 
-    # Publish the first event
+    # Publish the event
     async with kafka.record_events(in_topic=topic) as recorder:
         await kafka.publish_event(
             payload={"test_content": "First Event"},
@@ -427,7 +427,8 @@ async def test_publish_event_id_conflict(kafka: KafkaFixture, caplog):
 
     assert_logged(
         level="WARNING",
-        message="The 'event_id' header shouldn't be supplied, but was. Overwriting.",
+        message="The 'event_id' header shouldn't be supplied, but was. Overwriting"
+        + f" old value ({header_event_id}) with {kw_event_id}.",
         records=caplog.records,
         parse=True,
     )
@@ -461,7 +462,8 @@ async def test_publish_with_event_id_header(kafka: KafkaFixture, caplog):
 
     assert_logged(
         level="WARNING",
-        message="The 'event_id' header shouldn't be supplied, but was. Overwriting.",
+        message="The 'event_id' header shouldn't be supplied, but was. Overwriting"
+        + f" old value ({event_id}) with {recorder.recorded_events[0].event_id}.",
         records=caplog.records,
         parse=True,
     )
@@ -477,7 +479,7 @@ async def test_publish_with_event_id_header(kafka: KafkaFixture, caplog):
     ids=["None", "InvalidHeader", "EmptyString"],
 )
 async def test_invalid_or_missing_event_id_header(
-    kafka: KafkaFixture, caplog, event_id_header: Union[str, None], log_msg: str
+    kafka: KafkaFixture, caplog, event_id_header: Optional[str], log_msg: str
 ):
     """Test that when consuming an event with an invalid or missing event ID header,
     a new value is generated and a warning is logged.

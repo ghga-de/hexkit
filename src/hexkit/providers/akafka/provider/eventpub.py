@@ -201,20 +201,27 @@ class KafkaEventPublisher(EventPublisherProtocol):
             logging.info("Generated new correlation ID: %s.", correlation_id)
 
         # Create a shallow copy of the headers
-        headers_copy = dict(headers)
+        headers_copy = dict(headers)  # used for validation and logging only
 
         # Check and log warnings for reserved headers
-        for header in RESERVED_HEADERS:
-            log_msg = (
-                f"The '{header}' header shouldn't be supplied, but was. Overwriting."
-            )
-            if header in headers_copy:
-                logging.warning(log_msg, extra={header: headers_copy[header]})
+        overrides = {
+            header: headers_copy[header]
+            for header in RESERVED_HEADERS
+            if header in headers_copy
+        }
 
         headers_copy["type"] = type_
         headers_copy["event_id"] = str(event_id)
         headers_copy["correlation_id"] = str(correlation_id)
         encoded_headers_list = [(k, v.encode("ascii")) for k, v in headers_copy.items()]
+
+        # Log warnings for any reserved headers that were overridden
+        for header, old_value in overrides.items():
+            log_msg = (
+                f"The '{header}' header shouldn't be supplied, but was."
+                f" Overwriting old value ({old_value}) with {headers_copy[header]}."
+            )
+            logging.warning(log_msg, extra={header: old_value})
 
         await self._producer.send_and_wait(
             topic, key=key, value=payload, headers=encoded_headers_list

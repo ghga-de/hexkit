@@ -65,8 +65,8 @@ class PersistentKafkaEvent(BaseModel):
     event_id: Optional[UUID4] = Field(default=None, description="The event ID")
     headers: Mapping[str, str] = Field(
         default_factory=dict,
-        description="Event ID and other event headers. Correlation ID and event type are"
-        + " transmitted as event headers, but added as such within the publisher"
+        description="Non-standard event headers. Correlation ID, event_id, and event"
+        + " type are transmitted as event headers, but added as such within the publisher"
         + " protocol. The headers here are any additional header that need to be sent.",
     )
     correlation_id: UUID4 = UUID4Field(description="The event correlation ID")
@@ -253,11 +253,9 @@ class PersistentKafkaPublisher(EventPublisherProtocol):
         events.sort(key=lambda x: x.created)
 
         for event in events:
-            # If there's no event ID, generate a new UUID. It will get stored when the
-            # event is published. Set `published` to `False` to trigger an update.
+            # If there's no event ID, generate a new UUID.
             if not event.event_id:
                 event.event_id = uuid4()
-                event.published = False
             await self._publish_and_update(event)
 
     async def republish(self) -> None:
