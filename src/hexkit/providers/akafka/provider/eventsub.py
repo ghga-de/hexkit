@@ -243,28 +243,20 @@ class ExtractedEventInfo:
         self.headers = cast(dict, self.headers)
         self.type_ = kwargs.get("type_", self.headers.pop("type", ""))
 
-        # Perform some more rigorous checks on the event_id
-        # If event_id is provided as a kwarg (uncommon), it must be a UUID.
-        if event_id := kwargs.get("event_id"):
-            if not isinstance(event_id, UUID):
-                type_error = TypeError(
-                    "Event_id must be a UUID when supplied as a kwarg for"
-                    + f" {self.__class__.__name__}, got {type(event_id).__name__}."
-                )
-                logging.error(type_error)
-                raise type_error
+        # Retrieve the event ID from the headers or kwargs.
+        event_id = kwargs.get("event_id", self.headers.pop(HeaderNames.EVENT_ID, ""))
+        if isinstance(event_id, UUID):
+            # If it is a UUID, use it directly
             self.event_id = event_id
         else:
-            # If no event_id kwarg is provided (usual case), extract it from the headers
-            event_id_str = self.headers.pop(HeaderNames.EVENT_ID, "")
             try:
-                self.event_id = UUID(event_id_str)
+                self.event_id = UUID(event_id)
             except ValueError:
                 # Generate a new UUID, but log a warning including the encountered value
                 new_event_id = uuid4()
                 found_val = (
-                    f"Invalid event_id encountered: {event_id_str}"
-                    if event_id_str
+                    f"Invalid event_id encountered: {event_id}"
+                    if event_id
                     else "No event_id header found"
                 )
 
