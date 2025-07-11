@@ -386,12 +386,6 @@ jsonschema-specifications==2025.4.1 \
     # via
     #   -c lock/requirements-dev.txt
     #   jsonschema
-motor==3.7.1 \
-    --hash=sha256:27b4d46625c87928f331a6ca9d7c51c2f518ba0e270939d395bc1ddc89d64526 \
-    --hash=sha256:8a63b9049e38eeeb56b4fdd57c3312a6d1f25d01db717fe7d82222393c410298
-    # via
-    #   -c lock/requirements-dev.txt
-    #   hexkit (pyproject.toml)
 opentelemetry-api==1.34.1 \
     --hash=sha256:64f0bd06d42824843731d05beea88d4d4b6ae59f9fe347ff7dfa2cc14233bbb3 \
     --hash=sha256:b7df4cb0830d5a6c29ad0c0691dbae874d8daefa934b8b1d642de48323d32a8c
@@ -725,7 +719,7 @@ pymongo==4.13.2 \
     --hash=sha256:f8057f9bc9c94a8fd54ee4f5e5106e445a8f406aff2df74746f21c8791ee2403
     # via
     #   -c lock/requirements-dev.txt
-    #   motor
+    #   hexkit (pyproject.toml)
 python-dateutil==2.9.0.post0 \
     --hash=sha256:37dd54208da7e1cd875388217d5e00ebd4179249f90fb72437e91a35459a0ad3 \
     --hash=sha256:a8b2bc7bffae282281c8140a97d3aa9c14da0b136dfe83f850eea9a5f7470427

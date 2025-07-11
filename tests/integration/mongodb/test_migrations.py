@@ -21,7 +21,6 @@ from unittest.mock import AsyncMock
 
 import pymongo
 import pytest
-from motor.motor_asyncio import AsyncIOMotorClient
 from pydantic import BaseModel
 from pymongo import IndexModel, MongoClient
 from pymongo.collection import Collection
@@ -35,10 +34,8 @@ from hexkit.providers.mongodb.migrations import (
     MigrationStepError,
     Reversible,
 )
-from hexkit.providers.mongodb.migrations._manager import (
-    MigrationTimeoutError,
-)
-from hexkit.providers.mongodb.provider import get_configured_mongo_client
+from hexkit.providers.mongodb.migrations._manager import MigrationTimeoutError
+from hexkit.providers.mongodb.provider import ConfiguredMongoClient
 from hexkit.providers.mongodb.testutils import (
     MongoDbFixture,
     mongodb_container_fixture,  # noqa: F401
@@ -317,9 +314,7 @@ async def test_migration_without_copied_index(mongodb: MongoDbFixture):
 async def test_stage_unstage(mongodb: MongoDbFixture):
     """Stage and immediately unstage a collection with collection name collisions."""
     config = make_migration_config(mongodb.config)
-    client = get_configured_mongo_client(config=config, client_cls=AsyncIOMotorClient)
-
-    try:
+    async with ConfiguredMongoClient(config=config) as client:
         db = client.get_database(config.db_name)
         coll_name = "coll1"
         collection = db[coll_name]
@@ -351,8 +346,6 @@ async def test_stage_unstage(mongodb: MongoDbFixture):
 
         migdef = TestMig(db=db, is_final_migration=False, unapplying=False)
         await migdef.apply()
-    finally:  # Clean up the client connection -- normally done by MigrationManager
-        client.close()
 
 
 async def test_unapply_not_defined(mongodb: MongoDbFixture):
