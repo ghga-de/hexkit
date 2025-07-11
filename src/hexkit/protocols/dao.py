@@ -18,8 +18,6 @@
 with the database.
 """
 
-# ruff: noqa: PLR0913
-
 import typing
 from abc import ABC, abstractmethod
 from collections.abc import AsyncIterator, Collection, Mapping

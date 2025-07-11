@@ -1,6 +1,6 @@
 [project]
 name = "hexkit"
-version = "5.2.0"
+version = "5.4.0"
 description = "A Toolkit for Building Microservices using the Hexagonal Architecture"
 requires-python = ">=3.9"
 classifiers = [
@@ -67,6 +67,10 @@ all = ["hexkit[test]", "hexkit[opentelemetry]"]
 
 [project.urls]
 Repository = "https://github.com/ghga-de/hexkit"
+
+
+[project.entry-points.opentelemetry_distro]
+hexkit_distro = "hexkit.opentelemetry:HexkitDistro"
 
 [tool.ruff]
 target-version = "py39"

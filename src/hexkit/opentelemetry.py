@@ -25,6 +25,9 @@ from opentelemetry.environment_variables import (
     OTEL_TRACES_EXPORTER,
 )
 from opentelemetry.exporter.otlp.proto.http.trace_exporter import OTLPSpanExporter
+from opentelemetry.instrumentation.distro import (  # type: ignore[attr-defined]
+    BaseDistro,
+)
 from opentelemetry.sdk.environment_variables import (
     OTEL_EXPORTER_OTLP_ENDPOINT,
     OTEL_EXPORTER_OTLP_PROTOCOL,
@@ -95,6 +98,16 @@ class OpenTelemetryConfig(BaseSettings):
     )
 
 
+class HexkitDistro(BaseDistro):
+    """
+    Custom OpenTelemetry Distro configuring a default set of configuration
+    based on a config file.
+    """
+
+    def _configure(self, **kwargs):
+        """Custom DefaultDistro iplementation to provide autoinstrumentation entry points."""
+
+
 def configure_opentelemetry(*, service_name: str, config: OpenTelemetryConfig):
     """Configure all needed parts of OpenTelemetry.
 
@@ -143,8 +156,8 @@ def configure_opentelemetry(*, service_name: str, config: OpenTelemetryConfig):
 
 def start_span(
     *,
-    record_exception: bool = False,
-    set_status_on_exception: bool = False,
+    record_exception: bool = True,
+    set_status_on_exception: bool = True,
 ) -> Callable:
     """Returns decorated or undecorated function depending on if TRACER is instantiated.
 

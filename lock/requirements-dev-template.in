@@ -13,7 +13,7 @@ mypy-extensions>=1.0
 
 ruff>=0.11
 
-click>=8.1
+click>=8.1,<8.2
 typer>=0.15
 
 httpx>=0.28
