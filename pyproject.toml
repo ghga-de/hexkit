@@ -24,7 +24,7 @@ classifiers = [
     "Intended Audience :: Developers",
 ]
 name = "hexkit"
-version = "5.4.0"
+version = "6.0.0"
 description = "A Toolkit for Building Microservices using the Hexagonal Architecture"
 dependencies = [
     "opentelemetry-api >=1.31.1, <2",
