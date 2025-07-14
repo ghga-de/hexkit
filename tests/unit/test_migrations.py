@@ -164,22 +164,36 @@ def test_validate_doc():
         validate_doc(doc=valid_but_wrong_doc, model=DummyObject, id_field=id_field)
 
 
+@pytest.mark.parametrize(
+    "microseconds, rounded",
+    [("009501", "010000"), ("789499", "789000"), ("999500", "000000")],
+)
+@pytest.mark.parametrize("tz_aware", [True, False])
 @pytest.mark.asyncio
-async def test_v6_uuid_datetime_conversion():
-    """Test the prefab uuid/datetime change function for Hexkit v6."""
+async def test_v6_uuid_datetime_conversion(
+    tz_aware: bool, microseconds: str, rounded: str
+):
+    """Test the prefab uuid/datetime change function for Hexkit v6.
+
+    This test checks micro-to-millisecond conversion and timezone handling,
+    in addition to UUID conversion.
+    """
     test_uuid = UUID("625f4c14-f09f-4826-beed-9c7a0feee707")
+
+    dt_base = "2023-10-01T12:34:56."
+    original_dt = f"{dt_base}{microseconds}"
+    if tz_aware:
+        original_dt += "+00:00"
     doc = {
         "_id": "item1",
         "some_uuid": str(test_uuid),
-        "some_datetime": "2023-10-01T12:34:56.789123+00:00",
+        "some_datetime": original_dt,
     }
 
-    new_dt = datetime.fromisoformat(doc["some_datetime"])
-    new_dt = new_dt.replace(microsecond=new_dt.microsecond // 1000 * 1000)
     expected_doc = {
         "_id": "item1",
         "some_uuid": test_uuid,
-        "some_datetime": new_dt,
+        "some_datetime": datetime.fromisoformat(f"{dt_base}{rounded}+00:00"),
     }
 
     # Define the migration
@@ -204,7 +218,8 @@ async def test_v6_persistent_event_updater(compacted: bool, monkeypatch):
 
     new_event_id = UUID("ff6285b8-e440-4e1b-a36c-834d53c53078")
     created = datetime.fromisoformat(doc["created"])
-    created = created.replace(microsecond=created.microsecond // 1000 * 1000)
+    rounded_ms = (round(created.microsecond / 1000) % 1000) * 1000
+    created = created.replace(microsecond=rounded_ms)
     expected_doc = {
         "_id": _id,
         "created": created,

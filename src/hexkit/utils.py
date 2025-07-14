@@ -128,10 +128,12 @@ async def set_context_var(context_var: ContextVar, value: Any):
 
 
 def now_utc_ms_prec() -> datetime:
-    """Return the current UTC time without microseconds.
+    """Return the current UTC time with microseconds rounded to milliseconds.
 
     This is useful for producing a datetime that is consistent
     with MongoDB's millisecond precision.
     """
     current_time = datetime.now(timezone.utc)
-    return current_time.replace(microsecond=current_time.microsecond // 1000 * 1000)
+    # Round microseconds to milliseconds
+    rounded_ms = (round(current_time.microsecond / 1000) % 1000) * 1000
+    return current_time.replace(microsecond=rounded_ms)

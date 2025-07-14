@@ -36,6 +36,10 @@ def convert_uuids_and_datetimes_v6(
 ) -> Callable[[Document], Awaitable[Document]]:
     """Produce a function to convert a document to the format expected by Hexkit v6.
 
+    If `uuid_fields` is provided, it will convert those fields from string to UUID.
+    If `date_fields` is provided, it will convert those fields from isoformat strings
+    to UTC datetime objects with the microseconds rounded to milliseconds.
+
     Args:
         uuid_fields: List of fields currently storing UUIDs in string format.
         date_fields: List of fields currently storing datetimes as isoformat strings.
@@ -49,7 +53,11 @@ def convert_uuids_and_datetimes_v6(
             old_dt = datetime.fromisoformat(doc[field])
             if old_dt.tzname() != "UTC":
                 old_dt = old_dt.astimezone(timezone.utc)
-            new_dt = old_dt.replace(microsecond=old_dt.microsecond // 1000 * 1000)
+            microseconds = old_dt.microsecond
+
+            # Round to milliseconds and account for case where microseconds are >999500
+            rounded_ms = (round(microseconds / 1000) % 1000) * 1000
+            new_dt = old_dt.replace(microsecond=rounded_ms)
             doc[field] = new_dt
         return doc
 
