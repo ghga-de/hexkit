@@ -80,8 +80,8 @@ class OpenTelemetryConfig(BaseSettings):
 def configure_opentelemetry(*, service_name: str, config: OpenTelemetryConfig):
     """Configure all needed parts of OpenTelemetry.
 
-    Setup of the TracerProvider is done programmatically, all other configuration exports
-    OpenTelemetry specific environment variables.
+    Setup of the TracerProvider is done programmatically and if OpenTelemetry is set to
+    be disabled, OTEL_SDK_DISABLED is set to true instead.
     """
     global TRACER
     if config.enable_opentelemetry:
