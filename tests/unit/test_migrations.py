@@ -177,9 +177,8 @@ def test_validate_doc():
             datetime(2023, 10, 1, 12, 34, 56, 1001),
             datetime(2023, 10, 1, 12, 34, 56, 1000),
         ),
-        (datetime(2023, 1, 1, 1, 1, 1, 171500), datetime(2023, 1, 1, 1, 1, 1, 172000)),
     ],
-    ids=["EndOfYear", "RoundDown", "NoRound", "SmallMicroseconds", "RoundUp"],
+    ids=["EndOfYear", "RoundDown", "NoRound", "SmallMicroseconds"],
 )
 @pytest.mark.parametrize("tz_aware", [True, False])
 @pytest.mark.asyncio

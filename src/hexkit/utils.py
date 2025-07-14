@@ -137,8 +137,7 @@ def round_datetime_to_ms(dt: datetime) -> datetime:
     # Calculate the delta to add or subtract to round to the nearest millisecond.
     # we subtract sub_ms either from 1000 if rounding up or from 0 if rounding down
     delta = timedelta(microseconds=(1000 * (sub_ms >= 500)) - sub_ms)
-    new_dt = dt + delta
-    return new_dt
+    return dt + delta
 
 
 def now_utc_ms_prec() -> datetime:
