@@ -51,6 +51,7 @@ mongodb = [
 opentelemetry-base = [
     "opentelemetry-sdk >=1.31.1, <2",
     "opentelemetry-exporter-otlp >=1.31.1, <2",
+    "opentelemetry-distro >=0.52b1",
     "opentelemetry-instrumentation >=0.52b1",
     "opentelemetry-instrumentation-httpx >=0.52b1",
 ]
@@ -101,9 +102,6 @@ all = [
 
 [project.urls]
 Repository = "https://github.com/ghga-de/hexkit"
-
-[project.entry-points.opentelemetry_distro]
-hexkit_distro = "hexkit.opentelemetry:HexkitDistro"
 
 [tool.setuptools.packages.find]
 where = [
