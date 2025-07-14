@@ -17,6 +17,7 @@
 """Testing the `translators.eventsub` module."""
 
 from unittest.mock import AsyncMock
+from uuid import UUID
 
 import pytest
 
@@ -25,6 +26,8 @@ from stream_calc.translators.eventsub import (
     EventProblemReceiver,
     EventProblemReceiverConfig,
 )
+
+TEST_EVENT_ID = UUID("12345678-1234-5678-1234-567812345678")
 
 
 @pytest.mark.asyncio
@@ -54,8 +57,9 @@ async def test_event_problem_receiver(
     problem_receiver = EventProblemReceiver(
         config=EventProblemReceiverConfig(), problem_handler=problem_handler
     )
+
     await problem_receiver.consume(
-        payload=payload, type_=type_, topic=topic, key="test"
+        payload=payload, type_=type_, topic=topic, key="test", event_id=TEST_EVENT_ID
     )
 
     # check the published event:
@@ -78,6 +82,10 @@ async def test_event_problem_receiver_with_missing_field():
         match="did not contain the expected field 'multiplicand'",
     ):
         await problem_receiver.consume(
-            payload=payload, type_=type_, topic=topic, key="test"
+            payload=payload,
+            type_=type_,
+            topic=topic,
+            key="test",
+            event_id=TEST_EVENT_ID,
         )
     problem_handler.multiply.assert_not_awaited()

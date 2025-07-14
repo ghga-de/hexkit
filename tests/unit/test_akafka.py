@@ -19,7 +19,7 @@
 from collections import namedtuple
 from contextlib import nullcontext
 from typing import Optional
-from unittest.mock import AsyncMock, Mock
+from unittest.mock import ANY, AsyncMock, Mock
 from uuid import UUID
 
 import pytest
@@ -47,8 +47,10 @@ async def test_kafka_event_publisher():
     key = "test_key"
     topic = "test_topic"
     payload = {"test_content": "Hello World"}
+    event_id = UUID("12345678-1234-5678-1234-567812345678")
     expected_headers = [
         ("type", b"test_type"),
+        ("event_id", b"12345678-1234-5678-1234-567812345678"),
         CORRELATION_ID_HEADER,
     ]
 
@@ -82,6 +84,7 @@ async def test_kafka_event_publisher():
                 type_=type_,
                 key=key,
                 topic=topic,
+                event_id=event_id,
             )
 
     # check if producer was correctly used:
@@ -208,7 +211,7 @@ async def test_kafka_event_subscriber(
     # check if the translator was called correctly:
     if is_translator_called:
         translator.consume.assert_awaited_once_with(
-            payload=payload, type_=type_, topic=topic, key=event.key
+            payload=payload, type_=type_, topic=topic, key=event.key, event_id=ANY
         )
     else:
         assert translator.consume.await_count == 0

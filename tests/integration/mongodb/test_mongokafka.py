@@ -733,6 +733,10 @@ async def test_mongokafka_dao_correlation_id_upsert(mongo_kafka: MongoKafkaFixtu
         collection = get_mongo_collection(mongo_kafka, "example")
         inserted = collection.find_one({"__metadata__.correlation_id": correlation_id})
         assert inserted
+        inserted_event_id = inserted["__metadata__"].pop("last_event_id", None)
+        assert isinstance(inserted_event_id, uuid.UUID)
+
+        # Check the other metadata (now that we've removed the unpredictable event ID)
         assert inserted["__metadata__"] == {
             "correlation_id": correlation_id,
             "deleted": False,
@@ -755,6 +759,12 @@ async def test_mongokafka_dao_correlation_id_upsert(mongo_kafka: MongoKafkaFixtu
                 {"__metadata__.correlation_id": temp_correlation_id}
             )
             assert updated
+
+            # Make sure the event ID is new since mongokafka shouldn't reuse event IDs
+            updated_event_id = updated["__metadata__"].pop("last_event_id", None)
+            assert isinstance(updated_event_id, uuid.UUID)
+            assert updated_event_id != inserted_event_id
+
             assert updated["__metadata__"] == {
                 "correlation_id": temp_correlation_id,
                 "deleted": False,
@@ -794,6 +804,7 @@ async def test_mongokafka_dao_correlation_id_delete(mongo_kafka: MongoKafkaFixtu
         correlation_id = get_correlation_id()
         inserted = collection.find_one({"__metadata__.correlation_id": correlation_id})
         assert inserted
+
         metadata = inserted.pop("__metadata__")
         assert inserted == {
             "_id": example.id,
@@ -803,6 +814,7 @@ async def test_mongokafka_dao_correlation_id_delete(mongo_kafka: MongoKafkaFixtu
             "field_d": example.field_d,
             "field_e": str(example.field_e),
         }
+        inserted_event_id = metadata.pop("last_event_id", None)
         assert metadata == {
             "correlation_id": correlation_id,
             "deleted": False,
@@ -820,6 +832,9 @@ async def test_mongokafka_dao_correlation_id_delete(mongo_kafka: MongoKafkaFixtu
             assert deleted
             metadata = deleted.pop("__metadata__")
             assert deleted == {"_id": example.id}
+            deleted_event_id = metadata.pop("last_event_id", None)
+            assert isinstance(deleted_event_id, uuid.UUID)
+            assert deleted_event_id != inserted_event_id
             assert metadata == {
                 "correlation_id": temp_correlation_id,
                 "deleted": True,
@@ -873,6 +888,10 @@ async def test_documents_without_metadata(mongo_kafka: MongoKafkaFixture):
         correlation_id = get_correlation_id()
         document = mongo_client[db_name]["example"].find_one({"_id": doc1["_id"]})
         assert document is not None and "__metadata__" in document
+        event_id = document["__metadata__"].pop("last_event_id", None)
+        assert isinstance(event_id, uuid.UUID)
+
+        # Check the other metadata (now that we've removed the unpredictable event ID)
         assert document["__metadata__"] == {
             "correlation_id": correlation_id,
             "deleted": False,
@@ -886,6 +905,9 @@ async def test_documents_without_metadata(mongo_kafka: MongoKafkaFixture):
 
         deleted_doc = mongo_client[db_name]["example"].find_one({"_id": doc2["_id"]})
         assert deleted_doc is not None and "__metadata__" in deleted_doc
+        deletion_event_id = deleted_doc["__metadata__"].pop("last_event_id", None)
+        assert isinstance(event_id, uuid.UUID)
+        assert deletion_event_id != event_id
         assert deleted_doc["__metadata__"] == {
             "correlation_id": correlation_id,
             "deleted": True,

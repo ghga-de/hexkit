@@ -276,6 +276,7 @@ async def test_correlation_consuming(
             type_: Ascii,
             topic: Ascii,
             key: Ascii,
+            event_id: UUID4,
         ) -> None:
             # Make sure the IDs match
             if not cid_in_header:

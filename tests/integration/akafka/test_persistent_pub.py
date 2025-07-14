@@ -48,6 +48,7 @@ TEST_TYPE = "my_type"
 TEST_PAYLOAD = {"some": "payload"}
 TEST_KEY = "somekey123"
 TEST_CORRELATION_ID = UUID("9ef5956f-be9c-427a-ab4a-42ae1e231c86")
+TEST_EVENT_ID = UUID("40a7a7c5-1e2f-4a1f-b053-cf918edd1b40")
 
 
 async def test_basic_publish(kafka: KafkaFixture, mongodb: MongoDbFixture):
@@ -64,11 +65,13 @@ async def test_basic_publish(kafka: KafkaFixture, mongodb: MongoDbFixture):
     collection_name = f"{config.service_name}PersistedEvents"
 
     expected_db_event = {
+        "compaction_key": str(TEST_EVENT_ID),  # this field is str-typed
         "topic": TEST_TOPIC,
         "type_": TEST_TYPE,
         "payload": TEST_PAYLOAD,
         "key": TEST_KEY,
         "headers": {},
+        "event_id": TEST_EVENT_ID,
         "correlation_id": TEST_CORRELATION_ID,
         "published": True,
     }
@@ -93,6 +96,7 @@ async def test_basic_publish(kafka: KafkaFixture, mongodb: MongoDbFixture):
             topic=TEST_TOPIC,
             type_=TEST_TYPE,
             key=TEST_KEY,
+            event_id=TEST_EVENT_ID,
             headers=None,
         )
     # Inspect & verify some expectations about the event that we published
@@ -111,15 +115,13 @@ async def test_basic_publish(kafka: KafkaFixture, mongodb: MongoDbFixture):
 
     # Convert to model and dump as dict
     dto_dict = document_to_dto(
-        stored_event_doc, id_field="id", dto_model=PersistentKafkaEvent
+        stored_event_doc, id_field="compaction_key", dto_model=PersistentKafkaEvent
     ).model_dump()
 
     # Inspect the 'created' and 'id' fields
     timestamp = dto_dict.pop("created")
     assert datetime.now(tz=timezone.utc) - timestamp <= timedelta(seconds=30)
 
-    # Verify that the ID is a valid UUID (no error means it's valid)
-    UUID(dto_dict.pop("id"))
     assert dto_dict == expected_db_event
 
 
@@ -155,6 +157,7 @@ async def test_republish(kafka: KafkaFixture, mongodb: MongoDbFixture):
                 headers=None,
             )
 
+    assert len(recorder1.recorded_events) == 3
     docs = collection.find().to_list()
     assert len(docs) == 3
 
@@ -359,3 +362,69 @@ async def test_conflicting_args():
         + " Please review the following values: conflict1, conflict2."
     )
     assert err.value.args[0] == msg
+
+
+@pytest.mark.parametrize("method", ["republish", "publish_pending"])
+@pytest.mark.parametrize(
+    "set_event_id",
+    [True, False],
+    ids=["EventIdSet", "EventIdNotSet"],
+)
+async def test_republish_with_event_id_presence(
+    kafka: KafkaFixture, mongodb: MongoDbFixture, method: str, set_event_id: bool
+):
+    """Test that `republish`/`publish_pending` uses the event_id from the database.
+    Alternatively, if the event_id is not set, it should generate a new one.
+    """
+    config = MongoKafkaConfig(
+        **kafka.config.model_dump(), **mongodb.config.model_dump()
+    )
+    collection_name = f"{config.service_name}PersistedEvents"
+    dao_factory = MongoDbDaoFactory(config=config)
+
+    # Insert an event manually in the database, marked as unpublished
+    collection = mongodb.client[config.db_name][collection_name]
+    event = {
+        "_id": f"{TEST_TOPIC}:{TEST_KEY}",
+        "topic": TEST_TOPIC,
+        "type_": TEST_TYPE,
+        "key": TEST_KEY,
+        "payload": {"new": "payload"},
+        "headers": {},
+        "correlation_id": TEST_CORRELATION_ID,
+        "created": now_utc_ms_prec(),
+        "published": False,
+        "event_id": TEST_EVENT_ID if set_event_id else None,
+    }
+    collection.insert_one(event)
+
+    # Publish pending events
+    async with (
+        PersistentKafkaPublisher.construct(
+            config=config,
+            dao_factory=dao_factory,
+            collection_name=collection_name,
+        ) as persistent_publisher,
+        kafka.record_events(in_topic=TEST_TOPIC, capture_headers=True) as recorder,
+        set_correlation_id(TEST_CORRELATION_ID),
+    ):
+        method_to_await = getattr(persistent_publisher, method)
+        await method_to_await()
+
+    # Verify that the event was published with the correct event_id
+    assert len(recorder.recorded_events) == 1
+
+    recorded_event_id = recorder.recorded_events[0].event_id
+    if not set_event_id:
+        # If set_event_id is False, a new event_id should be generated
+        assert recorded_event_id != str(TEST_EVENT_ID)
+        # The event_id should be a valid UUID
+        assert UUID(recorded_event_id)
+
+        # Check that the event_id in the DB is also updated
+        db_events = collection.find().to_list()
+        assert len(db_events) == 1
+        assert db_events[0]["event_id"] == UUID(recorded_event_id)
+    else:
+        # If set_event_id is True, the event_id should match the one in the DB
+        assert recorded_event_id == str(TEST_EVENT_ID)
