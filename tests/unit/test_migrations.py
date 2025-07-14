@@ -15,7 +15,7 @@
 
 """Unit tests for the MongoDB migration tools"""
 
-from datetime import datetime
+from datetime import datetime, timezone
 from unittest.mock import AsyncMock, Mock
 from uuid import UUID
 
@@ -165,13 +165,26 @@ def test_validate_doc():
 
 
 @pytest.mark.parametrize(
-    "microseconds, rounded",
-    [("009501", "010000"), ("789499", "789000"), ("999500", "000000")],
+    "original_dt, expected_dt",
+    [
+        (datetime(2023, 12, 31, 23, 59, 59, 999500), datetime(2024, 1, 1, 0, 0, 0, 0)),
+        (datetime(2023, 1, 1, 1, 1, 1, 789499), datetime(2023, 1, 1, 1, 1, 1, 789000)),
+        (
+            datetime(2023, 10, 1, 12, 34, 56, 1000),
+            datetime(2023, 10, 1, 12, 34, 56, 1000),
+        ),
+        (
+            datetime(2023, 10, 1, 12, 34, 56, 1001),
+            datetime(2023, 10, 1, 12, 34, 56, 1000),
+        ),
+        (datetime(2023, 1, 1, 1, 1, 1, 171500), datetime(2023, 1, 1, 1, 1, 1, 172000)),
+    ],
+    ids=["EndOfYear", "RoundDown", "NoRound", "SmallMicroseconds", "RoundUp"],
 )
 @pytest.mark.parametrize("tz_aware", [True, False])
 @pytest.mark.asyncio
 async def test_v6_uuid_datetime_conversion(
-    tz_aware: bool, microseconds: str, rounded: str
+    tz_aware: bool, original_dt: datetime, expected_dt: datetime
 ):
     """Test the prefab uuid/datetime change function for Hexkit v6.
 
@@ -180,20 +193,20 @@ async def test_v6_uuid_datetime_conversion(
     """
     test_uuid = UUID("625f4c14-f09f-4826-beed-9c7a0feee707")
 
-    dt_base = "2023-10-01T12:34:56."
-    original_dt = f"{dt_base}{microseconds}"
+    original_dt_string = original_dt.isoformat()
     if tz_aware:
-        original_dt += "+00:00"
+        original_dt_string += "+00:00"
+
     doc = {
         "_id": "item1",
         "some_uuid": str(test_uuid),
-        "some_datetime": original_dt,
+        "some_datetime": original_dt_string,
     }
 
     expected_doc = {
         "_id": "item1",
         "some_uuid": test_uuid,
-        "some_datetime": datetime.fromisoformat(f"{dt_base}{rounded}+00:00"),
+        "some_datetime": expected_dt.astimezone(timezone.utc),
     }
 
     # Define the migration

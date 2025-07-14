@@ -21,6 +21,7 @@ from typing import Optional
 from uuid import UUID, uuid4
 
 from hexkit.providers.mongodb.migrations import Document
+from hexkit.utils import round_datetime_to_ms
 
 __all__ = [
     "convert_outbox_correlation_id_v6",
@@ -53,12 +54,7 @@ def convert_uuids_and_datetimes_v6(
             old_dt = datetime.fromisoformat(doc[field])
             if old_dt.tzname() != "UTC":
                 old_dt = old_dt.astimezone(timezone.utc)
-            microseconds = old_dt.microsecond
-
-            # Round to milliseconds and account for case where microseconds are >999500
-            rounded_ms = (round(microseconds / 1000) % 1000) * 1000
-            new_dt = old_dt.replace(microsecond=rounded_ms)
-            doc[field] = new_dt
+            doc[field] = round_datetime_to_ms(old_dt)
         return doc
 
     return convert
