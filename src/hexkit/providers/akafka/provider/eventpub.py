@@ -203,7 +203,6 @@ class KafkaEventPublisher(EventPublisherProtocol):
         # Create a shallow copy of the headers
         headers_copy = dict(headers)  # used for validation and logging only
 
-        # Check and log warnings for reserved headers
         overrides = {
             header: headers_copy[header]
             for header in RESERVED_HEADERS
