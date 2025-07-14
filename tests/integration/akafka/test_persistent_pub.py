@@ -31,7 +31,7 @@ from hexkit.providers.akafka.testutils import (
     kafka_container_fixture,  # noqa: F401
     kafka_fixture,  # noqa: F401
 )
-from hexkit.providers.mongodb.provider import document_to_dto
+from hexkit.providers.mongodb.provider import MongoDbDaoFactory, document_to_dto
 from hexkit.providers.mongodb.testutils import (
     MongoDbFixture,
     mongodb_container_fixture,  # noqa: F401
@@ -380,10 +380,9 @@ async def test_republish_with_event_id_presence(
         **kafka.config.model_dump(), **mongodb.config.model_dump()
     )
     collection_name = f"{config.service_name}PersistedEvents"
-    dao_factory = MongoDbDaoFactory(config=config)
+    collection = mongodb.client[config.db_name][collection_name]
 
     # Insert an event manually in the database, marked as unpublished
-    collection = mongodb.client[config.db_name][collection_name]
     event = {
         "_id": f"{TEST_TOPIC}:{TEST_KEY}",
         "topic": TEST_TOPIC,
@@ -400,6 +399,7 @@ async def test_republish_with_event_id_presence(
 
     # Publish pending events
     async with (
+        MongoDbDaoFactory.construct(config=config) as dao_factory,
         PersistentKafkaPublisher.construct(
             config=config,
             dao_factory=dao_factory,

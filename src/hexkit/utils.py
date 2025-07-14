@@ -18,7 +18,7 @@
 from collections.abc import Collection
 from contextlib import asynccontextmanager
 from contextvars import ContextVar
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 from typing import Any, Optional
 
 from pydantic import BaseModel
@@ -127,11 +127,25 @@ async def set_context_var(context_var: ContextVar, value: Any):
     context_var.reset(token)
 
 
+def round_datetime_to_ms(dt: datetime) -> datetime:
+    """Round a datetime object to nearest millisecond."""
+    microseconds = dt.microsecond
+    sub_ms = microseconds % 1000
+    if not sub_ms:
+        return dt
+
+    # Calculate the delta to add or subtract to round to the nearest millisecond.
+    # we subtract sub_ms either from 1000 if rounding up or from 0 if rounding down
+    delta = timedelta(microseconds=(1000 * (sub_ms >= 500)) - sub_ms)
+    return dt + delta
+
+
 def now_utc_ms_prec() -> datetime:
-    """Return the current UTC time without microseconds.
+    """Return the current UTC time with microseconds rounded to milliseconds.
 
     This is useful for producing a datetime that is consistent
     with MongoDB's millisecond precision.
     """
     current_time = datetime.now(timezone.utc)
-    return current_time.replace(microsecond=current_time.microsecond // 1000 * 1000)
+    # Round microseconds to milliseconds
+    return round_datetime_to_ms(current_time)
