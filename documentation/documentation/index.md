@@ -7,9 +7,10 @@ architectural concepts that guide `hexkit`'s development. Also contained herein 
 example code demonstrating the usage of various portions of the library, in addition
 to some guidance on when to use one feature over another.
 
-
 ## Table of Contents
+
 - [Architecture Concepts](arch_concepts/overview.md)
+- [Library Structure and Conventions](structure/overview.md)
 - [Protocols](protocols/overview.md)
 - [Providers](providers/overview.md)
 - [Observability Tools](observability_tools/overview.md)
