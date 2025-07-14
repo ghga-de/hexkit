@@ -16,7 +16,7 @@
 """Prefab functions to help with migrations caused by changes in Hexkit."""
 
 from collections.abc import Awaitable, Callable
-from datetime import datetime
+from datetime import datetime, timezone
 from typing import Optional
 from uuid import UUID, uuid4
 
@@ -47,6 +47,8 @@ def convert_uuids_and_datetimes_v6(
             doc[field] = UUID(doc[field])
         for field in date_fields or []:
             old_dt = datetime.fromisoformat(doc[field])
+            if old_dt.tzname() != "UTC":
+                old_dt = old_dt.astimezone(timezone.utc)
             new_dt = old_dt.replace(microsecond=old_dt.microsecond // 1000 * 1000)
             doc[field] = new_dt
         return doc
