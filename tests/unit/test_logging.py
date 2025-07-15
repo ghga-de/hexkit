@@ -20,6 +20,7 @@ import logging
 from contextlib import contextmanager
 from dataclasses import dataclass, field
 from typing import Optional
+from uuid import UUID, uuid4
 
 import pytest
 from pydantic import Field, SecretBytes, SecretStr
@@ -315,6 +316,7 @@ def test_secrets_logging_config(root_logger_reset, capsys):  # noqa: F811
     class TestConfig(LoggingConfig):
         string: str = "foo"
         number: int = 42
+        uuid_: UUID = uuid4()
         secret_bytes: SecretBytes = Field(default=SecretBytes(b"silent"))
         secret_str: SecretStr = Field(default=SecretStr("silent"))
 
@@ -329,5 +331,5 @@ def test_secrets_logging_config(root_logger_reset, capsys):  # noqa: F811
     for key, value in config.model_dump().items():
         assert key in printed_log
         if not key.startswith("secret"):
-            json_value = json.dumps(value)
+            json_value = json.dumps(value, default=str)
             assert json_value in printed_log
