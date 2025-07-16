@@ -19,7 +19,9 @@ import json
 import logging
 from contextlib import contextmanager
 from dataclasses import dataclass, field
+from datetime import datetime
 from typing import Optional
+from uuid import uuid4
 
 import pytest
 from pydantic import Field, SecretBytes, SecretStr
@@ -330,4 +332,27 @@ def test_secrets_logging_config(root_logger_reset, capsys):  # noqa: F811
         assert key in printed_log
         if not key.startswith("secret"):
             json_value = json.dumps(value)
-            assert json_value in printed_log
+            assert json_value in printed_log, printed_log
+
+
+def test_complex_types_in_log_detail(root_logger_reset, capsys):  # noqa: F811
+    """Test that complex types in log details are serialized with repr."""
+    config = LoggingConfig(service_name="", service_instance_id="")
+    configure_logging(config=config)
+
+    # Clear the capture buffer before logging
+    out, err = capsys.readouterr()
+
+    test_uuid = uuid4()
+    date = datetime.now()
+
+    log = logging.getLogger()
+    log.error("Testing", extra={"id_": test_uuid, "date": date})
+
+    # Capture the output after logging
+    out, err = capsys.readouterr()
+    printed_log = out + err
+
+    assert "Testing" in printed_log
+    assert repr(test_uuid) in printed_log
+    assert repr(date) in printed_log
