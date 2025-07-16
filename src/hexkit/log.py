@@ -89,7 +89,8 @@ class JsonFormatter(Formatter):
         self._include_traceback = include_traceback
 
     def format(self, record: LogRecord) -> str:
-        """Format the specified record as a JSON string.
+        """Format the specified record as a JSON string with non-serializable types
+        converted using repr.
 
         This will format the log record as JSON with the following values (in order):
             - timestamp: The ISO 8601-formatted timestamp of the log message.
@@ -131,8 +132,8 @@ class JsonFormatter(Formatter):
                     exception["traceback"] = exc_text
             output["exception"] = exception
 
-        # Convert to JSON string
-        return json.dumps(output)
+        # Use repr for non-serializable types, since this matches the default logger
+        return json.dumps(output, default=repr)
 
 
 class RecordCompiler(StreamHandler):
