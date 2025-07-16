@@ -340,13 +340,16 @@ def test_complex_types_in_log_detail(root_logger_reset, capsys):  # noqa: F811
     config = LoggingConfig(service_name="", service_instance_id="")
     configure_logging(config=config)
 
+    # Clear the capture buffer before logging
     out, err = capsys.readouterr()
-    printed_log = out + err
+
     test_uuid = uuid4()
     date = datetime.now()
 
     log = logging.getLogger()
     log.error("Testing", extra={"id_": test_uuid, "date": date})
+
+    # Capture the output after logging
     out, err = capsys.readouterr()
     printed_log = out + err
 
