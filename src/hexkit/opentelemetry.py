@@ -142,8 +142,12 @@ def start_span(
     def wrapper(function: Callable):
         # Caller did not have any time to populate from config yet or otel is disabled
         if TRACER is None:
+            logger.debug(
+                "Could not decorate function %s to start a span.", function.__qualname__
+            )
             return function
         # Return decorated function
+        logger.debug("Decorating function %s to start a span.", function.__qualname__)
         return TRACER.start_span(
             record_exception=record_exception,
             set_status_on_exception=set_status_on_exception,
