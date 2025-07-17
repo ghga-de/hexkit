@@ -47,6 +47,7 @@ class SpanTracer:
         def outer_wrapper(function: Callable):
             def traced_function(*args, **kwargs):
                 name = function.__qualname__
+                logger.debug(" Starting span for function %s", name)
                 with self.tracer.start_as_current_span(
                     name,
                     record_exception=record_exception,
@@ -84,6 +85,12 @@ def configure_opentelemetry(*, service_name: str, config: OpenTelemetryConfig):
     be disabled, OTEL_SDK_DISABLED is set to true instead.
     """
     global TRACER
+
+    for key in os.environ:
+        if key.startswith("OTEL_"):
+            logger.warning(
+                "OTEL Environment variable %s is set to %s. ", key, os.environ[key]
+            )
 
     if config.enable_opentelemetry:
         logger.info(
