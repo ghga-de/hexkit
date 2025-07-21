@@ -213,9 +213,10 @@ class ConsumerEvent(Protocol):
     timestamp: int
 
 
-def utc_datetime_from_micros(micros: int) -> datetime:
-    """Convert an integer representing microseconds to a utc timestamp"""
-    return datetime.fromtimestamp(micros / 1000, tz=timezone.utc)
+def utc_datetime_from_ms(ms: int) -> datetime:
+    """Convert an integer representing UNIX time in milliseconds to a utc timestamp"""
+    # python's datetime.fromtimestamp expects seconds, so we divide by 1000
+    return datetime.fromtimestamp(ms / 1000, tz=timezone.utc)
 
 
 @dataclass
@@ -286,7 +287,7 @@ class DLQEventInfo(ExtractedEventInfo):
     def __init__(self, event: Optional[ConsumerEvent] = None, **kwargs):
         """Initialize an instance of ExtractedEventInfo."""
         timestamp = (
-            utc_datetime_from_micros(event.timestamp) if event else now_utc_ms_prec()
+            utc_datetime_from_ms(event.timestamp) if event else now_utc_ms_prec()
         )
         self.timestamp = kwargs.pop("timestamp", timestamp)
         super().__init__(event=event, **kwargs)
