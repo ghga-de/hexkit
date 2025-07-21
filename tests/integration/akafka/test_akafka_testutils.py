@@ -20,10 +20,12 @@ import json
 from collections.abc import Sequence
 from contextlib import nullcontext, suppress
 from typing import Optional
+from uuid import UUID
 
 import pytest
 from aiokafka import AIOKafkaConsumer
 from aiokafka.structs import TopicPartition
+from pydantic import UUID4
 
 from hexkit.correlation import set_correlation_id
 from hexkit.custom_types import Ascii, JsonObject
@@ -45,13 +47,14 @@ from hexkit.providers.akafka.testutils import (
 pytestmark = pytest.mark.asyncio()
 
 
-DEFAULT_CORRELATION_ID = "513ed283-478e-428e-8c2f-ff6da36a9527"
-OTHER_CORRELATION_ID = "d4fd8051-293b-4cce-9970-6b78ca149bc0"
+DEFAULT_CORRELATION_ID = UUID("513ed283-478e-428e-8c2f-ff6da36a9527")
+OTHER_CORRELATION_ID = UUID("d4fd8051-293b-4cce-9970-6b78ca149bc0")
 
 TEST_TYPE = "test_type"
 TEST_TOPIC1 = "topic1"
 TEST_TOPIC2 = "topic2"
 TEST_TOPICS = [TEST_TOPIC1, TEST_TOPIC2]
+TEST_EVENT_ID = "f8b1c0d2-3e4f-4a5b-8c6d-7e8f9a0b1c2d"
 
 
 def make_payload(msg: str) -> JsonObject:
@@ -70,7 +73,13 @@ class DummyTranslator(EventSubscriberProtocol):
         }
 
     async def _consume_validated(
-        self, *, payload: JsonObject, type_: Ascii, topic: Ascii, key: Ascii
+        self,
+        *,
+        payload: JsonObject,
+        type_: Ascii,
+        topic: Ascii,
+        key: Ascii,
+        event_id: UUID4,
     ):
         self.consumed[topic].append(payload)
 
@@ -226,11 +235,13 @@ async def test_clear_all_topics(kafka: KafkaFixture):
                     payload={"test_content": "Hello"},
                     type_="test_hello",
                     key="test_key",
+                    event_id=TEST_EVENT_ID,
                 ),
                 RecordedEvent(
                     payload={"test_content": "World"},
                     type_="test_world",
                     key="test_key",
+                    event_id=TEST_EVENT_ID,
                 ),
             ],
             False,
@@ -241,13 +252,15 @@ async def test_clear_all_topics(kafka: KafkaFixture):
                     payload={"test_content": "Hello"},
                     type_="test_hello",
                     key="test_key",
-                    headers={"correlation_id": DEFAULT_CORRELATION_ID},
+                    event_id=TEST_EVENT_ID,
+                    headers={"correlation_id": str(DEFAULT_CORRELATION_ID)},
                 ),
                 RecordedEvent(
                     payload={"test_content": "World"},
                     type_="test_world",
                     key="test_key",
-                    headers={"correlation_id": DEFAULT_CORRELATION_ID},
+                    event_id=TEST_EVENT_ID,
+                    headers={"correlation_id": str(DEFAULT_CORRELATION_ID)},
                 ),
             ],
             True,
@@ -280,6 +293,7 @@ async def test_event_recorder(
                 payload=event.payload,
                 type_=event.type_,
                 key=event.key,
+                event_id=UUID(event.event_id),
                 topic=topic,
             )
 
@@ -335,11 +349,13 @@ async def test_expect_events_happy(kafka: KafkaFixture):
             payload={"test_content": "Hello"},
             type_="test_hello",
             key="test_key",
+            event_id=TEST_EVENT_ID,
         ),
         RecordedEvent(
             payload={"test_content": "World"},
             type_="test_world",
             key="test_key",
+            event_id=TEST_EVENT_ID,
         ),
     ]
     topic = "test_topic"
@@ -369,57 +385,91 @@ async def test_expect_events_happy(kafka: KafkaFixture):
         # event payload wrong:
         [
             RecordedEvent(
-                payload={"test_content": "Hello"}, type_="test_hello", key="test_key"
+                payload={"test_content": "Hello"},
+                type_="test_hello",
+                key="test_key",
+                event_id=TEST_EVENT_ID,
             ),
             RecordedEvent(
-                payload={"test_content": "Wörld"}, type_="test_world", key="test_key"
+                payload={"test_content": "Wörld"},
+                type_="test_world",
+                key="test_key",
+                event_id=TEST_EVENT_ID,
             ),
         ],
         # event type wrong:
         [
             RecordedEvent(
-                payload={"test_content": "Hello"}, type_="test_hello", key="test_key"
+                payload={"test_content": "Hello"},
+                type_="test_hello",
+                key="test_key",
+                event_id=TEST_EVENT_ID,
             ),
             RecordedEvent(
-                payload={"test_content": "World"}, type_="test_woerld", key="test_key"
+                payload={"test_content": "World"},
+                type_="test_woerld",
+                key="test_key",
+                event_id=TEST_EVENT_ID,
             ),
         ],
         # event key wrong:
         [
             RecordedEvent(
-                payload={"test_content": "Hello"}, type_="test_hello", key="wrong_key"
+                payload={"test_content": "Hello"},
+                type_="test_hello",
+                key="wrong_key",
+                event_id=TEST_EVENT_ID,
             ),
             RecordedEvent(
-                payload={"test_content": "World"}, type_="test_world", key="wrong_key"
+                payload={"test_content": "World"},
+                type_="test_world",
+                key="wrong_key",
+                event_id=TEST_EVENT_ID,
             ),
         ],
         # one event missing:
         [
             RecordedEvent(
-                payload={"test_content": "Hello"}, type_="test_hello", key="test_key"
+                payload={"test_content": "Hello"},
+                type_="test_hello",
+                key="test_key",
+                event_id=TEST_EVENT_ID,
             ),
         ],
         # one event too much:
         [
             RecordedEvent(
-                payload={"test_content": "Hello"}, type_="test_hello", key="test_key"
+                payload={"test_content": "Hello"},
+                type_="test_hello",
+                key="test_key",
+                event_id=TEST_EVENT_ID,
             ),
             RecordedEvent(
-                payload={"test_content": "World"}, type_="test_world", key="test_key"
+                payload={"test_content": "World"},
+                type_="test_world",
+                key="test_key",
+                event_id=TEST_EVENT_ID,
             ),
             RecordedEvent(
                 payload={"test_content": "unexpected"},
                 type_="test_unexpected",
                 key="test_key",
+                event_id=TEST_EVENT_ID,
             ),
         ],
         # wrong sequence:
         [
             RecordedEvent(
-                payload={"test_content": "World"}, type_="test_world", key="test_key"
+                payload={"test_content": "World"},
+                type_="test_world",
+                key="test_key",
+                event_id=TEST_EVENT_ID,
             ),
             RecordedEvent(
-                payload={"test_content": "Hello"}, type_="test_hello", key="test_key"
+                payload={"test_content": "Hello"},
+                type_="test_hello",
+                key="test_key",
+                event_id=TEST_EVENT_ID,
             ),
         ],
     ],
@@ -483,7 +533,7 @@ async def test_expect_events_mismatch(
 @pytest.mark.parametrize("capture_headers", [True, False])
 async def test_capture_headers(
     expected_headers: Optional[dict[str, str]],
-    recorded_correlation_id: str,
+    recorded_correlation_id: UUID,
     capture_headers: bool,
     kafka: KafkaFixture,
 ):
@@ -531,7 +581,7 @@ async def test_capture_headers(
     # and 2. capture headers flag isn't set or expected/recorded headers don't match
     expected_error = expected_headers and (
         not capture_headers
-        or expected_headers.get("correlation_id", "") != recorded_correlation_id
+        or expected_headers.get("correlation_id", "") != str(recorded_correlation_id)
     )
     with pytest.raises(ValidationError) if expected_error else nullcontext():
         await event_recorder.__aexit__(None, None, None)

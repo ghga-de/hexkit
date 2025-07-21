@@ -39,6 +39,7 @@ import pytest
 import pytest_asyncio
 from aiokafka import AIOKafkaConsumer, TopicPartition
 from aiokafka.admin import AIOKafkaAdminClient, RecordsToDelete
+from pydantic import UUID4
 from testcontainers.kafka import KafkaContainer
 
 from hexkit.custom_types import Ascii, JsonObject, PytestScope
@@ -83,14 +84,15 @@ class EventBase:
 class ExpectedEvent(EventBase):
     """Used to describe events expected in a specific topic using an EventRecorder.
 
-    Please note, the key type is optional. If it is set to `None` (the default), the
-    event key will be ignored when compared to the recording.
-
-    The `headers` value is treated the same as `key` -- it is ignored in comparison if
-    it is set to `None`.
+    The core fields -- `payload` and `type_` -- are required.
+    The fields defined here -- `key`, `event_id`, and `headers` -- are optional.
+    The optional fields are only compared against the recorded events if they are set to
+    some value other than `None`. If they are set to `None`, they will be ignored
+    when comparing the expected event to the recorded event.
     """
 
     key: Optional[Ascii] = None
+    event_id: Optional[Ascii] = None
     headers: Optional[dict[str, str]] = None
 
 
@@ -98,12 +100,13 @@ class ExpectedEvent(EventBase):
 class RecordedEvent(EventBase):
     """Used by the EventRecorder class to describe events recorded in a specific topic.
 
-    The event type information is stored in the header but extracted into its own field
-    because of its importance for the comparison. Because of this, it is also removed
-    from the headers.
+    The event type and event ID are stored in the header but extracted into their own
+    fields because of their importance for comparison. Because of this, they're also
+    removed from the headers.
     """
 
     key: Ascii
+    event_id: Ascii
     headers: Optional[dict[str, str]] = None
 
 
@@ -175,6 +178,11 @@ def check_recorded_events(
             raise get_field_mismatch_error(field="type", index=index)
         if expected_event.key is not None and recorded_event.key != expected_event.key:
             raise get_field_mismatch_error(field="key", index=index)
+        if (
+            expected_event.event_id is not None
+            and recorded_event.event_id != expected_event.event_id
+        ):
+            raise get_field_mismatch_error(field="event_id", index=index)
         if (
             expected_event.headers is not None
             and recorded_event.headers != expected_event.headers
@@ -337,16 +345,20 @@ class EventRecorder:
         ]
 
         recorded_events: list[RecordedEvent] = []
+
         for raw_event in raw_events:
             headers = headers_as_dict(raw_event)
             type_ = headers.get("type", "")
+            event_id = headers.get("event_id", "")
             del headers["type"]
+            del headers["event_id"]
 
             recorded_event = RecordedEvent(
                 payload=raw_event.value,
                 type_=type_,
                 key=raw_event.key,
                 headers=headers if self._capture_headers else None,
+                event_id=event_id,
             )
             recorded_events.append(recorded_event)
         return recorded_events
@@ -416,18 +428,24 @@ class KafkaFixture:
         self.publisher = publisher
         self.admin_client: Optional[AIOKafkaAdminClient] = None
 
-    async def publish_event(
+    async def publish_event(  # noqa: PLR0913
         self,
         *,
         payload: JsonObject,
         type_: Ascii,
         topic: Ascii,
         key: Ascii = "test",
+        event_id: Optional[UUID4] = None,
         headers: Optional[Mapping[str, str]] = None,
     ) -> None:
         """A convenience method to publish a test event."""
         await self.publisher.publish(
-            payload=payload, type_=type_, key=key, topic=topic, headers=headers
+            payload=payload,
+            type_=type_,
+            key=key,
+            topic=topic,
+            event_id=event_id,
+            headers=headers,
         )
 
     def record_events(

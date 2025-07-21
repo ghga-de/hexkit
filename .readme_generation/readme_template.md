@@ -51,7 +51,7 @@ $config_description
 ### Usage:
 
 A template YAML for configuring the service can be found at
-[`./example-config.yaml`](./example-config.yaml).
+[`./example_config.yaml`](./example_config.yaml).
 Please adapt it, rename it to `.$shortname.yaml`, and place it in one of the following locations:
 - in the current working directory where you execute the service (on Linux: `./.$shortname.yaml`)
 - in your home directory (on Linux: `~/.$shortname.yaml`)
@@ -60,7 +60,7 @@ The config yaml will be automatically parsed by the service.
 
 **Important: If you are using containers, the locations refer to paths within the container.**
 
-All parameters mentioned in the [`./example-config.yaml`](./example-config.yaml)
+All parameters mentioned in the [`./example_config.yaml`](./example_config.yaml)
 could also be set using environment variables or file secrets.
 
 For naming the environment variables, just prefix the parameter name with `${shortname}_`,
@@ -100,7 +100,7 @@ It installs the service with all development dependencies, and it installs pre-c
 
 The installation is performed automatically when you build the devcontainer. However,
 if you update dependencies in the [`./pyproject.toml`](./pyproject.toml) or the
-[`./requirements-dev.txt`](./requirements-dev.txt), please run it again.
+[`lock/requirements-dev.txt`](./lock/requirements-dev.txt), please run it again.
 
 ## License
 
@@ -109,5 +109,5 @@ This repository is free to use and modify according to the
 
 ## README Generation
 
-This README file is auto-generated, please see [`readme_generation.md`](./readme_generation.md)
+This README file is auto-generated, please see [.readme_generation/README.md](./.readme_generation/README.md)
 for details.

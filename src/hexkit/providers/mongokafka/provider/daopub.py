@@ -16,18 +16,18 @@
 
 """An implementation of the DaoPublisherFactoryProtocol based on MongoDB and Apache Kafka.
 
-Require dependencies of the `akafka` and `mongodb` extras.
+Requires dependencies of the `akafka` and `mongodb` extras.
 """
 
-import json
 from collections.abc import AsyncIterator, Awaitable, Collection, Mapping
 from contextlib import AbstractAsyncContextManager, asynccontextmanager, contextmanager
 from functools import partial
 from typing import Any, Callable, Generic, Optional
+from uuid import uuid4
 
 from aiokafka import AIOKafkaProducer
-from motor.core import AgnosticCollection
-from motor.motor_asyncio import AsyncIOMotorClient
+from pymongo import AsyncMongoClient
+from pymongo.asynchronous.collection import AsyncCollection
 
 from hexkit.correlation import get_correlation_id, set_correlation_id
 from hexkit.custom_types import ID, JsonObject
@@ -38,12 +38,12 @@ from hexkit.providers.akafka import KafkaEventPublisher
 from hexkit.providers.akafka.provider.daosub import CHANGE_EVENT_TYPE, DELETE_EVENT_TYPE
 from hexkit.providers.akafka.provider.eventpub import KafkaProducerCompatible
 from hexkit.providers.mongodb.provider import (
+    ConfiguredMongoClient,
     MongoDbDao,
     get_single_hit,
     replace_id_field_in_find_mapping,
     translate_pymongo_errors,
     validate_find_mapping,
-    value_to_document,
 )
 from hexkit.providers.mongokafka.provider import MongoKafkaConfig
 
@@ -83,8 +83,12 @@ def dto_to_document(
 ) -> dict[str, Any]:
     """Converts a DTO into a representation that is a compatible document for a
     MongoDB Database.
+
+    If there is a non-serializable field in the DTO, it will raise an error.
+    Such DTOs should implement appropriate serialization methods or use a different
+    data type for the field.
     """
-    document = json.loads(dto.model_dump_json())
+    document = dto.model_dump()
     document["_id"] = document.pop(id_field)
 
     correlation_id = get_correlation_id()
@@ -92,6 +96,7 @@ def dto_to_document(
         "deleted": False,
         "published": published,
         "correlation_id": correlation_id,
+        "last_event_id": None,
     }
 
     return document
@@ -102,23 +107,25 @@ def get_change_publish_func(
     event_topic: str,
     dto_to_event: Callable[[Dto], Optional[JsonObject]],
     event_publisher: EventPublisherProtocol,
-    collection: AgnosticCollection,
+    collection: AsyncCollection,
 ) -> Callable[[Dto], Awaitable[None]]:
     """Generate a function that publishes change events for a specific type of resource."""
 
     async def publish_change(dto: Dto) -> None:
         """Publishes a change event and marks the change as published."""
         payload = dto_to_event(dto)
+        document = dto_to_document(dto, id_field=id_field, published=True)
         if payload is not None:
+            event_id = uuid4()
             await event_publisher.publish(
                 payload=payload,
                 type_=CHANGE_EVENT_TYPE,
                 # here we assume that the ID is a string, an int or a UUID
                 key=str(getattr(dto, id_field)),
                 topic=event_topic,
+                event_id=event_id,
             )
-
-        document = dto_to_document(dto, id_field=id_field, published=True)
+            document["__metadata__"]["last_event_id"] = event_id
         with translate_pymongo_errors():
             await collection.replace_one(
                 {"_id": document["_id"]}, document, upsert=True
@@ -130,7 +137,7 @@ def get_change_publish_func(
 def get_delete_publish_func(
     event_topic: str,
     event_publisher: EventPublisherProtocol,
-    collection: AgnosticCollection,
+    collection: AsyncCollection,
 ) -> Callable[[Any], Awaitable[None]]:
     """Generate a function that publishes deletion events for a specific type of
     resource.
@@ -138,20 +145,23 @@ def get_delete_publish_func(
 
     async def publish_deletion(id_: ID) -> None:
         """Publishes a deletion event and marks the deletion as published."""
+        event_id = uuid4()
         await event_publisher.publish(
             payload={},
             type_=DELETE_EVENT_TYPE,
             key=str(id_),
             topic=event_topic,
+            event_id=event_id,
         )
 
         correlation_id = get_correlation_id()  # Get active correlation first
         document = {
-            "_id": value_to_document(id_),
+            "_id": id_,
             "__metadata__": {
                 "deleted": True,
                 "published": True,
                 "correlation_id": correlation_id,
+                "last_event_id": event_id,
             },
         }
         with translate_pymongo_errors():
@@ -190,7 +200,7 @@ class MongoKafkaDaoPublisher(Generic[Dto]):
         *,
         id_field: str,
         dto_model: type[Dto],
-        collection: AgnosticCollection,
+        collection: AsyncCollection,
         dao: MongoDbDao[Dto],
         publish_change: Callable[[Dto], Awaitable[None]],
         publish_delete: Callable[[Any], Awaitable[None]],
@@ -205,7 +215,7 @@ class MongoKafkaDaoPublisher(Generic[Dto]):
             dto_model:
                 A DTO (Data Transfer Object) model describing the shape of resources.
             collection:
-                A collection object from the motor library.
+                A collection object from the pymongo async library.
             dao:
                 The actual DAO implementation that provides the database-specific
                 functionality.
@@ -238,8 +248,6 @@ class MongoKafkaDaoPublisher(Generic[Dto]):
         Raises:
             ResourceNotFoundError: when resource with the specified id_ was not found
         """
-        id_ = self._dao._value_to_document(id_)
-
         with assert_not_deleted():
             return await self._dao.get_by_id(id_)
 
@@ -284,8 +292,6 @@ class MongoKafkaDaoPublisher(Generic[Dto]):
         Raises:
             ResourceNotFoundError: when resource with the specified id_ was not found
         """
-        id_ = self._dao._value_to_document(id_)
-
         correlation_id = get_correlation_id()
         document = {
             "_id": id_,
@@ -362,7 +368,7 @@ class MongoKafkaDaoPublisher(Generic[Dto]):
         mapping = replace_id_field_in_find_mapping(mapping, self._id_field)
 
         with translate_pymongo_errors():
-            cursor = self._collection.find(filter=self._convert_filter_values(mapping))
+            cursor = self._collection.find(filter=mapping)
 
             async for document in cursor:
                 if document.get("__metadata__", {}).get("deleted", False):
@@ -370,25 +376,6 @@ class MongoKafkaDaoPublisher(Generic[Dto]):
                 yield document_to_dto(
                     document, id_field=self._id_field, dto_model=self._dto_model
                 )
-
-    def _convert_filter_values(self, value: Any) -> Any:
-        """Convert filter values with non-standard types.
-
-        This makes the values findable in the database where they are stored
-        in standard JSON format (i.e. UUID, date and datetime object as strings).
-
-        The passed object can be a scalar value or a dictionary which can be nested.
-        """
-        if isinstance(value, dict):  # recursively convert all values
-            convert = self._convert_filter_values
-            return {k: convert(v) for k, v in value.items()}
-        if isinstance(value, list):
-            convert = self._convert_filter_values
-            return [convert(v) for v in value]
-        if isinstance(value, tuple):
-            convert = self._convert_filter_values
-            return tuple(convert(v) for v in value)
-        return value_to_document(value)
 
     async def insert(self, dto: Dto) -> None:
         """Create a new resource.
@@ -422,7 +409,7 @@ class MongoKafkaDaoPublisher(Generic[Dto]):
     async def publish_document(self, document: dict[str, Any]) -> None:
         """Publishes a document"""
         correlation_id = document.get("__metadata__", {}).get("correlation_id", "")
-        async with set_correlation_id(correlation_id=correlation_id):
+        async with set_correlation_id(correlation_id):
             if document.get("__metadata__", {}).get("deleted", False):
                 await self._publish_delete(document["_id"])
             else:
@@ -464,6 +451,7 @@ class MongoKafkaDaoPublisherFactory(DaoPublisherFactoryProtocol):
         kafka_producer_cls: type[KafkaProducerCompatible] = AIOKafkaProducer,
     ):
         """Setup and teardown an instance of the provider.
+        This method will automatically close the DB connection upon exit.
 
         Args:
             config: MongoDB-specific config parameters.
@@ -471,25 +459,26 @@ class MongoKafkaDaoPublisherFactory(DaoPublisherFactoryProtocol):
         Returns:
             An instance of the provider.
         """
-        async with KafkaEventPublisher.construct(
-            config=config, kafka_producer_cls=kafka_producer_cls
-        ) as event_publisher:
-            yield cls(config=config, event_publisher=event_publisher)
+        async with (
+            ConfiguredMongoClient(config=config) as client,
+            KafkaEventPublisher.construct(
+                config=config, kafka_producer_cls=kafka_producer_cls
+            ) as event_publisher,
+        ):
+            # get a database-specific client:
+            yield cls(config=config, event_publisher=event_publisher, db_client=client)
 
     def __init__(
-        self, *, config: MongoKafkaConfig, event_publisher: EventPublisherProtocol
+        self,
+        *,
+        config: MongoKafkaConfig,
+        event_publisher: EventPublisherProtocol,
+        db_client: AsyncMongoClient,
     ):
         """Please do not call directly! Should be called by the `construct` method."""
         self._config = config
-        timeout_ms = int(config.mongo_timeout * 1000) if config.mongo_timeout else None
 
-        # get a database-specific client:
-        self._client: AsyncIOMotorClient = AsyncIOMotorClient(
-            str(self._config.mongo_dsn.get_secret_value()),
-            timeoutMS=timeout_ms,
-        )
-
-        self._db = self._client[self._config.db_name]
+        self._db = db_client.get_database(self._config.db_name)
 
         self._event_publisher = event_publisher
 
@@ -528,7 +517,6 @@ class MongoKafkaDaoPublisherFactory(DaoPublisherFactoryProtocol):
                 document_to_dto, id_field=id_field, dto_model=dto_model
             ),
             dto_to_document=partial(dto_to_document, id_field=id_field),
-            value_to_document=value_to_document,
         )
 
         publish_change = get_change_publish_func(

@@ -24,7 +24,7 @@ classifiers = [
     "Intended Audience :: Developers",
 ]
 name = "hexkit"
-version = "5.4.1"
+version = "6.0.0"
 description = "A Toolkit for Building Microservices using the Hexagonal Architecture"
 dependencies = [
     "opentelemetry-api >=1.31.1, <2",
@@ -46,7 +46,7 @@ s3 = [
     "botocore >=1.37, <2",
 ]
 mongodb = [
-    "motor >=3.7, <4",
+    "pymongo >=4.13, <5",
 ]
 opentelemetry-base = [
     "opentelemetry-sdk >=1.31.1, <2",

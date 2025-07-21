@@ -74,8 +74,8 @@ class KafkaConfig(BaseSettings):
         examples=[True, False],
         description=(
             "A flag, which, if False, will result in an error when trying to publish an"
-            + " event without a valid correlation ID set for the context. If True, the a"
-            + " newly correlation ID will be generated and used in the event header."
+            + " event without a valid correlation ID set for the context. If True, a"
+            + " new correlation ID will be generated and used in the event header."
         ),
     )
     kafka_max_message_size: PositiveInt = Field(
