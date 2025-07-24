@@ -8,4 +8,4 @@ exceptiongroup>=1.2.2 # for Python<3.11
 tomli>=2.2.1 # for Python<3.11
 cryptography>=44.0.2
 pytest-asyncio>=0.26.0
-tox>=4.24.2
+tox>=4.24.2, <4.28.0
