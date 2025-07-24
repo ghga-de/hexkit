@@ -1018,9 +1018,9 @@ pytest==8.4.1 \
     #   pytest-asyncio
     #   pytest-cov
     #   pytest-httpx
-pytest-asyncio==1.1.0 \
-    --hash=sha256:5fe2d69607b0bd75c656d1211f969cadba035030156745ee09e7d71740e58ecf \
-    --hash=sha256:796aa822981e01b68c12e4827b8697108f7205020f24b5793b3c41555dab68ea
+pytest-asyncio==1.0.0 \
+    --hash=sha256:4f024da9f1ef945e680dc68610b52550e36590a67fd31bb3b4943979a1f90ef3 \
+    --hash=sha256:d15463d13f4456e1ead2594520216b225a16f781e144f8fdf6c5bb4667c48b3f
     # via
     #   -r lock/requirements-dev-template.in
     #   -r lock/requirements-dev.in
@@ -1365,9 +1365,9 @@ tornado==6.5.1 \
     --hash=sha256:d50065ba7fd11d3bd41bcad0825227cc9a95154bad83239357094c36708001f7 \
     --hash=sha256:e0a36e1bc684dca10b1aa75a31df8bdfed656831489bc1e6a6ebed05dc1ec365
     # via snakeviz
-tox==4.27.0 \
-    --hash=sha256:2b8a7fb986b82aa2c830c0615082a490d134e0626dbc9189986da46a313c4f20 \
-    --hash=sha256:b97d5ecc0c0d5755bcc5348387fef793e1bfa68eb33746412f4c60881d7f5f57
+tox==4.28.1 \
+    --hash=sha256:227ce1fdfea7763107aed3a8ac87d74b1bd1240ad7dd9c37fc2cb2b318006520 \
+    --hash=sha256:d5c84de6efc5d7e8acadb09528943e87ee501a35e064cf852082bc600485c13d
     # via -r lock/requirements-dev.in
 typer==0.16.0 \
     --hash=sha256:1f79bed11d4d02d4310e3c1b7ba594183bcedb0ac73b27a9e5f28f6fb5b98855 \
