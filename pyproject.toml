@@ -241,6 +241,6 @@ legacy_tox_ini = """
     deps =
         --no-deps -r ./lock/requirements-dev.txt
     commands =
-        pip install --no-deps backports.asyncio.runner==1.2.0 exceptiongroup==1.3.0 tomli==2.2.1
+        py3{9,10}\": pip install --no-deps backports.asyncio.runner==1.2.0 exceptiongroup==1.3.0 tomli==2.2.1\"
         pytest {posargs}
 """
