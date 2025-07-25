@@ -240,7 +240,7 @@ legacy_tox_ini = """
         DOCKER_HOST
     deps =
         --no-deps -r ./lock/requirements-dev.txt
-        backports.asyncio.running; python_version<\"3.11\"
+        backports.asyncio.runner; python_version<\"3.11\"
         exceptiongroup>=1.2.2; python_version<\"3.11\"
         tomli>=2.2.1; python_version<\"3.11\"
     commands = pytest {posargs}
