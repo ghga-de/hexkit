@@ -3,7 +3,10 @@
 # template requirements for development and testing
 -r requirements-dev-template.in
 
-# additional requirements can be listed her
+# additional requirements can be listed here
+backports.asyncio.running; python_version<"3.11"
+exceptiongroup>=1.2.2; python_version<"3.11"
+tomli>=2.2.1; python_version<"3.11"
 cryptography>=44.0.2
 pytest-asyncio>=0.26.0
 tox>=4.24.2
