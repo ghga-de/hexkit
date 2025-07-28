@@ -224,7 +224,7 @@ source = [
 [tool.tox]
 legacy_tox_ini = """
     [tox]
-    env_list = py3{9,12,13}
+    env_list = py3{9,10,11,12,13}
 
     [gh-actions]
     python =
@@ -241,7 +241,6 @@ legacy_tox_ini = """
     deps =
         --no-deps -r ./lock/requirements-dev.txt
     commands =
-        py39: pip install --no-deps backports.asyncio.runner==1.2.0 exceptiongroup==1.3.0 tomli==2.2.1
-        py310: pip install --no-deps backports.asyncio.runner==1.2.0 exceptiongroup==1.3.0 tomli==2.2.1
+        py3{9,10}: pip install --no-deps backports.asyncio.runner==1.2.0 exceptiongroup==1.3.0 tomli==2.2.1
         pytest {posargs}
 """
