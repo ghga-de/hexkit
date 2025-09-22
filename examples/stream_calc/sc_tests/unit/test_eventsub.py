@@ -20,12 +20,12 @@ from unittest.mock import AsyncMock
 from uuid import UUID
 
 import pytest
-
-from hexkit.custom_types import JsonObject
 from stream_calc.translators.eventsub import (
     EventProblemReceiver,
     EventProblemReceiverConfig,
 )
+
+from hexkit.custom_types import JsonObject
 
 TEST_EVENT_ID = UUID("12345678-1234-5678-1234-567812345678")
 

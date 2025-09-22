@@ -455,7 +455,7 @@ async def test_no_retries_no_dlq_original_error(kafka: KafkaFixture, caplog_debu
         config=config, translator=translator, dlq_publisher=kafka.publisher
     ) as event_subscriber:
         assert not translator.successes
-        with pytest.raises(RuntimeError, match="Destined to fail."):
+        with pytest.raises(RuntimeError, match=r"Destined to fail\."):
             await event_subscriber.run(forever=False)
         assert not translator.successes
         assert translator.failures == [TEST_EVENT]
