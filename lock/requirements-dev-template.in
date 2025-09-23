@@ -22,7 +22,7 @@ pytest-httpx>=0.35
 urllib3>=2.5
 requests>=2.32.5
 
-stringcase>=1.2
+casefy>=1.1
 jsonschema2md>=1.7
 setuptools>=80.9
 

@@ -1,6 +1,6 @@
 [build-system]
 requires = [
-    "setuptools>=80.3",
+    "setuptools>=80.9",
 ]
 build-backend = "setuptools.build_meta"
 
@@ -209,7 +209,7 @@ check_untyped_defs = true
 no_site_packages = false
 
 [tool.pytest.ini_options]
-minversion = "8.3"
+minversion = "8.4"
 asyncio_mode = "strict"
 asyncio_default_fixture_loop_scope = "function"
 
