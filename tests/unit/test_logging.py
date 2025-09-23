@@ -20,7 +20,6 @@ import logging
 from contextlib import contextmanager
 from dataclasses import dataclass, field
 from datetime import datetime
-from typing import Optional
 from uuid import uuid4
 
 import pytest
@@ -252,7 +251,7 @@ def test_configured_traceback(log_traceback, caplog, expect_json_log):
     ],
 )
 def test_formatter_selection(
-    log_format: Optional[str], formatter_class: type[logging.Formatter]
+    log_format: str | None, formatter_class: type[logging.Formatter]
 ):
     """Make sure the proper formatter is selected based on the config."""
     log = logging.getLogger(f"test_formatter_selection_{log_format is None}")

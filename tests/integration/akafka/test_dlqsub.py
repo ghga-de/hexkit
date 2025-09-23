@@ -18,7 +18,6 @@ from collections.abc import Mapping
 from contextlib import nullcontext
 from dataclasses import replace
 from datetime import datetime
-from typing import Optional
 from unittest.mock import Mock
 from uuid import UUID
 
@@ -218,7 +217,7 @@ class DLQTranslator(DLQSubscriberProtocol):
 
 
 def make_config(
-    kafka_config: Optional[KafkaConfig] = None,
+    kafka_config: KafkaConfig | None = None,
     *,
     max_retries: int = 0,
     enable_dlq: bool = True,

@@ -19,7 +19,7 @@
 import json
 from datetime import datetime, timezone
 from logging import Formatter, Logger, LogRecord, StreamHandler, addLevelName, getLogger
-from typing import Any, Literal, Optional
+from typing import Any, Literal
 
 from pydantic import Field
 from pydantic_settings import BaseSettings
@@ -61,7 +61,7 @@ class LoggingConfig(BaseSettings):
             + " this service. This is included in log messages."
         ),
     )
-    log_format: Optional[str] = Field(
+    log_format: str | None = Field(
         default=None,
         examples=[
             "%(timestamp)s - %(service)s - %(level)s - %(message)s",
@@ -166,7 +166,7 @@ class RecordCompiler(StreamHandler):
         return super().handle(record)
 
 
-def configure_logging(*, config: LoggingConfig, logger: Optional[Logger] = None):
+def configure_logging(*, config: LoggingConfig, logger: Logger | None = None):
     """Set up logging.
 
     Configures the root logger by default, but can be used to configure a specific

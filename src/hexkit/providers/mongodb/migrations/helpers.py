@@ -17,7 +17,6 @@
 
 from collections.abc import Awaitable, Callable
 from datetime import datetime, timezone
-from typing import Optional
 from uuid import UUID, uuid4
 
 from hexkit.providers.mongodb.migrations import Document
@@ -32,8 +31,8 @@ __all__ = [
 
 def convert_uuids_and_datetimes_v6(
     *,
-    uuid_fields: Optional[list[str]] = None,
-    date_fields: Optional[list[str]] = None,
+    uuid_fields: list[str] | None = None,
+    date_fields: list[str] | None = None,
 ) -> Callable[[Document], Awaitable[Document]]:
     """Produce a function to convert a document to the format expected by Hexkit v6.
 

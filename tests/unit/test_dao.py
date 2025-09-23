@@ -17,7 +17,6 @@
 """Testing the DAO factory protocol."""
 
 from collections.abc import Collection
-from typing import Optional
 
 import pytest
 from pydantic import UUID4, BaseModel
@@ -49,7 +48,7 @@ class FakeDaoFactory(DaoFactoryProtocol):
         name: str,
         dto_model: type[Dto],
         id_field: str,
-        fields_to_index: Optional[Collection[str]],
+        fields_to_index: Collection[str] | None,
     ) -> Dao[Dto]:
         """*To be implemented by the provider. Input validation is done outside of this
         method.*

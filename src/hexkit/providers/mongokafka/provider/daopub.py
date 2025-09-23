@@ -19,10 +19,10 @@
 Requires dependencies of the `akafka` and `mongodb` extras.
 """
 
-from collections.abc import AsyncIterator, Awaitable, Collection, Mapping
+from collections.abc import AsyncIterator, Awaitable, Callable, Collection, Mapping
 from contextlib import AbstractAsyncContextManager, asynccontextmanager, contextmanager
 from functools import partial
-from typing import Any, Callable, Generic, Optional
+from typing import Any, Generic
 from uuid import uuid4
 
 from aiokafka import AIOKafkaProducer
@@ -105,7 +105,7 @@ def dto_to_document(
 def get_change_publish_func(
     id_field: str,
     event_topic: str,
-    dto_to_event: Callable[[Dto], Optional[JsonObject]],
+    dto_to_event: Callable[[Dto], JsonObject | None],
     event_publisher: EventPublisherProtocol,
     collection: AsyncCollection,
 ) -> Callable[[Dto], Awaitable[None]]:
@@ -491,8 +491,8 @@ class MongoKafkaDaoPublisherFactory(DaoPublisherFactoryProtocol):
         name: str,
         dto_model: type[Dto],
         id_field: str,
-        fields_to_index: Optional[Collection[str]],
-        dto_to_event: Callable[[Dto], Optional[JsonObject]],
+        fields_to_index: Collection[str] | None,
+        dto_to_event: Callable[[Dto], JsonObject | None],
         event_topic: str,
         autopublish: bool,
     ) -> DaoPublisher[Dto]:

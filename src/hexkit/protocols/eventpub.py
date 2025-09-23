@@ -18,7 +18,6 @@
 
 from abc import ABC, abstractmethod
 from collections.abc import Mapping
-from typing import Optional
 from uuid import UUID, uuid4
 
 from pydantic import UUID4
@@ -37,8 +36,8 @@ class EventPublisherProtocol(ABC):
         type_: Ascii,
         key: Ascii,
         topic: Ascii,
-        event_id: Optional[UUID4] = None,
-        headers: Optional[Mapping[str, str]] = None,
+        event_id: UUID4 | None = None,
+        headers: Mapping[str, str] | None = None,
     ) -> None:
         """Publish an event.
 

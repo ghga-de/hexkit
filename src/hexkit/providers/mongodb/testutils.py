@@ -21,7 +21,6 @@ Please note, only use for testing purposes.
 
 from collections.abc import AsyncGenerator, Generator
 from dataclasses import dataclass
-from typing import Optional, Union
 
 import pytest
 import pytest_asyncio
@@ -66,8 +65,8 @@ class MongoDbFixture:
     def empty_collections(
         self,
         *,
-        collections: Optional[Union[str, list[str]]] = None,
-        exclude_collections: Optional[Union[str, list[str]]] = None,
+        collections: str | list[str] | None = None,
+        exclude_collections: str | list[str] | None = None,
     ):
         """Drop the given mongodb collection(s) in the database.
 

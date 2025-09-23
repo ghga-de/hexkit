@@ -19,7 +19,7 @@
 import uuid
 from datetime import datetime
 from pathlib import Path
-from typing import Any, Optional, Union, cast
+from typing import Any, cast
 
 import pytest
 from pydantic import UUID4, BaseModel, ConfigDict, Field, field_serializer
@@ -112,9 +112,9 @@ class ComplexDto(BaseModel):
         default_factory=lambda: ("test-tuple", ExampleDto())
     )
 
-    sub_list: list[Union[str, ExampleDto]] = Field(
+    sub_list: list[str | ExampleDto] = Field(
         default_factory=lambda: cast(
-            list[Union[str, ExampleDto]], ["test-list", ExampleDto()]
+            list[str | ExampleDto], ["test-list", ExampleDto()]
         )
     )
     sub_dict: dict[str, ExampleDto] = Field(
@@ -431,7 +431,7 @@ async def test_complex_models(mongodb: MongoDbFixture):
 
 async def test_duplicate_uuid(mongodb: MongoDbFixture):
     """Test to illustrate how to handle duplicate UUIDs."""
-    last_id: Optional[UUID4] = None
+    last_id: UUID4 | None = None
 
     def bad_id_factory():
         """Bad ID factory that generates duplicate IDs."""
