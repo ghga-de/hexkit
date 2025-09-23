@@ -19,7 +19,6 @@
 import json
 from collections.abc import Sequence
 from contextlib import nullcontext, suppress
-from typing import Optional
 from uuid import UUID
 
 import pytest
@@ -532,7 +531,7 @@ async def test_expect_events_mismatch(
 )
 @pytest.mark.parametrize("capture_headers", [True, False])
 async def test_capture_headers(
-    expected_headers: Optional[dict[str, str]],
+    expected_headers: dict[str, str] | None,
     recorded_correlation_id: UUID,
     capture_headers: bool,
     kafka: KafkaFixture,

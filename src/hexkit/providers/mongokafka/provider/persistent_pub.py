@@ -22,7 +22,6 @@ Requires dependencies of the `akafka` and `mongodb` extras.
 from collections.abc import Mapping
 from contextlib import asynccontextmanager
 from datetime import datetime
-from typing import Optional
 from uuid import uuid4
 
 from aiokafka import AIOKafkaProducer
@@ -62,7 +61,7 @@ class PersistentKafkaEvent(BaseModel):
     payload: JsonObject = Field(..., description="The event payload")
     key: Ascii = Field(..., description="The event key")
     type_: Ascii = Field(..., description="The event type")
-    event_id: Optional[UUID4] = Field(default=None, description="The event ID")
+    event_id: UUID4 | None = Field(default=None, description="The event ID")
     headers: Mapping[str, str] = Field(
         default_factory=dict,
         description="Non-standard event headers. Correlation ID, event_id, and event"
@@ -91,8 +90,8 @@ class PersistentKafkaPublisher(EventPublisherProtocol):
         *,
         config: MongoKafkaConfig,
         dao_factory: MongoDbDaoFactory,
-        compacted_topics: Optional[set[str]] = None,
-        topics_not_stored: Optional[set[str]] = None,
+        compacted_topics: set[str] | None = None,
+        topics_not_stored: set[str] | None = None,
         collection_name: str = "",
         kafka_producer_cls: type[KafkaProducerCompatible] = AIOKafkaProducer,
     ):

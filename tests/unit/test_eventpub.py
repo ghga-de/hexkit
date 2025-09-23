@@ -17,7 +17,6 @@
 """Testing the event publishing protocol."""
 
 from contextlib import nullcontext
-from typing import Optional
 
 import pytest
 
@@ -62,7 +61,7 @@ class FakePublisher(EventPublisherProtocol):
         ),
     ],
 )
-async def test_ascii_val(type_, key, topic, exception: Optional[type[Exception]]):
+async def test_ascii_val(type_, key, topic, exception: type[Exception] | None):
     """Tests the ASCII validation logic included in the EventPublisherProtocol."""
     payload = {"test_content": "Hello World"}
 

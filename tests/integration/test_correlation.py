@@ -21,7 +21,7 @@ import random
 from collections import namedtuple
 from contextlib import nullcontext
 from contextvars import ContextVar
-from typing import Any, Optional, Union
+from typing import Any
 from unittest.mock import AsyncMock, Mock
 from uuid import UUID
 
@@ -103,7 +103,7 @@ async def test_correlation_id_isolation():
     ],
 )
 async def test_correlation_id_validation(
-    correlation_id: Any, exception: Optional[type[Exception]]
+    correlation_id: Any, exception: type[Exception] | None
 ):
     """Ensure an error is raised when correlation ID validation fails."""
     with pytest.raises(exception) if exception else nullcontext():
@@ -130,7 +130,7 @@ async def test_correlation_id_from_str():
     ],
 )
 async def test_set_correlation_id(
-    correlation_id: Any, exception: Optional[type[Exception]]
+    correlation_id: Any, exception: type[Exception] | None
 ):
     """Ensure correct error is raised when passing an invalid or empty string to
     `set_correlation_id`.
@@ -207,7 +207,7 @@ async def test_context_var_setter():
     ],
 )
 async def test_correlation_consuming(
-    expected_correlation_id: Union[str, UUID4],
+    expected_correlation_id: str | UUID4,
     cid_in_header: bool,
     exception,
 ):
@@ -315,7 +315,7 @@ async def test_correlation_publishing(
     kafka: KafkaFixture,
     correlation_id: str,
     generate_correlation_id: bool,
-    expected_exception: Optional[type[Exception]],
+    expected_exception: type[Exception] | None,
 ):
     """Test situations with event publishing using the correlation ID."""
     # Update configuration of publishing provider (KafkaEventPublisher).

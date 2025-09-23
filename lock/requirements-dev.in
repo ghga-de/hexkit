@@ -4,6 +4,6 @@
 -r requirements-dev-template.in
 
 # additional requirements can be listed here
-cryptography>=44.0.2
-pytest-asyncio>=0.26.0
-tox>=4.24.2
+cryptography>=46.0.1
+pytest-asyncio>=1.2.0
+tox>=4.30.2

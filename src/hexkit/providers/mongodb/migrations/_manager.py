@@ -20,7 +20,7 @@ from collections.abc import Mapping
 from contextlib import asynccontextmanager, suppress
 from datetime import datetime, timezone
 from time import perf_counter, time
-from typing import Literal, Optional, TypedDict
+from typing import Literal, TypedDict
 
 from pydantic import Field
 from pymongo import AsyncMongoClient
@@ -61,7 +61,7 @@ class MigrationConfig(MongoDbConfig):
         description="The number of seconds to wait before checking the DB version again",
         examples=[5, 30, 180],
     )
-    migration_max_wait_sec: Optional[int] = Field(
+    migration_max_wait_sec: int | None = Field(
         default=None,
         description="The maximum number of seconds to wait for migrations to complete"
         + " before raising an error.",

@@ -249,7 +249,7 @@ async def test_copy_indexes(mongodb: MongoDbFixture, indexes: list[IndexModel]):
     created_indexes = [_ for _ in index_info.items()][1:]
     assert len(created_indexes) == len(indexes)
     for expected, (created_name, created_index) in zip(
-        expected_indexes, created_indexes
+        expected_indexes, created_indexes, strict=True
     ):
         assert created_name == expected["name"]
         assert created_index.pop("key") == expected["key"]
@@ -278,7 +278,9 @@ async def test_copy_indexes(mongodb: MongoDbFixture, indexes: list[IndexModel]):
     index_info = collection.index_information()
     copied_indexes = [_ for _ in index_info.items()][1:]
     assert len(copied_indexes) == len(indexes)
-    for expected, (copied_name, copied_index) in zip(expected_indexes, copied_indexes):
+    for expected, (copied_name, copied_index) in zip(
+        expected_indexes, copied_indexes, strict=True
+    ):
         assert copied_name == expected["name"]
         assert copied_index.pop("key") == expected["key"]
         for expected_option, expected_value in expected["options"].items():

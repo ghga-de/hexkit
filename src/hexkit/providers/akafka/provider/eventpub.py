@@ -22,11 +22,11 @@ Apache Kafka-specific event publisher provider implementing the
 import json
 import logging
 import ssl
-from collections.abc import Mapping
+from collections.abc import Callable, Mapping
 from contextlib import asynccontextmanager
 from datetime import date, datetime
 from pathlib import Path
-from typing import Any, Callable, Optional, Protocol
+from typing import Any, Protocol
 from uuid import UUID
 
 from aiokafka import AIOKafkaProducer
@@ -56,12 +56,12 @@ class KafkaProducerCompatible(Protocol):
         *,
         bootstrap_servers: str,
         security_protocol: str,
-        ssl_context: Optional[ssl.SSLContext],
+        ssl_context: ssl.SSLContext | None,
         client_id: str,
         key_serializer: Callable[[Any], bytes],
         value_serializer: Callable[[Any], bytes],
         max_request_size: int,
-        compression_type: Optional[KafkaCompressionType] = None,
+        compression_type: KafkaCompressionType | None = None,
     ):
         """
         Initialize the producer with some config params.

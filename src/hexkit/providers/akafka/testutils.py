@@ -25,7 +25,7 @@ from collections.abc import AsyncGenerator, Generator, Mapping, Sequence
 from contextlib import asynccontextmanager
 from dataclasses import dataclass
 from functools import partial
-from typing import Any, Optional, Union, cast
+from typing import Any, cast
 
 from aiokafka.admin.config_resource import ConfigResource, ConfigResourceType
 
@@ -91,9 +91,9 @@ class ExpectedEvent(EventBase):
     when comparing the expected event to the recorded event.
     """
 
-    key: Optional[Ascii] = None
-    event_id: Optional[Ascii] = None
-    headers: Optional[dict[str, str]] = None
+    key: Ascii | None = None
+    event_id: Ascii | None = None
+    headers: dict[str, str] | None = None
 
 
 @dataclass(frozen=True)
@@ -107,7 +107,7 @@ class RecordedEvent(EventBase):
 
     key: Ascii
     event_id: Ascii
-    headers: Optional[dict[str, str]] = None
+    headers: dict[str, str] | None = None
 
 
 class ValidationError(RuntimeError):
@@ -163,7 +163,7 @@ def check_recorded_events(
         )
 
     for index, (recorded_event, expected_event) in enumerate(
-        zip(recorded_events, expected_events)
+        zip(recorded_events, expected_events, strict=True)
     ):
         # Convert the expected payload to use only basic data types
         expected_payload = json.loads(
@@ -229,8 +229,8 @@ class EventRecorder:
         self._topic = topic
         self._capture_headers = capture_headers
 
-        self._starting_offsets: Optional[dict[str, int]] = None
-        self._recorded_events: Optional[Sequence[RecordedEvent]] = None
+        self._starting_offsets: dict[str, int] | None = None
+        self._recorded_events: Sequence[RecordedEvent] | None = None
 
     def _assert_recording_stopped(self) -> None:
         """Assert that the recording has been stopped. Raises an InProgressError or a
@@ -426,7 +426,7 @@ class KafkaFixture:
         self.config = config
         self.kafka_servers = kafka_servers
         self.publisher = publisher
-        self.admin_client: Optional[AIOKafkaAdminClient] = None
+        self.admin_client: AIOKafkaAdminClient | None = None
 
     async def publish_event(  # noqa: PLR0913
         self,
@@ -435,8 +435,8 @@ class KafkaFixture:
         type_: Ascii,
         topic: Ascii,
         key: Ascii = "test",
-        event_id: Optional[UUID4] = None,
-        headers: Optional[Mapping[str, str]] = None,
+        event_id: UUID4 | None = None,
+        headers: Mapping[str, str] | None = None,
     ) -> None:
         """A convenience method to publish a test event."""
         await self.publisher.publish(
@@ -486,11 +486,11 @@ class KafkaFixture:
             await self.admin_client.close()
             self.admin_client = None
 
-    async def get_cleanup_policy(self, *, topic: str) -> Optional[str]:
+    async def get_cleanup_policy(self, *, topic: str) -> str | None:
         """Get the current cleanup policy for a topic or None if the topic doesn't exist"""
         return await self.get_topic_config(topic=topic, config_name="cleanup.policy")
 
-    async def get_topic_config(self, *, topic: str, config_name: str) -> Optional[str]:
+    async def get_topic_config(self, *, topic: str, config_name: str) -> str | None:
         """Get the current config for a topic or None if the topic/config doesn't exist"""
         async with self.get_admin_client() as admin_client:
             # fetch a list containing a response for each requested topic
@@ -541,7 +541,7 @@ class KafkaFixture:
     async def clear_topics(
         self,
         *,
-        topics: Optional[Union[str, list[str]]] = None,
+        topics: str | list[str] | None = None,
         exclude_internal: bool = True,
     ):
         """Clear messages from given topic(s).

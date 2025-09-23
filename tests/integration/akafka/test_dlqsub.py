@@ -18,7 +18,6 @@ from collections.abc import Mapping
 from contextlib import nullcontext
 from dataclasses import replace
 from datetime import datetime
-from typing import Optional
 from unittest.mock import Mock
 from uuid import UUID
 
@@ -218,7 +217,7 @@ class DLQTranslator(DLQSubscriberProtocol):
 
 
 def make_config(
-    kafka_config: Optional[KafkaConfig] = None,
+    kafka_config: KafkaConfig | None = None,
     *,
     max_retries: int = 0,
     enable_dlq: bool = True,
@@ -455,7 +454,7 @@ async def test_no_retries_no_dlq_original_error(kafka: KafkaFixture, caplog_debu
         config=config, translator=translator, dlq_publisher=kafka.publisher
     ) as event_subscriber:
         assert not translator.successes
-        with pytest.raises(RuntimeError, match="Destined to fail."):
+        with pytest.raises(RuntimeError, match=r"Destined to fail\."):
             await event_subscriber.run(forever=False)
         assert not translator.successes
         assert translator.failures == [TEST_EVENT]

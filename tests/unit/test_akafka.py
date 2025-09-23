@@ -18,7 +18,6 @@
 
 from collections import namedtuple
 from contextlib import nullcontext
-from typing import Optional
 from unittest.mock import ANY, AsyncMock, Mock
 from uuid import UUID
 
@@ -144,7 +143,7 @@ async def test_kafka_event_subscriber(
     headers: list[tuple[str, bytes]],
     is_translator_called: bool,
     processing_failure: bool,
-    exception: Optional[type[Exception]],
+    exception: type[Exception] | None,
 ):
     """Test the KafkaEventSubscriber with mocked KafkaEventSubscriber."""
     service_name = "event_subscriber"

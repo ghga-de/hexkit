@@ -16,11 +16,9 @@
 
 """Testing the `core.calc` module."""
 
-from typing import Union
 from unittest.mock import AsyncMock
 
 import pytest
-
 from stream_calc.core.calc import StreamCalculator
 
 
@@ -56,7 +54,7 @@ async def test_stream_calculator_multiply(
 async def test_stream_calculator_devide(
     dividend: float,
     divisor: float,
-    expected_outcome: Union[float, str],
+    expected_outcome: float | str,
 ):
     """Test the `divide` method of the StreamCalculator.
     `expected_outcome` is a string with a reason when a failure is expected.

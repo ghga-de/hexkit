@@ -19,7 +19,7 @@ from collections.abc import Collection
 from contextlib import asynccontextmanager
 from contextvars import ContextVar
 from datetime import datetime, timedelta, timezone
-from typing import Any, Optional
+from typing import Any
 
 from pydantic import BaseModel
 
@@ -48,7 +48,7 @@ class NonAsciiStrError(RuntimeError):
         super().__init__(f"Non-ASCII string provided: {str_value!r}")
 
 
-def calc_part_size(*, file_size: int, preferred_part_size: Optional[int] = None) -> int:
+def calc_part_size(*, file_size: int, preferred_part_size: int | None = None) -> int:
     """
     Gives recommendations on the part_size to use for up- or download of a file given
     it's total size. It makes sure that chosen part size is within bounds and produces

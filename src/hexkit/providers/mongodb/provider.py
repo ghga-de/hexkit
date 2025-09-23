@@ -19,10 +19,10 @@
 Utilities for testing are located in `./testutils.py`.
 """
 
-from collections.abc import AsyncIterator, Collection, Mapping
+from collections.abc import AsyncIterator, Callable, Collection, Mapping
 from contextlib import AbstractAsyncContextManager, asynccontextmanager, contextmanager
 from functools import partial
-from typing import Any, Callable, Generic, Optional, TypeVar, Union
+from typing import Any, Generic, TypeVar
 
 from pydantic import Field, MongoDsn, PositiveInt, Secret
 from pydantic_settings import BaseSettings
@@ -367,7 +367,7 @@ class MongoDbConfig(BaseSettings):
         examples=["my-database"],
         description="Name of the database located on the MongoDB server.",
     )
-    mongo_timeout: Union[PositiveInt, None] = Field(
+    mongo_timeout: PositiveInt | None = Field(
         default=None,
         examples=[300, 600, None],
         description=(
@@ -501,7 +501,7 @@ class MongoDbDaoFactory(DaoFactoryProtocol):
         name: str,
         dto_model: type[Dto],
         id_field: str,
-        fields_to_index: Optional[Collection[str]],
+        fields_to_index: Collection[str] | None,
     ) -> Dao[Dto]:
         """Constructs a DAO for interacting with resources in a MongoDB database.
 

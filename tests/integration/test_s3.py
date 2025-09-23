@@ -16,7 +16,6 @@
 """Test S3 storage DAO"""
 
 from contextlib import AbstractContextManager, nullcontext
-from typing import Optional
 from unittest.mock import Mock
 
 import pytest
@@ -348,7 +347,7 @@ async def test_using_non_existing_upload(
     [(0, ValueError), (1, None), (10000, None), (10001, ValueError)],
 )
 async def test_invalid_part_number(
-    part_number: int, exception: Optional[type[Exception]], s3: S3Fixture
+    part_number: int, exception: type[Exception] | None, s3: S3Fixture
 ):
     """Check that invalid part numbers are cached correctly."""
     upload_id, bucket_id, object_id = await s3.prepare_non_completed_upload()
@@ -423,9 +422,9 @@ async def test_md5_in_part_url(s3: S3Fixture):
 )
 async def test_complete_multipart_upload(
     part_sizes: list[int],
-    anticipated_part_size: Optional[int],
-    anticipated_part_quantity: Optional[int],
-    exception: Optional[type[Exception]],
+    anticipated_part_size: int | None,
+    anticipated_part_quantity: int | None,
+    exception: type[Exception] | None,
     s3: S3Fixture,
 ):
     """Test the complete_multipart_upload method."""

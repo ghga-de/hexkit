@@ -21,7 +21,7 @@ from contextlib import nullcontext
 from datetime import date, datetime, timezone
 from os import environ
 from pathlib import Path
-from typing import Optional, cast
+from typing import cast
 from unittest.mock import AsyncMock
 
 import pytest
@@ -54,7 +54,7 @@ pytestmark = pytest.mark.asyncio()
 
 @pytest.mark.parametrize("compression_type", ["gzip", "lz4", "zstd", "snappy", None])
 async def test_event_compression(
-    kafka: KafkaFixture, compression_type: Optional[KafkaCompressionType]
+    kafka: KafkaFixture, compression_type: KafkaCompressionType | None
 ):
     """Test compression config is actually applied.
 
@@ -479,7 +479,7 @@ async def test_publish_with_event_id_header(kafka: KafkaFixture, caplog):
     ids=["None", "InvalidHeader", "EmptyString"],
 )
 async def test_invalid_or_missing_event_id_header(
-    kafka: KafkaFixture, caplog, event_id_header: Optional[str], log_msg: str
+    kafka: KafkaFixture, caplog, event_id_header: str | None, log_msg: str
 ):
     """Test that when consuming an event with an invalid or missing event ID header,
     a new value is generated and a warning is logged.

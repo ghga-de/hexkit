@@ -20,7 +20,7 @@ import uuid
 from collections.abc import Generator
 from functools import partial
 from pathlib import Path
-from typing import Any, Optional
+from typing import Any
 
 import pytest
 from pydantic import UUID4, BaseModel
@@ -109,7 +109,7 @@ class DummyOutboxSubscriber(DaoSubscriberProtocol[ExampleDto]):
         It is a list of tuples, each containing the resource ID and, in case of a
         change event, the dto.
         """
-        self.received: list[tuple[str, UUID4, Optional[ExampleDto]]] = []
+        self.received: list[tuple[str, UUID4, ExampleDto | None]] = []
 
     async def changed(self, resource_id: str, update: ExampleDto) -> None:
         """Consume change event (created or updated) for the given resource."""

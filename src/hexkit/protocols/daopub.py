@@ -23,8 +23,7 @@ of the outbox pattern.
 
 import typing
 from abc import ABC, abstractmethod
-from collections.abc import Collection
-from typing import Callable, Optional
+from collections.abc import Callable, Collection
 
 from hexkit.custom_types import JsonObject
 from hexkit.protocols.dao import (
@@ -61,8 +60,8 @@ class DaoPublisherFactoryProtocol(DaoFactoryBase, ABC):
         name: str,
         dto_model: type[Dto],
         id_field: str,
-        fields_to_index: Optional[Collection[str]] = None,
-        dto_to_event: Callable[[Dto], Optional[JsonObject]],
+        fields_to_index: Collection[str] | None = None,
+        dto_to_event: Callable[[Dto], JsonObject | None],
         event_topic: str,
         autopublish: bool = True,
     ) -> DaoPublisher[Dto]:
@@ -121,8 +120,8 @@ class DaoPublisherFactoryProtocol(DaoFactoryBase, ABC):
         name: str,
         dto_model: type[Dto],
         id_field: str,
-        fields_to_index: Optional[Collection[str]],
-        dto_to_event: Callable[[Dto], Optional[JsonObject]],
+        fields_to_index: Collection[str] | None,
+        dto_to_event: Callable[[Dto], JsonObject | None],
         event_topic: str,
         autopublish: bool,
     ) -> DaoPublisher[Dto]:

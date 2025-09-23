@@ -84,22 +84,24 @@ class EventProblemReceiver(EventSubscriberProtocol):
             event_id: The unique identifier of the event.
         """
 
-        if type_ == "multiplication_problem":
-            problem_id, multiplier, multiplicand = self._extract_payload(
-                payload, expected_fields=["problem_id", "multiplier", "multiplicand"]
-            )
-            await self._problem_handler.multiply(
-                problem_id=problem_id,
-                multiplier=multiplier,
-                multiplicand=multiplicand,
-            )
+        match type_:
+            case "multiplication_problem":
+                problem_id, multiplier, multiplicand = self._extract_payload(
+                    payload,
+                    expected_fields=["problem_id", "multiplier", "multiplicand"],
+                )
+                await self._problem_handler.multiply(
+                    problem_id=problem_id,
+                    multiplier=multiplier,
+                    multiplicand=multiplicand,
+                )
 
-        elif type_ == "division_problem":
-            problem_id, dividend, divisor = self._extract_payload(
-                payload, expected_fields=["problem_id", "dividend", "divisor"]
-            )
-            await self._problem_handler.divide(
-                problem_id=problem_id,
-                dividend=dividend,
-                divisor=divisor,
-            )
+            case "division_problem":
+                problem_id, dividend, divisor = self._extract_payload(
+                    payload, expected_fields=["problem_id", "dividend", "divisor"]
+                )
+                await self._problem_handler.divide(
+                    problem_id=problem_id,
+                    dividend=dividend,
+                    divisor=divisor,
+                )

@@ -26,11 +26,11 @@ import json
 import logging
 import ssl
 from collections import defaultdict
-from collections.abc import Sequence
+from collections.abc import Callable, Sequence
 from contextlib import asynccontextmanager
 from dataclasses import asdict, dataclass
 from datetime import datetime, timezone
-from typing import Any, Callable, Literal, Optional, Protocol, TypeVar, Union, cast
+from typing import Any, Literal, Protocol, TypeVar, cast
 from uuid import UUID, uuid4
 
 from aiokafka import AIOKafkaConsumer
@@ -54,7 +54,7 @@ from hexkit.utils import now_utc_ms_prec
 
 CHANGE_EVENT_TYPE = "upserted"
 DELETE_EVENT_TYPE = "deleted"
-EventOrDaoSubProtocol = Union[DaoSubscriberProtocol, EventSubscriberProtocol]
+EventOrDaoSubProtocol = DaoSubscriberProtocol | EventSubscriberProtocol
 TextmapHeaders = list[tuple[str, bytes]]
 
 tracer = trace.get_tracer_provider().get_tracer("hexkit.providers.akafka")
@@ -66,7 +66,7 @@ class AIOKafkaOtelContextExtractor(textmap.Getter[TextmapHeaders]):
     This is slighlty adapted from the aiokafka instrumentation library.
     """
 
-    def get(self, carrier: TextmapHeaders, key: str) -> Optional[list[str]]:
+    def get(self, carrier: TextmapHeaders, key: str) -> list[str] | None:
         """Extract specific OpenTelemetry header from propagated context"""
         if carrier is None:
             return None
@@ -235,7 +235,7 @@ class ExtractedEventInfo:
     event_id: UUID4
     headers: dict[str, str]  # These are the *remaining* headers
 
-    def __init__(self, event: Optional[ConsumerEvent] = None, **kwargs):
+    def __init__(self, event: ConsumerEvent | None = None, **kwargs):
         """Initialize an instance of ExtractedEventInfo."""
         self.topic = kwargs.get("topic", event.topic if event else "")
         self.payload = kwargs.get("payload", event.value if event else "")
@@ -284,7 +284,7 @@ class DLQEventInfo(ExtractedEventInfo):
 
     timestamp: datetime
 
-    def __init__(self, event: Optional[ConsumerEvent] = None, **kwargs):
+    def __init__(self, event: ConsumerEvent | None = None, **kwargs):
         """Initialize an instance of ExtractedEventInfo."""
         timestamp = (
             utc_datetime_from_ms(event.timestamp) if event else now_utc_ms_prec()
@@ -309,7 +309,7 @@ class KafkaConsumerCompatible(Protocol):
         *topics: Ascii,
         bootstrap_servers: str,
         security_protocol: str,
-        ssl_context: Optional[ssl.SSLContext],
+        ssl_context: ssl.SSLContext | None,
         client_id: str,
         group_id: str,
         auto_offset_reset: Literal["earliest"],
@@ -387,9 +387,9 @@ class KafkaEventSubscriber(InboundProviderBase):
         cls,
         *,
         config: KafkaConfig,
-        translator: Union[EventSubscriberProtocol, DLQSubscriberProtocol],
+        translator: EventSubscriberProtocol | DLQSubscriberProtocol,
         kafka_consumer_cls: type[KafkaConsumerCompatible] = AIOKafkaConsumer,
-        dlq_publisher: Optional[EventPublisherProtocol] = None,
+        dlq_publisher: EventPublisherProtocol | None = None,
     ):
         """
         Setup and teardown KafkaEventSubscriber instance with some config params.
@@ -465,9 +465,9 @@ class KafkaEventSubscriber(InboundProviderBase):
         self,
         *,
         consumer: KafkaConsumerCompatible,
-        translator: Union[EventSubscriberProtocol, DLQSubscriberProtocol],
+        translator: EventSubscriberProtocol | DLQSubscriberProtocol,
         config: KafkaConfig,
-        dlq_publisher: Optional[EventPublisherProtocol] = None,
+        dlq_publisher: EventPublisherProtocol | None = None,
     ):
         """Please do not call directly! Should be called by the `construct` method.
         Args:
