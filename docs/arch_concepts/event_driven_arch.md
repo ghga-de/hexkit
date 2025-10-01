@@ -113,7 +113,7 @@ is ready for the next.
 
 A diagram illustrating the process of event publishing and consuming, starting with
 the microservice:
-![Kafka abstraction](img/kafka%20basics%20generic.png)
+![Kafka abstraction](img/kafka_basics_generic.png)
 
 
 ## Outbox Pattern
