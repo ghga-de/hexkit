@@ -62,41 +62,41 @@ def test_max_message_size_too_high(caplog):
 async def test_mongokafka_timeout():
     """Test that the timeout is set correctly by using a Mongo DSN that doesn't exist."""
     config = make_mongokafka_config()
-    dao_factory = MongoKafkaDaoPublisherFactory(
-        config=config, event_publisher=AsyncMock()
-    )
+    async with MongoKafkaDaoPublisherFactory.construct(
+        config=config, kafka_producer_cls=AsyncMock
+    ) as dao_factory:
 
-    class TestModel(BaseModel):
-        id: str
-        bool_field: bool = False
+        class TestModel(BaseModel):
+            id: str
+            bool_field: bool = False
 
-    dao = await dao_factory.get_dao(
-        name="example",
-        dto_model=TestModel,
-        id_field="id",
-        dto_to_event=AsyncMock(),
-        event_topic="test-topic",
-    )
+        dao = await dao_factory.get_dao(
+            name="example",
+            dto_model=TestModel,
+            id_field="id",
+            dto_to_event=AsyncMock(),
+            event_topic="test-topic",
+        )
 
-    resource = TestModel(id="test")
-    async with set_new_correlation_id():
-        with pytest.raises(DbTimeoutError):
-            await dao.insert(resource)
+        resource = TestModel(id="test")
+        async with set_new_correlation_id():
+            with pytest.raises(DbTimeoutError):
+                await dao.insert(resource)
 
-        with pytest.raises(DbTimeoutError):
-            await dao.get_by_id(resource.id)
+            with pytest.raises(DbTimeoutError):
+                await dao.get_by_id(resource.id)
 
-        with pytest.raises(DbTimeoutError):
-            await dao.find_one(mapping={"id": "test"})
+            with pytest.raises(DbTimeoutError):
+                await dao.find_one(mapping={"id": "test"})
 
-        with pytest.raises(DbTimeoutError):
-            [hit async for hit in dao.find_all(mapping={})]
+            with pytest.raises(DbTimeoutError):
+                [hit async for hit in dao.find_all(mapping={})]
 
-        with pytest.raises(DbTimeoutError):
-            await dao.update(resource)
+            with pytest.raises(DbTimeoutError):
+                await dao.update(resource)
 
-        with pytest.raises(DbTimeoutError):
-            await dao.upsert(resource)
+            with pytest.raises(DbTimeoutError):
+                await dao.upsert(resource)
 
-        with pytest.raises(DbTimeoutError):
-            await dao.delete(resource.id)
+            with pytest.raises(DbTimeoutError):
+                await dao.delete(resource.id)

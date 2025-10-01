@@ -24,7 +24,7 @@ from collections.abc import AsyncGenerator, Generator
 from contextlib import contextmanager
 from pathlib import Path
 from tempfile import NamedTemporaryFile
-from typing import NamedTuple, Optional, Union
+from typing import NamedTuple
 
 try:
     from typing import Self
@@ -113,8 +113,8 @@ class S3Fixture:
     async def empty_buckets(
         self,
         *,
-        buckets: Optional[Union[str, list[str]]] = None,
-        exclude_buckets: Optional[Union[str, list[str]]] = None,
+        buckets: str | list[str] | None = None,
+        exclude_buckets: str | list[str] | None = None,
     ):
         """Remove all test objects from the given bucket(s).
 
@@ -148,8 +148,8 @@ class S3Fixture:
     async def delete_buckets(
         self,
         *,
-        buckets: Optional[Union[str, list[str]]] = None,
-        exclude_buckets: Optional[Union[str, list[str]]] = None,
+        buckets: str | list[str] | None = None,
+        exclude_buckets: str | list[str] | None = None,
     ):
         """Delete the given bucket(s).
 
@@ -225,7 +225,7 @@ class S3ContainerFixture(LocalStackContainer):
         self,
         image: str = LOCALSTACK_IMAGE,
         edge_port: int = 4566,
-        region_name: Optional[str] = None,
+        region_name: str | None = None,
         **kwargs,
     ) -> None:
         """Initialize the container."""

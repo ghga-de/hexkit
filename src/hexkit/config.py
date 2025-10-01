@@ -16,8 +16,9 @@
 """Config parsing functionality based on pydantic's BaseSettings"""
 
 import os
+from collections.abc import Callable
 from pathlib import Path
-from typing import Callable, Final, Optional
+from typing import Final
 
 from pydantic_settings import (
     BaseSettings,
@@ -33,7 +34,7 @@ DEFAULT_CONFIG_PREFIX: Final = "ghga_services"
 class ConfigYamlDoesNotExist(RuntimeError):
     """Thrown when the context manager is used out of context."""
 
-    def __init__(self, path: Path, specified_via: Optional[str] = None):
+    def __init__(self, path: Path, specified_via: str | None = None):
         message = (
             "The config yaml " + ""
             if specified_via is None
@@ -42,7 +43,7 @@ class ConfigYamlDoesNotExist(RuntimeError):
         super().__init__(message)
 
 
-def get_default_config_yaml(prefix: str) -> Optional[Path]:
+def get_default_config_yaml(prefix: str) -> Path | None:
     """Get the path to the default config function.
 
     Args:
@@ -122,7 +123,7 @@ def config_from_yaml(
             )
 
         def constructor_wrapper(
-            config_yaml: Optional[Path] = None,
+            config_yaml: Path | None = None,
             **kwargs,
         ):
             """A wrapper for constructing a pydantic BaseSetting with modified sources

@@ -21,7 +21,6 @@ from unittest.mock import AsyncMock
 
 import pymongo
 import pytest
-from motor.motor_asyncio import AsyncIOMotorClient
 from pydantic import BaseModel
 from pymongo import IndexModel, MongoClient
 from pymongo.collection import Collection
@@ -35,9 +34,8 @@ from hexkit.providers.mongodb.migrations import (
     MigrationStepError,
     Reversible,
 )
-from hexkit.providers.mongodb.migrations._manager import (
-    MigrationTimeoutError,
-)
+from hexkit.providers.mongodb.migrations._manager import MigrationTimeoutError
+from hexkit.providers.mongodb.provider import ConfiguredMongoClient
 from hexkit.providers.mongodb.testutils import (
     MongoDbFixture,
     mongodb_container_fixture,  # noqa: F401
@@ -251,7 +249,7 @@ async def test_copy_indexes(mongodb: MongoDbFixture, indexes: list[IndexModel]):
     created_indexes = [_ for _ in index_info.items()][1:]
     assert len(created_indexes) == len(indexes)
     for expected, (created_name, created_index) in zip(
-        expected_indexes, created_indexes
+        expected_indexes, created_indexes, strict=True
     ):
         assert created_name == expected["name"]
         assert created_index.pop("key") == expected["key"]
@@ -280,7 +278,9 @@ async def test_copy_indexes(mongodb: MongoDbFixture, indexes: list[IndexModel]):
     index_info = collection.index_information()
     copied_indexes = [_ for _ in index_info.items()][1:]
     assert len(copied_indexes) == len(indexes)
-    for expected, (copied_name, copied_index) in zip(expected_indexes, copied_indexes):
+    for expected, (copied_name, copied_index) in zip(
+        expected_indexes, copied_indexes, strict=True
+    ):
         assert copied_name == expected["name"]
         assert copied_index.pop("key") == expected["key"]
         for expected_option, expected_value in expected["options"].items():
@@ -303,7 +303,6 @@ async def test_migration_without_copied_index(mongodb: MongoDbFixture):
     collection.create_index([("title", pymongo.ASCENDING)], name="byTitle")
 
     # Create the migration class (same as previous test, minus indexing)
-
     migration_map = {2: V2BasicMigration}
     await run_db_migrations(
         config=config, target_version=2, migration_map=migration_map
@@ -317,41 +316,38 @@ async def test_migration_without_copied_index(mongodb: MongoDbFixture):
 async def test_stage_unstage(mongodb: MongoDbFixture):
     """Stage and immediately unstage a collection with collection name collisions."""
     config = make_migration_config(mongodb.config)
-    client: AsyncIOMotorClient = AsyncIOMotorClient(
-        str(config.mongo_dsn.get_secret_value())
-    )
-    db = client.get_database(config.db_name)
-    coll_name = "coll1"
-    collection = client[config.db_name][coll_name]
+    async with ConfiguredMongoClient(config=config) as client:
+        db = client.get_database(config.db_name)
+        coll_name = "coll1"
+        collection = db[coll_name]
+        # Insert a dummy doc so our migration has something to do
+        await collection.insert_one({"field": "test"})
 
-    # Insert a dummy doc so our migration has something to do
-    await collection.insert_one({"field": "test"})
+        async def change_function(doc):
+            """Dummy change function for running `migration_docs_in_collection`"""
+            return doc
 
-    async def change_function(doc):
-        """Dummy change function for running `migration_docs_in_collection`"""
-        return doc
+        class TestMig(MigrationDefinition):
+            version = 2
 
-    class TestMig(MigrationDefinition):
-        version = 2
+            async def apply(self):
+                await self.migrate_docs_in_collection(
+                    coll_name=coll_name,
+                    change_function=change_function,
+                )
+                # Create tmp_v2_old_coll1 for name collision upon staging 'coll1'
+                # The correct behavior is to drop the collection upon rename if it exists
+                temp_coll = client[config.db_name][f"tmp_v2_old_{coll_name}"]
+                await temp_coll.insert_one({"some": "document"})
+                await self.stage_collection(coll_name)
 
-        async def apply(self):
-            await self.migrate_docs_in_collection(
-                coll_name=coll_name,
-                change_function=change_function,
-            )
-            # Create tmp_v2_old_coll1 for name collision upon staging 'coll1'
-            # The correct behavior is to drop the collection upon rename if it exists
-            temp_coll = client[config.db_name][f"tmp_v2_old_{coll_name}"]
-            await temp_coll.insert_one({"some": "document"})
-            await self.stage_collection(coll_name)
+                # Create tmp_v2_new_coll1 for name collision upon unstaging 'coll1'
+                temp_coll = client[config.db_name][f"tmp_v2_new_{coll_name}"]
+                await temp_coll.insert_one({"some": "document"})
+                await self.unstage_collection(coll_name)
 
-            # Create tmp_v2_new_coll1 for name collision upon unstaging 'coll1'
-            temp_coll = client[config.db_name][f"tmp_v2_new_{coll_name}"]
-            await temp_coll.insert_one({"some": "document"})
-            await self.unstage_collection(coll_name)
-
-    migdef = TestMig(db=db, is_final_migration=False, unapplying=False)
-    await migdef.apply()
+        migdef = TestMig(db=db, is_final_migration=False, unapplying=False)
+        await migdef.apply()
 
 
 async def test_unapply_not_defined(mongodb: MongoDbFixture):

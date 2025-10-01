@@ -16,6 +16,7 @@
 
 """Translators that target the event publishing protocol."""
 
+from pydantic import UUID4
 from pydantic_settings import BaseSettings
 
 from hexkit.custom_types import Ascii, JsonObject
@@ -70,6 +71,7 @@ class EventProblemReceiver(EventSubscriberProtocol):
         # provided as part of the EventSubscriberProtocol:
         topic: Ascii,
         key: Ascii,
+        event_id: UUID4,
     ) -> None:
         """
         Receive and process an event with already validated topic, type, and key.
@@ -79,24 +81,27 @@ class EventProblemReceiver(EventSubscriberProtocol):
             type_: The type of the event.
             topic: Name of the topic the event was published to.
             key: A key used for routing the event.
+            event_id: The unique identifier of the event.
         """
 
-        if type_ == "multiplication_problem":
-            problem_id, multiplier, multiplicand = self._extract_payload(
-                payload, expected_fields=["problem_id", "multiplier", "multiplicand"]
-            )
-            await self._problem_handler.multiply(
-                problem_id=problem_id,
-                multiplier=multiplier,
-                multiplicand=multiplicand,
-            )
+        match type_:
+            case "multiplication_problem":
+                problem_id, multiplier, multiplicand = self._extract_payload(
+                    payload,
+                    expected_fields=["problem_id", "multiplier", "multiplicand"],
+                )
+                await self._problem_handler.multiply(
+                    problem_id=problem_id,
+                    multiplier=multiplier,
+                    multiplicand=multiplicand,
+                )
 
-        elif type_ == "division_problem":
-            problem_id, dividend, divisor = self._extract_payload(
-                payload, expected_fields=["problem_id", "dividend", "divisor"]
-            )
-            await self._problem_handler.divide(
-                problem_id=problem_id,
-                dividend=dividend,
-                divisor=divisor,
-            )
+            case "division_problem":
+                problem_id, dividend, divisor = self._extract_payload(
+                    payload, expected_fields=["problem_id", "dividend", "divisor"]
+                )
+                await self._problem_handler.divide(
+                    problem_id=problem_id,
+                    dividend=dividend,
+                    divisor=divisor,
+                )

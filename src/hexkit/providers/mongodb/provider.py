@@ -19,21 +19,15 @@
 Utilities for testing are located in `./testutils.py`.
 """
 
-# ruff: noqa: PLR0913
-
-import json
-from collections.abc import AsyncIterator, Collection, Mapping
-from contextlib import AbstractAsyncContextManager, contextmanager
-from datetime import date, datetime
+from collections.abc import AsyncIterator, Callable, Collection, Mapping
+from contextlib import AbstractAsyncContextManager, asynccontextmanager, contextmanager
 from functools import partial
-from pathlib import Path
-from typing import Any, Callable, Generic, Optional, Union
-from uuid import UUID
+from typing import Any, Generic, TypeVar
 
-from motor.core import AgnosticCollection
-from motor.motor_asyncio import AsyncIOMotorClient
 from pydantic import Field, MongoDsn, PositiveInt, Secret
 from pydantic_settings import BaseSettings
+from pymongo import AsyncMongoClient, MongoClient
+from pymongo.asynchronous.collection import AsyncCollection
 from pymongo.errors import DuplicateKeyError, PyMongoError
 
 from hexkit.custom_types import ID
@@ -52,6 +46,7 @@ from hexkit.protocols.dao import (
 from hexkit.utils import FieldNotInModelError, validate_fields_in_model
 
 __all__ = [
+    "ConfiguredMongoClient",
     "MongoDbConfig",
     "MongoDbDao",
     "MongoDbDaoFactory",
@@ -86,23 +81,15 @@ def document_to_dto(
 def dto_to_document(dto: Dto, *, id_field: str) -> dict[str, Any]:
     """Converts a DTO into a representation that is a compatible document for a
     MongoDB Database.
+
+    If there is a non-serializable field in the DTO, it will raise an error.
+    Such DTOs should implement appropriate serialization methods or use a different
+    data type for the field.
     """
-    document = json.loads(dto.model_dump_json())
+    document = dto.model_dump()
     document["_id"] = document.pop(id_field)
 
     return document
-
-
-def value_to_document(value: Any) -> Any:
-    """Converts the value of a DTO field to the value used in the database.
-
-    This should be compatible with the conversion done in 'dto_to_document'.
-    """
-    if isinstance(value, (UUID, Path)):
-        return str(value)
-    if isinstance(value, (date, datetime)):
-        return value.isoformat()
-    return value
 
 
 def validate_find_mapping(mapping: Mapping[str, Any], *, dto_model: type[Dto]):
@@ -169,10 +156,9 @@ class MongoDbDao(Generic[Dto]):
         *,
         dto_model: type[Dto],
         id_field: str,
-        collection: AgnosticCollection,
+        collection: AsyncCollection,
         document_to_dto: Callable[[dict[str, Any]], Dto],
         dto_to_document: Callable[[Dto], dict[str, Any]],
-        value_to_document: Callable[[Any], Any],
     ):
         """Initialize the DAO.
 
@@ -183,24 +169,19 @@ class MongoDbDao(Generic[Dto]):
                 The name of the field of the `dto_model` that serves as resource ID.
                 (DAO implementation might use this field as primary key.)
             collection:
-                A collection object from the motor library.
+                A collection object from the pymongo async library.
             document_to_dto:
                 A callable that takes a document obtained from the MongoDB database
                 and returns a DTO model-compliant representation.
             dto_to_document:
                 A callable that takes a DTO model and returns a representation that is
                 a compatible document for a MongoDB database.
-            value_to_document:
-                A callable that takes a single DTO value and returns the representation
-                of the value that is stored in the MongoDB database.
-                This must be compatible with the conversion done by 'dto_to_document'.
         """
         self._collection = collection
         self._dto_model = dto_model
         self._id_field = id_field
         self._document_to_dto = document_to_dto
         self._dto_to_document = dto_to_document
-        self._value_to_document = value_to_document
 
     async def get_by_id(self, id_: ID) -> Dto:
         """Get a resource by providing its ID.
@@ -214,8 +195,6 @@ class MongoDbDao(Generic[Dto]):
         Raises:
             ResourceNotFoundError: when resource with the specified id_ was not found
         """
-        id_ = self._value_to_document(id_)
-
         with translate_pymongo_errors():
             document = await self._collection.find_one({"_id": id_})
 
@@ -257,7 +236,6 @@ class MongoDbDao(Generic[Dto]):
         Raises:
             ResourceNotFoundError: when resource with the specified id_ was not found
         """
-        id_ = self._value_to_document(id_)
         with translate_pymongo_errors():
             result = await self._collection.delete_one({"_id": id_})
 
@@ -317,29 +295,10 @@ class MongoDbDao(Generic[Dto]):
         mapping = replace_id_field_in_find_mapping(mapping, self._id_field)
 
         with translate_pymongo_errors():
-            cursor = self._collection.find(filter=self._convert_filter_values(mapping))
+            cursor = self._collection.find(filter=mapping)
 
             async for document in cursor:
                 yield self._document_to_dto(document)
-
-    def _convert_filter_values(self, value: Any) -> Any:
-        """Convert filter values with non-standard types.
-
-        This makes the values findable in the database where they are stored
-        in standard JSON format (i.e. UUID, date and datetime object as strings).
-
-        The passed object can be a scalar value or a dictionary which can be nested.
-        """
-        if isinstance(value, dict):  # recursively convert all values
-            convert = self._convert_filter_values
-            return {k: convert(v) for k, v in value.items()}
-        if isinstance(value, list):
-            convert = self._convert_filter_values
-            return [convert(v) for v in value]
-        if isinstance(value, tuple):
-            convert = self._convert_filter_values
-            return tuple(convert(v) for v in value)
-        return self._value_to_document(value)
 
     @classmethod
     def with_transaction(cls) -> AbstractAsyncContextManager["Dao[Dto]"]:
@@ -408,7 +367,7 @@ class MongoDbConfig(BaseSettings):
         examples=["my-database"],
         description="Name of the database located on the MongoDB server.",
     )
-    mongo_timeout: Union[PositiveInt, None] = Field(
+    mongo_timeout: PositiveInt | None = Field(
         default=None,
         examples=[300, 600, None],
         description=(
@@ -421,32 +380,117 @@ class MongoDbConfig(BaseSettings):
     )
 
 
-class MongoDbDaoFactory(DaoFactoryProtocol):
-    """A MongoDB-based provider implementing the DaoFactoryProtocol."""
+ClientType = TypeVar("ClientType", AsyncMongoClient, MongoClient)
 
-    def __init__(
-        self,
+
+class ConfiguredMongoClient:
+    """A context manager for a configured MongoDB client, sync or async.
+
+    Usage:
+        ```python
+        from hexkit.providers.mongodb import MongoDbConfig, ConfiguredMongoClient
+
+        with ConfiguredMongoClient(config=MongoDbConfig(...)) as client:
+            # Use the client here
+            pass
+
+        async with ConfiguredMongoClient(config=MongoDbConfig(...)) as client:
+            # Use the async client here
+            pass
+
+        # Client is automatically closed after exiting the context manager
+    """
+
+    config: MongoDbConfig
+
+    def __init__(self, *, config: MongoDbConfig):
+        self._config = config
+
+    async def __aenter__(self) -> AsyncMongoClient:
+        """Enter a context manager and return the _asynchronous_ MongoDB client."""
+        self._async_client = self.get_client(
+            config=self._config, client_cls=AsyncMongoClient
+        )
+        return self._async_client
+
+    async def __aexit__(self, exc_type_, exc_value, exc_tb):
+        """Close the async MongoDB client."""
+        await self._async_client.close()
+
+    def __enter__(self) -> MongoClient:
+        """Enter a context manager and return the _synchronous_ MongoDB client."""
+        self._client = self.get_client(config=self._config, client_cls=MongoClient)
+        return self._client
+
+    def __exit__(self, exc_type_, exc_value, exc_tb):
+        """Close the synchronous MongoDB client."""
+        self._client.close()
+
+    @classmethod
+    def get_client(
+        cls,
         *,
         config: MongoDbConfig,
-    ):
-        """Initialize the provider with configuration parameter.
+        client_cls: type[ClientType],
+    ) -> ClientType:
+        """Creates a configured MongoDB client based on the provided configuration,
+        with the timeout, uuid representation, and timezone awareness set.
+
+        *Does not* automatically close the client!
 
         Args:
-            config: MongoDB-specific config parameters.
+            config: MongoDB-specific configuration parameters.
+            client_cls: The class of the MongoDB client to instantiate.
+
+        Returns:
+            A MongoDB client instance configured with the provided parameters.
         """
-        self._config = config
         timeout_ms = (
             int(config.mongo_timeout * 1000)
             if config.mongo_timeout is not None
             else None
         )
 
-        # get a database-specific client:
-        self._client: AsyncIOMotorClient = AsyncIOMotorClient(
-            str(self._config.mongo_dsn.get_secret_value()),
+        return client_cls(
+            str(config.mongo_dsn.get_secret_value()),
             timeoutMS=timeout_ms,
+            uuidRepresentation="standard",
+            tz_aware=True,
         )
-        self._db = self._client[self._config.db_name]
+
+
+class MongoDbDaoFactory(DaoFactoryProtocol):
+    """A MongoDB-based provider implementing the DaoFactoryProtocol."""
+
+    @classmethod
+    @asynccontextmanager
+    async def construct(
+        cls,
+        *,
+        config: MongoDbConfig,
+    ):
+        """Yields a MongoDbDaoFactory instance with the provided configuration.
+
+        The client connection is established and closed automatically.
+        """
+        async with ConfiguredMongoClient(config=config) as client:
+            # The client is an instance of AsyncMongoClient
+            yield cls(config=config, client=client)
+
+    def __init__(
+        self,
+        *,
+        config: MongoDbConfig,
+        client: AsyncMongoClient,
+    ):
+        """Initialize the provider with configuration parameter.
+
+        Args:
+            config: MongoDB-specific config parameters.
+            client: An instance of an async MongoDB client.
+        """
+        self._config = config
+        self._db = client.get_database(self._config.db_name)
 
     def __repr__(self) -> str:  # noqa: D105
         return f"{self.__class__.__qualname__}(config={repr(self._config)})"
@@ -457,7 +501,7 @@ class MongoDbDaoFactory(DaoFactoryProtocol):
         name: str,
         dto_model: type[Dto],
         id_field: str,
-        fields_to_index: Optional[Collection[str]],
+        fields_to_index: Collection[str] | None,
     ) -> Dao[Dto]:
         """Constructs a DAO for interacting with resources in a MongoDB database.
 
@@ -484,5 +528,4 @@ class MongoDbDaoFactory(DaoFactoryProtocol):
                 document_to_dto, id_field=id_field, dto_model=dto_model
             ),
             dto_to_document=partial(dto_to_document, id_field=id_field),
-            value_to_document=value_to_document,
         )

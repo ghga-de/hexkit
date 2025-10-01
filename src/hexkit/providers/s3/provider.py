@@ -25,7 +25,7 @@ import asyncio
 import re
 from functools import lru_cache
 from pathlib import Path
-from typing import Any, Optional
+from typing import Any
 
 import boto3
 import botocore.client
@@ -60,10 +60,10 @@ class S3Config(BaseSettings):
         s3_secret_access_key (str):
             Part of credentials for login into the S3 service. See:
             https://boto3.amazonaws.com/v1/documentation/api/latest/guide/credentials.html
-        s3_session_token (Optional[str]):
+        s3_session_token (str | None):
             Optional part of credentials for login into the S3 service. See:
             https://boto3.amazonaws.com/v1/documentation/api/latest/guide/credentials.html
-        aws_config_ini (Optional[Path]):
+        aws_config_ini (Path | None):
             Path to a config file for specifying more advanced S3 parameters.
             This should follow the format described here:
             https://boto3.amazonaws.com/v1/documentation/api/latest/guide/configuration.html#using-a-configuration-file
@@ -89,7 +89,7 @@ class S3Config(BaseSettings):
             + " https://boto3.amazonaws.com/v1/documentation/api/latest/guide/credentials.html"
         ),
     )
-    s3_session_token: Optional[SecretStr] = Field(
+    s3_session_token: SecretStr | None = Field(
         None,
         examples=["my-session-token"],
         description=(
@@ -97,7 +97,7 @@ class S3Config(BaseSettings):
             + " https://boto3.amazonaws.com/v1/documentation/api/latest/guide/credentials.html"
         ),
     )
-    aws_config_ini: Optional[Path] = Field(
+    aws_config_ini: Path | None = Field(
         None,
         examples=["~/.aws/config"],
         description=(
@@ -184,9 +184,9 @@ class S3ObjectStorage(ObjectStorageProtocol):
         cls,
         source_exception: botocore.exceptions.ClientError,
         *,
-        upload_id: Optional[str] = None,
-        bucket_id: Optional[str] = None,
-        object_id: Optional[str] = None,
+        upload_id: str | None = None,
+        bucket_id: str | None = None,
+        object_id: str | None = None,
     ) -> Exception:
         """
         Translates S3 client errors based on their error codes into exceptions from the
@@ -195,37 +195,38 @@ class S3ObjectStorage(ObjectStorageProtocol):
         error_code = source_exception.response["Error"]["Code"]
         exception: Exception
 
-        # try to exactly match the error code:
-        if error_code == "NoSuchBucket":
-            exception = cls.BucketNotFoundError(bucket_id=bucket_id)
-        elif error_code == "BucketAlreadyExists":
-            exception = cls.BucketAlreadyExistsError(bucket_id=bucket_id)
-        elif error_code == "NoSuchKey":
-            exception = cls.ObjectNotFoundError(
-                bucket_id=bucket_id, object_id=object_id
-            )
-        elif error_code == "BucketNotEmpty":
-            exception = cls.BucketNotEmptyError(bucket_id=bucket_id)
-        elif error_code == "ObjectAlreadyInActiveTierError":
-            exception = cls.ObjectAlreadyExistsError(
-                bucket_id=bucket_id, object_id=object_id
-            )
-        elif error_code == "NoSuchUpload":
-            if upload_id is None or bucket_id is None or object_id is None:
-                raise ValueError()
-            exception = cls.MultiPartUploadNotFoundError(
-                upload_id=upload_id, bucket_id=bucket_id, object_id=object_id
-            )
-        # exact match not found, match by keyword:
-        elif "Bucket" in error_code:
-            exception = cls.BucketError(cls._format_s3_error_code(error_code))
-        elif "Object" in error_code or "Key" in error_code:
-            exception = cls.ObjectError(cls._format_s3_error_code(error_code))
-        else:
-            # if nothing matches, return a generic error:
-            exception = cls.ObjectStorageProtocolError(
-                cls._format_s3_error_code(error_code)
-            )
+        match error_code:
+            # try to find and exactly matching error code:
+            case "NoSuchBucket":
+                exception = cls.BucketNotFoundError(bucket_id=bucket_id)
+            case "BucketAlreadyExists":
+                exception = cls.BucketAlreadyExistsError(bucket_id=bucket_id)
+            case "NoSuchKey":
+                exception = cls.ObjectNotFoundError(
+                    bucket_id=bucket_id, object_id=object_id
+                )
+            case "BucketNotEmpty":
+                exception = cls.BucketNotEmptyError(bucket_id=bucket_id)
+            case "ObjectAlreadyInActiveTierError":
+                exception = cls.ObjectAlreadyExistsError(
+                    bucket_id=bucket_id, object_id=object_id
+                )
+            case "NoSuchUpload":
+                if upload_id is None or bucket_id is None or object_id is None:
+                    raise ValueError()
+                exception = cls.MultiPartUploadNotFoundError(
+                    upload_id=upload_id, bucket_id=bucket_id, object_id=object_id
+                )
+            # exact match not found, match by keyword:
+            case _ if "Bucket" in error_code:
+                exception = cls.BucketError(cls._format_s3_error_code(error_code))
+            case _ if "Object" in error_code or "Key" in error_code:
+                exception = cls.ObjectError(cls._format_s3_error_code(error_code))
+            case _:
+                # if nothing matches, return a generic error:
+                exception = cls.ObjectStorageProtocolError(
+                    cls._format_s3_error_code(error_code)
+                )
 
         return exception
 
@@ -312,7 +313,7 @@ class S3ObjectStorage(ObjectStorageProtocol):
             ) from error
 
     async def _does_object_exist(
-        self, *, bucket_id: str, object_id: str, object_md5sum: Optional[str] = None
+        self, *, bucket_id: str, object_id: str, object_md5sum: str | None = None
     ) -> bool:
         """Check whether an object with specified ID (`object_id`) exists in the bucket
         with the specified id (`bucket_id`). Optionally, a md5 checksum (`object_md5sum`)
@@ -365,7 +366,7 @@ class S3ObjectStorage(ObjectStorageProtocol):
         bucket_id: str,
         object_id: str,
         expires_after: int = 86400,
-        max_upload_size: Optional[int] = None,
+        max_upload_size: int | None = None,
     ) -> PresignedPostURL:
         """Generates and returns an HTTP URL to upload a new file object with the given
         id (`object_id`) to the bucket with the specified id (`bucket_id`).
@@ -493,7 +494,7 @@ class S3ObjectStorage(ObjectStorageProtocol):
         object_id: str,
         part_number: int,
         expires_after: int = 3600,
-        part_md5: Optional[str] = None,
+        part_md5: str | None = None,
     ) -> str:
         """Given a id of an instantiated multipart upload along with the corresponding
         bucket and object ID, it returns a presigned URL for uploading a file part with the
@@ -577,8 +578,8 @@ class S3ObjectStorage(ObjectStorageProtocol):
         bucket_id: str,
         object_id: str,
         parts_info: dict,
-        anticipated_part_quantity: Optional[int] = None,
-        anticipated_part_size: Optional[int] = None,
+        anticipated_part_quantity: int | None = None,
+        anticipated_part_size: int | None = None,
     ) -> None:
         """Check size and quantity of parts"""
         # check the part quantity:
@@ -712,8 +713,8 @@ class S3ObjectStorage(ObjectStorageProtocol):
         upload_id: str,
         bucket_id: str,
         object_id: str,
-        anticipated_part_quantity: Optional[int] = None,
-        anticipated_part_size: Optional[int] = None,
+        anticipated_part_quantity: int | None = None,
+        anticipated_part_size: int | None = None,
     ) -> None:
         """Completes a multipart upload with the specified ID. In addition to the
         corresponding bucket and object id, you also specify an anticipated part size

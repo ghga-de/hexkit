@@ -19,17 +19,21 @@
 Please note, only use for testing purposes.
 """
 
-from collections.abc import Generator
+from collections.abc import AsyncGenerator, Generator
 from dataclasses import dataclass
-from typing import Optional, Union
 
 import pytest
+import pytest_asyncio
 from pymongo import MongoClient
 from pymongo.errors import ExecutionTimeout, OperationFailure
 from testcontainers.mongodb import MongoDbContainer
 
 from hexkit.custom_types import PytestScope
-from hexkit.providers.mongodb.provider import MongoDbConfig, MongoDbDaoFactory
+from hexkit.providers.mongodb.provider import (
+    ConfiguredMongoClient,
+    MongoDbConfig,
+    MongoDbDaoFactory,
+)
 
 MONGODB_IMAGE = "mongo:7.0.15"
 
@@ -61,8 +65,8 @@ class MongoDbFixture:
     def empty_collections(
         self,
         *,
-        collections: Optional[Union[str, list[str]]] = None,
-        exclude_collections: Optional[Union[str, list[str]]] = None,
+        collections: str | list[str] | None = None,
+        exclude_collections: str | list[str] | None = None,
     ):
         """Drop the given mongodb collection(s) in the database.
 
@@ -120,23 +124,21 @@ def get_mongodb_container_fixture(
 mongodb_container_fixture = get_mongodb_container_fixture()
 
 
-def _persistent_mongodb_fixture(
+async def _persistent_mongodb_fixture(
     mongodb_container: MongoDbContainerFixture,
-) -> Generator[MongoDbFixture, None, None]:
+) -> AsyncGenerator[MongoDbFixture, None]:
     """Fixture function that gets a persistent MongoDB fixture.
 
     The state of the MongoDB is not cleaned up by the function.
     """
     config = mongodb_container.mongodb_config
-    dao_factory = MongoDbDaoFactory(config=config)
-    client = mongodb_container.get_connection_client()
-    yield MongoDbFixture(
-        client=client,
-        config=config,
-        dao_factory=dao_factory,
-    )
-
-    client.close()
+    async with MongoDbDaoFactory.construct(config=config) as dao_factory:
+        with ConfiguredMongoClient(config=config) as sync_client:
+            yield MongoDbFixture(
+                client=sync_client,
+                config=config,
+                dao_factory=dao_factory,
+            )
 
 
 def get_persistent_mongodb_fixture(
@@ -149,20 +151,28 @@ def get_persistent_mongodb_fixture(
     By default, the function scope is used for this fixture,
     while the session scope is used for the underlying MongoDB test container.
     """
-    return pytest.fixture(_persistent_mongodb_fixture, scope=scope, name=name)
+    return pytest_asyncio.fixture(
+        _persistent_mongodb_fixture,
+        scope=scope,
+        loop_scope=None,
+        params=None,
+        autouse=False,
+        ids=None,
+        name=name,
+    )
 
 
 persistent_mongodb_fixture = get_persistent_mongodb_fixture()
 
 
-def _clean_mongodb_fixture(
+async def _clean_mongodb_fixture(
     mongodb_container: MongoDbContainerFixture,
-) -> Generator[MongoDbFixture, None, None]:
+) -> AsyncGenerator[MongoDbFixture, None]:
     """Fixture function that gets a clean MongoDB fixture.
 
     The clean state is achieved by emptying all MongoDB collections upfront.
     """
-    for mongodb_fixture in _persistent_mongodb_fixture(mongodb_container):
+    async for mongodb_fixture in _persistent_mongodb_fixture(mongodb_container):
         mongodb_fixture.empty_collections()
         yield mongodb_fixture
 
@@ -175,7 +185,15 @@ def get_clean_mongodb_fixture(scope: PytestScope = "function", name: str = "mong
     By default, the function scope is used for this fixture,
     while the session scope is used for the underlying MongoDB test container.
     """
-    return pytest.fixture(_clean_mongodb_fixture, scope=scope, name=name)
+    return pytest_asyncio.fixture(
+        _clean_mongodb_fixture,
+        scope=scope,
+        loop_scope=None,
+        params=None,
+        autouse=False,
+        ids=None,
+        name=name,
+    )
 
 
 mongodb_fixture = clean_mongodb_fixture = get_clean_mongodb_fixture()

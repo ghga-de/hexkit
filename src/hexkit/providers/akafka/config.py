@@ -16,7 +16,7 @@
 
 """Apache Kafka specific configuration."""
 
-from typing import Literal, Optional
+from typing import Literal
 
 from pydantic import Field, NonNegativeInt, PositiveInt, SecretStr
 from pydantic_settings import BaseSettings
@@ -74,8 +74,8 @@ class KafkaConfig(BaseSettings):
         examples=[True, False],
         description=(
             "A flag, which, if False, will result in an error when trying to publish an"
-            + " event without a valid correlation ID set for the context. If True, the a"
-            + " newly correlation ID will be generated and used in the event header."
+            + " event without a valid correlation ID set for the context. If True, a"
+            + " new correlation ID will be generated and used in the event header."
         ),
     )
     kafka_max_message_size: PositiveInt = Field(
@@ -87,7 +87,7 @@ class KafkaConfig(BaseSettings):
         + " field, which effectively concerns the compressed message size.",
         examples=[1024 * 1024, 16 * 1024 * 1024],
     )
-    kafka_compression_type: Optional[KafkaCompressionType] = Field(
+    kafka_compression_type: KafkaCompressionType | None = Field(
         default=None,
         description=(
             "The compression type used for messages. Valid values are: None, gzip,"

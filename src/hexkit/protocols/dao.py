@@ -23,7 +23,7 @@ from abc import ABC, abstractmethod
 from collections.abc import AsyncIterator, Collection, Mapping
 from contextlib import AbstractAsyncContextManager
 from functools import partial
-from typing import Any, Optional, TypeVar
+from typing import Any, TypeVar
 from uuid import uuid4
 
 from pydantic import BaseModel, Field
@@ -268,7 +268,7 @@ class DaoFactoryBase:
         cls,
         *,
         dto_model: type[Dto],
-        fields_to_index: Optional[Collection[str]],
+        fields_to_index: Collection[str] | None,
     ) -> None:
         """Checks that all provided fields are present in the dto_model.
         Raises IndexFieldsInvalidError otherwise.
@@ -289,7 +289,7 @@ class DaoFactoryBase:
         *,
         dto_model: type[Dto],
         id_field: str,
-        fields_to_index: Optional[Collection[str]],
+        fields_to_index: Collection[str] | None,
     ) -> None:
         """Validates the input parameters of the get_dao method."""
         cls._validate_dto_model_id(dto_model=dto_model, id_field=id_field)
@@ -309,7 +309,7 @@ class DaoFactoryProtocol(DaoFactoryBase, ABC):
         name: str,
         dto_model: type[Dto],
         id_field: str,
-        fields_to_index: Optional[Collection[str]] = None,
+        fields_to_index: Collection[str] | None = None,
     ) -> Dao[Dto]:
         """Constructs a DAO for interacting with resources in a database.
 
@@ -354,7 +354,7 @@ class DaoFactoryProtocol(DaoFactoryBase, ABC):
         name: str,
         dto_model: type[Dto],
         id_field: str,
-        fields_to_index: Optional[Collection[str]],
+        fields_to_index: Collection[str] | None,
     ) -> Dao[Dto]:
         """*To be implemented by the provider. Input validation is done outside of this
         method.*

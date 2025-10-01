@@ -112,7 +112,7 @@ Additionally, the following convenience command is available inside the devconta
 
 - `dev_install` - install the lib with all development dependencies and pre-commit hooks
 (please run that if you are starting the devcontainer for the first time
-or if added any Python dependencies to the [`./setup.cfg`](./setup.cfg))
+or if added any python dependencies to the [`./pyproject.toml`](./pyproject.toml))
 
 If you prefer not to use vscode, you could get a similar setup (without the editor
 specific features) by running the following commands:

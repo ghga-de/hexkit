@@ -20,7 +20,7 @@
 
 import re
 from abc import ABC, abstractmethod
-from typing import NamedTuple, Optional
+from typing import NamedTuple
 
 __all__ = ["ObjectStorageProtocol", "PresignedPostURL"]
 
@@ -85,7 +85,7 @@ class ObjectStorageProtocol(ABC):
         bucket_id: str,
         object_id: str,
         expires_after: int = DEFAULT_URL_EXPIRATION_PERIOD,
-        max_upload_size: Optional[int] = None,
+        max_upload_size: int | None = None,
     ) -> PresignedPostURL:
         """Generates and returns an HTTP URL to upload a new file object with the given
         id (`object_id`) to the bucket with the specified id (`bucket_id`).
@@ -122,7 +122,7 @@ class ObjectStorageProtocol(ABC):
         object_id: str,
         part_number: int,
         expires_after: int = 3600,
-        part_md5: Optional[str] = None,
+        part_md5: str | None = None,
     ) -> str:
         """Given a id of an instantiated multipart upload along with the corresponding
         bucket and object ID, it returns a presigned URL for uploading a file part with the
@@ -163,8 +163,8 @@ class ObjectStorageProtocol(ABC):
         upload_id: str,
         bucket_id: str,
         object_id: str,
-        anticipated_part_quantity: Optional[int] = None,
-        anticipated_part_size: Optional[int] = None,
+        anticipated_part_quantity: int | None = None,
+        anticipated_part_size: int | None = None,
     ) -> None:
         """Completes a multipart upload with the specified ID. In addition to the
         corresponding bucket and object id, you also specify an anticipated part size
@@ -196,7 +196,7 @@ class ObjectStorageProtocol(ABC):
         )
 
     async def does_object_exist(
-        self, *, bucket_id: str, object_id: str, object_md5sum: Optional[str] = None
+        self, *, bucket_id: str, object_id: str, object_md5sum: str | None = None
     ) -> bool:
         """Check whether an object with specified ID (`object_id`) exists in the bucket
         with the specified id (`bucket_id`). Optionally, a md5 checksum (`object_md5sum`)
@@ -314,7 +314,7 @@ class ObjectStorageProtocol(ABC):
         bucket_id: str,
         object_id: str,
         expires_after: int = 86400,
-        max_upload_size: Optional[int] = None,
+        max_upload_size: int | None = None,
     ) -> PresignedPostURL:
         """
         Generates and returns an HTTP URL to upload a new file object with the given
@@ -351,7 +351,7 @@ class ObjectStorageProtocol(ABC):
         object_id: str,
         part_number: int,
         expires_after: int = 3600,
-        part_md5: Optional[str] = None,
+        part_md5: str | None = None,
     ) -> str:
         """
         Given a id of an instantiated multipart upload along with the corresponding
@@ -389,8 +389,8 @@ class ObjectStorageProtocol(ABC):
         upload_id: str,
         bucket_id: str,
         object_id: str,
-        anticipated_part_quantity: Optional[int] = None,
-        anticipated_part_size: Optional[int] = None,
+        anticipated_part_quantity: int | None = None,
+        anticipated_part_size: int | None = None,
     ) -> None:
         """
         Completes a multipart upload with the specified ID. In addition to the
@@ -438,7 +438,7 @@ class ObjectStorageProtocol(ABC):
 
     @abstractmethod
     async def _does_object_exist(
-        self, *, bucket_id: str, object_id: str, object_md5sum: Optional[str] = None
+        self, *, bucket_id: str, object_id: str, object_md5sum: str | None = None
     ) -> bool:
         """
         Check whether an object with specified ID (`object_id`) exists in the bucket
@@ -549,7 +549,7 @@ class ObjectStorageProtocol(ABC):
     class BucketNotFoundError(BucketError):
         """Thrown when trying to access a bucket with an ID that doesn't exist."""
 
-        def __init__(self, bucket_id: Optional[str]):
+        def __init__(self, bucket_id: str | None):
             with_id = f" with ID '{bucket_id}'" if bucket_id else ""
             message = f"The bucket{with_id} does not exist."
             super().__init__(message)
@@ -557,7 +557,7 @@ class ObjectStorageProtocol(ABC):
     class BucketAlreadyExistsError(BucketError):
         """Thrown when trying to create a bucket with an ID that already exists."""
 
-        def __init__(self, bucket_id: Optional[str]):
+        def __init__(self, bucket_id: str | None):
             with_id = f" with ID '{bucket_id}'" if bucket_id else ""
             message = f"The bucket{with_id} already exists."
             super().__init__(message)
@@ -565,7 +565,7 @@ class ObjectStorageProtocol(ABC):
     class BucketNotEmptyError(BucketError):
         """Thrown when trying to delete a bucket that is not empty."""
 
-        def __init__(self, bucket_id: Optional[str]):
+        def __init__(self, bucket_id: str | None):
             with_id = f" with ID '{bucket_id}'" if bucket_id else ""
             super().__init__(f"The bucket{with_id} is not empty.")
 
@@ -575,9 +575,7 @@ class ObjectStorageProtocol(ABC):
     class ObjectNotFoundError(ObjectError):
         """Thrown when trying to access a bucket with an ID that doesn't exist."""
 
-        def __init__(
-            self, bucket_id: Optional[str] = None, object_id: Optional[str] = None
-        ):
+        def __init__(self, bucket_id: str | None = None, object_id: str | None = None):
             with_id = f" with ID '{object_id}'" if object_id else ""
             in_bucket = f" in bucket with ID '{bucket_id}'" if bucket_id else ""
             message = f"The object{with_id}{in_bucket} does not exist."
@@ -586,9 +584,7 @@ class ObjectStorageProtocol(ABC):
     class ObjectAlreadyExistsError(ObjectError):
         """Thrown when trying to access a file with an ID that doesn't exist."""
 
-        def __init__(
-            self, bucket_id: Optional[str] = None, object_id: Optional[str] = None
-        ):
+        def __init__(self, bucket_id: str | None = None, object_id: str | None = None):
             with_id = f" with ID '{object_id}'" if object_id else ""
             in_bucket = f" in bucket with ID '{bucket_id}'" if bucket_id else ""
             message = f"The object{with_id}{in_bucket} already exists."
@@ -597,7 +593,7 @@ class ObjectStorageProtocol(ABC):
     class BucketIdValidationError(BucketError):
         """Thrown when a bucket ID is not valid."""
 
-        def __init__(self, bucket_id: str, reason: Optional[str]):
+        def __init__(self, bucket_id: str, reason: str | None):
             with_reason = f": {reason}." if reason else "."
             message = f"The specified bucket ID '{bucket_id}' is not valid{with_reason}"
             super().__init__(message)
@@ -605,7 +601,7 @@ class ObjectStorageProtocol(ABC):
     class ObjectIdValidationError(ObjectError):
         """Thrown when an object ID is not valid."""
 
-        def __init__(self, object_id: str, reason: Optional[str]):
+        def __init__(self, object_id: str, reason: str | None):
             with_reason = f": {reason}." if reason else "."
             message = f"The specified object ID '{object_id}' is not valid{with_reason}"
             super().__init__(message)
@@ -644,7 +640,7 @@ class ObjectStorageProtocol(ABC):
             upload_id: str,
             bucket_id: str,
             object_id: str,
-            details: Optional[str] = None,
+            details: str | None = None,
         ):
             with_details = f": {details}." if details else "."
             message = (
@@ -661,7 +657,7 @@ class ObjectStorageProtocol(ABC):
             upload_id: str,
             bucket_id: str,
             object_id: str,
-            reason: Optional[str] = None,
+            reason: str | None = None,
         ):
             with_reason = f": {reason}." if reason else "."
             message = (

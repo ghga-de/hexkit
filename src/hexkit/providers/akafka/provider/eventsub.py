@@ -18,7 +18,7 @@
 Apache Kafka-specific subscriber provider corresponding to the
 `EventSubscriberProtocol`.
 
-Require dependencies of the `akafka` extra. See the `setup.cfg`.
+Require dependencies of the `akafka` extra. See the `pyproject.toml`.
 """
 
 import asyncio
@@ -26,20 +26,21 @@ import json
 import logging
 import ssl
 from collections import defaultdict
-from collections.abc import Sequence
+from collections.abc import Callable, Sequence
 from contextlib import asynccontextmanager
 from dataclasses import asdict, dataclass
 from datetime import datetime, timezone
-from typing import Any, Callable, Literal, Optional, Protocol, TypeVar, Union, cast
+from typing import Any, Literal, Protocol, TypeVar, cast
+from uuid import UUID, uuid4
 
 from aiokafka import AIOKafkaConsumer
 from opentelemetry import trace
 from opentelemetry.propagate import extract
 from opentelemetry.propagators import textmap
-from pydantic import ValidationError
+from pydantic import UUID4, ValidationError
 
 from hexkit.base import InboundProviderBase
-from hexkit.correlation import set_correlation_id
+from hexkit.correlation import correlation_id_from_str, set_correlation_id
 from hexkit.custom_types import Ascii, JsonObject
 from hexkit.protocols.daosub import DaoSubscriberProtocol, DtoValidationError
 from hexkit.protocols.eventpub import EventPublisherProtocol
@@ -49,10 +50,11 @@ from hexkit.providers.akafka.provider.utils import (
     generate_client_id,
     generate_ssl_context,
 )
+from hexkit.utils import now_utc_ms_prec
 
 CHANGE_EVENT_TYPE = "upserted"
 DELETE_EVENT_TYPE = "deleted"
-EventOrDaoSubProtocol = Union[DaoSubscriberProtocol, EventSubscriberProtocol]
+EventOrDaoSubProtocol = DaoSubscriberProtocol | EventSubscriberProtocol
 TextmapHeaders = list[tuple[str, bytes]]
 
 tracer = trace.get_tracer_provider().get_tracer("hexkit.providers.akafka")
@@ -64,7 +66,7 @@ class AIOKafkaOtelContextExtractor(textmap.Getter[TextmapHeaders]):
     This is slighlty adapted from the aiokafka instrumentation library.
     """
 
-    def get(self, carrier: TextmapHeaders, key: str) -> Optional[list[str]]:
+    def get(self, carrier: TextmapHeaders, key: str) -> list[str] | None:
         """Extract specific OpenTelemetry header from propagated context"""
         if carrier is None:
             return None
@@ -140,7 +142,13 @@ class ComboTranslator(EventSubscriberProtocol):
         self.topics_of_interest.extend(non_outbox_topics)
 
     async def _consume_validated(
-        self, *, payload: JsonObject, type_: Ascii, topic: Ascii, key: Ascii
+        self,
+        *,
+        payload: JsonObject,
+        type_: Ascii,
+        topic: Ascii,
+        key: Ascii,
+        event_id: UUID4,
     ) -> None:
         """
         Receive and process an event with already validated topic, type, and key.
@@ -150,6 +158,7 @@ class ComboTranslator(EventSubscriberProtocol):
             type_: The type of the event.
             topic: Name of the topic the event was published to.
             key: A key used for routing the event.
+            event_id: The unique identifier of the event.
         """
         translator = self.translators[topic][type_]
 
@@ -175,7 +184,9 @@ class ComboTranslator(EventSubscriberProtocol):
                 # a deletion event:
                 await translator.deleted(resource_id=key)
         else:
-            await translator.consume(payload=payload, type_=type_, topic=topic, key=key)
+            await translator.consume(
+                payload=payload, type_=type_, topic=topic, key=key, event_id=event_id
+            )
 
 
 class HeaderNames:
@@ -184,8 +195,10 @@ class HeaderNames:
     EVENT_ID = "event_id"
     CORRELATION_ID = "correlation_id"
     ORIGINAL_TOPIC = "original_topic"
+    ORIGINAL_EVENT_ID = "original_event_id"
     EXC_CLASS = "exc_class"
     EXC_MSG = "exc_msg"
+    SERVICE_NAME = "service"
 
 
 class ConsumerEvent(Protocol):
@@ -200,14 +213,10 @@ class ConsumerEvent(Protocol):
     timestamp: int
 
 
-def utc_datetime_from_millis(millis: int) -> datetime:
-    """Convert an integer representing milliseconds to a timestamp"""
-    return datetime.fromtimestamp(millis / 1000, tz=timezone.utc)
-
-
-def now_as_utc() -> datetime:
-    """Return the current timestamp with UTC timezone"""
-    return datetime.now().astimezone(tz=timezone.utc)
+def utc_datetime_from_ms(ms: int) -> datetime:
+    """Convert an integer representing UNIX time in milliseconds to a utc timestamp"""
+    # python's datetime.fromtimestamp expects seconds, so we divide by 1000
+    return datetime.fromtimestamp(ms / 1000, tz=timezone.utc)
 
 
 @dataclass
@@ -223,9 +232,10 @@ class ExtractedEventInfo:
     type_: Ascii
     payload: JsonObject
     key: Ascii
-    headers: dict[str, str]
+    event_id: UUID4
+    headers: dict[str, str]  # These are the *remaining* headers
 
-    def __init__(self, event: Optional[ConsumerEvent] = None, **kwargs):
+    def __init__(self, event: ConsumerEvent | None = None, **kwargs):
         """Initialize an instance of ExtractedEventInfo."""
         self.topic = kwargs.get("topic", event.topic if event else "")
         self.payload = kwargs.get("payload", event.value if event else "")
@@ -233,6 +243,30 @@ class ExtractedEventInfo:
         self.headers = kwargs.get("headers", headers_as_dict(event) if event else {})
         self.headers = cast(dict, self.headers)
         self.type_ = kwargs.get("type_", self.headers.pop("type", ""))
+
+        # Retrieve the event ID from the headers or kwargs.
+        event_id = kwargs.get("event_id", self.headers.pop(HeaderNames.EVENT_ID, ""))
+        if isinstance(event_id, UUID):
+            # If it is a UUID, use it directly
+            self.event_id = event_id
+        else:
+            try:
+                self.event_id = UUID(event_id)
+            except ValueError:
+                # Generate a new UUID, but log a warning including the encountered value
+                new_event_id = uuid4()
+                found_val = (
+                    f"Invalid event_id encountered: {event_id}"
+                    if event_id
+                    else "No event_id header found"
+                )
+
+                logging.warning(
+                    "%s. Generated a new one: %s.",
+                    found_val,
+                    new_event_id,
+                )
+                self.event_id = new_event_id
 
     @property
     def encoded_headers(self) -> list[tuple[str, bytes]]:
@@ -250,16 +284,13 @@ class DLQEventInfo(ExtractedEventInfo):
 
     timestamp: datetime
 
-    def __init__(self, event: Optional[ConsumerEvent] = None, **kwargs):
+    def __init__(self, event: ConsumerEvent | None = None, **kwargs):
         """Initialize an instance of ExtractedEventInfo."""
-        timestamp = utc_datetime_from_millis(event.timestamp) if event else now_as_utc()
+        timestamp = (
+            utc_datetime_from_ms(event.timestamp) if event else now_utc_ms_prec()
+        )
         self.timestamp = kwargs.pop("timestamp", timestamp)
         super().__init__(event=event, **kwargs)
-
-
-def get_event_id(event: ConsumerEvent, *, service_name: str) -> str:
-    """Make a label that identifies an event."""
-    return f"{service_name},{event.topic},{event.partition},{event.offset}"
 
 
 def headers_as_dict(event: ConsumerEvent) -> dict[str, str]:
@@ -278,7 +309,7 @@ class KafkaConsumerCompatible(Protocol):
         *topics: Ascii,
         bootstrap_servers: str,
         security_protocol: str,
-        ssl_context: Optional[ssl.SSLContext],
+        ssl_context: ssl.SSLContext | None,
         client_id: str,
         group_id: str,
         auto_offset_reset: Literal["earliest"],
@@ -356,9 +387,9 @@ class KafkaEventSubscriber(InboundProviderBase):
         cls,
         *,
         config: KafkaConfig,
-        translator: Union[EventSubscriberProtocol, DLQSubscriberProtocol],
+        translator: EventSubscriberProtocol | DLQSubscriberProtocol,
         kafka_consumer_cls: type[KafkaConsumerCompatible] = AIOKafkaConsumer,
-        dlq_publisher: Optional[EventPublisherProtocol] = None,
+        dlq_publisher: EventPublisherProtocol | None = None,
     ):
         """
         Setup and teardown KafkaEventSubscriber instance with some config params.
@@ -434,9 +465,9 @@ class KafkaEventSubscriber(InboundProviderBase):
         self,
         *,
         consumer: KafkaConsumerCompatible,
-        translator: Union[EventSubscriberProtocol, DLQSubscriberProtocol],
+        translator: EventSubscriberProtocol | DLQSubscriberProtocol,
         config: KafkaConfig,
-        dlq_publisher: Optional[EventPublisherProtocol] = None,
+        dlq_publisher: EventPublisherProtocol | None = None,
     ):
         """Please do not call directly! Should be called by the `construct` method.
         Args:
@@ -467,34 +498,48 @@ class KafkaEventSubscriber(InboundProviderBase):
         self._enable_dlq = config.kafka_enable_dlq
         self._retry_backoff = config.kafka_retry_backoff
 
-    async def _publish_to_dlq(
-        self, *, event: ExtractedEventInfo, exc: Exception, event_id: str
-    ):
+    async def _publish_to_dlq(self, *, event: ExtractedEventInfo, exc: Exception):
         """Publish the event to the corresponding DLQ topic.
 
         The exception instance is included in the headers, but is split into the class
         name and the string representation of the exception.
 
+        **Note**: A new event ID is generated for the DLQ event, as it is a new event
+        that is being published to the DLQ topic. The original event ID is included
+        in the headers to aid in debugging and tracing the original event that caused
+        the DLQ event to be published.
+
         Args
         - `event`: The event to publish to the DLQ.
         - `exc`: The exception that caused the event to be published to the DLQ.
-        - `event_id`: The service name, topic, partition, and offset of the
-            failed event. Uses the format "service_name,topic,partition,offset".
         """
-        logging.debug("About to publish an event to DLQ topic '%s'", self._dlq_topic)
+        dlq_event_id = uuid4()
+        logging.debug(
+            "About to publish event to DLQ topic '%s'. DLQ event_id=%s, original_event_id=%s.",
+            self._dlq_topic,
+            dlq_event_id,
+            event.event_id,
+        )
         await self._dlq_publisher.publish(  # type: ignore
             payload=event.payload,
             type_=event.type_,
             topic=self._dlq_topic,
             key=event.key,
+            event_id=dlq_event_id,
             headers={
                 HeaderNames.EXC_CLASS: exc.__class__.__name__,
                 HeaderNames.EXC_MSG: str(exc),
-                HeaderNames.EVENT_ID: event_id,
                 HeaderNames.ORIGINAL_TOPIC: event.topic,
+                HeaderNames.ORIGINAL_EVENT_ID: str(event.event_id),
+                HeaderNames.SERVICE_NAME: self._service_name,
             },
         )
-        logging.info("Published event to DLQ topic '%s'", self._dlq_topic)
+        logging.info(
+            "Published event to DLQ topic '%s'. DLQ event_id=%s, original_event_id=%s.",
+            self._dlq_topic,
+            dlq_event_id,
+            event.event_id,
+        )
 
     async def _retry_event(self, *, event: ExtractedEventInfo, retries_left: int):
         """Retry the event until the maximum number of retries is reached.
@@ -519,14 +564,15 @@ class KafkaEventSubscriber(InboundProviderBase):
         backoff_time = self._retry_backoff * 2 ** (retry_number - 1)
         try:
             logging.info(
-                "Retry %i of %i for event of type '%s' on topic '%s' with key '%s',"
-                + " beginning in %i seconds.",
+                "Retry %i of %i for event beginning in %i seconds. Topic=%s,"
+                + " type=%s, key=%s, event_id=%s.",
                 retry_number,
                 self._max_retries,
-                event.type_,
-                event.topic,
-                event.key,
                 backoff_time,
+                event.topic,
+                event.type_,
+                event.key,
+                event.event_id,
             )
             await asyncio.sleep(backoff_time)
             await self._translator_consume(event=event)
@@ -547,7 +593,7 @@ class KafkaEventSubscriber(InboundProviderBase):
             args.pop("headers")
         await self._translator.consume(**args)
 
-    async def _handle_consumption(self, *, event: ExtractedEventInfo, event_id: str):
+    async def _handle_consumption(self, *, event: ExtractedEventInfo):
         """Try to pass the event to the translator.
 
         If the event fails:
@@ -564,18 +610,18 @@ class KafkaEventSubscriber(InboundProviderBase):
             await self._translator_consume(event=event)
         except Exception as underlying_error:
             logging.warning(
-                "Failed initial attempt to consume event of type '%s' on topic '%s' with key '%s'.",
-                event.type_,
+                "Failed initial attempt to consume event. Topic=%s, type=%s,"
+                + " key=%s, event_id=%s.",
                 event.topic,
+                event.type_,
                 event.key,
+                event.event_id,
             )
 
             if not self._max_retries:
                 if not self._enable_dlq:
                     raise  # re-raise Exception
-                await self._publish_to_dlq(
-                    event=event, exc=underlying_error, event_id=event_id
-                )
+                await self._publish_to_dlq(event=event, exc=underlying_error)
                 return
 
             # Don't raise RetriesExhaustedError unless retries are actually attempted
@@ -588,9 +634,7 @@ class KafkaEventSubscriber(InboundProviderBase):
                 logging.warning(retry_error)
                 if not self._enable_dlq:
                     raise retry_error from underlying_error
-                await self._publish_to_dlq(
-                    event=event, exc=underlying_error, event_id=event_id
-                )
+                await self._publish_to_dlq(event=event, exc=underlying_error)
 
     def _extract_info(self, event: ConsumerEvent) -> ExtractedEventInfo:
         """Convert the raw event to either ExtractedEventInfo or DLQEventInfo.
@@ -645,36 +689,44 @@ class KafkaEventSubscriber(InboundProviderBase):
         with tracer.start_as_current_span(
             name="KafkaEventSubscriber._consume_event", context=extracted_context
         ):
-            event_id = get_event_id(event, service_name=self._service_name)
             event_info = self._extract_info(event)
             try:
                 self._validate_extracted_info(event_info)
             except RuntimeError as err:
                 logging.info(
-                    "Ignored event of type '%s': %s, errors: %s",
+                    "Ignored event. Topic=%s, type=%s, key=%s, event_id=%s, errors: %s.",
+                    event.topic,  # use actual topic, not event_info.topic
                     event_info.type_,
-                    event_id,
+                    event.key,
+                    event_info.event_id,
                     str(err),
-                )
-                # Always acknowledge event receipt for ignored events
+                )  # ^ Depending on error, log arg(s) can be empty. Error will explain.
+
+                # Always acknowledge event receipt for ignored events:
                 await self._consumer.commit()
                 return
 
             try:
                 logging.info(
-                    "Consuming event of type '%s': %s", event_info.type_, event_id
+                    "Ignored event. Topic=%s, type=%s, key=%s, event_id=%s.",
+                    event_info.topic,
+                    event_info.type_,
+                    event.key,
+                    event_info.event_id,
                 )
                 correlation_id = event_info.headers[HeaderNames.CORRELATION_ID]
-                async with set_correlation_id(correlation_id):
-                    await self._handle_consumption(event=event_info, event_id=event_id)
+                async with set_correlation_id(correlation_id_from_str(correlation_id)):
+                    await self._handle_consumption(event=event_info)
             except Exception:
                 # Errors only bubble up here if the DLQ isn't used
                 logging.critical(
-                    "An error occurred while processing event of type '%s': %s. It was NOT"
-                    " placed in the DLQ topic (%s)",
-                    event_info.type_,
-                    event_id,
+                    "Failed to process event. It was NOT placed in the DLQ topic (%s)."
+                    + " Topic=%s, type=%s, key=%s, event_id=%s.",
                     self._dlq_topic if self._enable_dlq else "DLQ is disabled",
+                    event_info.topic,
+                    event_info.type_,
+                    event.key,
+                    event_info.event_id,
                 )
                 raise
             else:

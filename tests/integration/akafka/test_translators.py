@@ -108,7 +108,7 @@ class DummyEventSubTranslator(EventSubscriberProtocol):
         self.consumed: list[tuple[dict, Ascii, Ascii, Ascii]] = []
 
     async def _consume_validated(  # type: ignore
-        self, *, payload: dict, type_: Ascii, topic: Ascii, key: Ascii
+        self, *, payload: dict, type_: Ascii, topic: Ascii, key: Ascii, event_id: str
     ) -> None:
         self.consumed.append((payload, type_, topic, key))
 

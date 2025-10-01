@@ -18,7 +18,8 @@
 from collections.abc import Collection
 from contextlib import asynccontextmanager
 from contextvars import ContextVar
-from typing import Any, Optional
+from datetime import datetime, timedelta, timezone
+from typing import Any
 
 from pydantic import BaseModel
 
@@ -47,7 +48,7 @@ class NonAsciiStrError(RuntimeError):
         super().__init__(f"Non-ASCII string provided: {str_value!r}")
 
 
-def calc_part_size(*, file_size: int, preferred_part_size: Optional[int] = None) -> int:
+def calc_part_size(*, file_size: int, preferred_part_size: int | None = None) -> int:
     """
     Gives recommendations on the part_size to use for up- or download of a file given
     it's total size. It makes sure that chosen part size is within bounds and produces
@@ -124,3 +125,27 @@ async def set_context_var(context_var: ContextVar, value: Any):
     token = context_var.set(value)
     yield
     context_var.reset(token)
+
+
+def round_datetime_to_ms(dt: datetime) -> datetime:
+    """Round a datetime object to nearest millisecond."""
+    microseconds = dt.microsecond
+    sub_ms = microseconds % 1000
+    if not sub_ms:
+        return dt
+
+    # Calculate the delta to add or subtract to round to the nearest millisecond.
+    # we subtract sub_ms either from 1000 if rounding up or from 0 if rounding down
+    delta = timedelta(microseconds=(1000 * (sub_ms >= 500)) - sub_ms)
+    return dt + delta
+
+
+def now_utc_ms_prec() -> datetime:
+    """Return the current UTC time with microseconds rounded to milliseconds.
+
+    This is useful for producing a datetime that is consistent
+    with MongoDB's millisecond precision.
+    """
+    current_time = datetime.now(timezone.utc)
+    # Round microseconds to milliseconds
+    return round_datetime_to_ms(current_time)

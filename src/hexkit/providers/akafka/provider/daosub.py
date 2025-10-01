@@ -21,7 +21,6 @@
 import logging
 from collections.abc import Sequence
 from contextlib import asynccontextmanager
-from typing import Optional
 
 from aiokafka import AIOKafkaConsumer
 
@@ -56,7 +55,7 @@ class KafkaOutboxSubscriber(InboundProviderBase):
         *,
         config: KafkaConfig,
         translators: Sequence[DaoSubscriberProtocol],
-        dlq_publisher: Optional[EventPublisherProtocol] = None,
+        dlq_publisher: EventPublisherProtocol | None = None,
         kafka_consumer_cls: type[KafkaConsumerCompatible] = AIOKafkaConsumer,
     ):
         """Setup and teardown an instance of the provider.

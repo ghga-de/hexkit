@@ -10,16 +10,16 @@ jobs:
 
     strategy:
       matrix:
-        python-version: ['3.9', '3.10', '3.11', '3.12', '3.13']
+        python-version: ['3.10', '3.11', '3.12', '3.13']
 
     steps:
       - name: Checkout repository
         id: checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@v5
 
       - name: Common steps
         id: common
-        uses: ghga-de/gh-action-common@v5
+        uses: ghga-de/gh-action-common@v6
         with:
           python-version: ${{ matrix.python-version }}
 

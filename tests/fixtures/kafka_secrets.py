@@ -19,7 +19,6 @@
 import datetime
 import secrets
 import string
-from typing import Optional
 
 from cryptography import x509
 from cryptography.hazmat.primitives import hashes, serialization
@@ -83,7 +82,7 @@ def cert_to_pem(cert: x509.Certificate) -> str:
     return cert.public_bytes(serialization.Encoding.PEM).decode("ascii")
 
 
-def key_to_pem(key: rsa.RSAPrivateKey, password: Optional[str]) -> str:
+def key_to_pem(key: rsa.RSAPrivateKey, password: str | None) -> str:
     """Serialize the given key in PEM format."""
     return key.private_bytes(
         encoding=serialization.Encoding.PEM,
@@ -100,7 +99,7 @@ def generate_password(size: int = 16) -> str:
 
 
 def get_encryption_algorithm(
-    password: Optional[str],
+    password: str | None,
 ) -> serialization.KeySerializationEncryption:
     """Get an encryption algorithm for the given password."""
     return (

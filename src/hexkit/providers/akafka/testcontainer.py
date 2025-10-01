@@ -17,7 +17,7 @@
 """Improved Kafka test containers."""
 
 from textwrap import dedent
-from typing import Literal, Optional
+from typing import Literal
 
 from testcontainers.kafka import KafkaContainer
 
@@ -38,11 +38,11 @@ class KafkaSSLContainer(KafkaContainer):
         self,
         image: str = DEFAULT_IMAGE,
         port: int = DEFAULT_PORT,
-        cert: Optional[str] = None,
-        key: Optional[str] = None,
-        trusted: Optional[str] = None,
-        password: Optional[str] = None,
-        client_auth: Optional[Literal["requested", "required", "none"]] = None,
+        cert: str | None = None,
+        key: str | None = None,
+        trusted: str | None = None,
+        password: str | None = None,
+        client_auth: Literal["requested", "required", "none"] | None = None,
         **kwargs,
     ) -> None:
         """Initialize the Kafka SSL container with the given parameters.

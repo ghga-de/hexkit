@@ -19,10 +19,10 @@
 import uuid
 from datetime import datetime
 from pathlib import Path
-from typing import Any, Optional, Union, cast
+from typing import Any, cast
 
 import pytest
-from pydantic import UUID4, BaseModel, ConfigDict, Field
+from pydantic import UUID4, BaseModel, ConfigDict, Field, field_serializer
 
 from hexkit.protocols.dao import (
     Dao,
@@ -38,6 +38,7 @@ from hexkit.providers.mongodb.testutils import (
     mongodb_container_fixture,  # noqa: F401
     mongodb_fixture,  # noqa: F401
 )
+from hexkit.utils import now_utc_ms_prec
 
 pytestmark = pytest.mark.asyncio()
 
@@ -54,8 +55,13 @@ class ExampleDto(BaseModel):
     field_a: str = Field(default="test")
     field_b: int = Field(default=42)
     field_c: bool = Field(default=True)
-    field_d: datetime = Field(default_factory=datetime.now)
+    field_d: datetime = Field(default_factory=now_utc_ms_prec)
     field_e: Path = Field(default_factory=Path.cwd)
+
+    @field_serializer("field_e")
+    def serialize_field_e(self, value: Path) -> str:
+        """Serialize field_e to a string."""
+        return str(value)
 
 
 class CustomIdGenerator:
@@ -106,9 +112,9 @@ class ComplexDto(BaseModel):
         default_factory=lambda: ("test-tuple", ExampleDto())
     )
 
-    sub_list: list[Union[str, ExampleDto]] = Field(
+    sub_list: list[str | ExampleDto] = Field(
         default_factory=lambda: cast(
-            list[Union[str, ExampleDto]], ["test-list", ExampleDto()]
+            list[str | ExampleDto], ["test-list", ExampleDto()]
         )
     )
     sub_dict: dict[str, ExampleDto] = Field(
@@ -128,10 +134,8 @@ async def test_dao_find_all_with_id(mongodb: MongoDbFixture):
     resource = ExampleDto()
     await dao.insert(resource)
 
-    str_id = str(resource.id)
-
     # retrieve the resource with find_all
-    resources_read = [x async for x in dao.find_all(mapping={"id": str_id})]
+    resources_read = [x async for x in dao.find_all(mapping={"id": resource.id})]
     assert len(resources_read) == 1
     assert resources_read[0].id == resource.id
 
@@ -141,19 +145,21 @@ async def test_dao_find_all_with_id(mongodb: MongoDbFixture):
 
     # make sure other fields beside ID aren't getting ignored
     no_results_multifield = [
-        x async for x in dao.find_all(mapping={"id": str_id, "field_b": 134293487})
+        x async for x in dao.find_all(mapping={"id": resource.id, "field_b": 134293487})
     ]
     assert len(no_results_multifield) == 0
 
     multifield_found = [
         x
-        async for x in dao.find_all(mapping={"id": str_id, "field_b": resource.field_b})
+        async for x in dao.find_all(
+            mapping={"id": resource.id, "field_b": resource.field_b}
+        )
     ]
     assert len(multifield_found) == 1
     assert multifield_found[0] == resource
 
     # find_one calls find_all, so double check that it works there too
-    result = await dao.find_one(mapping={"id": str_id})
+    result = await dao.find_one(mapping={"id": resource.id})
     assert result == resource
 
 
@@ -396,7 +402,7 @@ async def test_complex_models(mongodb: MongoDbFixture):
             "field_b": nested.field_b,
             "field_c": nested.field_c,
             "field_d": nested.field_d,
-            "field_e": nested.field_e,
+            "field_e": str(nested.field_e),
         }
         mappings: list[dict[str, Any]] = [
             {"id": resource.id},
@@ -425,7 +431,7 @@ async def test_complex_models(mongodb: MongoDbFixture):
 
 async def test_duplicate_uuid(mongodb: MongoDbFixture):
     """Test to illustrate how to handle duplicate UUIDs."""
-    last_id: Optional[UUID4] = None
+    last_id: UUID4 | None = None
 
     def bad_id_factory():
         """Bad ID factory that generates duplicate IDs."""

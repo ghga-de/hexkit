@@ -18,10 +18,10 @@ import logging
 from abc import ABC, abstractmethod
 from collections.abc import Awaitable, Callable
 from contextlib import asynccontextmanager
-from typing import Any, Optional, Union
+from typing import Any
 
-from motor.motor_asyncio import AsyncIOMotorDatabase
 from pydantic import BaseModel
+from pymongo.asynchronous.database import AsyncDatabase
 
 from hexkit.providers.mongodb.provider import document_to_dto, dto_to_document
 
@@ -59,7 +59,7 @@ class MigrationDefinition:
     def __init__(
         self,
         *,
-        db: AsyncIOMotorDatabase,
+        db: AsyncDatabase,
         unapplying: bool,
         is_final_migration: bool,
     ):
@@ -87,7 +87,7 @@ class MigrationDefinition:
 
     @asynccontextmanager
     async def auto_finalize(
-        self, coll_names: Union[str, list[str]], copy_indexes: bool = False
+        self, coll_names: str | list[str], copy_indexes: bool = False
     ):
         """Use within `apply()` or `unapply()` as a context manager to automatically
         stage the temporary migrated collections for the specified collection names and
@@ -164,7 +164,7 @@ class MigrationDefinition:
         *,
         coll_name: str,
         change_function: Callable[[Document], Awaitable[Document]],
-        validation_model: Optional[type[BaseModel]] = None,
+        validation_model: type[BaseModel] | None = None,
         id_field: str = "",
         force_validate: bool = False,
         batch_size: int = 1000,
@@ -267,7 +267,7 @@ class MigrationDefinition:
         self._staged_collections.remove(original_coll_name)
         log.debug("Unstaged changes for collection %s", original_coll_name)
 
-    async def stage_new_collections(self, original_coll_names: Union[str, list[str]]):
+    async def stage_new_collections(self, original_coll_names: str | list[str]):
         """Rename old collections to temporarily move them aside without dropping them,
         then remove the temporary prefix from the migrated collections.
 
@@ -312,7 +312,7 @@ class MigrationDefinition:
                 dest_coll_name,
             )
 
-    async def auto_copy_indexes(self, *, coll_names: Union[str, list[str]]):
+    async def auto_copy_indexes(self, *, coll_names: str | list[str]):
         """Copy the indexes from old collections to new, and remember that the indexes
         have been copied for these collections.
         """

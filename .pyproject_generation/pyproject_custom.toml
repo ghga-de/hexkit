@@ -1,12 +1,11 @@
 [project]
 name = "hexkit"
-version = "5.4.0"
+version = "7.1.0"
 description = "A Toolkit for Building Microservices using the Hexagonal Architecture"
-requires-python = ">=3.9"
+requires-python = ">=3.10"
 classifiers = [
     "Development Status :: 5 - Production/Stable",
     "Operating System :: POSIX :: Linux",
-    "Programming Language :: Python :: 3.9",
     "Programming Language :: Python :: 3.10",
     "Programming Language :: Python :: 3.11",
     "Programming Language :: Python :: 3.12",
@@ -17,40 +16,41 @@ classifiers = [
     "Intended Audience :: Developers",
 ]
 dependencies = [
-    "opentelemetry-api >=1.31.1, <2",
-    "pydantic >=2.10, <3",
-    "pydantic_settings >=2.8, <3",
+    "opentelemetry-api >=1.37, <2",
+    "pydantic >=2.11, <3",
+    "pydantic_settings >=2.10, <3",
     "PyYAML >=6, <7",
 ]
 
 [project.optional-dependencies]
-akafka = ["aiokafka[zstd,lz4,snappy]~=0.12.0", "jsonschema >=4.23, <5"]
-s3 = ["boto3 >=1.37, <2", "botocore >=1.37, <2"]
-mongodb = ["motor >=3.7, <4"]
+akafka = ["aiokafka[zstd,lz4,snappy]~=0.12.0", "jsonschema >=4.25, <5"]
+s3 = ["boto3 >=1.40, <2", "botocore >=1.40, <2"]
+mongodb = ["pymongo >=4.15, <5"]
 opentelemetry-base = [
-    "opentelemetry-sdk >=1.31.1, <2",
-    "opentelemetry-exporter-otlp >=1.31.1, <2",
-    "opentelemetry-instrumentation >=0.52b1",
-    "opentelemetry-instrumentation-httpx >=0.52b1",
+    "opentelemetry-sdk >=1.37.0, <2",
+    "opentelemetry-exporter-otlp >=1.37.0, <2",
+    "opentelemetry-instrumentation >=0.58b0",
+    "opentelemetry-instrumentation-httpx >=0.58b0",
+    "opentelemetry-distro >=0.58b0",
 ]
 opentelemetry-akafka = [
     "hexkit[opentelemetry-base]",
     "hexkit[akafka]",
-    "opentelemetry-instrumentation-aiokafka >=0.52b1",
+    "opentelemetry-instrumentation-aiokafka >=0.58b0",
 ]
 opentelemetry-mongodb = [
     "hexkit[opentelemetry-base]",
     "hexkit[mongodb]",
-    "opentelemetry-instrumentation-pymongo >=0.52b1",
+    "opentelemetry-instrumentation-pymongo >=0.58b0",
 ]
 opentelemetry-fastapi = [
     "hexkit[opentelemetry-base]",
-    "opentelemetry-instrumentation-fastapi >=0.52b1",
+    "opentelemetry-instrumentation-fastapi >=0.58b0",
 ]
 opentelemetry-s3 = [
     "hexkit[opentelemetry-base]",
     "hexkit[s3]",
-    "opentelemetry-instrumentation-botocore >=0.52b1",
+    "opentelemetry-instrumentation-botocore >=0.58b0",
 ]
 opentelemetry = [
     "hexkit[opentelemetry-akafka]",
@@ -58,9 +58,9 @@ opentelemetry = [
     "hexkit[opentelemetry-fastapi]",
     "hexkit[opentelemetry-s3]",
 ]
-test-akafka = ["hexkit[akafka]", "testcontainers[kafka] >=4.9, <5"]
-test-s3 = ["hexkit[s3]", "testcontainers >=4.9, <5"]
-test-mongodb = ["hexkit[mongodb]", "testcontainers[mongo] >=4.9, <5"]
+test-akafka = ["hexkit[akafka]", "testcontainers[kafka] >=4.13, <5"]
+test-s3 = ["hexkit[s3]", "testcontainers >=4.13, <5"]
+test-mongodb = ["hexkit[mongodb]", "testcontainers[mongo] >=4.13, <5"]
 test = ["hexkit[test-akafka,test-s3,test-mongodb]"]
 
 all = ["hexkit[test]", "hexkit[opentelemetry]"]
@@ -69,20 +69,16 @@ all = ["hexkit[test]", "hexkit[opentelemetry]"]
 Repository = "https://github.com/ghga-de/hexkit"
 
 
-[project.entry-points.opentelemetry_distro]
-hexkit_distro = "hexkit.opentelemetry:HexkitDistro"
-
 [tool.ruff]
-target-version = "py39"
+target-version = "py310"
 
 [tool.tox]
 legacy_tox_ini = """
     [tox]
-    env_list = py3{9,12,13}
+    env_list = py3{10,11,12,13}
 
     [gh-actions]
     python =
-        3.9: py39
         3.10: py310
         3.11: py311
         3.12: py312
@@ -94,5 +90,10 @@ legacy_tox_ini = """
         DOCKER_HOST
     deps =
         --no-deps -r ./lock/requirements-dev.txt
-    commands = pytest {posargs}
+    commands =
+        py310: pip install --no-deps \
+            backports.asyncio.runner==1.2.0 \
+            exceptiongroup==1.3.0 \
+            tomli==2.2.1
+        pytest {posargs}
 """

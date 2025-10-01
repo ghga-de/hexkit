@@ -22,7 +22,8 @@ ATTENTION: For testing purposes only.
 
 from collections import defaultdict, deque
 from collections.abc import Mapping
-from typing import NamedTuple, Optional
+from typing import NamedTuple
+from uuid import UUID
 
 from hexkit.custom_types import JsonObject
 from hexkit.protocols.eventpub import EventPublisherProtocol
@@ -73,17 +74,18 @@ class InMemEventPublisher(EventPublisherProtocol):
     thread. Not suitable for inter-thread or inter-process communication.
     """
 
-    def __init__(self, event_store: Optional[InMemEventStore] = None):
+    def __init__(self, event_store: InMemEventStore | None = None):
         """Initialize with existing event_store or let it create a new one."""
         self.event_store = event_store if event_store else InMemEventStore()
 
-    async def _publish_validated(
+    async def _publish_validated(  # noqa: PLR0913
         self,
         *,
         payload: JsonObject,
         type_: str,
         key: str,
         topic: str,
+        event_id: UUID,
         headers: Mapping[str, str],
     ) -> None:
         """Publish an event with already validated topic and type.

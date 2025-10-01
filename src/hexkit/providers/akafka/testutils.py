@@ -25,7 +25,7 @@ from collections.abc import AsyncGenerator, Generator, Mapping, Sequence
 from contextlib import asynccontextmanager
 from dataclasses import dataclass
 from functools import partial
-from typing import Any, Optional, Union, cast
+from typing import Any, cast
 
 from aiokafka.admin.config_resource import ConfigResource, ConfigResourceType
 
@@ -39,6 +39,7 @@ import pytest
 import pytest_asyncio
 from aiokafka import AIOKafkaConsumer, TopicPartition
 from aiokafka.admin import AIOKafkaAdminClient, RecordsToDelete
+from pydantic import UUID4
 from testcontainers.kafka import KafkaContainer
 
 from hexkit.custom_types import Ascii, JsonObject, PytestScope
@@ -83,28 +84,30 @@ class EventBase:
 class ExpectedEvent(EventBase):
     """Used to describe events expected in a specific topic using an EventRecorder.
 
-    Please note, the key type is optional. If it is set to `None` (the default), the
-    event key will be ignored when compared to the recording.
-
-    The `headers` value is treated the same as `key` -- it is ignored in comparison if
-    it is set to `None`.
+    The core fields -- `payload` and `type_` -- are required.
+    The fields defined here -- `key`, `event_id`, and `headers` -- are optional.
+    The optional fields are only compared against the recorded events if they are set to
+    some value other than `None`. If they are set to `None`, they will be ignored
+    when comparing the expected event to the recorded event.
     """
 
-    key: Optional[Ascii] = None
-    headers: Optional[dict[str, str]] = None
+    key: Ascii | None = None
+    event_id: Ascii | None = None
+    headers: dict[str, str] | None = None
 
 
 @dataclass(frozen=True)
 class RecordedEvent(EventBase):
     """Used by the EventRecorder class to describe events recorded in a specific topic.
 
-    The event type information is stored in the header but extracted into its own field
-    because of its importance for the comparison. Because of this, it is also removed
-    from the headers.
+    The event type and event ID are stored in the header but extracted into their own
+    fields because of their importance for comparison. Because of this, they're also
+    removed from the headers.
     """
 
     key: Ascii
-    headers: Optional[dict[str, str]] = None
+    event_id: Ascii
+    headers: dict[str, str] | None = None
 
 
 class ValidationError(RuntimeError):
@@ -160,7 +163,7 @@ def check_recorded_events(
         )
 
     for index, (recorded_event, expected_event) in enumerate(
-        zip(recorded_events, expected_events)
+        zip(recorded_events, expected_events, strict=True)
     ):
         # Convert the expected payload to use only basic data types
         expected_payload = json.loads(
@@ -175,6 +178,11 @@ def check_recorded_events(
             raise get_field_mismatch_error(field="type", index=index)
         if expected_event.key is not None and recorded_event.key != expected_event.key:
             raise get_field_mismatch_error(field="key", index=index)
+        if (
+            expected_event.event_id is not None
+            and recorded_event.event_id != expected_event.event_id
+        ):
+            raise get_field_mismatch_error(field="event_id", index=index)
         if (
             expected_event.headers is not None
             and recorded_event.headers != expected_event.headers
@@ -221,8 +229,8 @@ class EventRecorder:
         self._topic = topic
         self._capture_headers = capture_headers
 
-        self._starting_offsets: Optional[dict[str, int]] = None
-        self._recorded_events: Optional[Sequence[RecordedEvent]] = None
+        self._starting_offsets: dict[str, int] | None = None
+        self._recorded_events: Sequence[RecordedEvent] | None = None
 
     def _assert_recording_stopped(self) -> None:
         """Assert that the recording has been stopped. Raises an InProgressError or a
@@ -337,16 +345,20 @@ class EventRecorder:
         ]
 
         recorded_events: list[RecordedEvent] = []
+
         for raw_event in raw_events:
             headers = headers_as_dict(raw_event)
             type_ = headers.get("type", "")
+            event_id = headers.get("event_id", "")
             del headers["type"]
+            del headers["event_id"]
 
             recorded_event = RecordedEvent(
                 payload=raw_event.value,
                 type_=type_,
                 key=raw_event.key,
                 headers=headers if self._capture_headers else None,
+                event_id=event_id,
             )
             recorded_events.append(recorded_event)
         return recorded_events
@@ -414,20 +426,26 @@ class KafkaFixture:
         self.config = config
         self.kafka_servers = kafka_servers
         self.publisher = publisher
-        self.admin_client: Optional[AIOKafkaAdminClient] = None
+        self.admin_client: AIOKafkaAdminClient | None = None
 
-    async def publish_event(
+    async def publish_event(  # noqa: PLR0913
         self,
         *,
         payload: JsonObject,
         type_: Ascii,
         topic: Ascii,
         key: Ascii = "test",
-        headers: Optional[Mapping[str, str]] = None,
+        event_id: UUID4 | None = None,
+        headers: Mapping[str, str] | None = None,
     ) -> None:
         """A convenience method to publish a test event."""
         await self.publisher.publish(
-            payload=payload, type_=type_, key=key, topic=topic, headers=headers
+            payload=payload,
+            type_=type_,
+            key=key,
+            topic=topic,
+            event_id=event_id,
+            headers=headers,
         )
 
     def record_events(
@@ -468,11 +486,11 @@ class KafkaFixture:
             await self.admin_client.close()
             self.admin_client = None
 
-    async def get_cleanup_policy(self, *, topic: str) -> Optional[str]:
+    async def get_cleanup_policy(self, *, topic: str) -> str | None:
         """Get the current cleanup policy for a topic or None if the topic doesn't exist"""
         return await self.get_topic_config(topic=topic, config_name="cleanup.policy")
 
-    async def get_topic_config(self, *, topic: str, config_name: str) -> Optional[str]:
+    async def get_topic_config(self, *, topic: str, config_name: str) -> str | None:
         """Get the current config for a topic or None if the topic/config doesn't exist"""
         async with self.get_admin_client() as admin_client:
             # fetch a list containing a response for each requested topic
@@ -523,7 +541,7 @@ class KafkaFixture:
     async def clear_topics(
         self,
         *,
-        topics: Optional[Union[str, list[str]]] = None,
+        topics: str | list[str] | None = None,
         exclude_internal: bool = True,
     ):
         """Clear messages from given topic(s).

@@ -17,7 +17,7 @@
 """Testing the event publishing protocol."""
 
 from contextlib import nullcontext
-from typing import Optional
+from uuid import UUID
 
 import pytest
 
@@ -31,7 +31,7 @@ class FakeSubscriber(EventSubscriberProtocol):
     any logic.
     """
 
-    async def _consume_validated(self, *, payload, type_, topic, key) -> None:
+    async def _consume_validated(self, *, payload, type_, topic, key, event_id) -> None:
         pass
 
 
@@ -61,16 +61,17 @@ class FakeSubscriber(EventSubscriberProtocol):
     ],
 )
 async def test_ascii_val(
-    type_: str, topic: str, key: str, exception: Optional[type[Exception]]
+    type_: str, topic: str, key: str, exception: type[Exception] | None
 ):
     """Tests the ASCII validation logic included in the EventSubscriberProtocol."""
     payload = {"test_content": "Hello World"}
 
     # create event publisher:
     event_submitter = FakeSubscriber()
+    test_uuid = UUID("123e4567-e89b-12d3-a456-426614174000")
 
     # publish event using the provider:
     with pytest.raises(exception) if exception else nullcontext():
         await event_submitter.consume(
-            payload=payload, type_=type_, topic=topic, key=key
+            payload=payload, type_=type_, topic=topic, key=key, event_id=test_uuid
         )

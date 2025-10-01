@@ -17,7 +17,6 @@
 """Utilities related to Kafka."""
 
 import ssl
-from typing import Optional
 
 from aiokafka.helpers import create_ssl_context
 
@@ -32,7 +31,7 @@ def generate_client_id(*, service_name: str, instance_id: str) -> str:
     return f"{service_name}.{instance_id}"
 
 
-def generate_ssl_context(config: KafkaConfig) -> Optional[ssl.SSLContext]:
+def generate_ssl_context(config: KafkaConfig) -> ssl.SSLContext | None:
     """Generate SSL context for an encrypted SSL connection to Kafka broker."""
     return (
         create_ssl_context(

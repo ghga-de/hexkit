@@ -18,7 +18,9 @@
 
 from abc import ABC, abstractmethod
 from collections.abc import Mapping
-from typing import Optional
+from uuid import UUID, uuid4
+
+from pydantic import UUID4
 
 from hexkit.custom_types import Ascii, JsonObject
 from hexkit.utils import check_ascii
@@ -27,14 +29,15 @@ from hexkit.utils import check_ascii
 class EventPublisherProtocol(ABC):
     """A protocol for publishing events to an event broker."""
 
-    async def publish(
+    async def publish(  # noqa: PLR0913
         self,
         *,
         payload: JsonObject,
         type_: Ascii,
         key: Ascii,
         topic: Ascii,
-        headers: Optional[Mapping[str, str]] = None,
+        event_id: UUID4 | None = None,
+        headers: Mapping[str, str] | None = None,
     ) -> None:
         """Publish an event.
 
@@ -43,8 +46,16 @@ class EventPublisherProtocol(ABC):
         - `type_` (str): The event type. ASCII characters only.
         - `key` (str): The event type. ASCII characters only.
         - `topic` (str): The event type. ASCII characters only.
+        - `event_id` (UUID4, optional): An optional event ID. If not provided, a new
+          one will be generated.
         - `headers`: Additional headers to attach to the event.
         """
+        if event_id:
+            if not isinstance(event_id, UUID):
+                raise TypeError(f"event_id must be a UUID, got {type(event_id)}")
+        else:
+            event_id = uuid4()
+
         check_ascii(type_, key, topic)
         if headers is None:
             headers = {}
@@ -54,17 +65,19 @@ class EventPublisherProtocol(ABC):
             type_=type_,
             key=key,
             topic=topic,
+            event_id=event_id,
             headers=headers,
         )
 
     @abstractmethod
-    async def _publish_validated(
+    async def _publish_validated(  # noqa: PLR0913
         self,
         *,
         payload: JsonObject,
         type_: Ascii,
         key: Ascii,
         topic: Ascii,
+        event_id: UUID4,
         headers: Mapping[str, str],
     ) -> None:
         """Publish an event with already validated topic and type.
@@ -74,6 +87,7 @@ class EventPublisherProtocol(ABC):
         - `type_` (str): The event type. ASCII characters only.
         - `key` (str): The event type. ASCII characters only.
         - `topic` (str): The event type. ASCII characters only.
+        - `event_id` (UUID): The event ID.
         - `headers`: Additional headers to attach to the event.
         """
         ...

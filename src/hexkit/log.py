@@ -19,14 +19,12 @@
 import json
 from datetime import datetime, timezone
 from logging import Formatter, Logger, LogRecord, StreamHandler, addLevelName, getLogger
-from typing import Any, Literal, Optional
+from typing import Any, Literal
 
 from pydantic import Field
 from pydantic_settings import BaseSettings
 
-from hexkit.correlation import (
-    correlation_id_var,
-)
+from hexkit.correlation import correlation_id_var
 
 __all__ = [
     "JsonFormatter",
@@ -63,7 +61,7 @@ class LoggingConfig(BaseSettings):
             + " this service. This is included in log messages."
         ),
     )
-    log_format: Optional[str] = Field(
+    log_format: str | None = Field(
         default=None,
         examples=[
             "%(timestamp)s - %(service)s - %(level)s - %(message)s",
@@ -91,7 +89,8 @@ class JsonFormatter(Formatter):
         self._include_traceback = include_traceback
 
     def format(self, record: LogRecord) -> str:
-        """Format the specified record as a JSON string.
+        """Format the specified record as a JSON string with non-serializable types
+        converted using repr.
 
         This will format the log record as JSON with the following values (in order):
             - timestamp: The ISO 8601-formatted timestamp of the log message.
@@ -133,8 +132,8 @@ class JsonFormatter(Formatter):
                     exception["traceback"] = exc_text
             output["exception"] = exception
 
-        # Convert to JSON string
-        return json.dumps(output)
+        # Use repr for non-serializable types, since this matches the default logger
+        return json.dumps(output, default=repr)
 
 
 class RecordCompiler(StreamHandler):
@@ -167,7 +166,7 @@ class RecordCompiler(StreamHandler):
         return super().handle(record)
 
 
-def configure_logging(*, config: LoggingConfig, logger: Optional[Logger] = None):
+def configure_logging(*, config: LoggingConfig, logger: Logger | None = None):
     """Set up logging.
 
     Configures the root logger by default, but can be used to configure a specific

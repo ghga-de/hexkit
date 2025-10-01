@@ -11,11 +11,13 @@ jobs:
     steps:
       - name: Checkout repository
         id: checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@v5
 
       - name: Common steps
         id: common
         uses: ghga-de/gh-action-common@v6
+        with:
+          python-version: '3.13'
 
       - name: Check pyproject.toml
         id: check-pyproject

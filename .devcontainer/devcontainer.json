@@ -70,6 +70,6 @@
 	},
 	"features": {
 		// details can be found here: https://github.com/devcontainers/features/tree/main/src/docker-outside-of-docker
-		"ghcr.io/devcontainers/features/docker-outside-of-docker:1": {}
+		"ghcr.io/devcontainers/features/docker-outside-of-docker:1": {"moby": false}
 	}
 }

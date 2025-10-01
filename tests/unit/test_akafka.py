@@ -18,8 +18,8 @@
 
 from collections import namedtuple
 from contextlib import nullcontext
-from typing import Optional
-from unittest.mock import AsyncMock, Mock
+from unittest.mock import ANY, AsyncMock, Mock
+from uuid import UUID
 
 import pytest
 
@@ -33,10 +33,10 @@ from hexkit.providers.akafka import (
 
 pytestmark = pytest.mark.asyncio()
 
-VALID_CORRELATION_ID = "7041eb31-7333-4b57-97d7-90f5562c3383"
+VALID_CORRELATION_ID = UUID("7041eb31-7333-4b57-97d7-90f5562c3383")
 CORRELATION_ID_HEADER = (
     "correlation_id",
-    bytes(VALID_CORRELATION_ID, encoding="ascii"),
+    bytes(str(VALID_CORRELATION_ID), encoding="ascii"),
 )
 
 
@@ -46,8 +46,10 @@ async def test_kafka_event_publisher():
     key = "test_key"
     topic = "test_topic"
     payload = {"test_content": "Hello World"}
+    event_id = UUID("12345678-1234-5678-1234-567812345678")
     expected_headers = [
         ("type", b"test_type"),
+        ("event_id", b"12345678-1234-5678-1234-567812345678"),
         CORRELATION_ID_HEADER,
     ]
 
@@ -81,6 +83,7 @@ async def test_kafka_event_publisher():
                 type_=type_,
                 key=key,
                 topic=topic,
+                event_id=event_id,
             )
 
     # check if producer was correctly used:
@@ -140,7 +143,7 @@ async def test_kafka_event_subscriber(
     headers: list[tuple[str, bytes]],
     is_translator_called: bool,
     processing_failure: bool,
-    exception: Optional[type[Exception]],
+    exception: type[Exception] | None,
 ):
     """Test the KafkaEventSubscriber with mocked KafkaEventSubscriber."""
     service_name = "event_subscriber"
@@ -207,7 +210,7 @@ async def test_kafka_event_subscriber(
     # check if the translator was called correctly:
     if is_translator_called:
         translator.consume.assert_awaited_once_with(
-            payload=payload, type_=type_, topic=topic, key=event.key
+            payload=payload, type_=type_, topic=topic, key=event.key, event_id=ANY
         )
     else:
         assert translator.consume.await_count == 0

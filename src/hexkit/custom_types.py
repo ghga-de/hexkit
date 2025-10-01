@@ -18,29 +18,27 @@
 
 from collections.abc import Mapping, Sequence
 from datetime import date, datetime
-from typing import Any, Literal, Union
+from typing import Any, Literal
 from uuid import UUID
 
 # A type for fields that can be used as identifiers (primary keys).
-ID = Union[int, str, UUID]
+ID = int | str | UUID
 
 # This is intended to type objects that are assumed to be JSON serializable.
 # (Scalar types as well as arrays are excluded from the above assumption,
 # and we serialize date, datetime and UUID objects to JSON as strings.)
 JsonObject = Mapping[
     str,
-    Union[
-        int,
-        float,
-        str,
-        bool,
-        date,
-        datetime,
-        UUID,
-        Sequence[Any],
-        Mapping[str, Any],
-        None,
-    ],
+    int
+    | float
+    | str
+    | bool
+    | date
+    | datetime
+    | UUID
+    | Sequence[Any]
+    | Mapping[str, Any]
+    | None,
 ]
 
 

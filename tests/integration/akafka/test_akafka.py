@@ -21,7 +21,7 @@ from contextlib import nullcontext
 from datetime import date, datetime, timezone
 from os import environ
 from pathlib import Path
-from typing import Optional, cast
+from typing import cast
 from unittest.mock import AsyncMock
 
 import pytest
@@ -45,6 +45,7 @@ from hexkit.providers.akafka.testutils import (
     kafka_container_fixture,  # noqa: F401
     kafka_fixture,  # noqa: F401
 )
+from tests.fixtures.utils import assert_logged
 
 from ...fixtures.kafka_secrets import KafkaSecrets
 
@@ -53,7 +54,7 @@ pytestmark = pytest.mark.asyncio()
 
 @pytest.mark.parametrize("compression_type", ["gzip", "lz4", "zstd", "snappy", None])
 async def test_event_compression(
-    kafka: KafkaFixture, compression_type: Optional[KafkaCompressionType]
+    kafka: KafkaFixture, compression_type: KafkaCompressionType | None
 ):
     """Test compression config is actually applied.
 
@@ -145,6 +146,7 @@ async def test_kafka_event_subscriber(kafka: KafkaFixture):
     type_ = "test_type"
     key = "test_key"
     topic = "test_topic"
+    event_id = uuid.uuid4()
 
     # create protocol-compatible translator mock:
     translator = AsyncMock()
@@ -152,7 +154,9 @@ async def test_kafka_event_subscriber(kafka: KafkaFixture):
     translator.types_of_interest = [type_]
 
     # publish one event:
-    await kafka.publish_event(topic=topic, payload=payload, key=key, type_=type_)
+    await kafka.publish_event(
+        topic=topic, payload=payload, key=key, type_=type_, event_id=event_id
+    )
 
     # setup the provider:
     config = KafkaConfig(
@@ -169,7 +173,7 @@ async def test_kafka_event_subscriber(kafka: KafkaFixture):
 
     # check if the translator was called correctly:
     translator.consume.assert_awaited_once_with(
-        payload=payload, type_=type_, topic=topic, key=key
+        payload=payload, type_=type_, topic=topic, key=key, event_id=event_id
     )
 
 
@@ -190,6 +194,7 @@ async def test_kafka_ssl(tmp_path: Path):
     type_ = "test_type"
     key = "test_key"
     topic = "test_topic"
+    event_id = uuid.UUID("12345678-1234-5678-1234-567812345678")
 
     with KafkaSSLContainer(
         cert=secrets.broker_cert,
@@ -217,6 +222,7 @@ async def test_kafka_ssl(tmp_path: Path):
                 type_=type_,
                 key=key,
                 topic=topic,
+                event_id=event_id,
             )
 
         translator = AsyncMock()
@@ -230,7 +236,7 @@ async def test_kafka_ssl(tmp_path: Path):
             await event_subscriber.run(forever=False)
 
         translator.consume.assert_awaited_once_with(
-            payload=payload, type_=type_, topic=topic, key=key
+            payload=payload, type_=type_, topic=topic, key=key, event_id=event_id
         )
 
 
@@ -243,7 +249,14 @@ async def test_consumer_commit_mode(kafka: KafkaFixture):
 
     error_message = "Consumer crashed successfully."
 
-    async def crash(*, payload: JsonObject, type_: Ascii, topic: Ascii, key: Ascii):
+    async def crash(
+        *,
+        payload: JsonObject,
+        type_: Ascii,
+        topic: Ascii,
+        key: Ascii,
+        event_id: uuid.UUID,
+    ):
         """Drop-in replacement for patch testing the consume method."""
         raise ValueError(error_message)
 
@@ -386,3 +399,137 @@ async def test_consuming_with_size_limit(kafka: KafkaFixture, too_big: bool):
         config=consumer_config, translator=translator
     ) as subscriber:
         await subscriber.run(forever=False)
+
+
+async def test_publish_event_id_conflict(kafka: KafkaFixture, caplog):
+    """Test that when calling `.publish()` with both the event_id and event ID header
+    specified, the kwarg is used to overwrite the header value and we get a log warning.
+    """
+    type_ = "test_type"
+    key = "test_key"
+    topic = "test_topic"
+    kw_event_id = uuid.uuid4()
+    header_event_id = uuid.uuid4()
+    assert kw_event_id != header_event_id
+
+    # Publish the event
+    async with kafka.record_events(in_topic=topic) as recorder:
+        await kafka.publish_event(
+            payload={"test_content": "First Event"},
+            type_=type_,
+            key=key,
+            topic=topic,
+            event_id=kw_event_id,
+            headers={"event_id": str(header_event_id)},
+        )
+    assert len(recorder.recorded_events) == 1
+    assert recorder.recorded_events[0].event_id == str(kw_event_id)
+
+    assert_logged(
+        level="WARNING",
+        message="The 'event_id' header shouldn't be supplied, but was. Overwriting"
+        + f" old value ({header_event_id}) with {kw_event_id}.",
+        records=caplog.records,
+        parse=True,
+    )
+
+
+async def test_publish_with_event_id_header(kafka: KafkaFixture, caplog):
+    """Test that when calling `.publish()` with an event ID header and *no* event_id
+    kwarg, the supplied event ID header is overwritten with a new UUID.
+
+    This is the same as how the correlation ID header works. To supply a known event ID,
+    the user must use the `event_id` kwarg.
+    """
+    type_ = "test_type"
+    key = "test_key"
+    topic = "test_topic"
+    event_id = uuid.uuid4()
+
+    # Publish the event with an event ID header
+    async with kafka.record_events(in_topic=topic) as recorder:
+        await kafka.publish_event(
+            payload={"test_content": "Event with Header"},
+            type_=type_,
+            key=key,
+            topic=topic,
+            headers={"event_id": str(event_id)},
+        )
+
+    assert len(recorder.recorded_events) == 1
+    assert recorder.recorded_events[0].event_id != str(event_id)
+    assert uuid.UUID(recorder.recorded_events[0].event_id)
+
+    assert_logged(
+        level="WARNING",
+        message="The 'event_id' header shouldn't be supplied, but was. Overwriting"
+        + f" old value ({event_id}) with {recorder.recorded_events[0].event_id}.",
+        records=caplog.records,
+        parse=True,
+    )
+
+
+@pytest.mark.parametrize(
+    "event_id_header, log_msg",
+    [
+        (None, "No event_id header found."),
+        ("invalid_uuid", "Invalid event_id encountered: invalid_uuid."),
+        ("", "No event_id header found."),
+    ],
+    ids=["None", "InvalidHeader", "EmptyString"],
+)
+async def test_invalid_or_missing_event_id_header(
+    kafka: KafkaFixture, caplog, event_id_header: str | None, log_msg: str
+):
+    """Test that when consuming an event with an invalid or missing event ID header,
+    a new value is generated and a warning is logged.
+    """
+    type_ = "test_type"
+    key = "test_key"
+    topic = "test_topic"
+    headers = [
+        ("correlation_id", b"15e84fc8-ec8d-4d78-81a8-15beb6d7a254"),
+        ("type", type_.encode("ascii")),
+    ]
+    if event_id_header is not None:
+        headers.append(("event_id", event_id_header.encode("ascii")))
+
+    # Publish the event without an event ID header
+    await kafka.publisher._producer.send_and_wait(
+        topic=topic, key=key, value={"dummy": "data"}, headers=headers
+    )
+
+    class Translator(EventSubscriberProtocol):
+        """Dummy translator"""
+
+        topics_of_interest = [topic]
+        types_of_interest = [type_]
+        event_id: uuid.UUID
+
+        async def _consume_validated(
+            self,
+            payload: JsonObject,
+            type_: Ascii,
+            topic: Ascii,
+            key: Ascii,
+            event_id: uuid.UUID,
+        ):
+            """Dummy consume method to record the event ID."""
+            self.event_id = event_id
+
+    translator = Translator()
+    async with KafkaEventSubscriber.construct(
+        config=kafka.config, translator=translator
+    ) as subscriber:
+        # Consume the event
+        await subscriber.run(forever=False)
+
+    assert isinstance(translator.event_id, uuid.UUID)
+    assert translator.event_id != event_id_header
+
+    assert_logged(
+        level="WARNING",
+        message=log_msg + f" Generated a new one: {translator.event_id}.",
+        records=caplog.records,
+        parse=True,
+    )
