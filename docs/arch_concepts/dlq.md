@@ -42,7 +42,7 @@ The flow diagram above demonstrates the general DLQ lifecycle:
 4. DLQ events are eventually retried by publishing them to a service-specific `retry-*` topic.
 5. Upon consuming an event from the retry topic, the consumer restores the original
 topic name and proceeds with the normal request flow.
-1. The event is consumed again, this time successfully.
+6. The event is consumed again, this time successfully.
    - If the event fails again for some reason, the DLQ process restarts.
 
 
@@ -78,7 +78,7 @@ That event then becomes the following when published to the DLQ topic:
   "key": <original event key>,
   "headers": {
     "type_": <original event type>,
-    "correlation_id": <original correlation  ID>,
+    "correlation_id": <original correlation ID>,
     "event_id": "my-service,users,0,101",
     "original_topic": "users",
     "exc_class": "ValueError",
@@ -123,8 +123,7 @@ config = KafkaConfig(
 
 ## Retry Mechanism
 
-The retry mechanism operates alongside and independently of the DLQ feature, but the two are intended to be used in concert. The DLQ fields events that would otherwise cause a service to crash, but oftentimes those failures are due to transient issues like database connection interruptions. The retry mechanism can help prevent clogging the DLQ with transient failures that don't represent genuine
-errors. The retry configuration is described above. The basic retry logic is straightforward:
+The retry mechanism operates alongside and independently of the DLQ feature, but the two are intended to be used in concert. The DLQ filters events that would otherwise cause a service to crash, but oftentimes those failures are due to transient issues like database connection interruptions. The retry mechanism can help prevent clogging the DLQ with transient failures that don't represent genuine errors. The basic retry logic is straightforward:
 
 1. If retries are enabled (kafka_max_retries > 0), the event is retried immediately
 2. Each retry attempt uses exponential backoff based on the kafka_retry_backoff setting
