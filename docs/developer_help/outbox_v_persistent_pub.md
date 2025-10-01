@@ -16,6 +16,9 @@
 -->
 # Outbox vs Persistent Publisher: Choosing the Right One
 
+!!! note "Work in Progress"
+    This documentation section is still a draft that needs to be reviewed.
+
 When using `KafkaEventPublisher`, produced events are generated and sent to the Kafka
 broker in an ephemeral manner: there's no ability to generate the same events again.
 The Persistent Publisher is a Hexkit provider that solves this problem by storing
@@ -54,7 +57,7 @@ The Outbox Publisher should be used when:
 - Your service needs to inform other services about changes to a given MongoDB
   collection.
 - You're focused on **storing** data. The Outbox Publisher cannot publish arbitrary
-  events like the Persistent Publisher -- it behaves like the MongoDB DAO and publishes
+  events like the Persistent Publisher — it behaves like the MongoDB DAO and publishes
   events in the background.
 
 
