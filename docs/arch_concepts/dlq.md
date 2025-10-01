@@ -28,7 +28,7 @@ Apache Kafka doesn't provide out-of-the-box DLQ functionality, so Hexkit bridges
 2. When retries are exhausted, publish the failed event to a dedicated DLQ topic
 3. Continue processing other events instead of crashing
 
-![DLQ Lifecycle Diagram](../img/numbered_dlq_flow.png)
+![DLQ Lifecycle Diagram](img/numbered_dlq_flow.png)
 
 The flow diagram above demonstrates the general DLQ lifecycle:
 
