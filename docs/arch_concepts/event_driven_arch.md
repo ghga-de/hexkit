@@ -59,16 +59,16 @@ a partition for a given key, crucial for consistency in processing events that a
 related or dependent upon one another.
 
 
-But event-driven architecture also introduces challenges, too:
+But event-driven architecture also introduces challenges:
 
 1. **Duplicate processing:** Because the event consumers have no way to know whether
 an event is a duplicate or a genuinely distinct event with the same payload, the
 consumers must be designed to be idempotent.
 2. **Data Duplication:** If service A needs to access the data maintained by service B,
 the options are essentially an API call (which introduces security and coupling concerns)
-or duplicating the data for service A. GHGA has opted mitigate this issue via data
+or duplicating the data for service A. GHGA has opted to mitigate this issue via data
 duplication by way of the outbox pattern, described later in this document.
-3. **Tracing:** A single request flow can span many services with a multitude of a messages
+3. **Tracing:** A single request flow can span many services with a multitude of messages
 being generated along the way. The agnostic nature of producers and consumers makes it
 harder to tag requests than with traditional API calls, and several consumers can
 process a given message in parallel, sometimes leading to complex request flows.
