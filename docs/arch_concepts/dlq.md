@@ -15,6 +15,10 @@
  limitations under the License.
 -->
 # Dead Letter Queue (DLQ)
+
+!!! note "Work in Progress"
+    This documentation section is still a draft that needs to be reviewed.
+
 ## Overview
 This document describes the Dead Letter Queue (DLQ) mechanism in Hexkit, which provides robust error handling for event processing failures in Kafka-based event systems. The DLQ support allows services to gracefully handle failed event processing by redirecting problematic events to a dedicated queue for later analysis or reprocessing, rather than crashing the service.
 
