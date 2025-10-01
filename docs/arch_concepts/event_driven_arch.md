@@ -16,6 +16,9 @@
 -->
 # Event-Driven Architecture
 
+!!! note "Work in Progress"
+    This documentation section is still a draft that needs to be reviewed.
+
 This document provides an overview of the communication methods between
 microservices using Apache Kafka. It offers both a high-level explanation of
 how information is sent and received and a look at the layers of
@@ -110,7 +113,7 @@ is ready for the next.
 
 A diagram illustrating the process of event publishing and consuming, starting with
 the microservice:
-![Kafka abstraction](../img/kafka%20basics%20generic.png)
+![Kafka abstraction](img/kafka%20basics%20generic.png)
 
 
 ## Outbox Pattern
