@@ -4,10 +4,12 @@
 [![Coverage Status](https://coveralls.io/repos/github/ghga-de/hexkit/badge.svg?branch=main)](https://coveralls.io/github/ghga-de/hexkit?branch=main)
 
 # hexkit
+
 A chassis library for building domain-focused, infrastructure-agnostic, and event-driven
 microservices in Python.
 
 ## In a Nutshell
+
 This project implements the Triple Hexagonal Architecture pattern which is an
 optimization of the ordinary
 [Hexagonal Architecture](https://alistair.cockburn.us/hexagonal-architecture/) for
@@ -36,6 +38,7 @@ a limited collection of protocol-provider pairs that are of immediate interest t
 authors. We like to add support for more protocols and technologies over time.
 
 The following protocols and providers are currently available:
+
 | Protocol | Providers |
 |---|---|
 | Event Publishing | Apache Kafka |
@@ -66,15 +69,18 @@ of jumping directly into it. You can find the protocols being defined at
 A more elaborate documentation and tutorial is on the way.
 
 ## Installation
+
 This package is available at PyPI:
-https://pypi.org/project/hexkit
+<https://pypi.org/project/hexkit>
 
 You can install it from there using:
-```
+
+```sh
 pip install hexkit
 ```
 
 The following extras are available:
+
 - `akafka`: when using the Apache Kafka-based event publishing or subscription
 - `s3`: when interacting with S3-compatible Object Storages
 - `mongodb`: when using mongodb as backend for the DAO protocol
@@ -84,6 +90,7 @@ The following extras are available:
 - `all`: a union of all the above
 
 ## Development
+
 For setting up the development environment, we rely on the
 [devcontainer feature](https://code.visualstudio.com/docs/remote/containers) of vscode.
 
@@ -93,6 +100,7 @@ Then, you just have to open this repo in vscode and run the command
 `Remote-Containers: Reopen in Container` from the vscode "Command Palette".
 
 This will give you a full-fledged, pre-configured development environment including:
+
 - infrastructural dependencies of the service (databases, etc.)
 - all relevant vscode extensions pre-installed
 - pre-configured linting and auto-formatting
@@ -101,12 +109,14 @@ This will give you a full-fledged, pre-configured development environment includ
 
 Additionally, the following convenience command is available inside the devcontainer
 (type it in the integrated terminal of VS Code):
+
 - `dev_install` - install the lib with all development dependencies and pre-commit hooks
 (please run that if you are starting the devcontainer for the first time
 or if added any python dependencies to the [`./pyproject.toml`](./pyproject.toml))
 
 If you prefer not to use vscode, you could get a similar setup (without the editor
 specific features) by running the following commands:
+
 ``` bash
 # Execute in the repo's root dir:
 cd ./.devcontainer
@@ -118,4 +128,5 @@ docker run -it hexkit /bin/bash
 ```
 
 ## License
+
 This repository is free to use and modify according to the [Apache 2.0 License](./LICENSE).
