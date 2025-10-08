@@ -31,7 +31,7 @@ from hexkit.protocols.dao import (
     ResourceNotFoundError,
 )
 
-__all__ = ["MockDAOEmptyError", "get_dao"]
+__all__ = ["MockDAOEmptyError", "new_mock_dao_class"]
 
 DTO = TypeVar("DTO", bound=BaseModel)
 
@@ -41,7 +41,7 @@ class MockDAOEmptyError(RuntimeError):
 
 
 class BaseInMemDao(Generic[DTO]):
-    """Base class for mock DAOs with proper typing and in-memory storage"""
+    """DAO with proper typing and in-memory storage for use in testing"""
 
     _id_field: str
     publish_pending = AsyncMock()
@@ -133,7 +133,9 @@ class BaseInMemDao(Generic[DTO]):
         self.resources[dto_id] = deepcopy(dto)
 
 
-def get_dao(*, dto_model: type[DTO], id_field: str) -> type[BaseInMemDao[DTO]]:
+def new_mock_dao_class(
+    *, dto_model: type[DTO], id_field: str
+) -> type[BaseInMemDao[DTO]]:
     """Produce a mock DAO for the given DTO model and ID field"""
 
     class MockDao(BaseInMemDao[DTO]):

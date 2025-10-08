@@ -19,7 +19,7 @@ import pytest
 from pydantic import BaseModel
 
 from hexkit.protocols.dao import NoHitsFoundError, ResourceNotFoundError
-from hexkit.providers.testing import MockDAOEmptyError, get_dao
+from hexkit.providers.testing import MockDAOEmptyError, new_mock_dao_class
 
 pytestmark = pytest.mark.asyncio()
 
@@ -31,7 +31,7 @@ class InventoryItem(BaseModel):
     count: int
 
 
-DaoClass = get_dao(dto_model=InventoryItem, id_field="title")
+DaoClass = new_mock_dao_class(dto_model=InventoryItem, id_field="title")
 
 
 async def test_latest_while_empty():

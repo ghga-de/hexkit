@@ -22,7 +22,7 @@ the standard library.
 ATTENTION: Do not use these providers in production.
 """
 
-from .dao import MockDAOEmptyError, get_dao
+from .dao import MockDAOEmptyError, new_mock_dao_class
 from .eventpub import InMemEventPublisher, InMemEventStore, TopicExhaustedError
 
 __all__ = [
@@ -30,5 +30,5 @@ __all__ = [
     "InMemEventStore",
     "MockDAOEmptyError",
     "TopicExhaustedError",
-    "get_dao",
+    "new_mock_dao_class",
 ]
