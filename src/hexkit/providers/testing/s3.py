@@ -16,7 +16,6 @@
 """Mock object storage class"""
 
 from collections import defaultdict
-from typing import Any
 from uuid import uuid4
 
 from hexkit.protocols.objstorage import ObjectStorageProtocol, PresignedPostURL
@@ -25,7 +24,6 @@ from hexkit.providers.s3 import S3Config
 UploadID = str
 BucketID = str
 ObjectID = str
-File = Any
 
 
 class InMemObjectStorage(ObjectStorageProtocol):
