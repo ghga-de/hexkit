@@ -135,10 +135,12 @@ class InMemObjectStorage(ObjectStorageProtocol):
         expires_after: int = 86400,
         max_upload_size: int | None = None,
     ) -> PresignedPostURL:
-        """Generates and returns an HTTP URL to upload a new file object with the given
-        id (`object_id`) to the bucket with the specified id (`bucket_id`).
+        """Generates and returns a FAKE HTTP URL to upload a new file object with the
+        given id (`object_id`) to the bucket with the specified id (`bucket_id`).
         You may also specify a custom expiry duration in seconds (`expires_after`) and
         a maximum size (bytes) for uploads (`max_upload_size`).
+
+        This URL does not point to an actual resource or API, it is merely for testing.
 
         Raises:
             `BucketNotFoundError`: If the bucket does not exist.
@@ -252,12 +254,13 @@ class InMemObjectStorage(ObjectStorageProtocol):
         expires_after: int = 3600,
         part_md5: str | None = None,
     ) -> str:
-        """Given a id of an instantiated multipart upload along with the corresponding
-        bucket and object ID, it returns a presigned URL for uploading a file part with the
-        specified number.
+        """
+        Return a FAKE presigned part upload URL based on the bucket, object, and part no.
+
+        This URL does not point to an actual resource or API, it is merely for testing.
+
         You may also specify a custom expiry duration in seconds (`expires_after`).
-        Please note: the part number must be a non-zero, positive integer and parts
-        should be uploaded in sequence.
+        Please note: the part number must be a non-zero, positive integer.
 
         Raises:
             `BucketNotFoundError`: If the bucket does not exist.
@@ -336,9 +339,11 @@ class InMemObjectStorage(ObjectStorageProtocol):
     async def _get_object_download_url(
         self, *, bucket_id: str, object_id: str, expires_after: int = 86400
     ) -> str:
-        """Generates and returns a presigned HTTP-URL to download a file object with
+        """Generates and returns a FAKE presigned HTTP-URL to download a file object with
         the specified ID (`object_id`) from bucket with the specified id (`bucket_id`).
         You may also specify a custom expiry duration in seconds (`expires_after`).
+
+        This URL does not point to an actual resource or API, it is merely for testing.
 
         Raises:
             `BucketNotFoundError`: If the bucket does not exist.
@@ -348,7 +353,8 @@ class InMemObjectStorage(ObjectStorageProtocol):
         return f"https://s3.example.com/{bucket_id}/{object_id}?{expires_after=}"
 
     async def _get_object_etag(self, *, bucket_id: str, object_id: str) -> str:
-        """Return the etag of an object.
+        """Return the etag of an object, which is hardcoded to be the string
+        `"etag_for_{object_id}"`.
 
         Raises:
             `BucketNotFoundError`: If the bucket does not exist.
@@ -358,7 +364,8 @@ class InMemObjectStorage(ObjectStorageProtocol):
         return f"etag_for_{object_id}"
 
     async def _get_object_size(self, *, bucket_id: str, object_id: str) -> int:
-        """Returns the size of an object in bytes.
+        """Returns the size of an object in bytes, which is hardcoded to `1024` for
+        testing purposes.
 
         Raises:
             `BucketNotFoundError`: If the bucket does not exist.
