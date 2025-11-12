@@ -16,9 +16,6 @@
 -->
 # Dead Letter Queue (DLQ)
 
-!!! note "Work in Progress"
-    This documentation section is still a draft that needs to be reviewed.
-
 ## Overview
 This document describes the Dead Letter Queue (DLQ) mechanism in Hexkit, which provides robust error handling for event processing failures in Kafka-based event systems. The DLQ support allows services to gracefully handle failed event processing by redirecting problematic events to a dedicated queue for later analysis or reprocessing, rather than crashing the service.
 
@@ -52,7 +49,8 @@ When an event is published to the DLQ, it maintains the original payload, type, 
 
 | Header         | Description                                             |
 |----------------|---------------------------------------------------------|
-| event_id       | Service, topic, partition, and offset of original event |
+| event_id       | UUID4 unique to the event instance                      |
+| service        | The name of the microservice where failure occurred     |
 | original_topic | The topic where the event was originally published      |
 | exc_class      | The class name of the exception that caused the failure |
 | exc_msg        | The error message from the exception                    |
@@ -67,6 +65,7 @@ Assumes the following event is consumed from a `users` topic and results in an e
   "headers": {
     "type_": "user_registered",
     "correlation_id": "a648c68c-f14b-4d0a-8fc8-31824987613c",
+    "event_id": "290de3f3-1a99-4c61-b71a-4074b65a4918",
   }
 }
 ```
@@ -79,7 +78,8 @@ That event then becomes the following when published to the DLQ topic:
   "headers": {
     "type_": <original event type>,
     "correlation_id": <original correlation ID>,
-    "event_id": "my-service,users,0,101",
+    "event_id": <original event ID>,
+    "service": "my-service",
     "original_topic": "users",
     "exc_class": "ValueError",
     "exc_msg": "Invalid data format"
@@ -95,6 +95,16 @@ deal with the event later.
 While Hexkit makes it easy to both divert problematic events to a DLQ topic and reintroduce them once resolved, it does not provide a comprehensive toolbox for DLQ event resolution. The user is entirely responsible for monitoring and maintaining the DLQ topic and its events, although Hexkit does provide some facilitating classes. GHGA, for example, uses a dedicated DLQ Service.
 For consuming events from the DLQ, Hexkit provides the `DLQSubscriberProtocol`. This protocol extends the standard EventSubscriberProtocol with additional parameters for accessing the DLQ metadata.
 
+
+## Republishing and Re-consuming DLQ Events
+
+Events that are dealt with in the DLQ topic and destined to be republished should receive a fresh `event_id` to mark them as distinct from the original. Furthermore, events should not be republished to their original topic. Instead, they should be republished to a special retry topic with a name in the format `retry-<service_name>`. The service name should match the value configured for `KafkaConfig.service_name` and thus the value included in the DLQ supplementary header, `service`. For instance, if the service name is `abc`, then the reviewed event should be republished to a topic called `retry-abc`. The `abc` service will consume this event and the `KafkaEventSubscriber` class from Hexkit will automatically substitute `retry-abc` with the the value for `original_topic` before passing the event to the service's event subscriber translator. The result is that the reintroduction procedure is completely transparent to the service's event subscriber translator, and the event gets processed identically to every other event.
+
+Checklist:
+- Generate a new UUID4 for the `event_id` header
+- Preserve the `original_topic` header
+- Do not include the `service`, `exc_msg`, or `exc_class` headers
+- Republish the event to `retry-<service_name>`
 
 ## Configuration Parameters
 
@@ -125,6 +135,7 @@ config = KafkaConfig(
 
 The retry mechanism operates alongside and independently of the DLQ feature, but the two are intended to be used in concert. The DLQ filters events that would otherwise cause a service to crash, but oftentimes those failures are due to transient issues like database connection interruptions. The retry mechanism can help prevent clogging the DLQ with transient failures that don't represent genuine errors. The basic retry logic is straightforward:
 
-1. If retries are enabled (kafka_max_retries > 0), the event is retried immediately
-2. Each retry attempt uses exponential backoff based on the kafka_retry_backoff setting
-3. The backoff time doubles with each retry attempt: backoff_time = retry_backoff * 2^(retry_number - 1)
+1. If retries are enabled (`kafka_max_retries` > 0), the event is retried immediately
+2. Each retry attempt uses exponential backoff based on the `kafka_retry_backoff` setting
+3. The backoff time doubles with each retry attempt: `backoff_time = retry_backoff * 2^(retry_number - 1)`
+4. If retries are exhausted and an error still occurs, the error is allowed to bubble up. At this point, it will either get republished to the DLQ or the service will crash.
