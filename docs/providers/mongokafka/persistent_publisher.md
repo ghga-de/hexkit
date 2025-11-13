@@ -16,11 +16,11 @@
 -->
 # Persistent Publisher
 
-With the basic Kafka publish provider (`KafkaEventPublisher`), event publication is not repeatable. The outbox publisher (`MongoKafkaDaoPublisher`) allows for a version of event publication, but mandates the use of a DAO in domain logic. There are plausible scenarios where the desired behavior is to publish events and persist them in a database via some transparent mechanism. Hexkit offers a way to do this via the `PersistentKafkaPublisher` ("Persistent Publisher"). The Persistent Publisher replaces existing usage of the `KafkaEventPublisher` and uses the MongoDB features exposed by Hexkit to store a copy of each event as it is published, along with supplementary information such as when the event was published, whether the event was successfully published, the correlation ID associated with the event, and more. Like the Outbox Publisher, the Persistent Publisher also provides methods to publish stored events that haven't been published yet or to publish all events regardless of publish status.
+With the basic Kafka publish provider (`KafkaEventPublisher`), event publication is not repeatable. The outbox publisher (`MongoKafkaDaoPublisher`) allows for a version of event publication, but mandates the use of a DAO in domain logic. There are plausible scenarios where the desired behavior is to publish events and persist them in a database via some transparent mechanism. Hexkit offers a way to do this via the `PersistentKafkaPublisher` ("Persistent Publisher"). The Persistent Publisher replaces existing usage of the `KafkaEventPublisher` and uses the MongoDB features exposed by Hexkit to store a copy of each event as it is published, along with supplementary information such as when the event was published, whether the event was successfully published, the correlation ID associated with the event, and more. Like the Outbox Publisher, the Persistent Publisher also provides methods to publish stored events that haven't been published yet or to publish all events regardless of publish status. Using this provider requires you to install hexkit with both the `akafka` and `mongodb` extras.
 
 To learn more about the distinction between the Persistent Publisher and Outbox Publisher, see [this writeup](../../developer_help/outbox_v_persistent_pub.md).
 
-## Persistence Model
+### Persistence Model
 The Persistent Publisher stores data according to the Pydantic model defined
 [here](../../src/hexkit/providers/mongokafka/provider/persistent_pub.py):
 
@@ -94,7 +94,7 @@ There are three parameters unique to the Persistent Publisher: `compacted_topics
   - Idempotence: Think about the consumers of events published by the Persistent Publisher and utilize `compacted_topics` and `topics_not_stored` strategically.
   - Republishing is usually performed as a one-off command for a service, rather than somewhere in standard operation. But this is a convention, and the methods can be utilized as best fits a given use-case.
 
-## Usage example in service 'abc'
+### Usage example in service 'abc'
 
 ```python
 from hexkit.providers.mongokafka.provider.persistent_pub import PersistentKafkaPublisher
