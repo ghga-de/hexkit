@@ -149,9 +149,9 @@ async def publish_events(*, all: bool = False):
     """Publish pending events. Set `--all` to (re)publish all events regardless of status."""
     config = Config()
 
-    async with get_persistent_publisher(config=config) as persistent_publisher:
+    async with get_persistent_publisher(config=config) as publisher:
         if all:
-            await persistent_publisher.republish()
+            await publisher.republish()
         else:
-            await persistent_publisher.publish_pending()
+            await publisher.publish_pending()
 ```
