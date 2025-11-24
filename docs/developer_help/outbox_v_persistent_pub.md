@@ -142,7 +142,8 @@ def sync_run_publish_events(
 # In a module housing asynchronous entrypoint functions:
 from my_service.config import Config
 
-# Import the function that returns a configured PersistentKafkaPublisher or MongoKakfaDaoPublisher instance
+# Import the function that returns a configured PersistentKafkaPublisher or MongoKakfaDaoPublisher instance.
+# See the example code in the [Persistent Publisher](./persistent_publisher.md) documentation.
 from my_service.inject import get_persistent_publisher
 async def publish_events(*, all: bool = False):
     """Publish pending events. Set `--all` to (re)publish all events regardless of status."""
