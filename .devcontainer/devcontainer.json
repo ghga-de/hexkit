@@ -49,11 +49,11 @@
 				"github.vscode-pull-request-github",
 				"streetsidesoftware.code-spell-checker",
 				"yzhang.markdown-all-in-one",
-				"visualstudioexptteam.vscodeintellicode",
 				"ymotongpoo.licenser",
 				"charliermarsh.ruff",
 				"ms-python.mypy-type-checker",
-				"-ms-python.autopep8"
+				"-ms-python.autopep8",
+				"-visualstudioexptteam.vscodeintellicode"
 			]
 		}
 	},
