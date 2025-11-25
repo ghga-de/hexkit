@@ -103,6 +103,7 @@ a `user_id`, `name` and `email` field, the saved data might look like this:
     "correlation_id": <UUID4>,
     "published": true,
     "deleted": false,
+    "last_event_id": <UUID4>
   },
   "_id": <UUID4>, // Hexkit converts models' ID field names to the MongoDB `_id`
   "name": "John Doe",
