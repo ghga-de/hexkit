@@ -138,4 +138,4 @@ The retry mechanism operates alongside and independently of the DLQ feature, but
 1. If retries are enabled (`kafka_max_retries` > 0), the event is retried immediately
 2. Each retry attempt uses exponential backoff based on the `kafka_retry_backoff` setting
 3. The backoff time doubles with each retry attempt: `backoff_time = retry_backoff * 2^(retry_number - 1)`
-4. If retries are exhausted and an error still occurs, the error is allowed to bubble up. At this point, it will either get republished to the DLQ or the service will crash.
+4. If retries are exhausted and an error still occurs, the behavior depends on whether the DLQ is enabled. If the DLQ is enabled, the error bubbles up to the level of the Hexkit provider, which publishes the event to the DLQ along with the error information. If the DLQ is not enabled, the error is re-raised as a `RetriesExhaustedError`. If this error is unhandled at the service level, the service will crash. In order to handle `RetriesExhaustedError` instances, the `try/except` must be placed around the `.run()` call on the subscriber.
