@@ -55,6 +55,7 @@ pytestmark = pytest.mark.asyncio()
 random.seed(17)
 
 VALID_CORRELATION_ID = UUID("7041eb31-7333-4b57-97d7-90f5562c3383")
+NON_V4_UUID = "a362ef97-f600-9b51-a5e6-163874e8778a"
 SAMPLE_UUID_PATH = TEST_FILE_DIR / "sample_uuids.txt"
 
 
@@ -100,6 +101,7 @@ async def test_correlation_id_isolation():
         ("BAD_ID", InvalidCorrelationIdError),
         ("", InvalidCorrelationIdError),
         (str(VALID_CORRELATION_ID), InvalidCorrelationIdError),
+        (NON_V4_UUID, InvalidCorrelationIdError),
     ],
 )
 async def test_correlation_id_validation(
@@ -120,11 +122,10 @@ async def test_correlation_id_from_str():
     with pytest.raises(InvalidCorrelationIdError):
         correlation_id_from_str("invalid_uuid_string")
 
-    uuid9_str = "a362ef97-f600-9b51-a5e6-163874e8778a"
-    _ = UUID(uuid9_str)  # verify that it is accepted as a UUID generally
+    _ = UUID(NON_V4_UUID)  # verify that it is accepted as a UUID generally
     # verify that it is not accepted as a correlation ID as it's not a UUID4
     with pytest.raises(InvalidCorrelationIdError):
-        correlation_id_from_str(uuid9_str)
+        correlation_id_from_str(NON_V4_UUID)
 
 
 @pytest.mark.parametrize(
