@@ -63,7 +63,7 @@ def new_correlation_id() -> UUID4:
     return uuid4()
 
 
-def validate_correlation_id(correlation_id: Any):
+def validate_correlation_id(correlation_id: Any) -> None:
     """Validate the correlation ID.
 
     Raises:

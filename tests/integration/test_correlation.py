@@ -93,24 +93,21 @@ async def test_correlation_id_isolation():
     await asyncio.gather(*tasks)
 
 
-@pytest.mark.parametrize(
-    "correlation_id,exception",
-    [
-        (([1, 2, 3]), InvalidCorrelationIdError),
-        (123456, InvalidCorrelationIdError),
-        ("BAD_ID", InvalidCorrelationIdError),
-        ("", InvalidCorrelationIdError),
-        (str(VALID_CORRELATION_ID), InvalidCorrelationIdError),
-        (NON_V4_UUID, InvalidCorrelationIdError),
-    ],
-)
-async def test_correlation_id_validation(
-    correlation_id: Any, exception: type[Exception] | None
-):
+async def test_correlation_id_validation():
     """Ensure an error is raised when correlation ID validation fails."""
-    with pytest.raises(exception) if exception else nullcontext():
-        converted_cid = validate_correlation_id(correlation_id)
-        assert isinstance(converted_cid, UUID) if not exception else True
+    for correlation_id in [
+        ([1, 2, 3]),
+        123456,
+        "BAD_ID",
+        "",
+        str(VALID_CORRELATION_ID),
+        NON_V4_UUID,
+    ]:
+        with pytest.raises(InvalidCorrelationIdError):
+            validate_correlation_id(correlation_id)
+
+    # Additionally, make sure a valid UUID4 raises no error
+    validate_correlation_id(VALID_CORRELATION_ID)
 
 
 async def test_correlation_id_from_str():
