@@ -120,6 +120,11 @@ async def test_correlation_id_from_str():
     with pytest.raises(InvalidCorrelationIdError):
         correlation_id_from_str("invalid_uuid_string")
 
+    invalid_uuid = "a362ef97-f600-9b51-a5e6-163874e8778a"
+    _ = UUID(invalid_uuid)  # verify that it is accepted as a UUID generally
+    with pytest.raises(InvalidCorrelationIdError):
+        correlation_id_from_str(invalid_uuid)
+
 
 @pytest.mark.parametrize(
     "correlation_id,exception",

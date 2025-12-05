@@ -80,9 +80,14 @@ def correlation_id_from_str(correlation_id: str) -> UUID4:
         InvalidCorrelationIdError: If the string is not a valid UUID.
     """
     try:
-        return UUID(correlation_id)
+        converted_id = UUID(correlation_id)
     except ValueError as err:
         raise InvalidCorrelationIdError(correlation_id=correlation_id) from err
+
+    if converted_id.version != 4:
+        raise InvalidCorrelationIdError(correlation_id=correlation_id)
+
+    return converted_id
 
 
 @asynccontextmanager
