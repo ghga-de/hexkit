@@ -55,6 +55,7 @@ pytestmark = pytest.mark.asyncio()
 random.seed(17)
 
 VALID_CORRELATION_ID = UUID("7041eb31-7333-4b57-97d7-90f5562c3383")
+NON_V4_UUID = "a362ef97-f600-9b51-a5e6-163874e8778a"
 SAMPLE_UUID_PATH = TEST_FILE_DIR / "sample_uuids.txt"
 
 
@@ -92,23 +93,21 @@ async def test_correlation_id_isolation():
     await asyncio.gather(*tasks)
 
 
-@pytest.mark.parametrize(
-    "correlation_id,exception",
-    [
-        (([1, 2, 3]), InvalidCorrelationIdError),
-        (123456, InvalidCorrelationIdError),
-        ("BAD_ID", InvalidCorrelationIdError),
-        ("", InvalidCorrelationIdError),
-        (str(VALID_CORRELATION_ID), InvalidCorrelationIdError),
-    ],
-)
-async def test_correlation_id_validation(
-    correlation_id: Any, exception: type[Exception] | None
-):
+async def test_correlation_id_validation():
     """Ensure an error is raised when correlation ID validation fails."""
-    with pytest.raises(exception) if exception else nullcontext():
-        converted_cid = validate_correlation_id(correlation_id)
-        assert isinstance(converted_cid, UUID) if not exception else True
+    for correlation_id in [
+        ([1, 2, 3]),
+        123456,
+        "BAD_ID",
+        "",
+        str(VALID_CORRELATION_ID),
+        NON_V4_UUID,
+    ]:
+        with pytest.raises(InvalidCorrelationIdError):
+            validate_correlation_id(correlation_id)
+
+    # Additionally, make sure a valid UUID4 raises no error
+    validate_correlation_id(VALID_CORRELATION_ID)
 
 
 async def test_correlation_id_from_str():
@@ -119,6 +118,11 @@ async def test_correlation_id_from_str():
 
     with pytest.raises(InvalidCorrelationIdError):
         correlation_id_from_str("invalid_uuid_string")
+
+    _ = UUID(NON_V4_UUID)  # verify that it is accepted as a UUID generally
+    # verify that it is not accepted as a correlation ID as it's not a UUID4
+    with pytest.raises(InvalidCorrelationIdError):
+        correlation_id_from_str(NON_V4_UUID)
 
 
 @pytest.mark.parametrize(

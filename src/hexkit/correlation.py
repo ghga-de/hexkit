@@ -63,13 +63,13 @@ def new_correlation_id() -> UUID4:
     return uuid4()
 
 
-def validate_correlation_id(correlation_id: Any):
+def validate_correlation_id(correlation_id: Any) -> None:
     """Validate the correlation ID.
 
     Raises:
-        InvalidCorrelationIdError: If the correlation ID is not a UUID.
+        InvalidCorrelationIdError: If the correlation ID is not a UUID4.
     """
-    if not isinstance(correlation_id, UUID):
+    if not isinstance(correlation_id, UUID) or correlation_id.version != 4:
         raise InvalidCorrelationIdError(correlation_id=correlation_id)
 
 
@@ -77,12 +77,17 @@ def correlation_id_from_str(correlation_id: str) -> UUID4:
     """Convert a string to a UUID4.
 
     Raises:
-        InvalidCorrelationIdError: If the string is not a valid UUID.
+        InvalidCorrelationIdError: If the string is not a valid UUID4.
     """
     try:
-        return UUID(correlation_id)
+        converted_id = UUID(correlation_id)
     except ValueError as err:
         raise InvalidCorrelationIdError(correlation_id=correlation_id) from err
+
+    if converted_id.version != 4:
+        raise InvalidCorrelationIdError(correlation_id=correlation_id)
+
+    return converted_id
 
 
 @asynccontextmanager
