@@ -22,6 +22,12 @@ from pydantic import BaseModel
 
 from hexkit.protocols.dao import NoHitsFoundError, ResourceNotFoundError
 from hexkit.providers.testing import MockDAOEmptyError, new_mock_dao_class
+from hexkit.providers.testing.dao import (
+    ComparisonPredicate,
+    DataTypePredicate,
+    LogicalPredicate,
+    build_predicates,
+)
 
 pytestmark = pytest.mark.asyncio()
 
@@ -182,12 +188,12 @@ async def test_mql_comparison_ops():
     await dao.insert(shovel)
     await dao.insert(tophat)
 
-    mapping: dict[str, Any] = {"$eq": {"title": "Brick"}}
+    mapping: dict[str, Any] = {"title": {"$eq": "Brick"}}
     results = [x async for x in dao.find_all(mapping=mapping)]
     assert len(results) == 1
     assert results[0].model_dump() == brick.model_dump()
 
-    mapping = {"$gt": {"count": 1}}
+    mapping = {"count": {"$gt": 1}}
     results = sorted(
         [x async for x in dao.find_all(mapping=mapping)], key=lambda x: x.title
     )
@@ -196,7 +202,7 @@ async def test_mql_comparison_ops():
         x.model_dump() for x in [shovel, tophat]
     ]
 
-    mapping = {"$gte": {"count": 1}}
+    mapping = {"count": {"$gte": 1}}
     results = sorted(
         [x async for x in dao.find_all(mapping=mapping)], key=lambda x: x.title
     )
@@ -205,7 +211,7 @@ async def test_mql_comparison_ops():
         x.model_dump() for x in [brick, shovel, tophat]
     ]
 
-    mapping = {"$in": {"title": ["Brick", "Shovel"]}}
+    mapping = {"title": {"$in": ["Brick", "Shovel"]}}
     results = sorted(
         [x async for x in dao.find_all(mapping=mapping)], key=lambda x: x.title
     )
@@ -214,7 +220,7 @@ async def test_mql_comparison_ops():
         x.model_dump() for x in [brick, shovel]
     ]
 
-    mapping = {"$lt": {"count": 3}}
+    mapping = {"count": {"$lt": 3}}
     results = sorted(
         [x async for x in dao.find_all(mapping=mapping)], key=lambda x: x.title
     )
@@ -223,7 +229,7 @@ async def test_mql_comparison_ops():
         x.model_dump() for x in [brick, shovel]
     ]
 
-    mapping = {"$lte": {"count": 3}}
+    mapping = {"count": {"$lte": 3}}
     results = sorted(
         [x async for x in dao.find_all(mapping=mapping)], key=lambda x: x.title
     )
@@ -232,7 +238,7 @@ async def test_mql_comparison_ops():
         x.model_dump() for x in [brick, shovel, tophat]
     ]
 
-    mapping = {"$ne": {"title": "Tophat"}}
+    mapping = {"title": {"$ne": "Tophat"}}
     results = sorted(
         [x async for x in dao.find_all(mapping=mapping)], key=lambda x: x.title
     )
@@ -241,7 +247,7 @@ async def test_mql_comparison_ops():
         x.model_dump() for x in [brick, shovel]
     ]
 
-    mapping = {"$nin": {"title": "This is my Tophat"}}
+    mapping = {"title": {"$nin": "This is my Tophat"}}
     results = sorted(
         [x async for x in dao.find_all(mapping=mapping)], key=lambda x: x.title
     )
@@ -249,3 +255,80 @@ async def test_mql_comparison_ops():
     assert [x.model_dump() for x in results] == [
         x.model_dump() for x in [brick, shovel]
     ]
+
+
+resource = {
+    "field1": {
+        "fieldX": 123,
+        "fieldY": 9008,
+    },
+    "field2": 18,
+}
+
+
+def test_build_predicates():
+    """Test query predicate parsing"""
+    mapping = {
+        "field1": {
+            "$eq": {
+                "fieldX": 123,
+                "fieldY": {"$gt": 9001},
+            }
+        },
+        "field2": {
+            "$and": [
+                {"$exists": True},
+                {
+                    "$or": [
+                        {"$in": [11, 17, 81]},
+                        {"$eq": -1},
+                        {"$gt": 100},
+                    ]
+                },
+                {"$not": {"$gt": 150}},
+            ]
+        },
+        "field3": {"fieldZ": True},
+    }
+    expected_predicates = [
+        ComparisonPredicate(
+            op="$eq",
+            field="field1",
+            nested=[
+                ComparisonPredicate(op="$eq", field="fieldX", target_value=123),
+                ComparisonPredicate(op="$gt", field="fieldY", target_value=9001),
+            ],
+        ),
+        LogicalPredicate(
+            op="$and",
+            field="field2",
+            conditions=[
+                DataTypePredicate(op="$exists", field="field2"),
+                LogicalPredicate(
+                    op="$or",
+                    field="field2",
+                    conditions=[
+                        ComparisonPredicate(
+                            op="$in", field="field2", target_value=[11, 17, 81]
+                        ),
+                        ComparisonPredicate(op="$eq", field="field2", target_value=-1),
+                        ComparisonPredicate(op="$gt", field="field2", target_value=100),
+                    ],
+                ),
+                LogicalPredicate(
+                    op="$not",
+                    field="field2",
+                    conditions=[
+                        ComparisonPredicate(op="$gt", field="field2", target_value=150)
+                    ],
+                ),
+            ],
+        ),
+        ComparisonPredicate(
+            op="$eq",
+            field="field3",
+            target_value={"fieldZ": True},
+        ),
+    ]
+
+    assert expected_predicates[1] == build_predicates(mapping)[1]

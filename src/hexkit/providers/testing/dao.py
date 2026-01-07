@@ -15,6 +15,7 @@
 
 """A mock (in-memory) DAO"""
 
+from abc import ABC, abstractmethod
 from collections.abc import AsyncIterator, Callable, Mapping
 from contextlib import suppress
 from copy import deepcopy
@@ -35,18 +36,34 @@ __all__ = ["SUPPORTED_MQL_OPERATORS", "MockDAOEmptyError", "new_mock_dao_class"]
 
 DTO = TypeVar("DTO", bound=BaseModel)
 
-SUPPORTED_MQL_OPERATORS = [
-    "$eq",
-    "$gt",
-    "$gte",
-    "$in",
-    "$lt",
-    "$lte",
-    "$ne",
-    "$nin",
-]
+UNSUPPORTED_MQL_OPERATORS: set[str] = {
+    "$all",
+    "$elemMatch",
+    "$size",
+    "$bitsAllClear",
+    "$bitsAllSet",
+    "$bitsAnyClear",
+    "$bitsAnySet",
+    "$type",
+    "$box",
+    "$center",
+    "$centerSphere",
+    "$geolntersects",
+    "$geometry",
+    "$geoWithin",
+    "$maxDistance",
+    "$minDistance",
+    "$near",
+    "$nearSphere",
+    "$polygon",
+    "$expr",
+    "$jsonSchema",
+    "$mod",
+    "$regex",
+    "$where",
+}
 
-MQL_COMPARISON_OP_MAP: dict[str, Callable[[Any, Any], bool]] = {
+MQL_COMPARISON_OPERATORS: dict[str, Callable[[Any, Any], bool]] = {
     "$eq": lambda a, b: a == b,
     "$gt": lambda a, b: a > b,
     "$gte": lambda a, b: a >= b,
@@ -57,17 +74,162 @@ MQL_COMPARISON_OP_MAP: dict[str, Callable[[Any, Any], bool]] = {
     "$nin": lambda a, b: a not in b,
 }
 
+MQL_LOGICAL_OPERATORS: dict[str, Callable[[Any, Any], bool]] = {
+    "$and": lambda cs, v: all(c.evaluate(v) for c in cs),
+    "$nor": lambda cs, v: not (any(c.evaluate(v) for c in cs)),
+    "$not": lambda cs, v: not (any(c.evaluate(v) for c in cs)),
+    "$or": lambda cs, v: any(c.evaluate(v) for c in cs),
+}
 
-def _get_mql_predicates(mapping: Mapping[str, Any]) -> Mapping[str, Any]:
-    """Given a filter mapping, returns the sub-mappings that appear to be MQL predicates"""
-    return {k: v for k, v in mapping.items() if k.lower() in SUPPORTED_MQL_OPERATORS}
+MQL_DATA_TYPE_OPERATORS: dict[str, Callable[[Any, Any], bool]] = {
+    "$exists": lambda f, r: f in r
+}
+
+SUPPORTED_MQL_OPERATORS = (
+    set(MQL_COMPARISON_OPERATORS)
+    | set(MQL_LOGICAL_OPERATORS)
+    | set(MQL_DATA_TYPE_OPERATORS)
+)
 
 
-def _ensure_spec_has_only_one_kv_pair(spec: Mapping[str, Any]):
-    """Ensures that `spec` has only one key-value pair and raises an MQLError otherwise"""
-    valid = len(spec) == 1
-    if not valid:
-        raise MQLError(f"Expected mapping {spec} to have only one key-value pair.")
+class Predicate(ABC):
+    @abstractmethod
+    def evaluate(self, resource: dict[str, Any]) -> bool: ...
+
+
+class ComparisonPredicate(Predicate):
+    def __init__(
+        self,
+        *,
+        op: str,
+        field: str,
+        target_value: Any | None = None,
+        nested: list | None = None,
+    ):
+        self._op = op
+        self._field = field
+        self._target_value = target_value
+        self._nested = nested
+
+    def __repr__(self) -> str:
+        return f"ComparisonPredicate(op='{self._op}',field='{self._field}',target_value={self._target_value!s},nested={self._nested})"
+
+    def __eq__(self, other) -> bool:
+        return (
+            self._op == other._op
+            and self._field == other._field
+            and self._target_value == other._target_value
+            and all(
+                sn == on
+                for sn, on in zip(self._nested or [], other._nested or [], strict=True)
+            )
+        )
+
+    def evaluate(self, resource: dict[str, Any]) -> bool:
+        if self._nested:
+            for subp in self._nested:
+                if not subp.evaluate(resource=resource[self._field]):
+                    return False
+            return True
+        else:
+            return MQL_COMPARISON_OPERATORS[self._op](
+                resource.get(self._field), self._target_value
+            )
+
+
+def _build_comparison_predicate(
+    *, op: str, field: str, mapping: Mapping[str, Any]
+) -> ComparisonPredicate:
+    if isinstance(mapping, dict):
+        return ComparisonPredicate(op=op, field=field, nested=build_predicates(mapping))
+    return ComparisonPredicate(op=op, field=field, target_value=mapping)
+
+
+class LogicalPredicate(Predicate):
+    def __init__(self, *, op: str, field: str, conditions: list[Predicate]):
+        self._op = op
+        self._field = field
+        self._conditions = conditions
+
+    def __repr__(self) -> str:
+        return f"LogicalPredicate(op='{self._op}',field='{self._field}',conditions={self._conditions})"
+
+    def __eq__(self, other) -> bool:
+        return (
+            self._op == other._op
+            and self._field == other._field
+            and all(
+                sn == on
+                for sn, on in zip(self._conditions, other._conditions, strict=True)
+            )
+        )
+
+    def evaluate(self, resource: dict[str, Any]) -> bool:
+        return MQL_LOGICAL_OPERATORS[self._op](self._conditions, resource)
+
+
+def _build_logical_predicate(
+    *, op: str, field: str, mapping: Mapping[str, Any] | list
+) -> LogicalPredicate:
+    if not isinstance(mapping, (list, dict)):
+        raise MQLError(f"The mapping {mapping} is not valid for a LogicalPredicate")
+
+    conditions = (
+        build_predicates(mapping={field: mapping})
+        if op == "$not"
+        else build_predicates(
+            {field: {k: v for condition in mapping for k, v in condition.items()}}
+        )
+    )
+    return LogicalPredicate(op=op, field=field, conditions=conditions)
+
+
+class DataTypePredicate(Predicate):
+    def __init__(self, *, op: str, field: str):
+        self._op = op
+        self._field = field
+
+    def __repr__(self) -> str:
+        return f"DataTypePredicate(op='{self._op}',field='{self._field}')"
+
+    def __eq__(self, other) -> bool:
+        return self._op == other._op and self._field == other._field
+
+    def evaluate(self, resource: dict[str, Any]) -> bool:
+        return self._field in resource
+
+
+def _build_mql_predicate(
+    *, op: str, field: str, mapping: Mapping[str, Any] | list
+) -> Predicate:
+    if op in UNSUPPORTED_MQL_OPERATORS:
+        raise MQLError(f"The {op} operator is not supported for use with the InMemDao.")
+    if op in MQL_COMPARISON_OPERATORS:
+        return _build_comparison_predicate(op=op, field=field, mapping=mapping)  # type: ignore
+    elif op in MQL_LOGICAL_OPERATORS:
+        return _build_logical_predicate(op=op, field=field, mapping=mapping)
+    elif op in MQL_DATA_TYPE_OPERATORS:
+        return DataTypePredicate(op=op, field=field)
+    else:
+        return ComparisonPredicate(op="$eq", field=field, target_value=mapping)
+
+
+def build_predicates(mapping: Mapping[str, Any]) -> list[Predicate]:
+    predicates: list[Predicate] = []
+    for field, value in mapping.items():
+        # If it's not a dict, assume that it's a direct equivalence predicate
+        if not isinstance(value, dict) or set(value.keys()).isdisjoint(
+            SUPPORTED_MQL_OPERATORS
+        ):
+            predicates.append(
+                ComparisonPredicate(op="$eq", field=field, target_value=value)
+            )
+        else:
+            for op, predv in value.items():
+                predicates.append(
+                    _build_mql_predicate(op=op.lower(), field=field, mapping=predv)
+                )
+    return predicates
 
 
 class MockDAOEmptyError(RuntimeError):
@@ -133,49 +295,14 @@ class BaseInMemDao(Generic[DTO]):
 
     async def find_all(self, *, mapping: Mapping[str, Any]) -> AsyncIterator[DTO]:
         """Find all resources that match the specified mapping."""
+        if self._handle_mql:
+            predicates = build_predicates(mapping)
         for resource in self.resources.values():
-            failed_predicates: dict[str, Any] = {}
-            for k, v in mapping.items():
-                try:
-                    if getattr(resource, k) != v:
-                        failed_predicates[k] = v
-                except AttributeError:
-                    failed_predicates[k] = v
-
-            if not failed_predicates:
+            if self._handle_mql:
+                if all(p.evaluate(resource=resource.model_dump()) for p in predicates):
+                    yield deepcopy(resource)
+            elif all(getattr(resource, k) == v for k, v in mapping.items()):
                 yield deepcopy(resource)
-            else:
-                # If resource fails at least one predicate, conditionally re-inspect as mql
-                mql_predicates = _get_mql_predicates(failed_predicates)
-                if (
-                    mql_predicates.keys() == failed_predicates.keys()
-                    and self._handle_mql
-                ):
-                    for op, spec in mql_predicates.items():
-                        if not self._resolve_mql_predicate(
-                            resource=resource, op=op, spec=spec
-                        ):
-                            break
-                    else:
-                        yield deepcopy(resource)
-
-    def _resolve_mql_predicate(
-        self, *, resource: DTO, op: str, spec: Mapping[str, Any]
-    ) -> bool:
-        """Attempts to resolve MQL mapping and returns True if the resource satisfies
-        the predicate and False otherwise.
-        """
-        op = op.lower()
-
-        # Currently, this should always equate to True
-        if op in MQL_COMPARISON_OP_MAP:
-            _ensure_spec_has_only_one_kv_pair(spec)
-            field, spec_value = {**spec}.popitem()
-            resource_value = getattr(resource, field)
-            return MQL_COMPARISON_OP_MAP[op](resource_value, spec_value)
-
-        # This error block is only speculative right now
-        raise MQLError(f"The {op} operator is not supported for use with the InMemDao.")
 
     async def insert(self, dto: DTO) -> None:
         """Insert a resource.
