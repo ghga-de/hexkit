@@ -68,7 +68,7 @@ from hexkit.providers.mongokafka.testutils import (
     mongo_kafka_fixture,  # noqa: F401
 )
 
-from .test_mongodb import (
+from .test_mongodb_dao import (
     ComplexDto,
     ExampleDto,
     ExampleDtoWithIntID,

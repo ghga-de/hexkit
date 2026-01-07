@@ -64,7 +64,7 @@ class MongoDbJsonKeyValueStore(KeyValueStoreProtocol):
             config: MongoDB-specific config parameters.
             collection_name: Name of the collection to hold the key-value pairs.
         """
-        self._args = repr({config: config, collection_name: collection_name})
+        self._args = repr({"config": config, "collection_name": collection_name})
         db = client.get_database(config.db_name)
         self._collection = db[collection_name]
 
