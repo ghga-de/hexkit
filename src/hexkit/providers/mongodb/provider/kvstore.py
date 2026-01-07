@@ -17,8 +17,10 @@
 
 from contextlib import asynccontextmanager
 
-from pymongo import AsyncDatabase, AsyncMongoClient
+from pymongo import AsyncMongoClient
+from pymongo.asynchronous.collection import AsyncCollection
 
+from hexkit.custom_types import JsonObject
 from hexkit.protocols.kvstore import KeyValueStoreProtocol
 from hexkit.providers.mongodb.config import MongoDbConfig
 from hexkit.providers.mongodb.provider.client import ConfiguredMongoClient
@@ -27,9 +29,8 @@ from hexkit.providers.mongodb.provider.client import ConfiguredMongoClient
 class MongoDbJsonKeyValueStore(KeyValueStoreProtocol):
     """MongoDB specific KV store provider for JSON data."""
 
-    _config: MongoDbConfig
-    _collection_name: str
-    _db: AsyncDatabase
+    _args: str
+    _collection: AsyncCollection
 
     @classmethod
     @asynccontextmanager
@@ -63,13 +64,44 @@ class MongoDbJsonKeyValueStore(KeyValueStoreProtocol):
             config: MongoDB-specific config parameters.
             collection_name: Name of the collection to hold the key-value pairs.
         """
-        self._config = config
-        self._collection_name = collection_name
-        self._db = client.get_database(self._config.db_name)
+        self._args = repr({config: config, collection_name: collection_name})
+        db = client.get_database(config.db_name)
+        self._collection = db[collection_name]
 
     def __repr__(self) -> str:  # noqa: D105
-        return (
-            f"{self.__class__.__qualname__}("
-            f"config={repr(self._config)},"
-            f" collection_name={self._collection_name})"
-        )
+        return f"{self.__class__.__qualname__}({self._args})"
+
+    async def get(
+        self, key: str, default: JsonObject | None = None
+    ) -> JsonObject | None:
+        """Retrieve the value for the given key.
+
+        Returns the specified default value if there is no such value.
+        """
+        document = await self._collection.find_one({"_id": key})
+        if document is None:
+            return default
+        value = document.get("value")
+        if value is None:
+            return default
+        return value
+
+    async def set(self, key: str, value: JsonObject) -> None:
+        """Set the value for the given key.
+
+        Note that JsonObjects cannot be None.
+        """
+        document = {"_id": key, "value": value}
+        await self._collection.replace_one({"_id": key}, document, upsert=True)
+
+    async def delete(self, key: str) -> None:
+        """Delete the value for the given key.
+
+        Does nothing if there is no such value.
+        """
+        await self._collection.delete_one({"_id": key})
+
+    async def exists(self, key: str) -> bool:
+        """Check if the given key exists."""
+        document = await self._collection.find_one({"_id": key}, {"_id": 1})
+        return document is not None
