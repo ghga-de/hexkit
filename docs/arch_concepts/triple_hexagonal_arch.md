@@ -131,7 +131,7 @@ The steps involved in the following examples correspond to this visual legend:
 
 (γ) The protocol describes the abstract principles of performing a resource-oriented RESTful call whereby HTTP verbs are used to represent the requested action.
 
-(δ) The protocol provider provides an implementation of the protocol interface. To do so, it might, e.g., use the `requests` module from Python's standard library.
+(δ) The protocol provider provides an implementation of the protocol interface. To do so, it might, e.g., use the `urllib.request` module from Python's standard library.
 
 (ε) The interaction partner who is receiving the query is an API server belonging to another service.
 

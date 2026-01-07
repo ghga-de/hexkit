@@ -20,7 +20,7 @@ import hashlib
 import os
 from pathlib import Path
 
-import requests
+import httpx
 from pydantic import BaseModel, computed_field
 
 from hexkit.protocols.objstorage import ObjectStorageProtocol, PresignedPostURL
@@ -108,7 +108,7 @@ def upload_file(presigned_url: PresignedPostURL, file_path: Path, file_md5: str)
     with open(file_path, "rb") as test_file:
         files = {"file": (str(file_path), test_file)}
         headers = {"ContentMD5": file_md5}
-        response = requests.post(
+        response = httpx.post(
             presigned_url.url,
             data=presigned_url.fields,
             files=files,
@@ -133,7 +133,7 @@ async def upload_part(
         object_id=object_id,
         part_number=part_number,
     )
-    response = requests.put(upload_url, data=content, timeout=TIMEOUT)
+    response = httpx.put(upload_url, content=content, timeout=TIMEOUT)
     response.raise_for_status()
 
 
@@ -163,7 +163,7 @@ async def upload_part_of_size(
 def upload_part_via_url(*, url: str, size: int):
     """Upload a file part of given size using the given URL."""
     content = b"\0" * size
-    response = requests.put(url, data=content, timeout=TIMEOUT)
+    response = httpx.put(url, content=content, timeout=TIMEOUT)
     response.raise_for_status()
 
 
@@ -211,7 +211,7 @@ async def multipart_upload_file(
 
 def download_and_check_test_file(presigned_url: str, expected_md5: str):
     """Download the test file from the specified URL and check its integrity (md5)."""
-    response = requests.get(presigned_url, timeout=TIMEOUT)
+    response = httpx.get(presigned_url, timeout=TIMEOUT)
     response.raise_for_status()
 
     observed_md5 = calc_md5(response.content)
