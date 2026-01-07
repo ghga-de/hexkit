@@ -26,9 +26,9 @@ name = "hexkit"
 version = "7.2.1"
 description = "A Toolkit for Building Microservices using the Hexagonal Architecture"
 dependencies = [
-    "opentelemetry-api >=1.37, <2",
-    "pydantic >=2.11, <3",
-    "pydantic_settings >=2.10, <3",
+    "opentelemetry-api >=1.39, <2",
+    "pydantic >=2.12, <3",
+    "pydantic_settings >=2.12, <3",
     "PyYAML >=6, <7",
 ]
 
@@ -37,41 +37,41 @@ text = "Apache 2.0"
 
 [project.optional-dependencies]
 akafka = [
-    "aiokafka[zstd,lz4,snappy]~=0.12.0",
+    "aiokafka[zstd,lz4,snappy]~=0.13.0",
     "jsonschema >=4.25, <5",
 ]
 s3 = [
-    "boto3 >=1.40, <2",
-    "botocore >=1.40, <2",
+    "boto3 >=1.42, <2",
+    "botocore >=1.42, <2",
 ]
 mongodb = [
     "pymongo >=4.15, <5",
 ]
 opentelemetry-base = [
-    "opentelemetry-sdk >=1.37.0, <2",
-    "opentelemetry-exporter-otlp >=1.37.0, <2",
-    "opentelemetry-instrumentation >=0.58b0",
-    "opentelemetry-instrumentation-httpx >=0.58b0",
-    "opentelemetry-distro >=0.58b0",
+    "opentelemetry-sdk >=1.39.1, <2",
+    "opentelemetry-exporter-otlp >=1.39.1, <2",
+    "opentelemetry-instrumentation >=0.60b1",
+    "opentelemetry-instrumentation-httpx >=0.60b1",
+    "opentelemetry-distro >=0.60b1",
 ]
 opentelemetry-akafka = [
     "hexkit[opentelemetry-base]",
     "hexkit[akafka]",
-    "opentelemetry-instrumentation-aiokafka >=0.58b0",
+    "opentelemetry-instrumentation-aiokafka >=0.60b1",
 ]
 opentelemetry-mongodb = [
     "hexkit[opentelemetry-base]",
     "hexkit[mongodb]",
-    "opentelemetry-instrumentation-pymongo >=0.58b0",
+    "opentelemetry-instrumentation-pymongo >=0.60b1",
 ]
 opentelemetry-fastapi = [
     "hexkit[opentelemetry-base]",
-    "opentelemetry-instrumentation-fastapi >=0.58b0",
+    "opentelemetry-instrumentation-fastapi >=0.60b1",
 ]
 opentelemetry-s3 = [
     "hexkit[opentelemetry-base]",
     "hexkit[s3]",
-    "opentelemetry-instrumentation-botocore >=0.58b0",
+    "opentelemetry-instrumentation-botocore >=0.60b1",
 ]
 opentelemetry = [
     "hexkit[opentelemetry-akafka]",

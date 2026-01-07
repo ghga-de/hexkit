@@ -35,7 +35,7 @@ from hexkit.providers.mongodb.provider import (
     MongoDbDaoFactory,
 )
 
-MONGODB_IMAGE = "mongo:7.0.15"
+MONGODB_IMAGE = "mongo:8.2.3"
 
 __all__ = [
     "MONGODB_IMAGE",
