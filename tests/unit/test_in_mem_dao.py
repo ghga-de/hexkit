@@ -15,6 +15,8 @@
 
 """Testing the in-memory DAO."""
 
+from typing import Any
+
 import pytest
 from pydantic import BaseModel
 
@@ -168,3 +170,82 @@ async def test_get_by_id():
     this_pumpkin = await dao.get_by_id("Pumpkin")
     assert this_pumpkin is not that_pumpkin
     assert this_pumpkin.model_dump() == that_pumpkin.model_dump()
+
+
+async def test_mql_comparison_ops():
+    """Test the different MQL comparison operators"""
+    dao = DaoClass()
+    brick = InventoryItem(title="Brick", count=1)
+    shovel = InventoryItem(title="Shovel", count=2)
+    tophat = InventoryItem(title="Tophat", count=3)
+    await dao.insert(brick)
+    await dao.insert(shovel)
+    await dao.insert(tophat)
+
+    mapping: dict[str, Any] = {"$eq": {"title": "Brick"}}
+    results = [x async for x in dao.find_all(mapping=mapping)]
+    assert len(results) == 1
+    assert results[0].model_dump() == brick.model_dump()
+
+    mapping = {"$gt": {"count": 1}}
+    results = sorted(
+        [x async for x in dao.find_all(mapping=mapping)], key=lambda x: x.title
+    )
+    assert len(results) == 2
+    assert [x.model_dump() for x in results] == [
+        x.model_dump() for x in [shovel, tophat]
+    ]
+
+    mapping = {"$gte": {"count": 1}}
+    results = sorted(
+        [x async for x in dao.find_all(mapping=mapping)], key=lambda x: x.title
+    )
+    assert len(results) == 3
+    assert [x.model_dump() for x in results] == [
+        x.model_dump() for x in [brick, shovel, tophat]
+    ]
+
+    mapping = {"$in": {"title": ["Brick", "Shovel"]}}
+    results = sorted(
+        [x async for x in dao.find_all(mapping=mapping)], key=lambda x: x.title
+    )
+    assert len(results) == 2
+    assert [x.model_dump() for x in results] == [
+        x.model_dump() for x in [brick, shovel]
+    ]
+
+    mapping = {"$lt": {"count": 3}}
+    results = sorted(
+        [x async for x in dao.find_all(mapping=mapping)], key=lambda x: x.title
+    )
+    assert len(results) == 2
+    assert [x.model_dump() for x in results] == [
+        x.model_dump() for x in [brick, shovel]
+    ]
+
+    mapping = {"$lte": {"count": 3}}
+    results = sorted(
+        [x async for x in dao.find_all(mapping=mapping)], key=lambda x: x.title
+    )
+    assert len(results) == 3
+    assert [x.model_dump() for x in results] == [
+        x.model_dump() for x in [brick, shovel, tophat]
+    ]
+
+    mapping = {"$ne": {"title": "Tophat"}}
+    results = sorted(
+        [x async for x in dao.find_all(mapping=mapping)], key=lambda x: x.title
+    )
+    assert len(results) == 2
+    assert [x.model_dump() for x in results] == [
+        x.model_dump() for x in [brick, shovel]
+    ]
+
+    mapping = {"$nin": {"title": "This is my Tophat"}}
+    results = sorted(
+        [x async for x in dao.find_all(mapping=mapping)], key=lambda x: x.title
+    )
+    assert len(results) == 2
+    assert [x.model_dump() for x in results] == [
+        x.model_dump() for x in [brick, shovel]
+    ]
