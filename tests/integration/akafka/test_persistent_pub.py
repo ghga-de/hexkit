@@ -37,11 +37,11 @@ from hexkit.providers.mongodb.testutils import (
     mongodb_container_fixture,  # noqa: F401
     mongodb_fixture,  # noqa: F401
 )
+from hexkit.providers.mongokafka.config import MongoKafkaConfig
 from hexkit.providers.mongokafka.provider import (
-    MongoKafkaConfig,
+    PersistentKafkaEvent,
     PersistentKafkaPublisher,
 )
-from hexkit.providers.mongokafka.provider.persistent_pub import PersistentKafkaEvent
 
 TEST_TOPIC = "my-topic"
 TEST_TYPE = "my_type"

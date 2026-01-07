@@ -45,7 +45,7 @@ from hexkit.providers.mongodb.provider import (
     translate_pymongo_errors,
     validate_find_mapping,
 )
-from hexkit.providers.mongokafka.provider import MongoKafkaConfig
+from hexkit.providers.mongokafka.config import MongoKafkaConfig
 
 
 class ResourceDeletedError(RuntimeError):

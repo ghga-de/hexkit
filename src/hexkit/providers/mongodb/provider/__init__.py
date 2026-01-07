@@ -14,24 +14,29 @@
 # limitations under the License.
 #
 
-"""Providers that combine MongoDB and Kafka functionality"""
+"""A subpackage containing all MongoDB-specific providers.
 
-from .config import MongoKafkaConfig
-from .provider import (
-    CHANGE_EVENT_TYPE,
-    DELETE_EVENT_TYPE,
-    MongoKafkaDaoPublisherFactory,
-    PersistentKafkaPublisher,
-    document_to_dto,
-    dto_to_document,
+Require dependencies of the `mongodb` extra.
+"""
+
+from .client import ConfiguredMongoClient
+from .dao import (
+    MongoDbDao,
+    MongoDbDaoFactory,
+    get_single_hit,
+    replace_id_field_in_find_mapping,
+    validate_find_mapping,
 )
+from .utils import document_to_dto, dto_to_document, translate_pymongo_errors
 
 __all__ = [
-    "CHANGE_EVENT_TYPE",
-    "DELETE_EVENT_TYPE",
-    "MongoKafkaConfig",
-    "MongoKafkaDaoPublisherFactory",
-    "PersistentKafkaPublisher",
+    "ConfiguredMongoClient",
+    "MongoDbDao",
+    "MongoDbDaoFactory",
     "document_to_dto",
     "dto_to_document",
+    "get_single_hit",
+    "replace_id_field_in_find_mapping",
+    "translate_pymongo_errors",
+    "validate_find_mapping",
 ]

@@ -27,7 +27,7 @@ from pymongo import AsyncMongoClient
 from pymongo.asynchronous.database import AsyncDatabase
 from pymongo.errors import DuplicateKeyError
 
-from hexkit.providers.mongodb import MongoDbConfig
+from hexkit.providers.mongodb.config import MongoDbConfig
 from hexkit.providers.mongodb.provider import ConfiguredMongoClient
 
 from ._utils import MigrationDefinition, Reversible

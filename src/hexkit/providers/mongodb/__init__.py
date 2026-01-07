@@ -14,10 +14,20 @@
 # limitations under the License.
 #
 
-"""Subpackage containing a MongoDB-based provider implementing the DaoFactoryProtocol
-and associated utilities.
-"""
+"""Subpackage containing MongoDB-based providers and related utilities."""
 
-from .provider import MongoDbConfig, MongoDbDaoFactory
+from .config import MongoDbConfig
+from .provider import (
+    ConfiguredMongoClient,
+    MongoDbDao,
+    MongoDbDaoFactory,
+    translate_pymongo_errors,
+)
 
-__all__ = ["MongoDbConfig", "MongoDbDaoFactory"]
+__all__ = [
+    "ConfiguredMongoClient",
+    "MongoDbConfig",
+    "MongoDbDao",
+    "MongoDbDaoFactory",
+    "translate_pymongo_errors",
+]

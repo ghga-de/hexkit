@@ -44,8 +44,13 @@ from hexkit.providers.mongodb.provider import (
     MongoDbDaoFactory,
     translate_pymongo_errors,
 )
-from hexkit.providers.mongokafka.provider.config import MongoKafkaConfig
+from hexkit.providers.mongokafka.config import MongoKafkaConfig
 from hexkit.utils import now_utc_ms_prec
+
+__all__ = [
+    "PersistentKafkaEvent",
+    "PersistentKafkaPublisher",
+]
 
 
 class PersistentKafkaEvent(BaseModel):

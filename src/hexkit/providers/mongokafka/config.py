@@ -19,7 +19,7 @@ import logging
 from pydantic import field_validator
 
 from hexkit.providers.akafka.config import KafkaConfig
-from hexkit.providers.mongodb.provider import MongoDbConfig
+from hexkit.providers.mongodb.config import MongoDbConfig
 
 
 class MongoKafkaConfig(MongoDbConfig, KafkaConfig):
