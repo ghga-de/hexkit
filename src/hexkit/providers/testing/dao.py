@@ -65,7 +65,6 @@ UNSUPPORTED_MQL_OPERATORS: set[str] = {
 
 MQL_COMPARISON_OPERATORS: dict[str, Callable[[Any, Any], bool]] = {
     "$eq": lambda a, b: a == b,
-    "$neq": lambda a, b: a != b,
     "$gt": lambda a, b: a > b,
     "$gte": lambda a, b: a >= b,
     "$in": lambda a, b: a in b,
@@ -136,9 +135,9 @@ class ComparisonPredicate(Predicate):
             raise MQLError(f"Invalid dot notation: {self._field}")
 
         # Iterate over the keys, drilling into the object structure
-        value: Any | None = None
+        value: Any = resource
         for key in keys:
-            value = resource.get(key)
+            value = value.get(key)
 
         # Perform comparison on final value
         return MQL_COMPARISON_OPERATORS[self._op](value, self._target_value)

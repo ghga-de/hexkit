@@ -18,7 +18,7 @@
 from typing import Any
 
 import pytest
-from pydantic import BaseModel, Field
+from pydantic import BaseModel
 
 from hexkit.protocols.dao import NoHitsFoundError, ResourceNotFoundError
 from hexkit.providers.testing import MockDAOEmptyError, new_mock_dao_class
@@ -41,16 +41,7 @@ class InventoryItem(BaseModel):
     count: int
 
 
-class InventoryCategory(BaseModel):
-    """A model that features nesting and lists"""
-
-    title: str
-    items: list[InventoryItem] = Field(default=[])
-    top_item: InventoryItem | None = Field(default=None)
-
-
 DaoClass = new_mock_dao_class(dto_model=InventoryItem, id_field="title")
-CategoryDaoClass = new_mock_dao_class(dto_model=InventoryCategory, id_field="title")
 
 
 async def test_latest_while_empty():
@@ -303,9 +294,9 @@ def test_basic_nesting():
     ]
 
 
-@pytest.mark.parametrize("op", ["$eq", "$neq"])
-def test_eq_neq(op: str):
-    """Test the $eq and $neq operators in predicate building"""
+@pytest.mark.parametrize("op", ["$eq", "$ne"])
+def test_eq_ne(op: str):
+    """Test the $eq and $ne operators in predicate building"""
     # Standard, proper usage
     for value in [17, False, ["foo", "bar"], {}, {"$gt": "y"}, b"baz", None]:
         mapping = {"my_field": {op: value}}
@@ -459,7 +450,7 @@ def test_not():
             _ = build_predicates(mapping)
 
     # Nested $nots
-    mapping = {"verdict": {"$not": {"$not": {"$not": {"$neq": "guilty"}}}}}
+    mapping = {"verdict": {"$not": {"$not": {"$not": {"$ne": "guilty"}}}}}
     expected_predicates = [
         LogicalPredicate(
             op="$not",
@@ -471,7 +462,7 @@ def test_not():
                             op="$not",
                             conditions=[
                                 ComparisonPredicate(
-                                    op="$neq", field="verdict", target_value="guilty"
+                                    op="$ne", field="verdict", target_value="guilty"
                                 )
                             ],
                         )
