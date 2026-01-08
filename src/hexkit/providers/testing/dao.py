@@ -65,6 +65,7 @@ UNSUPPORTED_MQL_OPERATORS: set[str] = {
 
 MQL_COMPARISON_OPERATORS: dict[str, Callable[[Any, Any], bool]] = {
     "$eq": lambda a, b: a == b,
+    "$neq": lambda a, b: a != b,
     "$gt": lambda a, b: a > b,
     "$gte": lambda a, b: a >= b,
     "$in": lambda a, b: a in b,
@@ -191,14 +192,16 @@ class LogicalPredicate(Predicate):
 def _build_logical_predicate(
     *, op: str, field: str | None, mapping: Mapping[str, Any] | list
 ) -> LogicalPredicate:
-    """Construct a LogicalPredicate for a field.
-
-    If `op` is "$not", `mapping` will be a dict like `{"fieldX": <expression>}
-    """
+    """Construct a LogicalPredicate for a field."""
     if op == "$not":
-        if not isinstance(mapping, dict) or set(mapping).isdisjoint(
-            SUPPORTED_MQL_OPERATORS
-        ):
+        if not isinstance(mapping, dict) or len(mapping) != 1:
+            raise MQLError(
+                "The $not expects a single dict with a single MQL operator key"
+            )
+        nextop = next(iter(mapping))
+        if nextop in MQL_LOGICAL_OPERATORS and nextop != "$not":
+            raise MQLError("Cannot nest logical operators under a $not operator.")
+        if nextop not in SUPPORTED_MQL_OPERATORS:
             raise MQLError(
                 "The $not operator expects a dict with another MQL operator as the key."
             )
