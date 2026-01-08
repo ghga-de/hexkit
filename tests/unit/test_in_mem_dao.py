@@ -151,8 +151,7 @@ async def test_find_all():
 
     # Get everything
     results = sorted([x.title async for x in dao.find_all(mapping={})])
-    assert len(results) == 3
-    assert results == ["bat", "brick", "shovel"]
+    assert results == ["Bat", "Brick", "Shovel"]
 
 
 async def test_get_by_id():
@@ -185,7 +184,7 @@ async def test_mql_comparison_ops():
 
     mapping: dict[str, Any] = {"title": {"$eq": "Brick"}}
     results = [x.title async for x in dao.find_all(mapping=mapping)]
-    assert results == ["brick"]
+    assert results == ["Brick"]
 
     mapping = {"count": {"$gt": 1}}
     results = sorted([x.title async for x in dao.find_all(mapping=mapping)])
