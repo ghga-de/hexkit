@@ -137,13 +137,8 @@ async def test_find_all():
     await dao.insert(bat)
 
     # Get resources with count=1, sorted alphabetically by title
-    results = sorted(
-        [x async for x in dao.find_all(mapping={"count": 1})], key=lambda x: x.title
-    )
-    assert results
-    assert len(results) == 2
-    assert results[0].title == "Brick"
-    assert results[1].title == "Shovel"
+    results = sorted([x.title async for x in dao.find_all(mapping={"count": 1})])
+    assert results == ["Brick", "Shovel"]
 
     # Filter by the id field
     results = [x async for x in dao.find_all(mapping={"title": "Bat"})]
@@ -155,11 +150,9 @@ async def test_find_all():
     assert not results
 
     # Get everything
-    results = sorted([x async for x in dao.find_all(mapping={})], key=lambda x: x.title)
+    results = sorted([x.title async for x in dao.find_all(mapping={})])
     assert len(results) == 3
-    assert [x.model_dump() for x in results] == [
-        x.model_dump() for x in [bat, brick, shovel]
-    ]
+    assert results == ["bat", "brick", "shovel"]
 
 
 async def test_get_by_id():
@@ -191,72 +184,36 @@ async def test_mql_comparison_ops():
     await dao.insert(tophat)
 
     mapping: dict[str, Any] = {"title": {"$eq": "Brick"}}
-    results = [x async for x in dao.find_all(mapping=mapping)]
-    assert len(results) == 1
-    assert results[0].model_dump() == brick.model_dump()
+    results = [x.title async for x in dao.find_all(mapping=mapping)]
+    assert results == ["brick"]
 
     mapping = {"count": {"$gt": 1}}
-    results = sorted(
-        [x async for x in dao.find_all(mapping=mapping)], key=lambda x: x.title
-    )
-    assert len(results) == 2
-    assert [x.model_dump() for x in results] == [
-        x.model_dump() for x in [shovel, tophat]
-    ]
+    results = sorted([x.title async for x in dao.find_all(mapping=mapping)])
+    assert results == ["Shovel", "Tophat"]
 
     mapping = {"count": {"$gte": 1}}
-    results = sorted(
-        [x async for x in dao.find_all(mapping=mapping)], key=lambda x: x.title
-    )
-    assert len(results) == 3
-    assert [x.model_dump() for x in results] == [
-        x.model_dump() for x in [brick, shovel, tophat]
-    ]
+    results = sorted([x.title async for x in dao.find_all(mapping=mapping)])
+    assert results == ["Brick", "Shovel", "Tophat"]
 
     mapping = {"title": {"$in": ["Brick", "Shovel"]}}
-    results = sorted(
-        [x async for x in dao.find_all(mapping=mapping)], key=lambda x: x.title
-    )
-    assert len(results) == 2
-    assert [x.model_dump() for x in results] == [
-        x.model_dump() for x in [brick, shovel]
-    ]
+    results = sorted([x.title async for x in dao.find_all(mapping=mapping)])
+    assert results == ["Brick", "Shovel"]
 
     mapping = {"count": {"$lt": 3}}
-    results = sorted(
-        [x async for x in dao.find_all(mapping=mapping)], key=lambda x: x.title
-    )
-    assert len(results) == 2
-    assert [x.model_dump() for x in results] == [
-        x.model_dump() for x in [brick, shovel]
-    ]
+    results = sorted([x.title async for x in dao.find_all(mapping=mapping)])
+    assert results == ["Brick", "Shovel"]
 
     mapping = {"count": {"$lte": 3}}
-    results = sorted(
-        [x async for x in dao.find_all(mapping=mapping)], key=lambda x: x.title
-    )
-    assert len(results) == 3
-    assert [x.model_dump() for x in results] == [
-        x.model_dump() for x in [brick, shovel, tophat]
-    ]
+    results = sorted([x.title async for x in dao.find_all(mapping=mapping)])
+    assert results == ["Brick", "Shovel", "Tophat"]
 
     mapping = {"title": {"$ne": "Tophat"}}
-    results = sorted(
-        [x async for x in dao.find_all(mapping=mapping)], key=lambda x: x.title
-    )
-    assert len(results) == 2
-    assert [x.model_dump() for x in results] == [
-        x.model_dump() for x in [brick, shovel]
-    ]
+    results = sorted([x.title async for x in dao.find_all(mapping=mapping)])
+    assert results == ["Brick", "Shovel"]
 
     mapping = {"title": {"$nin": "This is my Tophat".split()}}
-    results = sorted(
-        [x async for x in dao.find_all(mapping=mapping)], key=lambda x: x.title
-    )
-    assert len(results) == 2
-    assert [x.model_dump() for x in results] == [
-        x.model_dump() for x in [brick, shovel]
-    ]
+    results = sorted([x.title async for x in dao.find_all(mapping=mapping)])
+    assert results == ["Brick", "Shovel"]
 
 
 def test_build_predicates_empty_mapping():
