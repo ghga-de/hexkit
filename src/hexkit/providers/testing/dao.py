@@ -100,13 +100,22 @@ class Predicate(ABC):
 
 
 class ComparisonPredicate(Predicate):
+    """A Predicate that handles MQL comparison operators"""
+
     def __init__(
         self,
         *,
         op: str,
         field: str,
-        target_value: Any | None = None,
+        target_value: Any | None,
     ):
+        """Initialize the predicate.
+
+        Parameters:
+        - op denotes the operator string, e.g. '$eq', '$in', etc.
+        - field indicates the name of the field in the data model that the condition applies to.
+        - target_value is the second operand supplied to the eval function.
+        """
         self._op = op
         self._field = field
         self._target_value = target_value
@@ -164,7 +173,15 @@ def _build_comparison_predicate(
 
 
 class LogicalPredicate(Predicate):
+    """A Predicate that handles MQL logical operators"""
+
     def __init__(self, *, op: str, conditions: list[Predicate]):
+        """Initialize the predicate.
+
+        Parameters:
+        - op denotes the operator string, i.e. '$and', '$or', '$not', or '$nor'
+        - conditions is a list of Predicates that constitute the logical predicate.
+        """
         self._op = op
         self._conditions = conditions
 
@@ -218,7 +235,16 @@ def _build_logical_predicate(
 
 
 class DataTypePredicate(Predicate):
+    """A Predicate that handles MQL data type operators - currently only $exists"""
+
     def __init__(self, *, op: str, field: str, target_value: bool):
+        """Initialize the predicate.
+
+        Parameters:
+        - op denotes the operator string, i.e. '$exists'
+        - field indicates the name of the field in the data model that the condition applies to.
+        - target_value is either True or False
+        """
         self._op = op
         self._field = field
         self._target_value = target_value
@@ -242,6 +268,10 @@ class DataTypePredicate(Predicate):
 
 
 def _build_mql_predicate(*, op: str, field: str | None, mapping: Any) -> Predicate:
+    """Given an MQL operator, field name, and mapping, construct a Predicate instance.
+
+    Raises an MQLError if there is a problem with the operands or structure.
+    """
     if op in UNSUPPORTED_MQL_OPERATORS:
         raise MQLError(f"The {op} operator is not supported for use with the InMemDao.")
 
@@ -270,6 +300,7 @@ def _build_mql_predicate(*, op: str, field: str | None, mapping: Any) -> Predica
 
 
 def build_predicates(mapping: Mapping[str, Any]) -> list[Predicate]:
+    """Build a list of Predicates from a search filter mapping."""
     predicates: list[Predicate] = []
     for key, value in mapping.items():
         # If the key is an operator (likely $and, $not, or $or), build predicate
