@@ -140,9 +140,9 @@ class ComparisonPredicate(Predicate):
 
         Dot notation is recognized and used to located the correct value.
         """
-        keys = [k for k in self._field.split(".")]
-        if not all(keys):
-            raise MQLError(f"Invalid dot notation: {self._field}")
+        keys = self._field.split(".")
+        if not (keys and all(keys)):
+            raise MQLError(f"Empty field name or invalid dot notation: {self._field}")
 
         # Iterate over the keys, drilling into the object structure
         value: Any = resource
