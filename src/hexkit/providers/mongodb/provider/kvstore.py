@@ -17,7 +17,7 @@
 
 from abc import ABC, abstractmethod
 from contextlib import asynccontextmanager
-from typing import Generic
+from typing import Any, Generic
 
 from pymongo import AsyncMongoClient
 from pymongo.asynchronous.collection import AsyncCollection
@@ -91,16 +91,6 @@ class MongoDbBaseKeyValueStore(ABC, KeyValueStoreProtocol):
     def __repr__(self) -> str:
         return f"{self.__class__.__name__}({self._args})"
 
-    @abstractmethod
-    async def get(self, key: str, default=None):
-        """Retrieve the value for the given key."""
-        pass
-
-    @abstractmethod
-    async def set(self, key: str, value):
-        """Set the value for the given key."""
-        pass
-
     async def delete(self, key: str) -> None:
         """Delete the value for the given key.
 
@@ -113,13 +103,17 @@ class MongoDbBaseKeyValueStore(ABC, KeyValueStoreProtocol):
         document = await self._collection.find_one({"_id": key}, {"_id": 1})
         return document is not None
 
+    @abstractmethod
+    async def _encode_value(self, value: Any) -> Any:
+        """Encode a value before writing it to MongoDB."""
+        pass
 
-class MongoDbJsonKeyValueStore(MongoDbBaseKeyValueStore):
-    """MongoDB specific KV store provider for JSON data."""
+    @abstractmethod
+    async def _decode_value(self, value: Any) -> Any:
+        """Decode a value read from MongoDB."""
+        pass
 
-    async def get(
-        self, key: str, default: JsonObject | None = None
-    ) -> JsonObject | None:
+    async def get(self, key: str, default=None):
         """Retrieve the value for the given key.
 
         Returns the specified default value if there is no such value in the store.
@@ -128,61 +122,54 @@ class MongoDbJsonKeyValueStore(MongoDbBaseKeyValueStore):
         if document is None:
             return default
         value = document.get("value")
-        return value if value is not None else default
+        if value is None:
+            return default
+        return await self._decode_value(value)
 
-    async def set(self, key: str, value: JsonObject) -> None:
+    async def set(self, key: str, value):
         """Set the value for the given key.
 
-        Note that JsonObjects cannot be None.
+        Note that values cannot be None.
         """
-        document = {"_id": key, "value": value}
+        encoded_value = await self._encode_value(value)
+        document = {"_id": key, "value": encoded_value}
         await self._collection.replace_one({"_id": key}, document, upsert=True)
+
+
+class MongoDbJsonKeyValueStore(MongoDbBaseKeyValueStore):
+    """MongoDB specific KV store provider for JSON data."""
+
+    async def _encode_value(self, value: JsonObject) -> JsonObject:
+        """JSON values are stored as-is."""
+        return value
+
+    async def _decode_value(self, value: JsonObject) -> JsonObject:
+        """JSON values are retrieved as-is."""
+        return value
 
 
 class MongoDbStrKeyValueStore(MongoDbBaseKeyValueStore):
     """MongoDB specific KV store provider for string data."""
 
-    async def get(self, key: str, default: str | None = None) -> str | None:
-        """Retrieve the value for the given key.
+    async def _encode_value(self, value: str) -> str:
+        """String values are stored as-is."""
+        return value
 
-        Returns the specified default value if there is no such value in the store.
-        """
-        document = await self._collection.find_one({"_id": key})
-        if document is None:
-            return default
-        value = document.get("value")
-        return value if value is not None else default
-
-    async def set(self, key: str, value: str) -> None:
-        """Set the value for the given key.
-
-        Note that values cannot be None.
-        """
-        document = {"_id": key, "value": value}
-        await self._collection.replace_one({"_id": key}, document, upsert=True)
+    async def _decode_value(self, value: str) -> str:
+        """String values are retrieved as-is."""
+        return value
 
 
 class MongoDbBytesKeyValueStore(MongoDbBaseKeyValueStore):
     """MongoDB specific KV store provider for binary (bytes) data."""
 
-    async def get(self, key: str, default: bytes | None = None) -> bytes | None:
-        """Retrieve the value for the given key.
+    async def _encode_value(self, value: bytes) -> bytes:
+        """Bytes values are stored as-is."""
+        return value
 
-        Returns the specified default value if there is no such value in the store.
-        """
-        document = await self._collection.find_one({"_id": key})
-        if document is None:
-            return default
-        value = document.get("value")
-        return value if value is not None else default
-
-    async def set(self, key: str, value: bytes) -> None:
-        """Set the value for the given key.
-
-        Note that values cannot be None.
-        """
-        document = {"_id": key, "value": value}
-        await self._collection.replace_one({"_id": key}, document, upsert=True)
+    async def _decode_value(self, value: bytes) -> bytes:
+        """Bytes values are retrieved as-is."""
+        return value
 
 
 class MongoDbDtoKeyValueStore(MongoDbBaseKeyValueStore, Generic[Dto]):
@@ -218,24 +205,10 @@ class MongoDbDtoKeyValueStore(MongoDbBaseKeyValueStore, Generic[Dto]):
         )
         self._dto_model = dto_model
 
-    async def get(self, key: str, default: Dto | None = None) -> Dto | None:
-        """Retrieve the value for the given key.
+    async def _encode_value(self, value: Dto) -> dict:
+        """Transform DTO to dictionary for storage."""
+        return value.model_dump()
 
-        Returns the specified default value if there is no such value in the store.
-        """
-        document = await self._collection.find_one({"_id": key})
-        if document is None:
-            return default
-        value_dict = document.get("value")
-        if value_dict is None:
-            return default
-        return self._dto_model.model_validate(value_dict)
-
-    async def set(self, key: str, value: Dto) -> None:
-        """Set the value for the given key.
-
-        Note that values cannot be None.
-        """
-        value_dict = value.model_dump()
-        document = {"_id": key, "value": value_dict}
-        await self._collection.replace_one({"_id": key}, document, upsert=True)
+    async def _decode_value(self, value: dict) -> Dto:
+        """Transform dictionary from storage back to DTO."""
+        return self._dto_model.model_validate(value)
