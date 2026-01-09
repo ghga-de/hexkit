@@ -19,15 +19,23 @@
 from .config import MongoDbConfig
 from .provider import (
     ConfiguredMongoClient,
+    MongoDbBytesKeyValueStore,
     MongoDbDao,
     MongoDbDaoFactory,
+    MongoDbDtoKeyValueStore,
+    MongoDbJsonKeyValueStore,
+    MongoDbStrKeyValueStore,
     translate_pymongo_errors,
 )
 
 __all__ = [
     "ConfiguredMongoClient",
+    "MongoDbBytesKeyValueStore",
     "MongoDbConfig",
     "MongoDbDao",
     "MongoDbDaoFactory",
+    "MongoDbDtoKeyValueStore",
+    "MongoDbJsonKeyValueStore",
+    "MongoDbStrKeyValueStore",
     "translate_pymongo_errors",
 ]

@@ -27,7 +27,7 @@ class KeyValueStoreProtocol(Protocol, Generic[V]):
     async def get(self, key: str, default: V | None = None) -> V | None:
         """Retrieve the value for the given key.
 
-        Returns the specified default value if there is no such value.
+        Returns the specified default value if there is no such value in the store.
         """
         pass
 
@@ -42,7 +42,7 @@ class KeyValueStoreProtocol(Protocol, Generic[V]):
     async def delete(self, key: str) -> None:
         """Delete the value for the given key.
 
-        Does nothing if there is no such value.
+        Does nothing if there is no such value in the store.
         """
         pass
 

@@ -27,12 +27,22 @@ from .dao import (
     replace_id_field_in_find_mapping,
     validate_find_mapping,
 )
+from .kvstore import (
+    MongoDbBytesKeyValueStore,
+    MongoDbDtoKeyValueStore,
+    MongoDbJsonKeyValueStore,
+    MongoDbStrKeyValueStore,
+)
 from .utils import document_to_dto, dto_to_document, translate_pymongo_errors
 
 __all__ = [
     "ConfiguredMongoClient",
+    "MongoDbBytesKeyValueStore",
     "MongoDbDao",
     "MongoDbDaoFactory",
+    "MongoDbDtoKeyValueStore",
+    "MongoDbJsonKeyValueStore",
+    "MongoDbStrKeyValueStore",
     "document_to_dto",
     "dto_to_document",
     "get_single_hit",

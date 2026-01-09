@@ -346,7 +346,7 @@ class MongoDbDaoFactory(DaoFactoryProtocol):
         self._db = client.get_database(self._config.db_name)
 
     def __repr__(self) -> str:  # noqa: D105
-        return f"{self.__class__.__qualname__}(config={repr(self._config)})"
+        return f"{self.__class__.__name__}(config={repr(self._config)})"
 
     async def _get_dao(
         self,
