@@ -107,8 +107,16 @@ def validate_fields_in_model(
 ) -> None:
     """Checks that all provided fields are present in the dto_model.
     Raises IndexFieldsInvalidError otherwise.
+
+    Fields which start with $ are excluded from consideration.
+    For fields with dot notation, only the top-level field will be validated.
     """
-    fields_set = set(fields)
+    fields_set = set(f for f in fields if not f.startswith("$"))
+    for field in fields:
+        if "." in field:
+            fields_set.remove(field)
+            fields_set.add(field.split(".")[0])  # Only validate top-level field
+
     existing_fields_set = set(model.model_json_schema()["properties"])
 
     if not fields_set.issubset(existing_fields_set):
