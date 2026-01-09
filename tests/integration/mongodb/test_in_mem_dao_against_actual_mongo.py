@@ -31,6 +31,7 @@ from hexkit.providers.mongodb.testutils import (
     mongodb_fixture,  # noqa: F401
 )
 from hexkit.providers.testing import new_mock_dao_class
+from hexkit.providers.testing.dao import BaseInMemDao
 from hexkit.utils import now_utc_ms_prec
 
 pytestmark = pytest.mark.asyncio()
@@ -110,7 +111,7 @@ ITEMS_COLL_NAME = "items"
 
 
 @pytest_asyncio.fixture(name="mock_category_dao")
-async def populated_category_dao():
+async def populated_category_dao() -> BaseInMemDao[InventoryCategory]:
     """Provides a populated InMemDao for InventoryCategory objects"""
     dao = MockCategoryDaoClass()
     await dao.insert(PRODUCE)
@@ -119,7 +120,7 @@ async def populated_category_dao():
 
 
 @pytest_asyncio.fixture(name="mock_item_dao")
-async def populated_item_dao():
+async def populated_item_dao() -> BaseInMemDao[InventoryItem]:
     """Provides a populated InMemDao for InventoryItem objects"""
     dao = MockItemDaoClass()
     await dao.insert(APPLES)
@@ -133,7 +134,7 @@ async def populated_item_dao():
 @pytest_asyncio.fixture(name="real_category_dao")
 async def populated_real_category_dao(
     mongodb: MongoDbFixture,
-) -> AsyncGenerator[InventoryCategoryDao]:
+) -> AsyncGenerator[Dao[InventoryCategory]]:
     """Provides a ready-to-use synchronous db with test data inserted"""
     async with MongoDbDaoFactory.construct(config=mongodb.config) as dao_factory:
         dao = await dao_factory.get_dao(
@@ -149,7 +150,7 @@ async def populated_real_category_dao(
 @pytest_asyncio.fixture(name="real_item_dao")
 async def populated_real_item_dao(
     mongodb: MongoDbFixture,
-) -> AsyncGenerator[InventoryItemDao]:
+) -> AsyncGenerator[Dao[InventoryItem]]:
     """Provides a ready-to-use InventoryItem DAO with test data inserted"""
     async with MongoDbDaoFactory.construct(config=mongodb.config) as dao_factory:
         dao = await dao_factory.get_dao(
@@ -165,16 +166,57 @@ async def populated_real_item_dao(
 @pytest.mark.parametrize(
     "mapping, results",
     [
-        (
+        pytest.param(
             {"top_item.other_data.sold_last_week": {"$exists": True}},
             ["bike parts", "produce"],
+            id="ExistsOnNestedField",
         ),
-        (
+        pytest.param(
             {"top_item": {"$exists": True}},
             ["bike parts", "produce"],
+            id="ExistsTopLevelField",
+        ),
+        pytest.param(
+            {"top_item.count": {"$gte": 100}},
+            ["bike parts", "produce"],
+            id="GteOnNestedField",
+        ),
+        pytest.param(
+            {"top_item.count": {"$lte": 101, "$gte": 100}},
+            ["produce"],
+            id="RangeQueryWithGteAndLte",
+        ),
+        pytest.param(
+            {"top_item.other_data.sold_last_week": {"$nin": [25, 30, 40]}},
+            ["bike parts"],
+            id="NinOperator",
+        ),
+        pytest.param(
+            {
+                "$and": [
+                    {"top_item.count": {"$gt": 50}},
+                    {"top_item.count": {"$lt": 200}},
+                ]
+            },
+            ["produce"],
+            id="AndOperator",
+        ),
+        pytest.param(
+            {
+                "$nor": [
+                    {"top_item.count": {"$lt": 100}},
+                    {"top_item.count": {"$gt": 300}},
+                ]
+            },
+            ["bike parts", "produce"],
+            id="NorOperator",
+        ),
+        pytest.param(
+            {"top_item.count": {"$not": {"$lt": 150}}},
+            ["bike parts"],
+            id="NotOperator",
         ),
     ],
-    ids=["ExistsOnNestedField", "ExistsTopLevelField"],
 )
 async def test_with_category_dao(
     real_category_dao, mock_category_dao, mapping: Mapping[str, Any], results: list[str]
@@ -191,16 +233,68 @@ async def test_with_category_dao(
 @pytest.mark.parametrize(
     "mapping, results",
     [
-        ({"count": {"$lt": 200, "$ne": 7}}, ["apples", "celery"]),
-        (
+        pytest.param(
+            {"count": {"$lt": 200, "$ne": 7}},
+            ["apples", "celery"],
+            id="OneFieldMultipleOps",
+        ),
+        pytest.param(
             {
                 "$or": [{"count": {"$gt": 200}}, {"count": {"$eq": 7}}],
                 "title": {"$in": ["chain", "broccoli", "apples"]},
             },
             ["broccoli", "chain"],
+            id="MultipleFieldsMultipleOps",
+        ),
+        pytest.param(
+            {"other_data.next_restock": {"$gte": DATE1, "$lte": DATE2}},
+            ["apples", "broccoli", "celery"],
+            id="RangeQueryOnDateField",
+        ),
+        pytest.param(
+            {
+                "$and": [
+                    {"count": {"$gte": 40}},
+                    {"other_data.sold_last_week": {"$lt": 50}},
+                ]
+            },
+            ["apples", "brake pads", "celery"],
+            id="AndOperatorComplex",
+        ),
+        pytest.param(
+            {
+                "$nor": [
+                    {"count": {"$lt": 50}},
+                    {"count": {"$gt": 400}},
+                ]
+            },
+            ["apples", "brake pads"],
+            id="NorOperatorComplex",
+        ),
+        pytest.param(
+            {"count": {"$not": {"$gte": 100}}},
+            ["broccoli", "celery"],
+            id="NotOperatorSimple",
+        ),
+        pytest.param(
+            {
+                "$or": [
+                    {"$and": [{"count": {"$gte": 100}}, {"count": {"$lte": 300}}]},
+                    {"other_data.sold_last_week": {"$eq": 55}},
+                ]
+            },
+            ["apples", "brake pads", "chain"],
+            id="NestedLogicalOperators",
+        ),
+        pytest.param(
+            {
+                "other_data.next_restock": {"$eq": DATE1},
+                "count": {"$ne": 7},
+            },
+            ["apples"],
+            id="DateEqualityWithNe",
         ),
     ],
-    ids=["OneFieldMultipleOps", "MultipleFieldsMultipleOps"],
 )
 async def test_with_item_dao(
     real_item_dao, mock_item_dao, mapping: Mapping[str, Any], results: list[str]
@@ -215,10 +309,17 @@ async def test_with_item_dao(
 @pytest.mark.parametrize(
     "mapping, results",
     [
-        ({"top_item.other_data": APPLES.other_data.model_dump()}, ["produce"]),
-        ({"title.notreal": None}, ["bike parts", "produce"]),
+        pytest.param(
+            {"top_item.other_data": APPLES.other_data.model_dump()},
+            ["produce"],
+            id="SimpleNest",
+        ),
+        pytest.param(
+            {"title.notreal": None},
+            ["bike parts", "produce"],
+            id="MatchNonExistentField",
+        ),
     ],
-    ids=["SimpleNest", "MatchNonExistentField"],
 )
 async def test_also_on_non_mql(
     real_category_dao, mock_category_dao, mapping: Mapping[str, Any], results: list[str]
