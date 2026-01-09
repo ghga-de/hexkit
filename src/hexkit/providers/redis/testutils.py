@@ -23,6 +23,7 @@ from collections.abc import Generator
 from dataclasses import dataclass
 
 import pytest
+from pydantic import RedisDsn, Secret
 from redis import Redis
 from testcontainers.redis import RedisContainer
 
@@ -73,7 +74,7 @@ def _redis_container_fixture() -> Generator[RedisContainerFixture, None, None]:
         port = conn_kwargs["port"]
         db = conn_kwargs.get("db", 0)
         redis_url = f"redis://{host}:{port}/{db}"
-        redis_config = RedisConfig(redis_url=redis_url)
+        redis_config = RedisConfig(redis_url=Secret(RedisDsn(redis_url)))
         redis_container.redis_config = redis_config
         yield redis_container
 

@@ -513,7 +513,7 @@ async def test_json_whitebox_storage(redis: RedisFixture):
     async with RedisJsonKeyValueStore.construct(config=redis.config) as store:
         payload: JsonObject = {"foo": True, "bar": False}
         await store.set("whitebox", payload)
-        raw = redis.client.get("whitebox")
+        raw: bytes | None = redis.client.get("whitebox")  # type: ignore[assignment]
         assert raw is not None
         assert json.loads(raw.decode("utf-8")) == payload
         assert await store.get("whitebox") == payload
@@ -526,7 +526,7 @@ async def test_dto_whitebox_storage(redis: RedisFixture):
     ) as store:
         dto = SimpleDto(name="white", value=99)
         await store.set("box", dto)
-        raw = redis.client.get("dto:box")
+        raw: bytes | None = redis.client.get("dto:box")  # type: ignore[assignment]
         assert raw is not None
         assert json.loads(raw.decode("utf-8")) == dto.model_dump()
         assert await store.get("box") == dto
