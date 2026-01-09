@@ -499,3 +499,10 @@ def test_build_predicates_complex():
     ]
 
     assert build_predicates(mapping) == expected_predicates
+
+
+def test_fields_with_dollar_sign():
+    """Verify that using a field name that starts with a dollar sign produces an error."""
+    mapping = {"$bogus": 8}
+    with pytest.raises(MQLError):
+        _ = build_predicates(mapping)

@@ -35,33 +35,6 @@ __all__ = ["SUPPORTED_MQL_OPERATORS", "MockDAOEmptyError", "new_mock_dao_class"]
 
 DTO = TypeVar("DTO", bound=BaseModel)
 
-UNSUPPORTED_MQL_OPERATORS: set[str] = {
-    "$all",
-    "$elemMatch",
-    "$size",
-    "$bitsAllClear",
-    "$bitsAllSet",
-    "$bitsAnyClear",
-    "$bitsAnySet",
-    "$type",
-    "$box",
-    "$center",
-    "$centerSphere",
-    "$geoIntersects",
-    "$geometry",
-    "$geoWithin",
-    "$maxDistance",
-    "$minDistance",
-    "$near",
-    "$nearSphere",
-    "$polygon",
-    "$expr",
-    "$jsonSchema",
-    "$mod",
-    "$regex",
-    "$where",
-}
-
 MQL_COMPARISON_OPERATORS: dict[str, Callable[[Any, Any], bool]] = {
     "$eq": lambda a, b: a == b,
     "$gt": lambda a, b: a > b,
@@ -278,9 +251,6 @@ def _build_mql_predicate(*, op: str, field: str | None, mapping: Any) -> Predica
 
     Raises an MQLError if there is a problem with the operands or structure.
     """
-    if op in UNSUPPORTED_MQL_OPERATORS:
-        raise MQLError(f"The {op} operator is not supported for use with the InMemDao.")
-
     if not field and (
         op in set(MQL_COMPARISON_OPERATORS) | set(MQL_DATA_TYPE_OPERATORS) | {"$not"}
     ):
@@ -302,7 +272,7 @@ def _build_mql_predicate(*, op: str, field: str | None, mapping: Any) -> Predica
             )
         return DataTypePredicate(op=op, field=field, target_value=mapping)  # type: ignore
     else:
-        raise MQLError(f"Called _build_mql_predicate() but {op} didn't match anything.")
+        raise MQLError(f"The {op} operator is not supported for use with the InMemDao.")
 
 
 def build_predicates(mapping: Mapping[str, Any]) -> list[Predicate]:
@@ -310,7 +280,7 @@ def build_predicates(mapping: Mapping[str, Any]) -> list[Predicate]:
     predicates: list[Predicate] = []
     for key, value in mapping.items():
         # If the key is an operator (likely $and, $not, or $or), build predicate
-        if (op := key.lower()) in SUPPORTED_MQL_OPERATORS:
+        if (op := key.lower()).startswith("$"):
             predicates.append(_build_mql_predicate(op=op, field=None, mapping=value))
         # If it's not a dict OR it's a dict but none of the keys are MQL operators,
         #  assume that this k-v pair says field 'key' needs to equal the object 'value'
