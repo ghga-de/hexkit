@@ -198,12 +198,12 @@ async def test_mql_comparison_ops(mapping: dict[str, Any], expected: list[str]):
     assert results == expected
 
 
-def test_build_predicates_empty_mapping():
+async def test_build_predicates_empty_mapping():
     """Verify that running build_predicates() on an empty dict returns an empty list"""
     assert build_predicates(dict()) == []
 
 
-def test_basic_nesting():
+async def test_basic_nesting():
     """Verify nesting interpretation in predicate building"""
     mapping = {
         "field1": {"$eq": {"fieldX": 123}},
@@ -234,7 +234,7 @@ def test_basic_nesting():
 
 
 @pytest.mark.parametrize("op", ["$eq", "$ne"])
-def test_eq_ne(op: str):
+async def test_eq_ne(op: str):
     """Test the $eq and $ne operators in predicate building"""
     # Standard, proper usage
     for value in [17, False, ["foo", "bar"], {}, {"$gt": "y"}, b"baz", None]:
@@ -250,7 +250,7 @@ def test_eq_ne(op: str):
 
 
 @pytest.mark.parametrize("op", ["$gt", "$lt", "$gte", "$lte"])
-def test_gt_lt_gte_lte(op: str):
+async def test_gt_lt_gte_lte(op: str):
     """Test the $gt, $lt, $gte, and $lte operators in predicate building"""
     mapping = {"count": {op: 0}}
     expected_predicates = [ComparisonPredicate(op=op, field="count", target_value=0)]
@@ -258,7 +258,7 @@ def test_gt_lt_gte_lte(op: str):
 
 
 @pytest.mark.parametrize("op", ["$in", "$nin"])
-def test_in_nin(op: str):
+async def test_in_nin(op: str):
     """Test the $in and $nin operators in predicate building"""
     # Standard, proper usage, including empty values
     arrays = [[1, 2, 3], (1, 2, 3), [], ()]
@@ -278,7 +278,7 @@ def test_in_nin(op: str):
         _ = build_predicates({op: {"age": [32, 66, 83]}})
 
 
-def test_exists():
+async def test_exists():
     """Test the $exists operator in predicate building"""
     for value in [True, False]:
         mapping = {"new_field": {"$exists": value}}
@@ -297,7 +297,7 @@ def test_exists():
 
 
 @pytest.mark.parametrize("op", ["$and", "$nor", "$or"])
-def test_and(op: str):
+async def test_and(op: str):
     """Test the $and operator"""
     # Standard, proper usage
     mapping: dict[str, Any] = {
@@ -348,7 +348,7 @@ def test_and(op: str):
     build_predicates(mapping)
 
 
-def test_not():
+async def test_not():
     """Test the $not operator"""
     mapping: dict[str, Any] = {"field1": {"$not": {"$eq": 0}}}
     expected_predicates = [
@@ -402,7 +402,7 @@ def test_not():
     ]
 
 
-def test_build_predicates_complex():
+async def test_build_predicates_complex():
     """Test query predicate parsing for a mapping that uses nested logical operators"""
     mapping: dict[str, Any] = {
         "$and": [
@@ -479,7 +479,7 @@ def test_build_predicates_complex():
     ]
 
 
-def test_fields_with_dollar_sign():
+async def test_fields_with_dollar_sign():
     """Verify that using a field name that starts with a dollar sign produces an error."""
     mapping = {"$bogus": 8}
     with pytest.raises(MQLError):
