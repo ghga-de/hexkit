@@ -15,11 +15,10 @@
 
 """A mock (in-memory) DAO"""
 
-from abc import ABC, abstractmethod
 from collections.abc import AsyncIterator, Callable, Mapping
 from contextlib import suppress
 from copy import deepcopy
-from typing import Any, Generic, TypeVar
+from typing import Any, Generic, Protocol, TypeVar
 from unittest.mock import AsyncMock, Mock
 
 from pydantic import BaseModel
@@ -92,8 +91,7 @@ SUPPORTED_MQL_OPERATORS = (
 )
 
 
-class Predicate(ABC):
-    @abstractmethod
+class Predicate(Protocol):
     def evaluate(self, resource: dict[str, Any]) -> bool:
         """Determine if the supplied dict value satisfies the predicate."""
         ...
@@ -121,7 +119,10 @@ class ComparisonPredicate(Predicate):
         self._target_value = target_value
 
     def __repr__(self) -> str:
-        return f"ComparisonPredicate(op='{self._op}',field='{self._field}',target_value={self._target_value!s})"
+        return (
+            f"{self.__class__.__name__}(op='{self._op}',field='{self._field}'"
+            + f",target_value={self._target_value!s})"
+        )
 
     def __eq__(self, other) -> bool:
         """Two ComparisonPredicates are equivalent if they share the same operator,
@@ -186,7 +187,9 @@ class LogicalPredicate(Predicate):
         self._conditions = conditions
 
     def __repr__(self) -> str:
-        return f"LogicalPredicate(op='{self._op}',conditions={self._conditions})"
+        return (
+            f"{self.__class__.__name__}(op='{self._op}',conditions={self._conditions})"
+        )
 
     def __eq__(self, other) -> bool:
         """Two LogicalPredicates are equivalent if they share the same operator and
@@ -250,7 +253,10 @@ class DataTypePredicate(Predicate):
         self._target_value = target_value
 
     def __repr__(self) -> str:
-        return f"DataTypePredicate(op='{self._op}',field='{self._field}',target_value={self._target_value!s})"
+        return (
+            f"{self.__class__.__name__}(op='{self._op}',field='{self._field}'"
+            + f",target_value={self._target_value!s})"
+        )
 
     def __eq__(self, other) -> bool:
         """Two DataTypePredicates are the same if they have the same operator, field
