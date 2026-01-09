@@ -30,10 +30,16 @@ from hexkit.protocols.dao import (
     ResourceAlreadyExistsError,
     ResourceNotFoundError,
 )
+from hexkit.providers.mongodb.provider import (
+    document_to_dto,
+    dto_to_document,
+    replace_id_field_in_find_mapping,
+)
 
 __all__ = ["SUPPORTED_MQL_OPERATORS", "MockDAOEmptyError", "new_mock_dao_class"]
 
 DTO = TypeVar("DTO", bound=BaseModel)
+Document = dict[str, Any]
 
 MQL_COMPARISON_OPERATORS: dict[str, Callable[[Any, Any], bool]] = {
     "$eq": lambda a, b: a == b,
@@ -62,6 +68,22 @@ SUPPORTED_MQL_OPERATORS = (
     | set(MQL_LOGICAL_OPERATORS)
     | set(MQL_DATA_TYPE_OPERATORS)
 )
+
+
+def _get_nested_value(resource: Document, field_path: str) -> Any:
+    """Get a nested value from a resource using dot notation."""
+    keys = field_path.split(".")
+    if not all(keys):
+        raise KeyError(f"Query key {field_path} uses improper dot notation")
+
+    value: Document | None = resource
+    for key in keys:
+        if value is not None:
+            try:
+                value = value.get(key)
+            except (KeyError, AttributeError):
+                value = None
+    return value
 
 
 class Predicate(Protocol):
@@ -131,14 +153,7 @@ class ComparisonPredicate(Predicate):
 
         Dot notation is recognized and used to located the correct value.
         """
-        keys = self._field.split(".")
-        if not (keys and all(keys)):
-            raise MQLError(f"Empty field name or invalid dot notation: {self._field}")
-
-        # Iterate over the keys, drilling into the object structure
-        value: Any = resource
-        for key in keys:
-            value = value.get(key)
+        value = _get_nested_value(resource, self._field)
 
         # Perform comparison on final value
         return self._fn(value, self._target_value)
@@ -261,7 +276,12 @@ class DataTypePredicate(Predicate):
         )
 
     def evaluate(self, resource: dict[str, Any]) -> bool:
-        return self._fn(self._field, resource) == self._target_value
+        if "." in self._field:
+            path = self._field.rsplit(".", 1)
+            value = _get_nested_value(resource, path[0])
+            return self._fn(path[1], value) == self._target_value
+        else:
+            return self._fn(self._field, resource) == self._target_value
 
 
 def _build_mql_predicate(*, op: str, field: str | None, mapping: Any) -> Predicate:
@@ -321,12 +341,14 @@ class BaseInMemDao(Generic[DTO]):
 
     _id_field: str
     _handle_mql: bool
+    _serialize: Callable
+    _deserialize: Callable
     publish_pending = AsyncMock()
     republish = AsyncMock()
     with_transaction = Mock()
 
     def __init__(self) -> None:
-        self.resources: dict[ID, DTO] = {}
+        self.resources: dict[ID, Document] = {}
 
     @property
     def latest(self) -> DTO:
@@ -335,7 +357,7 @@ class BaseInMemDao(Generic[DTO]):
         Raises a MockDAOEmptyError if there are no resources stored.
         """
         try:
-            return deepcopy(next(reversed(self.resources.values())))
+            return self._deserialize(next(reversed(self.resources.values())))
         except StopIteration as err:
             raise MockDAOEmptyError() from err
 
@@ -345,7 +367,7 @@ class BaseInMemDao(Generic[DTO]):
         Raises a ResourceNotFoundError if no resource with a matching ID is found.
         """
         with suppress(KeyError):
-            return deepcopy(self.resources[id_])
+            return self._deserialize(self.resources[id_])
         raise ResourceNotFoundError(id_=id_)
 
     async def find_one(self, *, mapping: Mapping[str, Any]) -> DTO:
@@ -371,12 +393,24 @@ class BaseInMemDao(Generic[DTO]):
 
     async def find_all(self, *, mapping: Mapping[str, Any]) -> AsyncIterator[DTO]:
         """Find all resources that match the specified mapping."""
+        if "" in mapping:
+            raise KeyError("Query mappings can't contain empty-string keys")
+
+        _mapping = replace_id_field_in_find_mapping(mapping, self._id_field)
+        predicates = build_predicates(_mapping) if self._handle_mql else []
+
         for resource in self.resources.values():
-            if self._handle_mql and (predicates := build_predicates(mapping)):
-                if all(p.evaluate(resource=resource.model_dump()) for p in predicates):
-                    yield deepcopy(resource)
-            elif all(getattr(resource, k) == v for k, v in mapping.items()):
-                yield deepcopy(resource)
+            if self._handle_mql:
+                matches = all(p.evaluate(resource=resource) for p in predicates)
+            else:
+                matches = True
+                for key, expected_value in mapping.items():
+                    actual_value = _get_nested_value(resource, key)
+                    if actual_value != expected_value:
+                        matches = False
+                        break
+            if matches:
+                yield self._deserialize(resource)
 
     async def insert(self, dto: DTO) -> None:
         """Insert a resource.
@@ -386,7 +420,7 @@ class BaseInMemDao(Generic[DTO]):
         dto_id = getattr(dto, self._id_field)
         if dto_id in self.resources:
             raise ResourceAlreadyExistsError(id_=dto_id)
-        self.resources[dto_id] = deepcopy(dto)
+        self.resources[dto_id] = self._serialize(dto)
 
     async def update(self, dto: DTO) -> None:
         """Update a resource.
@@ -396,7 +430,7 @@ class BaseInMemDao(Generic[DTO]):
         dto_id = getattr(dto, self._id_field)
         if dto_id not in self.resources:
             raise ResourceNotFoundError(id_=getattr(dto, self._id_field))
-        self.resources[dto_id] = deepcopy(dto)
+        self.resources[dto_id] = self._serialize(dto)
 
     async def delete(self, id_: ID) -> None:
         """Delete a resource by ID.
@@ -410,7 +444,7 @@ class BaseInMemDao(Generic[DTO]):
     async def upsert(self, dto: DTO) -> None:
         """Upsert a resource."""
         dto_id = getattr(dto, self._id_field)
-        self.resources[dto_id] = deepcopy(dto)
+        self.resources[dto_id] = self._serialize(dto)
 
 
 def new_mock_dao_class(
@@ -429,5 +463,13 @@ def new_mock_dao_class(
 
         _id_field: str = id_field
         _handle_mql: bool = handle_mql
+
+        def _serialize(self, dto: DTO) -> Document:
+            return dto_to_document(dto, id_field=id_field)
+
+        def _deserialize(self, document: Document) -> DTO:
+            return document_to_dto(
+                deepcopy(document), id_field=id_field, dto_model=dto_model
+            )
 
     return MockDao
