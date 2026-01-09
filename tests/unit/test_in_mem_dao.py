@@ -171,7 +171,20 @@ async def test_get_by_id():
     assert this_pumpkin.model_dump() == that_pumpkin.model_dump()
 
 
-async def test_mql_comparison_ops():
+@pytest.mark.parametrize(
+    "mapping,expected",
+    [
+        ({"title": {"$eq": "Brick"}}, ["Brick"]),
+        ({"count": {"$gt": 1}}, ["Shovel", "Tophat"]),
+        ({"count": {"$gte": 1}}, ["Brick", "Shovel", "Tophat"]),
+        ({"title": {"$in": ["Brick", "Shovel"]}}, ["Brick", "Shovel"]),
+        ({"count": {"$lt": 3}}, ["Brick", "Shovel"]),
+        ({"count": {"$lte": 3}}, ["Brick", "Shovel", "Tophat"]),
+        ({"title": {"$ne": "Tophat"}}, ["Brick", "Shovel"]),
+        ({"title": {"$nin": ["This", "is", "my", "Tophat"]}}, ["Brick", "Shovel"]),
+    ],
+)
+async def test_mql_comparison_ops(mapping: dict[str, Any], expected: list[str]):
     """Test the different MQL comparison operators"""
     dao = DaoClass()
     brick = InventoryItem(title="Brick", count=1)
@@ -181,37 +194,8 @@ async def test_mql_comparison_ops():
     await dao.insert(shovel)
     await dao.insert(tophat)
 
-    mapping: dict[str, Any] = {"title": {"$eq": "Brick"}}
-    results = [x.title async for x in dao.find_all(mapping=mapping)]
-    assert results == ["Brick"]
-
-    mapping = {"count": {"$gt": 1}}
     results = sorted([x.title async for x in dao.find_all(mapping=mapping)])
-    assert results == ["Shovel", "Tophat"]
-
-    mapping = {"count": {"$gte": 1}}
-    results = sorted([x.title async for x in dao.find_all(mapping=mapping)])
-    assert results == ["Brick", "Shovel", "Tophat"]
-
-    mapping = {"title": {"$in": ["Brick", "Shovel"]}}
-    results = sorted([x.title async for x in dao.find_all(mapping=mapping)])
-    assert results == ["Brick", "Shovel"]
-
-    mapping = {"count": {"$lt": 3}}
-    results = sorted([x.title async for x in dao.find_all(mapping=mapping)])
-    assert results == ["Brick", "Shovel"]
-
-    mapping = {"count": {"$lte": 3}}
-    results = sorted([x.title async for x in dao.find_all(mapping=mapping)])
-    assert results == ["Brick", "Shovel", "Tophat"]
-
-    mapping = {"title": {"$ne": "Tophat"}}
-    results = sorted([x.title async for x in dao.find_all(mapping=mapping)])
-    assert results == ["Brick", "Shovel"]
-
-    mapping = {"title": {"$nin": "This is my Tophat".split()}}
-    results = sorted([x.title async for x in dao.find_all(mapping=mapping)])
-    assert results == ["Brick", "Shovel"]
+    assert results == expected
 
 
 def test_build_predicates_empty_mapping():
