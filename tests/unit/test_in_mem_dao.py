@@ -323,18 +323,16 @@ def test_and(op: str):
         ]
     }
     expected_predicates: list[Predicate] = [
-        LogicalPredicate(
-            op=op,
-            conditions=[
-                ComparisonPredicate(op="$gt", field="field1", target_value=9001),
-                ComparisonPredicate(
-                    op="$eq", field="field2", target_value=["some", "list", "values"]
-                ),
-            ],
-        )
+        LogicalPredicate(op=op, field=None, mapping=mapping[op])
     ]
-    result = build_predicates(mapping)
-    assert result == expected_predicates
+    results = build_predicates(mapping)
+    assert results == expected_predicates
+    assert results[0]._conditions == [  # type: ignore
+        ComparisonPredicate(op="$gt", field="field1", target_value=9001),
+        ComparisonPredicate(
+            op="$eq", field="field2", target_value=["some", "list", "values"]
+        ),
+    ]
 
     # Empty list
     with pytest.raises(MQLError):
@@ -349,14 +347,13 @@ def test_and(op: str):
         _ = build_predicates({"field1": {op: [{"$lt": 99}]}})
 
     # Only one condition
-    expected_predicates = [
-        LogicalPredicate(
-            op=op,
-            conditions=[ComparisonPredicate(op="$eq", field="field", target_value=1)],
-        )
-    ]
     mapping = {op: [{"field": {"$eq": 1}}]}
-    assert build_predicates(mapping) == expected_predicates
+    expected_predicates = [LogicalPredicate(op=op, field=None, mapping=mapping[op])]
+    results = build_predicates(mapping)
+    assert results == expected_predicates
+    assert results[0]._conditions == [  # type: ignore
+        ComparisonPredicate(op="$eq", field="field", target_value=1)
+    ]
 
     # Demonstration of implicit $and (produces list of ComparisonPredicate)
     mapping = {"count": {"$gt": 1, "$lt": 10}}
@@ -371,13 +368,13 @@ def test_not():
     """Test the $not operator"""
     mapping: dict[str, Any] = {"field1": {"$not": {"$eq": 0}}}
     expected_predicates = [
-        LogicalPredicate(
-            op="$not",
-            conditions=[ComparisonPredicate(op="$eq", field="field1", target_value=0)],
-        )
+        LogicalPredicate(op="$not", field="field1", mapping={"$eq": 0})
     ]
-    assert build_predicates(mapping) == expected_predicates
-
+    results = build_predicates(mapping)
+    assert results == expected_predicates
+    assert results[0]._conditions == [  # type: ignore
+        ComparisonPredicate(op="$eq", field="field1", target_value=0)
+    ]
     # Does not contain an expression
     with pytest.raises(MQLError):
         _ = build_predicates({"field2": {"$not": {}}})
@@ -408,30 +405,22 @@ def test_not():
     mapping = {"verdict": {"$not": {"$not": {"$not": {"$ne": "guilty"}}}}}
     expected_predicates = [
         LogicalPredicate(
-            op="$not",
-            conditions=[
-                LogicalPredicate(
-                    op="$not",
-                    conditions=[
-                        LogicalPredicate(
-                            op="$not",
-                            conditions=[
-                                ComparisonPredicate(
-                                    op="$ne", field="verdict", target_value="guilty"
-                                )
-                            ],
-                        )
-                    ],
-                )
-            ],
+            op="$not", field="verdict", mapping={"$not": {"$not": {"$ne": "guilty"}}}
         )
     ]
-    assert build_predicates(mapping) == expected_predicates
+
+    results = build_predicates(mapping)
+    assert results == expected_predicates
+    assert isinstance(results[0]._conditions[0], LogicalPredicate)  # type: ignore
+    assert isinstance(results[0]._conditions[0]._conditions[0], LogicalPredicate)  # type: ignore
+    assert results[0]._conditions[0]._conditions[0]._conditions == [  # type: ignore
+        ComparisonPredicate(op="$ne", field="verdict", target_value="guilty")
+    ]
 
 
 def test_build_predicates_complex():
     """Test query predicate parsing for a mapping that uses nested logical operators"""
-    mapping = {
+    mapping: dict[str, Any] = {
         "$and": [
             {"count": {"$exists": True}},
             {
@@ -456,49 +445,54 @@ def test_build_predicates_complex():
         "data": {"some_bool": True},
     }
     expected_predicates = [
-        LogicalPredicate(
-            op="$and",
-            conditions=[
-                DataTypePredicate(op="$exists", field="count", target_value=True),
-                LogicalPredicate(
-                    op="$or",
-                    conditions=[
-                        ComparisonPredicate(
-                            op="$in", field="count", target_value=[11, 17, 81]
-                        ),
-                        ComparisonPredicate(op="$eq", field="count", target_value=-1),
-                        ComparisonPredicate(op="$eq", field="count", target_value=-24),
-                        ComparisonPredicate(op="$gt", field="count", target_value=100),
-                    ],
-                ),
-                LogicalPredicate(
-                    op="$not",
-                    conditions=[
-                        ComparisonPredicate(op="$gt", field="count", target_value=150)
-                    ],
-                ),
-                LogicalPredicate(
-                    op="$nor",
-                    conditions=[
-                        ComparisonPredicate(
-                            op="$eq", field="animal", target_value="sheep"
-                        ),
-                        DataTypePredicate(
-                            op="$exists", field="animal", target_value=False
-                        ),
-                        ComparisonPredicate(op="$gt", field="age", target_value=5),
-                        ComparisonPredicate(op="$lt", field="age", target_value=10),
-                        ComparisonPredicate(
-                            op="$eq", field="some_dict", target_value={"k": "v"}
-                        ),
-                    ],
-                ),
-            ],
-        ),
+        LogicalPredicate(op="$and", field=None, mapping=mapping["$and"]),
         ComparisonPredicate(op="$eq", field="data", target_value={"some_bool": True}),
     ]
 
-    assert build_predicates(mapping) == expected_predicates
+    results = build_predicates(mapping)
+    assert results == expected_predicates
+
+    # Verify the $and operator's conditions
+    and_predicate = results[0]
+    assert len(and_predicate._conditions) == 4  # type: ignore
+
+    # First condition: {"count": {"$exists": True}}
+    assert and_predicate._conditions[0] == DataTypePredicate(  # type: ignore
+        op="$exists", field="count", target_value=True
+    )
+
+    # Second condition: $or operator
+    or_predicate = and_predicate._conditions[1]  # type: ignore
+    assert isinstance(or_predicate, LogicalPredicate)
+    assert or_predicate._op == "$or"
+    assert len(or_predicate._conditions) == 4
+    assert or_predicate._conditions == [
+        ComparisonPredicate(op="$in", field="count", target_value=[11, 17, 81]),
+        ComparisonPredicate(op="$eq", field="count", target_value=-1),
+        ComparisonPredicate(op="$eq", field="count", target_value=-24),
+        ComparisonPredicate(op="$gt", field="count", target_value=100),
+    ]
+
+    # Third condition: $not operator
+    not_predicate = and_predicate._conditions[2]  # type: ignore
+    assert isinstance(not_predicate, LogicalPredicate)
+    assert not_predicate._op == "$not"
+    assert not_predicate._conditions == [
+        ComparisonPredicate(op="$gt", field="count", target_value=150)
+    ]
+
+    # Fourth condition: $nor operator
+    nor_predicate = and_predicate._conditions[3]  # type: ignore
+    assert isinstance(nor_predicate, LogicalPredicate)
+    assert nor_predicate._op == "$nor"
+    assert len(nor_predicate._conditions) == 5
+    assert nor_predicate._conditions == [
+        ComparisonPredicate(op="$eq", field="animal", target_value="sheep"),
+        DataTypePredicate(op="$exists", field="animal", target_value=False),
+        ComparisonPredicate(op="$gt", field="age", target_value=5),
+        ComparisonPredicate(op="$lt", field="age", target_value=10),
+        ComparisonPredicate(op="$eq", field="some_dict", target_value={"k": "v"}),
+    ]
 
 
 def test_fields_with_dollar_sign():

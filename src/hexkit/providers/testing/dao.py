@@ -88,6 +88,24 @@ class ComparisonPredicate(Predicate):
         - target_value is the second operand supplied to the eval function.
         """
         self._op = op
+        try:
+            self._fn = MQL_COMPARISON_OPERATORS[op]
+        except KeyError as err:
+            raise MQLError(
+                f"{op!r} is not a supported Comparison MQL operator"
+            ) from err
+
+        if op in ["$in", "$nin"] and not isinstance(target_value, (list, tuple)):
+            raise MQLError(
+                f"The {op} operator must point to a list or tuple, not {type(target_value)}."
+            )
+
+        if not field:
+            # field was None or "", probably a nesting error. Explain syntax.
+            raise MQLError(
+                f"The correct syntax for the {op!r} operator is "
+                + f"{{<field name>: {{{op!r}: <expression>}}}}"
+            )
         self._field = field
         self._target_value = target_value
 
@@ -123,33 +141,15 @@ class ComparisonPredicate(Predicate):
             value = value.get(key)
 
         # Perform comparison on final value
-        return MQL_COMPARISON_OPERATORS[self._op](value, self._target_value)
-
-
-def _build_comparison_predicate(
-    *, op: str, field: str, value: Any
-) -> ComparisonPredicate:
-    """Construct a ComparisonPredicate for a field.
-
-    Given the query filter mapping `{"fieldXYZ": {"$in": [1, 2, 3]}}`,
-    `op` = "$in", `field` = "fieldXYZ", `value` = [1, 2, 3]
-    """
-    if op in ["$in", "$nin"] and not isinstance(value, (list, tuple)):
-        raise MQLError(
-            f"The {op} operator must point to a list or tuple, not {type(value)}."
-        )
-
-    return ComparisonPredicate(
-        op=op,
-        field=field,
-        target_value=value,
-    )
+        return self._fn(value, self._target_value)
 
 
 class LogicalPredicate(Predicate):
     """A Predicate that handles MQL logical operators"""
 
-    def __init__(self, *, op: str, conditions: list[Predicate]):
+    def __init__(
+        self, *, op: str, field: str | None, mapping: Mapping[str, Any] | list
+    ):
         """Initialize the predicate.
 
         Parameters:
@@ -157,7 +157,36 @@ class LogicalPredicate(Predicate):
         - conditions is a list of Predicates that constitute the logical predicate.
         """
         self._op = op
-        self._conditions = conditions
+        try:
+            self._fn = MQL_LOGICAL_OPERATORS[op]
+        except KeyError as err:
+            raise MQLError(f"{op!r} is not a supported Logical MQL operator") from err
+        self._conditions: list[Predicate] = []
+
+        if op == "$not":
+            if not field:
+                # field was None or "", probably a nesting error. Explain syntax.
+                raise MQLError(
+                    f"The correct syntax for the {op!r} operator is "
+                    + f"{{<field name>: {{{op!r}: <expression>}}}}"
+                )
+            if not isinstance(mapping, dict) or len(mapping) != 1:
+                raise MQLError(
+                    "The $not expects a single dict with a single MQL operator key"
+                )
+            nextop = next(iter(mapping))
+            if nextop in MQL_LOGICAL_OPERATORS and nextop != "$not":
+                raise MQLError("Cannot nest logical operators under a $not operator.")
+            if nextop not in SUPPORTED_MQL_OPERATORS:
+                raise MQLError(
+                    "The $not operator expects a dict with another MQL operator as the key."
+                )
+            self._conditions = build_predicates({field: mapping})
+        else:
+            if not isinstance(mapping, list) or len(mapping) == 0:
+                raise MQLError(f"The {op} operator must be used with a non-empty list.")
+            for condition in mapping:
+                self._conditions.extend(build_predicates(mapping=condition))
 
     def __repr__(self) -> str:
         return (
@@ -178,36 +207,7 @@ class LogicalPredicate(Predicate):
         )
 
     def evaluate(self, resource: dict[str, Any]) -> bool:
-        return MQL_LOGICAL_OPERATORS[self._op](self._conditions, resource)
-
-
-def _build_logical_predicate(
-    *, op: str, field: str | None, mapping: Mapping[str, Any] | list
-) -> LogicalPredicate:
-    """Construct a LogicalPredicate for a field."""
-    if op == "$not":
-        if not isinstance(mapping, dict) or len(mapping) != 1:
-            raise MQLError(
-                "The $not expects a single dict with a single MQL operator key"
-            )
-        nextop = next(iter(mapping))
-        if nextop in MQL_LOGICAL_OPERATORS and nextop != "$not":
-            raise MQLError("Cannot nest logical operators under a $not operator.")
-        if nextop not in SUPPORTED_MQL_OPERATORS:
-            raise MQLError(
-                "The $not operator expects a dict with another MQL operator as the key."
-            )
-        return LogicalPredicate(
-            op="$not",
-            conditions=build_predicates({field: mapping}),  # type: ignore
-        )
-    else:
-        if not isinstance(mapping, list) or len(mapping) == 0:
-            raise MQLError(f"The {op} operator must be used with a non-empty list.")
-        conditions = []
-        for condition in mapping:
-            conditions.extend(build_predicates(mapping=condition))
-    return LogicalPredicate(op=op, conditions=conditions)
+        return self._fn(self._conditions, resource)
 
 
 class DataTypePredicate(Predicate):
@@ -222,6 +222,24 @@ class DataTypePredicate(Predicate):
         - target_value is either True or False
         """
         self._op = op
+        try:
+            self._fn = MQL_DATA_TYPE_OPERATORS[op]
+        except KeyError as err:
+            raise MQLError(f"{op!r} is not a supported Data Type MQL operator") from err
+
+        if not field:
+            # field was None or "", probably a nesting error. Explain syntax.
+            raise MQLError(
+                f"The correct syntax for the {op!r} operator is "
+                + f"{{<field name>: {{{op!r}: <expression>}}}}"
+            )
+
+        if not isinstance(target_value, bool):
+            raise MQLError(
+                "The $exists operator must point to a boolean. It is highly"
+                + " recommend to use an explicit boolean."
+            )
+
         self._field = field
         self._target_value = target_value
 
@@ -243,7 +261,7 @@ class DataTypePredicate(Predicate):
         )
 
     def evaluate(self, resource: dict[str, Any]) -> bool:
-        return self._field in resource
+        return self._fn(self._field, resource) == self._target_value
 
 
 def _build_mql_predicate(*, op: str, field: str | None, mapping: Any) -> Predicate:
@@ -251,25 +269,15 @@ def _build_mql_predicate(*, op: str, field: str | None, mapping: Any) -> Predica
 
     Raises an MQLError if there is a problem with the operands or structure.
     """
-    if not field and (
-        op in set(MQL_COMPARISON_OPERATORS) | set(MQL_DATA_TYPE_OPERATORS) | {"$not"}
-    ):
-        # field was None or "", probably a nesting error. Explain syntax.
-        raise MQLError(
-            f"The correct syntax for the {op!r} operator is "
-            + f"{{<field name>: {{{op!r}: <expression>}}}}"
-        )
-
     if op in MQL_COMPARISON_OPERATORS:
-        return _build_comparison_predicate(op=op, field=field, value=mapping)  # type: ignore
+        return ComparisonPredicate(
+            op=op,
+            field=field,  # type: ignore
+            target_value=mapping,
+        )
     elif op in MQL_LOGICAL_OPERATORS:
-        return _build_logical_predicate(op=op, field=field, mapping=mapping)
+        return LogicalPredicate(op=op, field=field, mapping=mapping)
     elif op in MQL_DATA_TYPE_OPERATORS:
-        if not isinstance(mapping, bool):
-            raise MQLError(
-                "The $exists operator must point to a boolean. It is highly"
-                + " recommend to use an explicit boolean."
-            )
         return DataTypePredicate(op=op, field=field, target_value=mapping)  # type: ignore
     else:
         raise MQLError(f"The {op} operator is not supported for use with the InMemDao.")
