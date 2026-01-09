@@ -1002,6 +1002,7 @@ opentelemetry-api==1.39.1 \
     #   opentelemetry-instrumentation-fastapi
     #   opentelemetry-instrumentation-httpx
     #   opentelemetry-instrumentation-pymongo
+    #   opentelemetry-instrumentation-redis
     #   opentelemetry-propagator-aws-xray
     #   opentelemetry-sdk
     #   opentelemetry-semantic-conventions
@@ -1039,6 +1040,7 @@ opentelemetry-instrumentation==0.60b1 \
     #   opentelemetry-instrumentation-fastapi
     #   opentelemetry-instrumentation-httpx
     #   opentelemetry-instrumentation-pymongo
+    #   opentelemetry-instrumentation-redis
 opentelemetry-instrumentation-aiokafka==0.60b1 \
     --hash=sha256:1a073f1d66b92b8e7f4c7f5bd783efeb0c26b291d4d3dd29f4c54fce884b1f50 \
     --hash=sha256:db06278ae8d415f8fe114b7fc54cf62c8e9e5f73f2e8fa33ffaa9a5bd240ed7e
@@ -1062,6 +1064,10 @@ opentelemetry-instrumentation-httpx==0.60b1 \
 opentelemetry-instrumentation-pymongo==0.60b1 \
     --hash=sha256:179cff51e4b018fa92f6acb7aea1dfc5440364e66561db9d5ca0dc0227e0a6dc \
     --hash=sha256:448f895b981b356dbcce2af0311a1efe9c5a6a65ea3590d85623febea0776aa8
+    # via hexkit (pyproject.toml)
+opentelemetry-instrumentation-redis==0.60b1 \
+    --hash=sha256:33bef0ff9af6f2d88de90c1cd7e25675c10a16d4f9ee5ae7592b28bb08b78139 \
+    --hash=sha256:ecafa8f81c88917b59f0d842fb3d157f3a8edc71fb4b85bebca3bc19432ce7b8
     # via hexkit (pyproject.toml)
 opentelemetry-propagator-aws-xray==1.0.2 \
     --hash=sha256:1c99181ee228e99bddb638a0c911a297fa21f1c3a0af951f841e79919b5f1934 \
@@ -1093,6 +1099,7 @@ opentelemetry-semantic-conventions==0.60b1 \
     #   opentelemetry-instrumentation-fastapi
     #   opentelemetry-instrumentation-httpx
     #   opentelemetry-instrumentation-pymongo
+    #   opentelemetry-instrumentation-redis
     #   opentelemetry-sdk
 opentelemetry-util-http==0.60b1 \
     --hash=sha256:0d97152ca8c8a41ced7172d29d3622a219317f74ae6bb3027cfbdcf22c3cc0d6 \
@@ -1488,6 +1495,12 @@ pyyaml-env-tag==1.1 \
     --hash=sha256:17109e1a528561e32f026364712fee1264bc2ea6715120891174ed1b980d2e04 \
     --hash=sha256:2eb38b75a2d21ee0475d6d97ec19c63287a7e140231e4214969d0eac923cd7ff
     # via mkdocs
+redis==7.1.0 \
+    --hash=sha256:23c52b208f92b56103e17c5d06bdc1a6c2c0b3106583985a76a18f83b265de2b \
+    --hash=sha256:b1cc3cfa5a2cb9c2ab3ba700864fb0ad75617b41f01352ce5779dabf6d5f9c3c
+    # via
+    #   hexkit (pyproject.toml)
+    #   testcontainers
 referencing==0.37.0 \
     --hash=sha256:381329a9f99628c9069361716891d34ad94af76e461dcb0335825aecc7692231 \
     --hash=sha256:44aefc3142c5b842538163acb373e24cce6632bd54bdb01b21ad5863489f50d8
@@ -1916,6 +1929,7 @@ wrapt==1.17.3 \
     # via
     #   opentelemetry-instrumentation
     #   opentelemetry-instrumentation-httpx
+    #   opentelemetry-instrumentation-redis
     #   testcontainers
 zipp==3.23.0 \
     --hash=sha256:071652d6115ed432f5ce1d34c336c0adfd6a884660d1e9712a256d3d3bd4b14e \
