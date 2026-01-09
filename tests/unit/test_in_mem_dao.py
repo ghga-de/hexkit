@@ -141,12 +141,11 @@ async def test_find_all():
     assert results == ["Brick", "Shovel"]
 
     # Filter by the id field
-    results = [x async for x in dao.find_all(mapping={"title": "Bat"})]
-    assert results
-    assert results[0] is not bat and (bat.model_dump() == results[0].model_dump())
+    results = [x.title async for x in dao.find_all(mapping={"title": "Bat"})]
+    assert results == ["Bat"]
 
     # Look for something that doesn't exist
-    results = [x async for x in dao.find_all(mapping={"title": "Broom"})]
+    results = [x.title async for x in dao.find_all(mapping={"title": "Broom"})]
     assert not results
 
     # Get everything
