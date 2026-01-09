@@ -554,7 +554,7 @@ async def test_dto_repr(dto_kvstore: MongoDbDtoKeyValueStore[SimpleDto]):
     assert r.endswith("})")
 
 
-# ===== Whitebox/internals tests =====
+# Whitebox/internals tests
 
 
 async def test_json_whitebox_default_collection(
