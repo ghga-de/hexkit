@@ -22,7 +22,7 @@ from pydantic import BaseModel
 
 from hexkit.correlation import set_new_correlation_id
 from hexkit.protocols.dao import DbTimeoutError
-from hexkit.providers.mongokafka import MongoKafkaConfig
+from hexkit.providers.mongokafka.config import MongoKafkaConfig
 from hexkit.providers.mongokafka.provider import MongoKafkaDaoPublisherFactory
 
 

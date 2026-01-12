@@ -29,11 +29,8 @@ from pymongo.errors import ExecutionTimeout, OperationFailure
 from testcontainers.mongodb import MongoDbContainer
 
 from hexkit.custom_types import PytestScope
-from hexkit.providers.mongodb.provider import (
-    ConfiguredMongoClient,
-    MongoDbConfig,
-    MongoDbDaoFactory,
-)
+from hexkit.providers.mongodb.config import MongoDbConfig
+from hexkit.providers.mongodb.provider import ConfiguredMongoClient, MongoDbDaoFactory
 
 MONGODB_IMAGE = "mongo:8.2.3"
 

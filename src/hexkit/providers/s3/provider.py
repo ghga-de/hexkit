@@ -172,7 +172,7 @@ class S3ObjectStorage(ObjectStorageProtocol):
         )
 
     def __repr__(self) -> str:
-        return f"{self.__class__.__qualname__}(config={repr(self._config)})"
+        return f"{self.__class__.__name__}(config={repr(self._config)})"
 
     @staticmethod
     def _format_s3_error_code(error_code: str):

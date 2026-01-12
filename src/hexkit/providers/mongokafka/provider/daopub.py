@@ -45,7 +45,7 @@ from hexkit.providers.mongodb.provider import (
     translate_pymongo_errors,
     validate_find_mapping,
 )
-from hexkit.providers.mongokafka.provider import MongoKafkaConfig
+from hexkit.providers.mongokafka.config import MongoKafkaConfig
 
 
 class ResourceDeletedError(RuntimeError):
@@ -483,7 +483,7 @@ class MongoKafkaDaoPublisherFactory(DaoPublisherFactoryProtocol):
         self._event_publisher = event_publisher
 
     def __repr__(self) -> str:  # noqa: D105
-        return f"{self.__class__.__qualname__}(config={repr(self._config)})"
+        return f"{self.__class__.__name__}(config={repr(self._config)})"
 
     async def _get_dao(  # noqa: PLR0913
         self,

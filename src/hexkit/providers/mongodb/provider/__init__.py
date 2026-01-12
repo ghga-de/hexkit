@@ -14,28 +14,39 @@
 # limitations under the License.
 #
 
-"""Subpackage containing MongoDB-based providers and related utilities."""
+"""A subpackage containing all MongoDB-specific providers.
 
-from .config import MongoDbConfig
-from .provider import (
-    ConfiguredMongoClient,
-    MongoDbBytesKeyValueStore,
+Require dependencies of the `mongodb` extra.
+"""
+
+from .client import ConfiguredMongoClient
+from .dao import (
     MongoDbDao,
     MongoDbDaoFactory,
+    get_single_hit,
+    replace_id_field_in_find_mapping,
+    validate_find_mapping,
+)
+from .kvstore import (
+    MongoDbBytesKeyValueStore,
     MongoDbDtoKeyValueStore,
     MongoDbJsonKeyValueStore,
     MongoDbStrKeyValueStore,
-    translate_pymongo_errors,
 )
+from .utils import document_to_dto, dto_to_document, translate_pymongo_errors
 
 __all__ = [
     "ConfiguredMongoClient",
     "MongoDbBytesKeyValueStore",
-    "MongoDbConfig",
     "MongoDbDao",
     "MongoDbDaoFactory",
     "MongoDbDtoKeyValueStore",
     "MongoDbJsonKeyValueStore",
     "MongoDbStrKeyValueStore",
+    "document_to_dto",
+    "dto_to_document",
+    "get_single_hit",
+    "replace_id_field_in_find_mapping",
     "translate_pymongo_errors",
+    "validate_find_mapping",
 ]

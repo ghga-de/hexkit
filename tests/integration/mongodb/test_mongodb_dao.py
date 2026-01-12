@@ -14,7 +14,7 @@
 # limitations under the License.
 #
 
-"""Test MongoDB-based providers."""
+"""Test the MongoDB-based DAO factory provider."""
 
 import uuid
 from datetime import datetime

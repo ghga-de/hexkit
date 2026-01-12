@@ -20,22 +20,18 @@ Utilities for testing are located in `./testutils.py`.
 """
 
 from collections.abc import AsyncIterator, Callable, Collection, Mapping
-from contextlib import AbstractAsyncContextManager, asynccontextmanager, contextmanager
+from contextlib import AbstractAsyncContextManager, asynccontextmanager
 from functools import partial
-from typing import Any, Generic, TypeVar
+from typing import Any, Generic
 
-from pydantic import Field, MongoDsn, PositiveInt, Secret
-from pydantic_settings import BaseSettings
-from pymongo import AsyncMongoClient, MongoClient
+from pymongo import AsyncMongoClient
 from pymongo.asynchronous.collection import AsyncCollection
-from pymongo.errors import DuplicateKeyError, PyMongoError
+from pymongo.errors import DuplicateKeyError
 
 from hexkit.custom_types import ID
 from hexkit.protocols.dao import (
     Dao,
-    DaoError,
     DaoFactoryProtocol,
-    DbTimeoutError,
     Dto,
     InvalidFindMappingError,
     MultipleHitsFoundError,
@@ -43,53 +39,22 @@ from hexkit.protocols.dao import (
     ResourceAlreadyExistsError,
     ResourceNotFoundError,
 )
+from hexkit.providers.mongodb.config import MongoDbConfig
+from hexkit.providers.mongodb.provider.client import ConfiguredMongoClient
+from hexkit.providers.mongodb.provider.utils import (
+    document_to_dto,
+    dto_to_document,
+    translate_pymongo_errors,
+)
 from hexkit.utils import FieldNotInModelError, validate_fields_in_model
 
 __all__ = [
-    "ConfiguredMongoClient",
-    "MongoDbConfig",
     "MongoDbDao",
     "MongoDbDaoFactory",
-    "translate_pymongo_errors",
+    "get_single_hit",
+    "replace_id_field_in_find_mapping",
+    "validate_find_mapping",
 ]
-
-
-@contextmanager
-def translate_pymongo_errors():
-    """Catch PyMongoError and re-raise it as DbTimeoutError if it is a timeout error.
-
-    Non-timeout errors are re-raised as DaoError.
-    """
-    try:
-        yield
-    except PyMongoError as exc:
-        if exc.timeout:  # denotes timeout-related errors in pymongo
-            raise DbTimeoutError(str(exc)) from exc
-        raise DaoError(str(exc)) from exc
-
-
-def document_to_dto(
-    document: dict[str, Any], *, id_field: str, dto_model: type[Dto]
-) -> Dto:
-    """Converts a document obtained from the MongoDB database into a DTO model-
-    compliant representation.
-    """
-    document[id_field] = document.pop("_id")
-    return dto_model.model_validate(document)
-
-
-def dto_to_document(dto: Dto, *, id_field: str) -> dict[str, Any]:
-    """Converts a DTO into a representation that is a compatible document for a
-    MongoDB Database.
-
-    If there is a non-serializable field in the DTO, it will raise an error.
-    Such DTOs should implement appropriate serialization methods or use a different
-    data type for the field.
-    """
-    document = dto.model_dump()
-    document["_id"] = document.pop(id_field)
-
-    return document
 
 
 def validate_find_mapping(mapping: Mapping[str, Any], *, dto_model: type[Dto]):
@@ -347,118 +312,6 @@ class MongoDbDao(Generic[Dto]):
             )
 
 
-class MongoDbConfig(BaseSettings):
-    """Configuration parameters for connecting to a MongoDB server.
-
-    Inherit your config class from this class if your application uses MongoDB.
-    """
-
-    mongo_dsn: Secret[MongoDsn] = Field(
-        ...,
-        examples=["mongodb://localhost:27017"],
-        description=(
-            "MongoDB connection string. Might include credentials."
-            + " For more information see:"
-            + " https://naiveskill.com/mongodb-connection-string/"
-        ),
-    )
-    db_name: str = Field(
-        ...,
-        examples=["my-database"],
-        description="Name of the database located on the MongoDB server.",
-    )
-    mongo_timeout: PositiveInt | None = Field(
-        default=None,
-        examples=[300, 600, None],
-        description=(
-            "Timeout in seconds for API calls to MongoDB. The timeout applies to all steps"
-            + " needed to complete the operation, including server selection, connection"
-            + " checkout, serialization, and server-side execution. When the timeout"
-            + " expires, PyMongo raises a timeout exception. If set to None, the"
-            + " operation will not time out (default MongoDB behavior)."
-        ),
-    )
-
-
-ClientType = TypeVar("ClientType", AsyncMongoClient, MongoClient)
-
-
-class ConfiguredMongoClient:
-    """A context manager for a configured MongoDB client, sync or async.
-
-    Usage:
-        ```python
-        from hexkit.providers.mongodb import MongoDbConfig, ConfiguredMongoClient
-
-        with ConfiguredMongoClient(config=MongoDbConfig(...)) as client:
-            # Use the client here
-            pass
-
-        async with ConfiguredMongoClient(config=MongoDbConfig(...)) as client:
-            # Use the async client here
-            pass
-
-        # Client is automatically closed after exiting the context manager
-    """
-
-    config: MongoDbConfig
-
-    def __init__(self, *, config: MongoDbConfig):
-        self._config = config
-
-    async def __aenter__(self) -> AsyncMongoClient:
-        """Enter a context manager and return the _asynchronous_ MongoDB client."""
-        self._async_client = self.get_client(
-            config=self._config, client_cls=AsyncMongoClient
-        )
-        return self._async_client
-
-    async def __aexit__(self, exc_type_, exc_value, exc_tb):
-        """Close the async MongoDB client."""
-        await self._async_client.close()
-
-    def __enter__(self) -> MongoClient:
-        """Enter a context manager and return the _synchronous_ MongoDB client."""
-        self._client = self.get_client(config=self._config, client_cls=MongoClient)
-        return self._client
-
-    def __exit__(self, exc_type_, exc_value, exc_tb):
-        """Close the synchronous MongoDB client."""
-        self._client.close()
-
-    @classmethod
-    def get_client(
-        cls,
-        *,
-        config: MongoDbConfig,
-        client_cls: type[ClientType],
-    ) -> ClientType:
-        """Creates a configured MongoDB client based on the provided configuration,
-        with the timeout, uuid representation, and timezone awareness set.
-
-        *Does not* automatically close the client!
-
-        Args:
-            config: MongoDB-specific configuration parameters.
-            client_cls: The class of the MongoDB client to instantiate.
-
-        Returns:
-            A MongoDB client instance configured with the provided parameters.
-        """
-        timeout_ms = (
-            int(config.mongo_timeout * 1000)
-            if config.mongo_timeout is not None
-            else None
-        )
-
-        return client_cls(
-            str(config.mongo_dsn.get_secret_value()),
-            timeoutMS=timeout_ms,
-            uuidRepresentation="standard",
-            tz_aware=True,
-        )
-
-
 class MongoDbDaoFactory(DaoFactoryProtocol):
     """A MongoDB-based provider implementing the DaoFactoryProtocol."""
 
@@ -493,7 +346,7 @@ class MongoDbDaoFactory(DaoFactoryProtocol):
         self._db = client.get_database(self._config.db_name)
 
     def __repr__(self) -> str:  # noqa: D105
-        return f"{self.__class__.__qualname__}(config={repr(self._config)})"
+        return f"{self.__class__.__name__}(config={repr(self._config)})"
 
     async def _get_dao(
         self,

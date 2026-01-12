@@ -16,10 +16,10 @@
 
 """Providers that combine MongoDB and Kafka functionality"""
 
+from .config import MongoKafkaConfig
 from .provider import (
     CHANGE_EVENT_TYPE,
     DELETE_EVENT_TYPE,
-    MongoKafkaConfig,
     MongoKafkaDaoPublisherFactory,
     PersistentKafkaPublisher,
     document_to_dto,

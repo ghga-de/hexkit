@@ -59,10 +59,7 @@ The following shows a contrived example of how to use the Outbox Publisher:
 from pydantic import BaseModel
 from uuid import UUID
 
-from hexkit.providers.mongokafka import (
-        MongoKafkaDaoPublisherFactory,
-        MongoKafkaConfig,
-)
+from hexkit.providers.mongokafka import MongoKafkaDaoPublisherFactory, MongoKafkaConfig
 
 # Define a model
 class User(BaseModel):

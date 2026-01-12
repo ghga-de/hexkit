@@ -30,7 +30,7 @@ from hexkit.protocols.dao import (
     Dto,
     UUID4Field,
 )
-from hexkit.providers.mongodb.provider import (
+from hexkit.providers.mongodb import (
     MongoDbConfig,
     MongoDbDaoFactory,
     translate_pymongo_errors,

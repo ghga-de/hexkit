@@ -97,9 +97,9 @@ There are three parameters unique to the Persistent Publisher: `compacted_topics
 ### Usage example in service 'abc'
 
 ```python
-from hexkit.providers.mongokafka.provider.persistent_pub import PersistentKafkaPublisher
-from hexkit.providers.mongodb.provider import MongoDbDaoFactory
-from hexkit.providers.mongokafka.provider.config import MongoKafkaConfig
+from hexkit.providers.mongokafka import PersistentKafkaPublisher
+from hexkit.providers.mongodb import MongoDbDaoFactory
+from hexkit.providers.mongokafka import MongoKafkaConfig
 
 # Normally, topics would be defined in configuration. This is only for conciseness:
 COMPACTED_TOPICS = {"users"}

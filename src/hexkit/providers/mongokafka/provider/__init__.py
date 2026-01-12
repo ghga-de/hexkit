@@ -15,7 +15,6 @@
 
 """Providers that combine MongoDB and Kafka functionality"""
 
-from .config import MongoKafkaConfig
 from .daopub import (
     CHANGE_EVENT_TYPE,
     DELETE_EVENT_TYPE,
@@ -23,13 +22,13 @@ from .daopub import (
     document_to_dto,
     dto_to_document,
 )
-from .persistent_pub import PersistentKafkaPublisher
+from .persistent_pub import PersistentKafkaEvent, PersistentKafkaPublisher
 
 __all__ = [
     "CHANGE_EVENT_TYPE",
     "DELETE_EVENT_TYPE",
-    "MongoKafkaConfig",
     "MongoKafkaDaoPublisherFactory",
+    "PersistentKafkaEvent",
     "PersistentKafkaPublisher",
     "document_to_dto",
     "dto_to_document",
