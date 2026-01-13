@@ -540,3 +540,81 @@ async def test_repr_contains_prefix(redis: RedisFixture):
         rep = repr(store)
         assert "RedisStrKeyValueStore" in rep
         assert "'key_prefix': 'pref:'" in rep
+
+
+# Type validation tests
+
+
+async def test_json_set_with_wrong_type(json_kvstore: RedisJsonKeyValueStore):
+    """Test that setting a non-dict value to JSON store raises TypeError."""
+    with pytest.raises(TypeError, match="Value must be a dict"):
+        await json_kvstore.set("key", "not a dict")
+
+    with pytest.raises(TypeError, match="Value must be a dict"):
+        await json_kvstore.set("key", 42)
+
+    with pytest.raises(TypeError, match="Value must be a dict"):
+        await json_kvstore.set("key", [1, 2, 3])
+
+    with pytest.raises(TypeError, match="Value must be a dict"):
+        await json_kvstore.set("key", None)
+
+
+async def test_str_set_with_wrong_type(str_kvstore: RedisStrKeyValueStore):
+    """Test that setting a non-string value to string store raises TypeError."""
+    with pytest.raises(TypeError, match="Value must be of type str"):
+        await str_kvstore.set("key", 42)
+
+    with pytest.raises(TypeError, match="Value must be of type str"):
+        await str_kvstore.set("key", {"dict": "value"})
+
+    with pytest.raises(TypeError, match="Value must be of type str"):
+        await str_kvstore.set("key", b"bytes")
+
+    with pytest.raises(TypeError, match="Value must be of type str"):
+        await str_kvstore.set("key", None)
+
+
+async def test_bytes_set_with_wrong_type(bytes_kvstore: RedisBytesKeyValueStore):
+    """Test that setting a non-bytes value to bytes store raises TypeError."""
+    with pytest.raises(TypeError, match="Value must be of type bytes"):
+        await bytes_kvstore.set("key", "string")
+
+    with pytest.raises(TypeError, match="Value must be of type bytes"):
+        await bytes_kvstore.set("key", 42)
+
+    with pytest.raises(TypeError, match="Value must be of type bytes"):
+        await bytes_kvstore.set("key", {"dict": "value"})
+
+    with pytest.raises(TypeError, match="Value must be of type bytes"):
+        await bytes_kvstore.set("key", None)
+
+
+async def test_dto_set_with_wrong_type(dto_kvstore: RedisDtoKeyValueStore[SimpleDto]):
+    """Test that setting a non-DTO value to DTO store raises TypeError."""
+    with pytest.raises(TypeError, match="Value must be of type SimpleDto"):
+        await dto_kvstore.set("key", "not a dto")
+
+    with pytest.raises(TypeError, match="Value must be of type SimpleDto"):
+        await dto_kvstore.set("key", {"name": "test", "value": 42})
+
+    with pytest.raises(TypeError, match="Value must be of type SimpleDto"):
+        await dto_kvstore.set("key", 42)
+
+    with pytest.raises(TypeError, match="Value must be of type SimpleDto"):
+        await dto_kvstore.set("key", None)
+
+
+async def test_dto_set_with_different_dto_type(redis: RedisFixture):
+    """Test that setting an instance of a different DTO type raises TypeError."""
+    async with RedisDtoKeyValueStore.construct(
+        config=redis.config, dto_model=SimpleDto
+    ) as store:
+        # ComplexDto is not SimpleDto
+        complex_dto = ComplexDto(
+            id="test",
+            metadata={"key": "value"},
+            items=[1, 2, 3],
+        )
+        with pytest.raises(TypeError, match="Value must be of type SimpleDto"):
+            await store.set("key", complex_dto)

@@ -641,3 +641,81 @@ async def test_collection_isolation(mongodb: MongoDbFixture):
         assert value2 == {"store": 2}
         assert value3 == "store3"
         assert value4 == b"store4"
+
+
+# Type validation tests
+
+
+async def test_json_set_with_wrong_type(json_kvstore: MongoDbJsonKeyValueStore):
+    """Test that setting a non-dict value to JSON store raises TypeError."""
+    with pytest.raises(TypeError, match="Value must be a dict"):
+        await json_kvstore.set("key", "not a dict")
+
+    with pytest.raises(TypeError, match="Value must be a dict"):
+        await json_kvstore.set("key", 42)
+
+    with pytest.raises(TypeError, match="Value must be a dict"):
+        await json_kvstore.set("key", [1, 2, 3])
+
+    with pytest.raises(TypeError, match="Value must be a dict"):
+        await json_kvstore.set("key", None)
+
+
+async def test_str_set_with_wrong_type(str_kvstore: MongoDbStrKeyValueStore):
+    """Test that setting a non-string value to string store raises TypeError."""
+    with pytest.raises(TypeError, match="Value must be of type str"):
+        await str_kvstore.set("key", 42)
+
+    with pytest.raises(TypeError, match="Value must be of type str"):
+        await str_kvstore.set("key", {"dict": "value"})
+
+    with pytest.raises(TypeError, match="Value must be of type str"):
+        await str_kvstore.set("key", b"bytes")
+
+    with pytest.raises(TypeError, match="Value must be of type str"):
+        await str_kvstore.set("key", None)
+
+
+async def test_bytes_set_with_wrong_type(bytes_kvstore: MongoDbBytesKeyValueStore):
+    """Test that setting a non-bytes value to bytes store raises TypeError."""
+    with pytest.raises(TypeError, match="Value must be of type bytes"):
+        await bytes_kvstore.set("key", "string")
+
+    with pytest.raises(TypeError, match="Value must be of type bytes"):
+        await bytes_kvstore.set("key", 42)
+
+    with pytest.raises(TypeError, match="Value must be of type bytes"):
+        await bytes_kvstore.set("key", {"dict": "value"})
+
+    with pytest.raises(TypeError, match="Value must be of type bytes"):
+        await bytes_kvstore.set("key", None)
+
+
+async def test_dto_set_with_wrong_type(dto_kvstore: MongoDbDtoKeyValueStore[SimpleDto]):
+    """Test that setting a non-DTO value to DTO store raises TypeError."""
+    with pytest.raises(TypeError, match="Value must be of type SimpleDto"):
+        await dto_kvstore.set("key", "not a dto")
+
+    with pytest.raises(TypeError, match="Value must be of type SimpleDto"):
+        await dto_kvstore.set("key", {"name": "test", "value": 42})
+
+    with pytest.raises(TypeError, match="Value must be of type SimpleDto"):
+        await dto_kvstore.set("key", 42)
+
+    with pytest.raises(TypeError, match="Value must be of type SimpleDto"):
+        await dto_kvstore.set("key", None)
+
+
+async def test_dto_set_with_different_dto_type(mongodb: MongoDbFixture):
+    """Test that setting an instance of a different DTO type raises TypeError."""
+    async with MongoDbDtoKeyValueStore.construct(
+        config=mongodb.config, dto_model=SimpleDto
+    ) as store:
+        # ComplexDto is not SimpleDto
+        complex_dto = ComplexDto(
+            id="test",
+            metadata={"key": "value"},
+            items=[1, 2, 3],
+        )
+        with pytest.raises(TypeError, match="Value must be of type SimpleDto"):
+            await store.set("key", complex_dto)

@@ -154,6 +154,8 @@ class RedisBytesKeyValueStore(RedisBaseKeyValueStore):
 
     async def _encode_value(self, value: bytes) -> bytes:
         """Bytes values are stored as-is."""
+        if not isinstance(value, bytes):
+            raise TypeError("Value must be of type bytes")
         return value
 
     async def _decode_value(self, value: bytes) -> bytes:
@@ -169,6 +171,8 @@ class RedisStrKeyValueStore(RedisBaseKeyValueStore):
 
     async def _encode_value(self, value: str) -> bytes:
         """Encode string to UTF-8 bytes."""
+        if not isinstance(value, str):
+            raise TypeError("Value must be of type str")
         return value.encode("utf-8")
 
     async def _decode_value(self, value: bytes) -> str:
@@ -184,6 +188,8 @@ class RedisJsonKeyValueStore(RedisBaseKeyValueStore):
 
     async def _encode_value(self, value: JsonObject) -> bytes:
         """Serialize JSON object to UTF-8 encoded JSON string."""
+        if not isinstance(value, dict):
+            raise TypeError("Value must be a dict representing a JSON object")
         return json.dumps(value).encode("utf-8")
 
     async def _decode_value(self, value: bytes) -> JsonObject:
@@ -227,6 +233,8 @@ class RedisDtoKeyValueStore(RedisBaseKeyValueStore, Generic[Dto]):
 
     async def _encode_value(self, value: Dto) -> bytes:
         """Transform DTO to JSON and encode to UTF-8 bytes."""
+        if not isinstance(value, self._dto_model):
+            raise TypeError(f"Value must be of type {self._dto_model.__name__}")
         return json.dumps(value.model_dump()).encode("utf-8")
 
     async def _decode_value(self, value: bytes) -> Dto:
