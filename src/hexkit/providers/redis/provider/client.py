@@ -15,8 +15,6 @@
 
 """Redis client configuration and connection management."""
 
-from contextlib import asynccontextmanager
-
 from redis.asyncio import Redis
 
 from hexkit.providers.redis.config import RedisConfig
@@ -53,17 +51,3 @@ class ConfiguredRedisClient:
         """Close Redis connection."""
         if self._client:
             await self._client.aclose()
-
-
-@asynccontextmanager
-async def get_redis_client(config: RedisConfig):
-    """Async context manager to get a configured Redis client.
-
-    Args:
-        config: Redis configuration parameters.
-
-    Yields:
-        Redis: An async Redis client instance.
-    """
-    async with ConfiguredRedisClient(config) as client:
-        yield client
