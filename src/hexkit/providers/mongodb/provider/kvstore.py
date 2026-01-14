@@ -141,6 +141,8 @@ class MongoDbJsonKeyValueStore(MongoDbBaseKeyValueStore):
 
     async def _encode_value(self, value: JsonObject) -> JsonObject:
         """JSON values are stored as-is."""
+        if not isinstance(value, dict):
+            raise TypeError("Value must be a dict representing a JSON object")
         return value
 
     async def _decode_value(self, value: JsonObject) -> JsonObject:
@@ -153,6 +155,8 @@ class MongoDbStrKeyValueStore(MongoDbBaseKeyValueStore):
 
     async def _encode_value(self, value: str) -> str:
         """String values are stored as-is."""
+        if not isinstance(value, str):
+            raise TypeError("Value must be of type str")
         return value
 
     async def _decode_value(self, value: str) -> str:
@@ -165,6 +169,8 @@ class MongoDbBytesKeyValueStore(MongoDbBaseKeyValueStore):
 
     async def _encode_value(self, value: bytes) -> bytes:
         """Bytes values are stored as-is."""
+        if not isinstance(value, bytes):
+            raise TypeError("Value must be of type bytes")
         return value
 
     async def _decode_value(self, value: bytes) -> bytes:
@@ -207,6 +213,8 @@ class MongoDbDtoKeyValueStore(MongoDbBaseKeyValueStore, Generic[Dto]):
 
     async def _encode_value(self, value: Dto) -> dict:
         """Transform DTO to dictionary for storage."""
+        if not isinstance(value, self._dto_model):
+            raise TypeError(f"Value must be of type {self._dto_model.__name__}")
         return value.model_dump()
 
     async def _decode_value(self, value: dict) -> Dto:

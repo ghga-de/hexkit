@@ -32,8 +32,6 @@ from hexkit.custom_types import PytestScope
 from hexkit.providers.mongodb.config import MongoDbConfig
 from hexkit.providers.mongodb.provider import ConfiguredMongoClient, MongoDbDaoFactory
 
-MONGODB_IMAGE = "mongo:8.2.3"
-
 __all__ = [
     "MONGODB_IMAGE",
     "MongoClient",
@@ -49,6 +47,8 @@ __all__ = [
     "mongodb_fixture",
     "persistent_mongodb_fixture",
 ]
+
+MONGODB_IMAGE = "mongo:8.2.3"
 
 
 @dataclass(frozen=True)

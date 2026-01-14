@@ -12,5 +12,25 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
+#
 
-"""Integration tests for akafka"""
+"""A subpackage containing all Redis-specific providers.
+
+Require dependencies of the `redis` extra.
+"""
+
+from .client import ConfiguredRedisClient
+from .kvstore import (
+    RedisBytesKeyValueStore,
+    RedisDtoKeyValueStore,
+    RedisJsonKeyValueStore,
+    RedisStrKeyValueStore,
+)
+
+__all__ = [
+    "ConfiguredRedisClient",
+    "RedisBytesKeyValueStore",
+    "RedisDtoKeyValueStore",
+    "RedisJsonKeyValueStore",
+    "RedisStrKeyValueStore",
+]

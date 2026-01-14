@@ -26,6 +26,7 @@ dependencies = [
 akafka = ["aiokafka[zstd,lz4,snappy]~=0.13.0", "jsonschema >=4.25, <5"]
 s3 = ["boto3 >=1.42, <2", "botocore >=1.42, <2"]
 mongodb = ["pymongo >=4.15, <5"]
+redis = ["redis >=7.1, <8"]
 opentelemetry-base = [
     "opentelemetry-sdk >=1.39.1, <2",
     "opentelemetry-exporter-otlp >=1.39.1, <2",
@@ -52,6 +53,11 @@ opentelemetry-s3 = [
     "hexkit[s3]",
     "opentelemetry-instrumentation-botocore >=0.60b1",
 ]
+opentelemetry-redis = [
+    "hexkit[opentelemetry-base]",
+    "hexkit[redis]",
+    "opentelemetry-instrumentation-redis >=0.60b1",
+]
 opentelemetry = [
     "hexkit[opentelemetry-akafka]",
     "hexkit[opentelemetry-mongodb]",
@@ -61,6 +67,7 @@ opentelemetry = [
 test-akafka = ["hexkit[akafka]", "testcontainers[kafka] >=4.13, <5"]
 test-s3 = ["hexkit[s3]", "testcontainers >=4.13, <5"]
 test-mongodb = ["hexkit[mongodb]", "testcontainers[mongo] >=4.13, <5"]
+test-redis = ["hexkit[redis]", "testcontainers[redis] >=4.13, <5"]
 test = ["hexkit[test-akafka,test-s3,test-mongodb]"]
 
 all = ["hexkit[test]", "hexkit[opentelemetry]"]
