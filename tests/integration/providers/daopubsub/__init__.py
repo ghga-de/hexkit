@@ -13,4 +13,4 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-"""Integration tests for akafka"""
+"""Integration tests for the DAO publish and subscribe providers"""
