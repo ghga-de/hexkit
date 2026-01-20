@@ -13,4 +13,12 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-"""Integration tests for the key-value store providers."""
+"""Pytest configuration for KVStore provider integration tests."""
+
+import pytest
+
+# The kvstore test suites module is imported by test modules but is not a test module
+# itself. Therefore, we need to register it to have rich assertion introspection.
+pytest.register_assert_rewrite(
+    "tests.integration.providers.kvstore.kvstore_test_suites"
+)

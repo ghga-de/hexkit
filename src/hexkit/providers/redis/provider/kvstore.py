@@ -17,7 +17,7 @@
 
 import json
 from abc import ABC, abstractmethod
-from contextlib import asynccontextmanager
+from contextlib import asynccontextmanager, suppress
 from typing import Any, Generic
 
 from redis.asyncio import Redis
@@ -34,6 +34,8 @@ __all__ = [
     "RedisJsonKeyValueStore",
     "RedisStrKeyValueStore",
 ]
+
+DEFAULT_KV_PREFIX = ""
 
 
 class RedisBaseKeyValueStore(ABC, KeyValueStoreProtocol):
@@ -53,7 +55,7 @@ class RedisBaseKeyValueStore(ABC, KeyValueStoreProtocol):
         cls,
         *,
         config: RedisConfig,
-        key_prefix: str = "",
+        key_prefix: str = DEFAULT_KV_PREFIX,
         **kwargs,
     ):
         """Yields a store instance with the provided configuration.
@@ -81,7 +83,7 @@ class RedisBaseKeyValueStore(ABC, KeyValueStoreProtocol):
         *,
         client: Redis,
         config: RedisConfig,
-        key_prefix: str,
+        key_prefix: str = DEFAULT_KV_PREFIX,
         **kwargs,
     ):
         """Initialize the provider with configuration and key prefix.
@@ -92,14 +94,19 @@ class RedisBaseKeyValueStore(ABC, KeyValueStoreProtocol):
             key_prefix: Prefix for all keys to enable logical separation.
             **kwargs: Additional arguments specific to subclasses.
         """
-        args_dict = {"config": config, "key_prefix": key_prefix}
-        args_dict.update(kwargs)
-        self._args = repr(args_dict)
+        args = [str(config)]
+        if key_prefix != DEFAULT_KV_PREFIX:
+            args.append(f"key_prefix={key_prefix!r}")
+        for key, val in kwargs.items():
+            with suppress(AttributeError):
+                val = val.__name__  # shot repr e.g. for model classes
+            args.append(f"{key}={val}")
+        self._repr = f"{self.__class__.__name__}({' '.join(args)})"
         self._client = client
         self._key_prefix = key_prefix
 
     def __repr__(self) -> str:
-        return f"{self.__class__.__name__}({self._args})"
+        return self._repr
 
     def _make_key(self, key: str) -> str:
         """Construct the full Redis key with prefix."""
@@ -146,7 +153,7 @@ class RedisBaseKeyValueStore(ABC, KeyValueStoreProtocol):
 
 
 class RedisBytesKeyValueStore(RedisBaseKeyValueStore):
-    """Redis-specific KV store provider for binary (bytes) data.
+    """Redis-specific KVStore provider for binary (bytes) data.
 
     Since Redis natively stores bytes, this is the most direct mapping
     with identity transformations.
@@ -164,7 +171,7 @@ class RedisBytesKeyValueStore(RedisBaseKeyValueStore):
 
 
 class RedisStrKeyValueStore(RedisBaseKeyValueStore):
-    """Redis-specific KV store provider for string data.
+    """Redis-specific KVStore provider for string data.
 
     Strings are encoded to UTF-8 bytes for storage.
     """
@@ -181,7 +188,7 @@ class RedisStrKeyValueStore(RedisBaseKeyValueStore):
 
 
 class RedisJsonKeyValueStore(RedisBaseKeyValueStore):
-    """Redis-specific KV store provider for JSON data.
+    """Redis-specific KVStore provider for JSON data.
 
     JSON objects are serialized to JSON strings and then encoded to UTF-8 bytes.
     """
@@ -198,7 +205,7 @@ class RedisJsonKeyValueStore(RedisBaseKeyValueStore):
 
 
 class RedisDtoKeyValueStore(RedisBaseKeyValueStore, Generic[Dto]):
-    """Redis-specific KV store provider for Pydantic model (DTO) data.
+    """Redis-specific KVStore provider for Pydantic model (DTO) data.
 
     This store allows arbitrary DTOs (Pydantic models) to be stored as values,
     with the DTO model passed in the constructor. DTOs are serialized using
