@@ -32,6 +32,8 @@ from pydantic import BaseModel
 from hexkit.custom_types import JsonObject
 from hexkit.protocols.kvstore import KeyValueStoreProtocol
 
+pytestmark = pytest.mark.asyncio()
+
 
 # Test DTO models shared across all providers
 class SimpleDto(BaseModel):
@@ -54,17 +56,14 @@ class ComplexDto(BaseModel):
 class BaseKVStoreTestSuite:
     """Base test suite with common tests for all KVStore implementations."""
 
-    @pytest.mark.asyncio
     async def test_get_nonexistent_key(self, store):
         """Test getting a nonexistent key returns None."""
         assert await store.get("nonexistent") is None
 
-    @pytest.mark.asyncio
     async def test_delete_nonexistent_key(self, store):
         """Test deleting a nonexistent key does not raise error."""
         await store.delete("nonexistent")
 
-    @pytest.mark.asyncio
     async def test_exists(self, store, test_value):
         """Test the exists method."""
         assert not await store.exists("exists_key")
@@ -73,7 +72,6 @@ class BaseKVStoreTestSuite:
         await store.delete("exists_key")
         assert not await store.exists("exists_key")
 
-    @pytest.mark.asyncio
     async def test_repr(self, store):
         """Ensure the default repr shows the provider class name."""
         r = repr(store)
@@ -95,7 +93,6 @@ class JsonKVStoreTestSuite(BaseKVStoreTestSuite):
         """Value used by base existence tests."""
         return {"exists": True}
 
-    @pytest.mark.asyncio
     async def test_json_set_and_get(
         self, json_kvstore: KeyValueStoreProtocol[JsonObject]
     ):
@@ -104,14 +101,12 @@ class JsonKVStoreTestSuite(BaseKVStoreTestSuite):
         await json_kvstore.set("test_key", test_value)
         assert await json_kvstore.get("test_key") == test_value
 
-    @pytest.mark.asyncio
     async def test_json_get_nonexistent_key(
         self, json_kvstore: KeyValueStoreProtocol[JsonObject]
     ):
         """Test getting a nonexistent key."""
         assert await json_kvstore.get("nonexistent") is None
 
-    @pytest.mark.asyncio
     async def test_json_get_with_default(
         self, json_kvstore: KeyValueStoreProtocol[JsonObject]
     ):
@@ -122,7 +117,6 @@ class JsonKVStoreTestSuite(BaseKVStoreTestSuite):
             == default_value
         )
 
-    @pytest.mark.asyncio
     async def test_json_update_existing_key(
         self, json_kvstore: KeyValueStoreProtocol[JsonObject]
     ):
@@ -131,7 +125,6 @@ class JsonKVStoreTestSuite(BaseKVStoreTestSuite):
         await json_kvstore.set("update_key", {"version": 2})
         assert await json_kvstore.get("update_key") == {"version": 2}
 
-    @pytest.mark.asyncio
     async def test_json_delete_existing_key(
         self, json_kvstore: KeyValueStoreProtocol[JsonObject]
     ):
@@ -140,14 +133,12 @@ class JsonKVStoreTestSuite(BaseKVStoreTestSuite):
         await json_kvstore.delete("delete_me")
         assert await json_kvstore.get("delete_me") is None
 
-    @pytest.mark.asyncio
     async def test_json_delete_nonexistent_key(
         self, json_kvstore: KeyValueStoreProtocol[JsonObject]
     ):
         """Test deleting a nonexistent key does not raise error."""
         await json_kvstore.delete("nonexistent")
 
-    @pytest.mark.asyncio
     async def test_json_exists(self, json_kvstore: KeyValueStoreProtocol[JsonObject]):
         """Test the exists method."""
         assert not await json_kvstore.exists("exists_key")
@@ -156,7 +147,6 @@ class JsonKVStoreTestSuite(BaseKVStoreTestSuite):
         await json_kvstore.delete("exists_key")
         assert not await json_kvstore.exists("exists_key")
 
-    @pytest.mark.asyncio
     async def test_json_multiple_keys(
         self, json_kvstore: KeyValueStoreProtocol[JsonObject]
     ):
@@ -173,7 +163,6 @@ class JsonKVStoreTestSuite(BaseKVStoreTestSuite):
         assert not await json_kvstore.exists("key2")
         assert await json_kvstore.exists("key3")
 
-    @pytest.mark.asyncio
     async def test_json_complex_nested_objects(
         self, json_kvstore: KeyValueStoreProtocol[JsonObject]
     ):
@@ -195,7 +184,6 @@ class JsonKVStoreTestSuite(BaseKVStoreTestSuite):
         await json_kvstore.set("complex", complex_value)
         assert await json_kvstore.get("complex") == complex_value
 
-    @pytest.mark.asyncio
     async def test_json_empty_object(
         self, json_kvstore: KeyValueStoreProtocol[JsonObject]
     ):
@@ -204,7 +192,6 @@ class JsonKVStoreTestSuite(BaseKVStoreTestSuite):
         assert await json_kvstore.get("empty") == {}
         assert await json_kvstore.exists("empty")
 
-    @pytest.mark.asyncio
     async def test_json_set_with_wrong_type(
         self, json_kvstore: KeyValueStoreProtocol[JsonObject]
     ):
@@ -233,21 +220,18 @@ class StrKVStoreTestSuite(BaseKVStoreTestSuite):
         """Value used by base existence tests."""
         return "exists"
 
-    @pytest.mark.asyncio
     async def test_str_set_and_get(self, str_kvstore: KeyValueStoreProtocol[str]):
         """Test setting and getting a string value."""
         test_value = "test string value"
         await str_kvstore.set("test_key", test_value)
         assert await str_kvstore.get("test_key") == test_value
 
-    @pytest.mark.asyncio
     async def test_str_get_nonexistent_key(
         self, str_kvstore: KeyValueStoreProtocol[str]
     ):
         """Test getting a nonexistent key."""
         assert await str_kvstore.get("nonexistent") is None
 
-    @pytest.mark.asyncio
     async def test_str_get_with_default(self, str_kvstore: KeyValueStoreProtocol[str]):
         """Test getting with a default value."""
         default_value = "default string"
@@ -255,7 +239,6 @@ class StrKVStoreTestSuite(BaseKVStoreTestSuite):
             await str_kvstore.get("nonexistent", default=default_value) == default_value
         )
 
-    @pytest.mark.asyncio
     async def test_str_update_existing_key(
         self, str_kvstore: KeyValueStoreProtocol[str]
     ):
@@ -264,7 +247,6 @@ class StrKVStoreTestSuite(BaseKVStoreTestSuite):
         await str_kvstore.set("update_key", "version 2")
         assert await str_kvstore.get("update_key") == "version 2"
 
-    @pytest.mark.asyncio
     async def test_str_delete_existing_key(
         self, str_kvstore: KeyValueStoreProtocol[str]
     ):
@@ -273,14 +255,12 @@ class StrKVStoreTestSuite(BaseKVStoreTestSuite):
         await str_kvstore.delete("delete_me")
         assert await str_kvstore.get("delete_me") is None
 
-    @pytest.mark.asyncio
     async def test_str_delete_nonexistent_key(
         self, str_kvstore: KeyValueStoreProtocol[str]
     ):
         """Test deleting a nonexistent key does not raise error."""
         await str_kvstore.delete("nonexistent")
 
-    @pytest.mark.asyncio
     async def test_str_exists(self, str_kvstore: KeyValueStoreProtocol[str]):
         """Test the exists method."""
         assert not await str_kvstore.exists("exists_key")
@@ -289,7 +269,6 @@ class StrKVStoreTestSuite(BaseKVStoreTestSuite):
         await str_kvstore.delete("exists_key")
         assert not await str_kvstore.exists("exists_key")
 
-    @pytest.mark.asyncio
     async def test_str_multiple_keys(self, str_kvstore: KeyValueStoreProtocol[str]):
         """Test working with multiple keys simultaneously."""
         values = {"key1": "value1", "key2": "value2", "key3": "value3"}
@@ -304,7 +283,6 @@ class StrKVStoreTestSuite(BaseKVStoreTestSuite):
         assert not await str_kvstore.exists("key2")
         assert await str_kvstore.exists("key3")
 
-    @pytest.mark.asyncio
     async def test_str_multiline_strings(self, str_kvstore: KeyValueStoreProtocol[str]):
         """Test storing multiline strings."""
         multiline = """Line 1
@@ -313,21 +291,18 @@ Line 3"""
         await str_kvstore.set("multiline", multiline)
         assert await str_kvstore.get("multiline") == multiline
 
-    @pytest.mark.asyncio
     async def test_str_unicode_strings(self, str_kvstore: KeyValueStoreProtocol[str]):
         """Test storing strings with unicode characters."""
         unicode_text = "Hello \U0001f30d!"
         await str_kvstore.set("unicode", unicode_text)
         assert await str_kvstore.get("unicode") == unicode_text
 
-    @pytest.mark.asyncio
     async def test_str_empty_string(self, str_kvstore: KeyValueStoreProtocol[str]):
         """Test storing an empty string."""
         await str_kvstore.set("empty", "")
         assert await str_kvstore.get("empty") == ""
         assert await str_kvstore.exists("empty")
 
-    @pytest.mark.asyncio
     async def test_str_set_with_wrong_type(
         self, str_kvstore: KeyValueStoreProtocol[str]
     ):
@@ -356,21 +331,18 @@ class BytesKVStoreTestSuite(BaseKVStoreTestSuite):
         """Value used by base existence tests."""
         return b"exists"
 
-    @pytest.mark.asyncio
     async def test_bytes_set_and_get(self, bytes_kvstore: KeyValueStoreProtocol[bytes]):
         """Test setting and getting a bytes value."""
         test_value = b"test bytes value"
         await bytes_kvstore.set("test_key", test_value)
         assert await bytes_kvstore.get("test_key") == test_value
 
-    @pytest.mark.asyncio
     async def test_bytes_get_nonexistent_key(
         self, bytes_kvstore: KeyValueStoreProtocol[bytes]
     ):
         """Test getting a nonexistent key."""
         assert await bytes_kvstore.get("nonexistent") is None
 
-    @pytest.mark.asyncio
     async def test_bytes_get_with_default(
         self, bytes_kvstore: KeyValueStoreProtocol[bytes]
     ):
@@ -381,7 +353,6 @@ class BytesKVStoreTestSuite(BaseKVStoreTestSuite):
             == default_value
         )
 
-    @pytest.mark.asyncio
     async def test_bytes_update_existing_key(
         self, bytes_kvstore: KeyValueStoreProtocol[bytes]
     ):
@@ -390,7 +361,6 @@ class BytesKVStoreTestSuite(BaseKVStoreTestSuite):
         await bytes_kvstore.set("update_key", b"version 2")
         assert await bytes_kvstore.get("update_key") == b"version 2"
 
-    @pytest.mark.asyncio
     async def test_bytes_delete_existing_key(
         self, bytes_kvstore: KeyValueStoreProtocol[bytes]
     ):
@@ -399,14 +369,12 @@ class BytesKVStoreTestSuite(BaseKVStoreTestSuite):
         await bytes_kvstore.delete("delete_me")
         assert await bytes_kvstore.get("delete_me") is None
 
-    @pytest.mark.asyncio
     async def test_bytes_delete_nonexistent_key(
         self, bytes_kvstore: KeyValueStoreProtocol[bytes]
     ):
         """Test deleting a nonexistent key does not raise error."""
         await bytes_kvstore.delete("nonexistent")
 
-    @pytest.mark.asyncio
     async def test_bytes_exists(self, bytes_kvstore: KeyValueStoreProtocol[bytes]):
         """Test the exists method."""
         assert not await bytes_kvstore.exists("exists_key")
@@ -415,7 +383,6 @@ class BytesKVStoreTestSuite(BaseKVStoreTestSuite):
         await bytes_kvstore.delete("exists_key")
         assert not await bytes_kvstore.exists("exists_key")
 
-    @pytest.mark.asyncio
     async def test_bytes_multiple_keys(
         self, bytes_kvstore: KeyValueStoreProtocol[bytes]
     ):
@@ -432,7 +399,6 @@ class BytesKVStoreTestSuite(BaseKVStoreTestSuite):
         assert not await bytes_kvstore.exists("key2")
         assert await bytes_kvstore.exists("key3")
 
-    @pytest.mark.asyncio
     async def test_bytes_large_binary_data(
         self, bytes_kvstore: KeyValueStoreProtocol[bytes]
     ):
@@ -441,7 +407,6 @@ class BytesKVStoreTestSuite(BaseKVStoreTestSuite):
         await bytes_kvstore.set("large", large_data)
         assert await bytes_kvstore.get("large") == large_data
 
-    @pytest.mark.asyncio
     async def test_bytes_binary_data_with_nulls(
         self, bytes_kvstore: KeyValueStoreProtocol[bytes]
     ):
@@ -450,14 +415,12 @@ class BytesKVStoreTestSuite(BaseKVStoreTestSuite):
         await bytes_kvstore.set("binary", binary_data)
         assert await bytes_kvstore.get("binary") == binary_data
 
-    @pytest.mark.asyncio
     async def test_bytes_empty_bytes(self, bytes_kvstore: KeyValueStoreProtocol[bytes]):
         """Test storing empty bytes."""
         await bytes_kvstore.set("empty", b"")
         assert await bytes_kvstore.get("empty") == b""
         assert await bytes_kvstore.exists("empty")
 
-    @pytest.mark.asyncio
     async def test_bytes_set_with_wrong_type(
         self, bytes_kvstore: KeyValueStoreProtocol[bytes]
     ):
@@ -486,7 +449,6 @@ class DtoKVStoreTestSuite(BaseKVStoreTestSuite):
         """Value used by base existence tests."""
         return SimpleDto(name="exists", value=1)
 
-    @pytest.mark.asyncio
     async def test_dto_set_and_get(self, dto_kvstore: KeyValueStoreProtocol[SimpleDto]):
         """Test setting and getting a DTO value."""
         test_value = SimpleDto(name="test", value=42)
@@ -495,14 +457,12 @@ class DtoKVStoreTestSuite(BaseKVStoreTestSuite):
         assert retrieved == test_value
         assert isinstance(retrieved, SimpleDto)
 
-    @pytest.mark.asyncio
     async def test_dto_get_nonexistent_key(
         self, dto_kvstore: KeyValueStoreProtocol[SimpleDto]
     ):
         """Test getting a nonexistent key."""
         assert await dto_kvstore.get("nonexistent") is None
 
-    @pytest.mark.asyncio
     async def test_dto_get_with_default(
         self, dto_kvstore: KeyValueStoreProtocol[SimpleDto]
     ):
@@ -512,7 +472,6 @@ class DtoKVStoreTestSuite(BaseKVStoreTestSuite):
             await dto_kvstore.get("nonexistent", default=default_value) == default_value
         )
 
-    @pytest.mark.asyncio
     async def test_dto_update_existing_key(
         self, dto_kvstore: KeyValueStoreProtocol[SimpleDto]
     ):
@@ -521,7 +480,6 @@ class DtoKVStoreTestSuite(BaseKVStoreTestSuite):
         await dto_kvstore.set("update_key", SimpleDto(name="v2", value=2))
         assert await dto_kvstore.get("update_key") == SimpleDto(name="v2", value=2)
 
-    @pytest.mark.asyncio
     async def test_dto_delete_existing_key(
         self, dto_kvstore: KeyValueStoreProtocol[SimpleDto]
     ):
@@ -530,14 +488,12 @@ class DtoKVStoreTestSuite(BaseKVStoreTestSuite):
         await dto_kvstore.delete("delete_me")
         assert await dto_kvstore.get("delete_me") is None
 
-    @pytest.mark.asyncio
     async def test_dto_delete_nonexistent_key(
         self, dto_kvstore: KeyValueStoreProtocol[SimpleDto]
     ):
         """Test deleting a nonexistent key does not raise error."""
         await dto_kvstore.delete("nonexistent")
 
-    @pytest.mark.asyncio
     async def test_dto_exists(self, dto_kvstore: KeyValueStoreProtocol[SimpleDto]):
         """Test the exists method."""
         assert not await dto_kvstore.exists("exists_key")
@@ -546,7 +502,6 @@ class DtoKVStoreTestSuite(BaseKVStoreTestSuite):
         await dto_kvstore.delete("exists_key")
         assert not await dto_kvstore.exists("exists_key")
 
-    @pytest.mark.asyncio
     async def test_dto_multiple_keys(
         self, dto_kvstore: KeyValueStoreProtocol[SimpleDto]
     ):
@@ -567,7 +522,6 @@ class DtoKVStoreTestSuite(BaseKVStoreTestSuite):
         assert not await dto_kvstore.exists("key2")
         assert await dto_kvstore.exists("key3")
 
-    @pytest.mark.asyncio
     async def test_dto_simple_dto(self, dto_kvstore: KeyValueStoreProtocol[SimpleDto]):
         """Test storing and retrieving a simple DTO."""
         dto = SimpleDto(name="test", value=42)
@@ -576,14 +530,12 @@ class DtoKVStoreTestSuite(BaseKVStoreTestSuite):
         assert retrieved == dto
         assert isinstance(retrieved, SimpleDto)
 
-    @pytest.mark.asyncio
     async def test_dto_update_dto(self, dto_kvstore: KeyValueStoreProtocol[SimpleDto]):
         """Test updating a DTO."""
         await dto_kvstore.set("dto_key", SimpleDto(name="first", value=1))
         await dto_kvstore.set("dto_key", SimpleDto(name="second", value=2))
         assert await dto_kvstore.get("dto_key") == SimpleDto(name="second", value=2)
 
-    @pytest.mark.asyncio
     async def test_dto_set_with_wrong_type(
         self, dto_kvstore: KeyValueStoreProtocol[SimpleDto]
     ):
@@ -597,7 +549,6 @@ class DtoKVStoreTestSuite(BaseKVStoreTestSuite):
         with pytest.raises(TypeError, match="Value must be of type"):
             await dto_kvstore.set("key", None)  # type: ignore[arg-type]
 
-    @pytest.mark.asyncio
     async def test_dto_set_with_different_dto_type(
         self,
         dto_store_factory: Callable[
@@ -615,7 +566,6 @@ class DtoKVStoreTestSuite(BaseKVStoreTestSuite):
             with pytest.raises(TypeError, match="Value must be of type SimpleDto"):
                 await store.set("key", complex_dto)  # type: ignore[arg-type]
 
-    @pytest.mark.asyncio
     async def test_dto_repr_custom_kwargs(
         self,
         dto_store_factory: Callable[
@@ -634,7 +584,6 @@ class DtoKVStoreTestSuite(BaseKVStoreTestSuite):
             assert custom_kwargs_repr in r
             assert r.endswith(")")
 
-    @pytest.mark.asyncio
     async def test_dto_complex_dto(
         self,
         dto_store_factory: Callable[
@@ -654,7 +603,6 @@ class DtoKVStoreTestSuite(BaseKVStoreTestSuite):
             assert retrieved == dto
             assert isinstance(retrieved, ComplexDto)
 
-    @pytest.mark.asyncio
     async def test_dto_with_custom_options(
         self,
         dto_store_factory: Callable[
