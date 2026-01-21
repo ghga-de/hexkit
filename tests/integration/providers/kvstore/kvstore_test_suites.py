@@ -64,10 +64,10 @@ class BaseKVStoreTestSuite:
         """Test deleting a nonexistent key does not raise error."""
         await store.delete("nonexistent")
 
-    async def test_exists(self, store, test_value):
+    async def test_exists(self, store, sample_value):
         """Test the exists method."""
         assert not await store.exists("exists_key")
-        await store.set("exists_key", test_value)
+        await store.set("exists_key", sample_value)
         assert await store.exists("exists_key")
         await store.delete("exists_key")
         assert not await store.exists("exists_key")
@@ -89,8 +89,8 @@ class JsonKVStoreTestSuite(BaseKVStoreTestSuite):
         return json_kvstore
 
     @pytest.fixture()
-    def test_value(self) -> JsonObject:
-        """Value used by base existence tests."""
+    def sample_value(self) -> JsonObject:
+        """Example value that can be used for tests."""
         return {"exists": True}
 
     async def test_json_set_and_get(
@@ -216,8 +216,8 @@ class StrKVStoreTestSuite(BaseKVStoreTestSuite):
         return str_kvstore
 
     @pytest.fixture()
-    def test_value(self) -> str:
-        """Value used by base existence tests."""
+    def sample_value(self) -> str:
+        """Example value that can be used for tests."""
         return "exists"
 
     async def test_str_set_and_get(self, str_kvstore: KeyValueStoreProtocol[str]):
@@ -327,8 +327,8 @@ class BytesKVStoreTestSuite(BaseKVStoreTestSuite):
         return bytes_kvstore
 
     @pytest.fixture()
-    def test_value(self) -> bytes:
-        """Value used by base existence tests."""
+    def sample_value(self) -> bytes:
+        """Example value that can be used for tests."""
         return b"exists"
 
     async def test_bytes_set_and_get(self, bytes_kvstore: KeyValueStoreProtocol[bytes]):
@@ -445,8 +445,8 @@ class DtoKVStoreTestSuite(BaseKVStoreTestSuite):
         return dto_kvstore
 
     @pytest.fixture()
-    def test_value(self) -> SimpleDto:
-        """Value used by base existence tests."""
+    def sample_value(self) -> SimpleDto:
+        """Example value that can be used for tests."""
         return SimpleDto(name="exists", value=1)
 
     async def test_dto_set_and_get(self, dto_kvstore: KeyValueStoreProtocol[SimpleDto]):
