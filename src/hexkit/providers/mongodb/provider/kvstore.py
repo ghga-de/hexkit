@@ -16,7 +16,7 @@
 """MongoDB-based provider implementing the KVStoreProtocol."""
 
 from abc import ABC, abstractmethod
-from contextlib import asynccontextmanager
+from contextlib import asynccontextmanager, suppress
 from typing import Any, Generic
 
 from pymongo import AsyncMongoClient
@@ -36,6 +36,9 @@ __all__ = [
 ]
 
 
+DEFAULT_KV_COLLECTION_NAME = "kvstore"
+
+
 class MongoDbBaseKeyValueStore(ABC, KeyValueStoreProtocol):
     """Base class for MongoDB key-value stores providing common functionality."""
 
@@ -48,7 +51,7 @@ class MongoDbBaseKeyValueStore(ABC, KeyValueStoreProtocol):
         cls,
         *,
         config: MongoDbConfig,
-        collection_name: str = "kvstore",
+        collection_name: str = DEFAULT_KV_COLLECTION_NAME,
         **kwargs,
     ):
         """Yields a store instance with the provided configuration.
@@ -71,7 +74,7 @@ class MongoDbBaseKeyValueStore(ABC, KeyValueStoreProtocol):
         *,
         client: AsyncMongoClient,
         config: MongoDbConfig,
-        collection_name: str,
+        collection_name: str = DEFAULT_KV_COLLECTION_NAME,
         **kwargs,
     ):
         """Initialize the provider with configuration and collection name.
@@ -82,14 +85,19 @@ class MongoDbBaseKeyValueStore(ABC, KeyValueStoreProtocol):
             collection_name: Name of the collection to hold the key-value pairs.
             **kwargs: Additional arguments specific to subclasses.
         """
-        args_dict = {"config": config, "collection_name": collection_name}
-        args_dict.update(kwargs)
-        self._args = repr(args_dict)
+        args = [str(config)]
+        if collection_name != DEFAULT_KV_COLLECTION_NAME:
+            args.append(f"collection_name={collection_name!r}")
+        for key, val in kwargs.items():
+            with suppress(AttributeError):
+                val = val.__name__  # shot repr e.g. for model classes
+            args.append(f"{key}={val}")
+        self._repr = f"{self.__class__.__name__}({' '.join(args)})"
         db = client.get_database(config.db_name)
         self._collection = db[collection_name]
 
     def __repr__(self) -> str:
-        return f"{self.__class__.__name__}({self._args})"
+        return self._repr
 
     async def delete(self, key: str) -> None:
         """Delete the value for the given key.
@@ -137,7 +145,7 @@ class MongoDbBaseKeyValueStore(ABC, KeyValueStoreProtocol):
 
 
 class MongoDbJsonKeyValueStore(MongoDbBaseKeyValueStore):
-    """MongoDB specific KV store provider for JSON data."""
+    """MongoDB specific KVStore provider for JSON data."""
 
     async def _encode_value(self, value: JsonObject) -> JsonObject:
         """JSON values are stored as-is."""
@@ -151,7 +159,7 @@ class MongoDbJsonKeyValueStore(MongoDbBaseKeyValueStore):
 
 
 class MongoDbStrKeyValueStore(MongoDbBaseKeyValueStore):
-    """MongoDB specific KV store provider for string data."""
+    """MongoDB specific KVStore provider for string data."""
 
     async def _encode_value(self, value: str) -> str:
         """String values are stored as-is."""
@@ -165,7 +173,7 @@ class MongoDbStrKeyValueStore(MongoDbBaseKeyValueStore):
 
 
 class MongoDbBytesKeyValueStore(MongoDbBaseKeyValueStore):
-    """MongoDB specific KV store provider for binary (bytes) data."""
+    """MongoDB specific KVStore provider for binary (bytes) data."""
 
     async def _encode_value(self, value: bytes) -> bytes:
         """Bytes values are stored as-is."""
@@ -179,7 +187,7 @@ class MongoDbBytesKeyValueStore(MongoDbBaseKeyValueStore):
 
 
 class MongoDbDtoKeyValueStore(MongoDbBaseKeyValueStore, Generic[Dto]):
-    """MongoDB specific KV store provider for Pydantic model (DTO) data.
+    """MongoDB specific KVStore provider for Pydantic model (DTO) data.
 
     This store allows arbitrary DTOs (Pydantic models) to be stored as values,
     with the DTO model passed in the constructor.
