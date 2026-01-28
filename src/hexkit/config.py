@@ -141,7 +141,11 @@ def config_from_yaml(
             class ModSettings(settings):
                 """Modifies the original Settings class provided by the user"""
 
-                model_config = SettingsConfigDict(frozen=True, env_prefix=f"{prefix}_")
+                model_config = SettingsConfigDict(
+                    frozen=True,
+                    env_prefix=f"{prefix}_",
+                    env_file=(".env", "/vault/secrets/.env"),
+                )
 
                 @classmethod
                 def settings_customise_sources(
@@ -156,6 +160,7 @@ def config_from_yaml(
                     return (
                         init_settings,
                         env_settings,
+                        dotenv_settings,
                         file_secret_settings,
                         YamlConfigSettingsSource(settings_cls, config_yaml),
                     )
