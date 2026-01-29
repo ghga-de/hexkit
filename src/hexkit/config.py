@@ -29,6 +29,8 @@ from pydantic_settings import (
 
 # Default config prefix:
 DEFAULT_CONFIG_PREFIX: Final = "ghga_services"
+# Default dotenv path:
+DEFAULT_DOTENV_PATH: Final = "/secrets"
 
 
 class ConfigYamlDoesNotExist(RuntimeError):
@@ -82,6 +84,7 @@ def get_default_config_yaml(prefix: str) -> Path | None:
 
 def config_from_yaml(
     prefix: str = DEFAULT_CONFIG_PREFIX,
+    dotenv_prefix: str = DEFAULT_DOTENV_PATH,
 ) -> Callable:
     """A factory that returns decorator functions which extends a
     pydantic BaseSettings class to read in parameters from a config yaml.
@@ -102,6 +105,10 @@ def config_from_yaml(
             "{prefix}_{actual_variable_name}". Moreover, this prefix is used
             to derive the default location for the config yaml file
             ("~/.{prefix}.yaml"). Defaults to "ghga_services".
+        dotenv_prefix: (str, optional):
+            When defining parameters via dotenv files, this prefix is used to set the path
+            for the dotenv files. The final path used is constructed as
+            "{dotenv_prefix}/.env". Defaults to "/secrets".
     """
 
     def decorator(settings) -> Callable:
@@ -144,7 +151,7 @@ def config_from_yaml(
                 model_config = SettingsConfigDict(
                     frozen=True,
                     env_prefix=f"{prefix}_",
-                    env_file=(".env", "/vault/secrets/.env"),
+                    env_file=(".env", f"{dotenv_prefix.lstrip('/')}/.env"),
                 )
 
                 @classmethod
