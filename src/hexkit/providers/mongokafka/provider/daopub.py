@@ -507,7 +507,9 @@ class MongoKafkaDaoPublisherFactory(DaoPublisherFactoryProtocol[MongoDbIndex]):
 
         for index in indexes or []:
             properties = index.properties or {}
-            await collection.create_index(index.fields, **properties)
+            await collection.create_index(
+                index.fields_with_id_replaced(id_field=id_field), **properties
+            )
 
         dao = MongoDbDao(
             collection=collection,

@@ -659,3 +659,33 @@ async def test_indexing_complex(mongodb: MongoDbFixture):
 
     with pytest.raises(IndexViolationError):
         await dao.insert(dto2)
+
+
+async def test_compound_unique_index_with_id_field(mongodb: MongoDbFixture):
+    """Verify that when a compound unique index is placed on fields which include the
+    _id field (`id` on the ExampleDto), that:
+    A) The field validation in DaoFactoryBase doesn't trip up
+    B) The index field name actually submitted to pymongo is "_id", not the model's
+    field name.
+
+    And when that index is violated because of the _id field, a
+    ResourceAlreadyExistsError is raised and not an IndexViolationError.
+    """
+    dao: Dao[ExampleDto] = await mongodb.dao_factory.get_dao(
+        name="data",
+        dto_model=ExampleDto,
+        id_field="id",
+        indexes=[
+            MongoDbIndex(
+                fields=[("id", 1), ("field_b", 1)], properties={"unique": True}
+            )
+        ],
+    )
+
+    dto = ExampleDto()
+    dto2 = ExampleDto(id=dto.id)
+
+    await dao.insert(dto)
+
+    with pytest.raises(ResourceAlreadyExistsError):
+        await dao.insert(dto2)

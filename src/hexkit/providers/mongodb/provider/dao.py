@@ -152,6 +152,18 @@ class MongoDbIndex(IndexBase):
         """Return a list of all the field names contained in this index"""
         return [field[0] for field in self.fields]
 
+    def fields_with_id_replaced(
+        self, id_field: str
+    ) -> list[tuple[FieldName, SortOrder]]:
+        """Returns the `fields` property with all instances of `id_field`
+        replaced with `"_id"`.
+        """
+        modified_fields = []
+        for field in self.fields:
+            name = "_id" if field[0] == id_field else field[0]
+            modified_fields.append((name, field[1]))
+        return modified_fields
+
 
 class MongoDbDao(Generic[Dto]):
     """A MongoDb-specific DAO."""
@@ -413,7 +425,9 @@ class MongoDbDaoFactory(DaoFactoryProtocol[MongoDbIndex]):
 
         for index in indexes or []:
             properties = index.properties or {}
-            await collection.create_index(index.fields, **properties)
+            await collection.create_index(
+                index.fields_with_id_replaced(id_field=id_field), **properties
+            )
 
         return MongoDbDao(
             collection=collection,
