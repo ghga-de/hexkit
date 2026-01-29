@@ -19,10 +19,11 @@
 Utilities for testing are located in `./testutils.py`.
 """
 
-from collections.abc import AsyncIterator, Callable, Collection, Mapping
+from collections.abc import AsyncIterator, Callable, Collection, Mapping, Sequence
 from contextlib import AbstractAsyncContextManager, asynccontextmanager
+from dataclasses import dataclass
 from functools import partial
-from typing import Any, Generic
+from typing import Any, Generic, Literal, NamedTuple
 
 from pymongo import AsyncMongoClient
 from pymongo.asynchronous.collection import AsyncCollection
@@ -33,6 +34,7 @@ from hexkit.protocols.dao import (
     Dao,
     DaoFactoryProtocol,
     Dto,
+    IndexBase,
     InvalidFindMappingError,
     MultipleHitsFoundError,
     NoHitsFoundError,
@@ -111,6 +113,22 @@ async def get_single_hit(
         return dto
 
     raise MultipleHitsFoundError(mapping=mapping)
+
+
+class _IndexFields(NamedTuple):
+    field: str
+    sort_order: Literal[1] | Literal[-1]
+
+
+@dataclass
+class MongoDbIndex(IndexBase):
+    """Information required to apply a single MongoDbIndex"""
+
+    fields: Sequence[_IndexFields]
+    properties: dict[str, Any]
+
+    def list_fields(self) -> list[str]:
+        return [field.field for field in self.fields]
 
 
 class MongoDbDao(Generic[Dto]):
@@ -312,7 +330,7 @@ class MongoDbDao(Generic[Dto]):
             )
 
 
-class MongoDbDaoFactory(DaoFactoryProtocol):
+class MongoDbDaoFactory(DaoFactoryProtocol[MongoDbIndex]):
     """A MongoDB-based provider implementing the DaoFactoryProtocol."""
 
     @classmethod
@@ -354,7 +372,7 @@ class MongoDbDaoFactory(DaoFactoryProtocol):
         name: str,
         dto_model: type[Dto],
         id_field: str,
-        fields_to_index: Collection[str] | None,
+        indexes: Collection[MongoDbIndex] | None = None,
     ) -> Dao[Dto]:
         """Constructs a DAO for interacting with resources in a MongoDB database.
 
@@ -366,12 +384,10 @@ class MongoDbDaoFactory(DaoFactoryProtocol):
         from the database server. Thus for compliance with the DaoFactoryProtocol, this
         method is async.
         """
-        if fields_to_index is not None:
-            raise NotImplementedError(
-                "Indexing on non-ID fields has not been implemented, yet."
-            )
-
         collection = self._db[name]
+
+        for index in indexes or []:
+            await collection.create_index(index.fields, **index.properties)
 
         return MongoDbDao(
             collection=collection,
