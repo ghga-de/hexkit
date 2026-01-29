@@ -123,10 +123,26 @@ SortOrder: TypeAlias = Literal[1] | Literal[-1]
 
 @dataclass
 class MongoDbIndex(IndexBase):
-    """Information required to apply a single MongoDbIndex
+    """Information required to apply a single MongoDbIndex.
+
+    **Args**
+    - `fields`: a list of 2-tuples containing the field name and the sort order. For
+        sort order, 1 means ascending and -1 means descending. If the index covers the
+        model's `id_field`, then specify the actual field name instead of "_id".
+    - `properties`: a dictionary where the keys are MongoDB index property names, and
+        the values are the value to pass for that property.
 
     More information on index creation with Pymongo, including a list of the supported
     index properties, can be found [here](https://pymongo.readthedocs.io/en/stable/api/pymongo/collection.html#pymongo.collection.Collection.create_index)
+
+    Example:
+    ```python
+    # This creates a compound unique index over field_a and field_b.
+    MongoDbIndex(
+        fields=[("field_a", 1), ("field_b", -1)],
+        properties={"unique": True}
+    )
+    ```
     """
 
     fields: Sequence[tuple[FieldName, SortOrder]]
