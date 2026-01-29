@@ -35,6 +35,7 @@ __all__ = [
     "Dao",
     "DaoFactoryProtocol",
     "FindError",
+    "IndexViolationError",
     "MultipleHitsFoundError",
     "ResourceAlreadyExistsError",
     "ResourceNotFoundError",
@@ -73,6 +74,20 @@ class ResourceAlreadyExistsError(DaoError):
 
     def __init__(self, *, id_: ID):
         message = f'The resource with the id "{id_}" already exists.'
+        super().__init__(message)
+
+
+class IndexViolationError(DaoError):
+    """Raised when attempting to insert a resource violated a uniqueness constraint.
+
+    This does not apply to the default unique index automatically applied to
+    the ID field.
+    """
+
+    def __init__(self, *, unique_fields: dict[str, Any]):
+        message = (
+            f"A resource with the unique field value(s) {unique_fields} already exists."
+        )
         super().__init__(message)
 
 

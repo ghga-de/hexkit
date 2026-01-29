@@ -23,7 +23,7 @@ from collections.abc import AsyncIterator, Callable, Collection, Mapping, Sequen
 from contextlib import AbstractAsyncContextManager, asynccontextmanager
 from dataclasses import dataclass
 from functools import partial
-from typing import Any, Generic, Literal, NamedTuple
+from typing import Any, Generic, Literal, TypeAlias
 
 from pymongo import AsyncMongoClient
 from pymongo.asynchronous.collection import AsyncCollection
@@ -35,6 +35,7 @@ from hexkit.protocols.dao import (
     DaoFactoryProtocol,
     Dto,
     IndexBase,
+    IndexViolationError,
     InvalidFindMappingError,
     MultipleHitsFoundError,
     NoHitsFoundError,
@@ -53,6 +54,7 @@ from hexkit.utils import FieldNotInModelError, validate_fields_in_model
 __all__ = [
     "MongoDbDao",
     "MongoDbDaoFactory",
+    "MongoDbIndex",
     "get_single_hit",
     "replace_id_field_in_find_mapping",
     "validate_find_mapping",
@@ -115,20 +117,38 @@ async def get_single_hit(
     raise MultipleHitsFoundError(mapping=mapping)
 
 
-class _IndexFields(NamedTuple):
-    field: str
-    sort_order: Literal[1] | Literal[-1]
+FieldName: TypeAlias = str
+SortOrder: TypeAlias = Literal[1] | Literal[-1]
+IndexPropertyName = Literal[
+    "name",
+    "unique",
+    "background",
+    "sparse",
+    "bucketSize",
+    "min",
+    "max",
+    "expireAfterSeconds",
+    "partialFilterExpression",
+    "collation",
+    "wildcardProjection",
+    "hidden",
+]
 
 
 @dataclass
 class MongoDbIndex(IndexBase):
-    """Information required to apply a single MongoDbIndex"""
+    """Information required to apply a single MongoDbIndex
 
-    fields: Sequence[_IndexFields]
-    properties: dict[str, Any]
+    More information on index creation with Pymongo, including a list of the supported
+    index properties, can be found [here](https://pymongo.readthedocs.io/en/stable/api/pymongo/collection.html#pymongo.collection.Collection.create_index)
+    """
+
+    fields: Sequence[tuple[FieldName, SortOrder]]
+    properties: dict[IndexPropertyName, Any] | None = None
 
     def list_fields(self) -> list[str]:
-        return [field.field for field in self.fields]
+        """Return a list of all the field names contained in this index"""
+        return [field[0] for field in self.fields]
 
 
 class MongoDbDao(Generic[Dto]):
@@ -313,6 +333,9 @@ class MongoDbDao(Generic[Dto]):
             try:
                 await self._collection.insert_one(document)
             except DuplicateKeyError as error:
+                key_value = error.details.get("keyValue")  # type: ignore
+                if key_value is not None and list(key_value) != ["_id"]:
+                    raise IndexViolationError(unique_fields=key_value) from error
                 raise ResourceAlreadyExistsError(id_=document["_id"]) from error
 
     async def upsert(self, dto: Dto) -> None:
@@ -387,7 +410,11 @@ class MongoDbDaoFactory(DaoFactoryProtocol[MongoDbIndex]):
         collection = self._db[name]
 
         for index in indexes or []:
-            await collection.create_index(index.fields, **index.properties)
+            properties = index.properties or {}
+            await collection.create_index(
+                index.fields,
+                **properties,  # type: ignore[misc]
+            )
 
         return MongoDbDao(
             collection=collection,
