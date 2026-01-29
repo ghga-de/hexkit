@@ -26,11 +26,7 @@ from abc import ABC, abstractmethod
 from collections.abc import Callable, Collection
 
 from hexkit.custom_types import JsonObject
-from hexkit.protocols.dao import (
-    Dao,
-    DaoFactoryBase,
-    Dto,
-)
+from hexkit.protocols.dao import Dao, DaoFactoryBase, Dto, Index
 
 
 class DaoPublisher(Dao[Dto], typing.Protocol[Dto]):
@@ -49,7 +45,7 @@ class DaoPublisher(Dao[Dto], typing.Protocol[Dto]):
         ...
 
 
-class DaoPublisherFactoryProtocol(DaoFactoryBase, ABC):
+class DaoPublisherFactoryProtocol(DaoFactoryBase, ABC, typing.Generic[Index]):
     """A protocol describing a factory to produce Data Access Objects (DAO) objects
     which automatically publish changes according to the outbox pattern.
     """
@@ -60,7 +56,7 @@ class DaoPublisherFactoryProtocol(DaoFactoryBase, ABC):
         name: str,
         dto_model: type[Dto],
         id_field: str,
-        fields_to_index: Collection[str] | None = None,
+        indexes: Collection[Index] | None = None,
         dto_to_event: Callable[[Dto], JsonObject | None],
         event_topic: str,
         autopublish: bool = True,
@@ -76,9 +72,9 @@ class DaoPublisherFactoryProtocol(DaoFactoryBase, ABC):
             id_field:
                 The name of the field of the `dto_model` that serves as resource ID.
                 (DAO implementation might use this field as primary key.)
-            fields_to_index:
-                Optionally, provide any fields that should be indexed in addition to the
-                `id_field`. Defaults to None.
+            indexes:
+                Optionally, provide any indexes that should be created in addition to
+                the provider's default index on `id_field`. Defaults to None.
             dto_to_event:
                 A function that takes a DTO and returns the payload for an event.
                 If the returned payload is None, the event will not be published.
@@ -97,17 +93,13 @@ class DaoPublisherFactoryProtocol(DaoFactoryBase, ABC):
             self.IdTypeNotSupportedError:
                 Raised when the id_field of the dto_model has an unexpected type.
         """
-        self._validate(
-            dto_model=dto_model,
-            id_field=id_field,
-            fields_to_index=fields_to_index,
-        )
+        self._validate(dto_model=dto_model, id_field=id_field, indexes=indexes)
 
         return await self._get_dao(
             name=name,
             dto_model=dto_model,
             id_field=id_field,
-            fields_to_index=fields_to_index,
+            indexes=indexes,
             dto_to_event=dto_to_event,
             event_topic=event_topic,
             autopublish=autopublish,
@@ -120,7 +112,7 @@ class DaoPublisherFactoryProtocol(DaoFactoryBase, ABC):
         name: str,
         dto_model: type[Dto],
         id_field: str,
-        fields_to_index: Collection[str] | None,
+        indexes: Collection[Index] | None,
         dto_to_event: Callable[[Dto], JsonObject | None],
         event_topic: str,
         autopublish: bool,

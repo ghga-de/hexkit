@@ -23,6 +23,7 @@ from .client import ConfiguredMongoClient
 from .dao import (
     MongoDbDao,
     MongoDbDaoFactory,
+    MongoDbIndex,
     get_single_hit,
     replace_id_field_in_find_mapping,
     validate_find_mapping,
@@ -41,6 +42,7 @@ __all__ = [
     "MongoDbDao",
     "MongoDbDaoFactory",
     "MongoDbDtoKeyValueStore",
+    "MongoDbIndex",
     "MongoDbJsonKeyValueStore",
     "MongoDbStrKeyValueStore",
     "document_to_dto",
