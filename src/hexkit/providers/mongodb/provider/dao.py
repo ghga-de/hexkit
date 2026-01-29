@@ -119,20 +119,6 @@ async def get_single_hit(
 
 FieldName: TypeAlias = str
 SortOrder: TypeAlias = Literal[1] | Literal[-1]
-IndexPropertyName = Literal[
-    "name",
-    "unique",
-    "background",
-    "sparse",
-    "bucketSize",
-    "min",
-    "max",
-    "expireAfterSeconds",
-    "partialFilterExpression",
-    "collation",
-    "wildcardProjection",
-    "hidden",
-]
 
 
 @dataclass
@@ -144,7 +130,7 @@ class MongoDbIndex(IndexBase):
     """
 
     fields: Sequence[tuple[FieldName, SortOrder]]
-    properties: dict[IndexPropertyName, Any] | None = None
+    properties: dict[str, Any] | None = None
 
     def list_fields(self) -> list[str]:
         """Return a list of all the field names contained in this index"""
@@ -411,10 +397,7 @@ class MongoDbDaoFactory(DaoFactoryProtocol[MongoDbIndex]):
 
         for index in indexes or []:
             properties = index.properties or {}
-            await collection.create_index(
-                index.fields,
-                **properties,  # type: ignore[misc]
-            )
+            await collection.create_index(index.fields, **properties)
 
         return MongoDbDao(
             collection=collection,
