@@ -158,11 +158,7 @@ class MongoDbIndex(IndexBase):
         """Returns the `fields` property with all instances of `id_field`
         replaced with `"_id"`.
         """
-        modified_fields = []
-        for field in self.fields:
-            name = "_id" if field[0] == id_field else field[0]
-            modified_fields.append((name, field[1]))
-        return modified_fields
+        return [("_id" if f[0] == id_field else f[0], f[1]) for f in self.fields]
 
 
 class MongoDbDao(Generic[Dto]):
