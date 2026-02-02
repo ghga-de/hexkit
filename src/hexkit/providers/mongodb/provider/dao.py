@@ -35,12 +35,12 @@ from hexkit.protocols.dao import (
     DaoFactoryProtocol,
     Dto,
     IndexBase,
-    IndexViolationError,
     InvalidFindMappingError,
     MultipleHitsFoundError,
     NoHitsFoundError,
     ResourceAlreadyExistsError,
     ResourceNotFoundError,
+    UniqueConstraintViolationError,
 )
 from hexkit.providers.mongodb.config import MongoDbConfig
 from hexkit.providers.mongodb.provider.client import ConfiguredMongoClient
@@ -349,7 +349,9 @@ class MongoDbDao(Generic[Dto]):
             except DuplicateKeyError as error:
                 key_value = error.details.get("keyValue")  # type: ignore
                 if key_value is not None and list(key_value) != ["_id"]:
-                    raise IndexViolationError(unique_fields=key_value) from error
+                    raise UniqueConstraintViolationError(
+                        unique_fields=key_value
+                    ) from error
                 raise ResourceAlreadyExistsError(id_=document["_id"]) from error
 
     async def upsert(self, dto: Dto) -> None:

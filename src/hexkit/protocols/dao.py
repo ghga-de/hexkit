@@ -35,11 +35,11 @@ __all__ = [
     "Dao",
     "DaoFactoryProtocol",
     "FindError",
-    "IndexViolationError",
     "MultipleHitsFoundError",
     "ResourceAlreadyExistsError",
     "ResourceNotFoundError",
     "UUID4Field",
+    "UniqueConstraintViolationError",
 ]
 
 
@@ -69,7 +69,11 @@ class ResourceNotFoundError(DaoError):
         super().__init__(message)
 
 
-class ResourceAlreadyExistsError(DaoError):
+class ConstraintViolationError(DaoError):
+    """Base class for DaoErrors caused by violations of index constraints"""
+
+
+class ResourceAlreadyExistsError(ConstraintViolationError):
     """Raised when a resource did unexpectedly exist."""
 
     def __init__(self, *, id_: ID):
@@ -77,7 +81,7 @@ class ResourceAlreadyExistsError(DaoError):
         super().__init__(message)
 
 
-class IndexViolationError(DaoError):
+class UniqueConstraintViolationError(ConstraintViolationError):
     """Raised when attempting to insert a resource violated a uniqueness constraint.
 
     This does not apply to the default unique index automatically applied to

@@ -26,12 +26,12 @@ from pydantic import UUID4, BaseModel, ConfigDict, Field, field_serializer
 
 from hexkit.protocols.dao import (
     Dao,
-    IndexViolationError,
     InvalidFindMappingError,
     MultipleHitsFoundError,
     NoHitsFoundError,
     ResourceAlreadyExistsError,
     ResourceNotFoundError,
+    UniqueConstraintViolationError,
     UUID4Field,
 )
 from hexkit.providers.mongodb import MongoDbIndex
@@ -590,7 +590,7 @@ async def test_indexing_simple(mongodb: MongoDbFixture):
     with pytest.raises(ResourceAlreadyExistsError):
         await dao.insert(dto)
 
-    with pytest.raises(IndexViolationError):
+    with pytest.raises(UniqueConstraintViolationError):
         await dao.insert(dto2)
 
     # The first value in the unique index is different, but the second is the same
@@ -657,7 +657,7 @@ async def test_indexing_complex(mongodb: MongoDbFixture):
     with pytest.raises(ResourceAlreadyExistsError):
         await dao.insert(dto)
 
-    with pytest.raises(IndexViolationError):
+    with pytest.raises(UniqueConstraintViolationError):
         await dao.insert(dto2)
 
 
@@ -669,7 +669,7 @@ async def test_compound_unique_index_with_id_field(mongodb: MongoDbFixture):
     field name.
 
     And when that index is violated because of the _id field, a
-    ResourceAlreadyExistsError is raised and not an IndexViolationError.
+    ResourceAlreadyExistsError is raised and not a UniqueConstraintViolationError.
     """
     dao: Dao[ExampleDto] = await mongodb.dao_factory.get_dao(
         name="data",
