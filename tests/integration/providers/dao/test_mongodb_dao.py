@@ -710,3 +710,29 @@ async def test_compound_unique_index_with_id_field(mongodb: MongoDbFixture):
 
     with pytest.raises(ResourceAlreadyExistsError):
         await dao.insert(dto2)
+
+
+async def test_index_with_string_field(mongodb: MongoDbFixture):
+    """Verify that an index can be created by passing just a field name string
+    instead of a dict.
+    """
+    collection_name = "data"
+    dao: Dao[ExampleDto] = await mongodb.dao_factory.get_dao(
+        name=collection_name,
+        dto_model=ExampleDto,
+        id_field="id",
+        indexes=[MongoDbIndex(fields="field_a")],
+    )
+
+    dto = ExampleDto(field_a="test_value")
+    await dao.insert(dto)
+
+    # Verify the index was created
+    config = mongodb.config
+    collection = mongodb.client[config.db_name][collection_name]
+    indexes = collection.index_information()
+    assert len(indexes) == 2  # default index and the one added above
+    _ = indexes.pop("_id_")  # get rid of default index
+    index = next(iter(indexes.values()))
+    # When passing a string, it should create an ascending index
+    assert index["key"] == [("field_a", 1)]
