@@ -151,7 +151,7 @@ def config_from_yaml(
                 model_config = SettingsConfigDict(
                     frozen=True,
                     env_prefix=f"{prefix}_",
-                    env_file=(".env", f"{dotenv_prefix}/.env"),
+                    env_file=(".env", dotenv_prefix / ".env"),
                 )
 
                 @classmethod
