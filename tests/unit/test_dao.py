@@ -47,7 +47,7 @@ class FakeIndex(IndexBase):
 
     fields: Collection[str]
 
-    def list_fields(self) -> list[str]:
+    def list_field_names(self) -> list[str]:
         """Return all the fields in this 'index'"""
         return [field for field in self.fields]
 

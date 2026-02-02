@@ -577,7 +577,7 @@ async def test_indexing_simple(mongodb: MongoDbFixture):
         id_field="id",
         indexes=[
             MongoDbIndex(
-                fields=[("field_a", 1), ("field_b", 1)], properties={"unique": True}
+                fields={"field_a": 1, "field_b": 1}, properties={"unique": True}
             )
         ],
     )
@@ -614,7 +614,7 @@ async def test_apply_index_multiple_times(mongodb: MongoDbFixture):
         id_field="id",
         indexes=[
             MongoDbIndex(
-                fields=[("field_a", 1), ("field_b", 1)], properties={"unique": True}
+                fields={"field_a": 1, "field_b": 1}, properties={"unique": True}
             )
         ],
     )
@@ -629,7 +629,7 @@ async def test_apply_index_multiple_times(mongodb: MongoDbFixture):
         id_field="id",
         indexes=[
             MongoDbIndex(
-                fields=[("field_a", 1), ("field_b", 1)], properties={"unique": True}
+                fields={"field_a": 1, "field_b": 1}, properties={"unique": True}
             )
         ],
     )
@@ -643,7 +643,7 @@ async def test_indexing_complex(mongodb: MongoDbFixture):
         id_field="id",
         indexes=[
             MongoDbIndex(
-                fields=[("sub.field_a", 1), ("sub.field_b", 1)],
+                fields={"sub.field_a": 1, "sub.field_b": 1},
                 properties={"unique": True},
             )
         ],
@@ -676,9 +676,7 @@ async def test_compound_unique_index_with_id_field(mongodb: MongoDbFixture):
         dto_model=ExampleDto,
         id_field="id",
         indexes=[
-            MongoDbIndex(
-                fields=[("id", 1), ("field_b", 1)], properties={"unique": True}
-            )
+            MongoDbIndex(fields={"id": 1, "field_b": 1}, properties={"unique": True})
         ],
     )
 

@@ -47,7 +47,7 @@ class IndexBase(ABC):
     """Base from which all DAO index classes must inherit"""
 
     @abstractmethod
-    def list_fields(self) -> list[str]:
+    def list_field_names(self) -> list[str]:
         """Returns a list of all fields specified by this index"""
         ...
 
@@ -303,12 +303,14 @@ class DaoFactoryBase:
         """Checks that all provided fields are present in the dto_model.
         Raises IndexFieldsInvalidError otherwise.
         """
-        if indexes is None:
+        if not indexes:
             return
 
         try:
-            for index in indexes or []:
-                validate_fields_in_model(model=dto_model, fields=index.list_fields())
+            for index in indexes:
+                validate_fields_in_model(
+                    model=dto_model, fields=index.list_field_names()
+                )
         except FieldNotInModelError as error:
             raise cls.IndexFieldsInvalidError(
                 f"Provided index fields are invalid: {error}"

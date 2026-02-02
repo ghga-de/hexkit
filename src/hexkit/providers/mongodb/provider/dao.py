@@ -19,7 +19,7 @@
 Utilities for testing are located in `./testutils.py`.
 """
 
-from collections.abc import AsyncIterator, Callable, Collection, Mapping, Sequence
+from collections.abc import AsyncIterator, Callable, Collection, Mapping
 from contextlib import AbstractAsyncContextManager, asynccontextmanager
 from dataclasses import dataclass
 from functools import partial
@@ -126,9 +126,10 @@ class MongoDbIndex(IndexBase):
     """Information required to apply a single MongoDbIndex.
 
     **Args**
-    - `fields`: a list of 2-tuples containing the field name and the sort order. For
-        sort order, 1 means ascending and -1 means descending. If the index covers the
-        model's `id_field`, then specify the actual field name instead of "_id".
+    - `fields`: a single field name or a dict containing the field name and the sort
+        order. For sort order, 1 means ascending and -1 means descending. If the index
+        covers the model's `id_field`, then specify the actual field name instead of
+        "_id". When passing a field name instead of a dict, ascending sort order is used.
     - `properties`: a dictionary where the keys are MongoDB index property names, and
         the values are the value to pass for that property.
 
@@ -139,26 +140,33 @@ class MongoDbIndex(IndexBase):
     ```python
     # This creates a compound unique index over field_a and field_b.
     MongoDbIndex(
-        fields=[("field_a", 1), ("field_b", -1)],
+        fields={"field_a": 1, "field_b": -1},
         properties={"unique": True}
     )
+
+    # This creates an ascending-sorted index over field_a.
+    MongoDbIndex("field_a")
     ```
     """
 
-    fields: Sequence[tuple[FieldName, SortOrder]]
+    fields: FieldName | dict[FieldName, SortOrder]
     properties: dict[str, Any] | None = None
 
-    def list_fields(self) -> list[str]:
+    def list_field_names(self) -> list[str]:
         """Return a list of all the field names contained in this index"""
-        return [field[0] for field in self.fields]
+        if isinstance(self.fields, str):
+            return [self.fields]
+        return list(self.fields)
 
     def fields_with_id_replaced(
         self, id_field: str
-    ) -> list[tuple[FieldName, SortOrder]]:
+    ) -> str | list[tuple[FieldName, SortOrder]]:
         """Returns the `fields` property with all instances of `id_field`
         replaced with `"_id"`.
         """
-        return [("_id" if f[0] == id_field else f[0], f[1]) for f in self.fields]
+        if isinstance(self.fields, str):
+            return "_id" if self.fields == id_field else self.fields
+        return [("_id" if f == id_field else f, so) for f, so in self.fields.items()]
 
 
 class MongoDbDao(Generic[Dto]):
