@@ -182,6 +182,21 @@ class ObjectStorageProtocol(ABC):
             anticipated_part_size=anticipated_part_size,
         )
 
+    async def list_multipart_uploads(
+        self, *, bucket_id: str, object_id: str | None = None
+    ) -> dict[str, str]:
+        """Lists all active multipart uploads in a bucket, optionally filtering for
+        the given object ID.
+
+        Returns a dict where the keys are upload IDs and values are object IDs.
+        S3 allows multiple ongoing multi-part uploads, so it's possible for some upload
+        IDs to map to the same object ID.
+        """
+        self._validate_bucket_id(bucket_id)
+        return await self._list_multipart_uploads(
+            bucket_id=bucket_id, object_id=object_id
+        )
+
     async def get_object_download_url(
         self, *, bucket_id: str, object_id: str, expires_after: int = 86400
     ) -> str:
@@ -398,6 +413,22 @@ class ObjectStorageProtocol(ABC):
         and an anticipated part quantity.
         This ensures that exactly the specified number of parts exist and that all parts
         (except the last one) have the specified size.
+
+        *To be implemented by the provider. Input validation is done outside of this
+        method.*
+        """
+        ...
+
+    @abstractmethod
+    async def _list_multipart_uploads(
+        self, *, bucket_id: str, object_id: str | None = None
+    ) -> dict[str, str]:
+        """Lists all active multipart uploads in a bucket, optionally filtering for
+        the given object ID.
+
+        Returns a dict where the keys are upload IDs and values are object IDs.
+        S3 allows multiple ongoing multi-part uploads, so it's possible for some upload
+        IDs to map to the same object ID.
 
         *To be implemented by the provider. Input validation is done outside of this
         method.*

@@ -464,3 +464,69 @@ async def test_copy_object():
     # Repeat the copy operation to get an ObjectAlreadyExistsError
     with pytest.raises(InMemObjectStorage.ObjectAlreadyExistsError):
         await fn()
+
+
+async def test_list_multipart_uploads():
+    """Test the `._list_multipart_uploads()` method"""
+    s3 = InMemObjectStorage(config=config)
+    object_id_2 = "object2"
+    object_id_3 = "object3"
+
+    # Should raise error when bucket doesn't exist
+    with pytest.raises(InMemObjectStorage.BucketNotFoundError):
+        await s3._list_multipart_uploads(bucket_id=BUCKET1)
+
+    # Create bucket
+    await s3.create_bucket(BUCKET1)
+
+    # Should return empty dict when no uploads exist
+    uploads = await s3._list_multipart_uploads(bucket_id=BUCKET1)
+    assert uploads == {}
+
+    # Create multiple uploads for different objects
+    upload_id_1 = await s3.init_multipart_upload(bucket_id=BUCKET1, object_id=OBJECT1)
+    upload_id_2 = await s3.init_multipart_upload(
+        bucket_id=BUCKET1, object_id=object_id_2
+    )
+    upload_id_3 = await s3.init_multipart_upload(
+        bucket_id=BUCKET1, object_id=object_id_3
+    )
+
+    # List all uploads
+    uploads = await s3._list_multipart_uploads(bucket_id=BUCKET1)
+    assert len(uploads) == 3
+    assert uploads[upload_id_1] == OBJECT1
+    assert uploads[upload_id_2] == object_id_2
+    assert uploads[upload_id_3] == object_id_3
+
+    # List uploads for specific object
+    uploads = await s3._list_multipart_uploads(bucket_id=BUCKET1, object_id=OBJECT1)
+    assert len(uploads) == 1
+    assert uploads[upload_id_1] == OBJECT1
+    assert upload_id_2 not in uploads
+    assert upload_id_3 not in uploads
+
+    # List uploads for object with no uploads
+    uploads = await s3._list_multipart_uploads(
+        bucket_id=BUCKET1, object_id="no-uploads"
+    )
+    assert uploads == {}
+
+    # Complete one upload and verify it's removed from the list
+    await s3.complete_multipart_upload(
+        upload_id=upload_id_1, bucket_id=BUCKET1, object_id=OBJECT1
+    )
+    uploads = await s3._list_multipart_uploads(bucket_id=BUCKET1)
+    assert len(uploads) == 2
+    assert upload_id_1 not in uploads
+    assert uploads[upload_id_2] == object_id_2
+    assert uploads[upload_id_3] == object_id_3
+
+    # Abort another upload and verify it's removed
+    await s3.abort_multipart_upload(
+        upload_id=upload_id_2, bucket_id=BUCKET1, object_id=object_id_2
+    )
+    uploads = await s3._list_multipart_uploads(bucket_id=BUCKET1)
+    assert len(uploads) == 1
+    assert upload_id_2 not in uploads
+    assert uploads[upload_id_3] == object_id_3

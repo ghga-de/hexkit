@@ -168,6 +168,36 @@ class InMemObjectStorage(ObjectStorageProtocol):
         uploads_for_object = self.uploads[bucket_id].get(object_id, set())
         return sorted(uploads_for_object)
 
+    async def _list_multipart_uploads(
+        self, *, bucket_id: str, object_id: str | None = None
+    ) -> dict[str, str]:
+        """Lists all active multipart uploads in a bucket, optionally filtering for
+        the given object ID.
+
+        Returns a dict where the keys are upload IDs and values are object IDs.
+        S3 allows multiple ongoing multi-part uploads, so it's possible for some upload
+        IDs to map to the same object ID.
+
+        Raises a `BucketNotFoundError` if the bucket does not exist.
+        """
+        await self._assert_bucket_exists(bucket_id)
+
+        result: dict[str, str] = {}
+
+        # Get uploads for all objects in the bucket (or just the specified one)
+        if object_id is not None:
+            upload_ids = self.uploads[bucket_id].get(object_id, set())
+            # Filter for specific object
+            for upload_id in upload_ids:
+                result[upload_id] = object_id
+        else:
+            # Get all uploads in the bucket
+            for obj_id, upload_ids in self.uploads[bucket_id].items():
+                for upload_id in upload_ids:
+                    result[upload_id] = obj_id
+
+        return result
+
     async def _assert_no_multipart_upload(self, *, bucket_id: str, object_id: str):
         """Ensure that there are no active multi-part uploads for the given object.
 

@@ -484,6 +484,82 @@ async def test_abort_multipart_upload(empty_upload: bool, s3: S3Fixture):
         await upload_part_shortcut(part_number=1)
 
 
+async def test_list_multipart_uploads(s3: S3Fixture):
+    """Test the list_multipart_uploads method."""
+    bucket_id = "test-multipart-list-bucket"
+    await s3.storage.create_bucket(bucket_id)
+
+    # Initially, there should be no uploads
+    uploads = await s3.storage.list_multipart_uploads(bucket_id=bucket_id)
+    assert uploads == {}
+
+    # Initialize multiple uploads for different objects
+    object_id_1 = "object-1"
+    object_id_2 = "object-2"
+    object_id_3 = "object-3"
+
+    upload_id_1 = await s3.storage.init_multipart_upload(
+        bucket_id=bucket_id, object_id=object_id_1
+    )
+    upload_id_2 = await s3.storage.init_multipart_upload(
+        bucket_id=bucket_id, object_id=object_id_2
+    )
+    upload_id_3 = await s3.storage.init_multipart_upload(
+        bucket_id=bucket_id, object_id=object_id_3
+    )
+
+    # List all uploads in the bucket
+    uploads = await s3.storage.list_multipart_uploads(bucket_id=bucket_id)
+    assert len(uploads) == 3
+    assert uploads[upload_id_1] == object_id_1
+    assert uploads[upload_id_2] == object_id_2
+    assert uploads[upload_id_3] == object_id_3
+
+    # Filter for a specific object ID
+    uploads = await s3.storage.list_multipart_uploads(
+        bucket_id=bucket_id, object_id=object_id_2
+    )
+    assert uploads == {upload_id_2: object_id_2}, uploads
+
+    # Complete one upload and verify it's removed from the list
+    await upload_part(
+        storage_dao=s3.storage,
+        upload_id=upload_id_1,
+        bucket_id=bucket_id,
+        object_id=object_id_1,
+        content=b"Test content for object 1",
+        part_number=1,
+    )
+    await s3.storage.complete_multipart_upload(
+        upload_id=upload_id_1, bucket_id=bucket_id, object_id=object_id_1
+    )
+
+    uploads = await s3.storage.list_multipart_uploads(bucket_id=bucket_id)
+    assert len(uploads) == 2
+    assert upload_id_1 not in uploads
+    assert uploads[upload_id_2] == object_id_2
+    assert uploads[upload_id_3] == object_id_3
+
+    # Abort another upload and verify it's removed
+    await s3.storage.abort_multipart_upload(
+        upload_id=upload_id_2, bucket_id=bucket_id, object_id=object_id_2
+    )
+
+    uploads = await s3.storage.list_multipart_uploads(bucket_id=bucket_id)
+    assert len(uploads) == 1
+    assert upload_id_2 not in uploads
+    assert uploads[upload_id_3] == object_id_3
+
+    # Clean up the last upload
+    await s3.storage.abort_multipart_upload(
+        upload_id=upload_id_3, bucket_id=bucket_id, object_id=object_id_3
+    )
+
+    # Verify all uploads are gone
+    uploads = await s3.storage.list_multipart_uploads(bucket_id=bucket_id)
+    assert uploads == {}
+
+
 async def test_multiple_active_uploads(s3: S3Fixture):
     """Test that multiple active uploads for the same object are not possible."""
     # initialize an upload:
