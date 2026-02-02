@@ -608,8 +608,9 @@ async def test_apply_index_multiple_times(mongodb: MongoDbFixture):
     This makes sure that there won't be problems when a service restarts after
     applying an index for the first time.
     """
+    collection_name = "data"
     dao: Dao[ExampleDto] = await mongodb.dao_factory.get_dao(
-        name="data",
+        name=collection_name,
         dto_model=ExampleDto,
         id_field="id",
         indexes=[
@@ -624,7 +625,7 @@ async def test_apply_index_multiple_times(mongodb: MongoDbFixture):
     await dao.insert(dto)
 
     _ = await mongodb.dao_factory.get_dao(
-        name="data",
+        name=collection_name,
         dto_model=ExampleDto,
         id_field="id",
         indexes=[
@@ -634,11 +635,23 @@ async def test_apply_index_multiple_times(mongodb: MongoDbFixture):
         ],
     )
 
+    config = mongodb.config
+    collection = mongodb.client[config.db_name][collection_name]
+
+    indexes = collection.index_information()
+    assert len(indexes) == 2  # default index and the one added above
+    _ = indexes.pop("_id_")  # get rid of default index
+    index = next(iter(indexes.values()))
+    assert "unique" in index
+    assert index["unique"] is True
+    assert index["key"] == [("field_a", 1), ("field_b", 1)]
+
 
 async def test_indexing_complex(mongodb: MongoDbFixture):
     """Check indexing on nested fields and such"""
+    collection_name = "data"
     dao: Dao[ComplexDto] = await mongodb.dao_factory.get_dao(
-        name="data",
+        name=collection_name,
         dto_model=ComplexDto,
         id_field="id",
         indexes=[
@@ -659,6 +672,16 @@ async def test_indexing_complex(mongodb: MongoDbFixture):
 
     with pytest.raises(UniqueConstraintViolationError):
         await dao.insert(dto2)
+
+    config = mongodb.config
+    collection = mongodb.client[config.db_name][collection_name]
+    indexes = collection.index_information()
+    assert len(indexes) == 2  # default index and the one added above
+    _ = indexes.pop("_id_")  # get rid of default index
+    index = next(iter(indexes.values()))
+    assert "unique" in index
+    assert index["unique"] is True
+    assert index["key"] == [("sub.field_a", 1), ("sub.field_b", 1)]
 
 
 async def test_compound_unique_index_with_id_field(mongodb: MongoDbFixture):
