@@ -17,6 +17,7 @@
 """Testing the DAO factory protocol."""
 
 from collections.abc import Collection
+from dataclasses import dataclass
 
 import pytest
 from pydantic import UUID4, BaseModel
@@ -28,6 +29,7 @@ from hexkit.protocols.dao import (
     DaoFactoryProtocol,
     DbTimeoutError,
     Dto,
+    IndexBase,
     UUID4Field,
 )
 from hexkit.providers.mongodb import (
@@ -39,7 +41,18 @@ from hexkit.providers.mongodb import (
 pytestmark = pytest.mark.asyncio()
 
 
-class FakeDaoFactory(DaoFactoryProtocol):
+@dataclass
+class FakeIndex(IndexBase):
+    """A index for testing with the FakeDaoFactory"""
+
+    fields: Collection[str]
+
+    def list_field_names(self) -> list[str]:
+        """Return all the fields in this 'index'"""
+        return [field for field in self.fields]
+
+
+class FakeDaoFactory(DaoFactoryProtocol[FakeIndex]):
     """Implements the DaoFactoryProtocol without providing any logic."""
 
     async def _get_dao(
@@ -48,7 +61,7 @@ class FakeDaoFactory(DaoFactoryProtocol):
         name: str,
         dto_model: type[Dto],
         id_field: str,
-        fields_to_index: Collection[str] | None,
+        indexes: Collection[FakeIndex] | None,
     ) -> Dao[Dto]:
         """*To be implemented by the provider. Input validation is done outside of this
         method.*
@@ -70,14 +83,14 @@ async def test_get_dto_valid():
     dao_factory = FakeDaoFactory()
 
     for id_field in "id", "str_field", "int_field":
-        # should raise a NotImplementedError because indexing is not yet implemented,
+        # should raise a NotImplementedError because ._get_dao() is not implemented,
         # but the parameters should be considered valid
         with pytest.raises(NotImplementedError):
             _ = await dao_factory.get_dao(
                 name="test_dao",
                 dto_model=ExampleDto,
                 id_field=id_field,
-                fields_to_index={"str_field", "int_field"},
+                indexes=[FakeIndex(fields={"str_field", "int_field"})],
             )
 
 
@@ -107,7 +120,7 @@ async def test_get_dto_invalid_fields_to_index():
             name="test_dao",
             dto_model=ExampleDto,
             id_field="id",
-            fields_to_index={"str_field", "non_existing_field"},
+            indexes=[FakeIndex(fields={"str_field", "non_existing_field"})],
         )
 
 

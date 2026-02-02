@@ -23,7 +23,7 @@ from abc import ABC, abstractmethod
 from collections.abc import AsyncIterator, Collection, Mapping
 from contextlib import AbstractAsyncContextManager
 from functools import partial
-from typing import Any, TypeVar
+from typing import Any, Generic, TypeVar
 from uuid import uuid4
 
 from pydantic import BaseModel, Field
@@ -39,10 +39,22 @@ __all__ = [
     "ResourceAlreadyExistsError",
     "ResourceNotFoundError",
     "UUID4Field",
+    "UniqueConstraintViolationError",
 ]
+
+
+class IndexBase(ABC):
+    """Base from which all DAO index classes must inherit"""
+
+    @abstractmethod
+    def list_field_names(self) -> list[str]:
+        """Returns a list of all fields specified by this index"""
+        ...
+
 
 # Type variable for handling Data Transfer Objects:
 Dto = TypeVar("Dto", bound=BaseModel)
+Index = TypeVar("Index", bound=IndexBase)
 
 
 class DaoError(RuntimeError):
@@ -62,6 +74,20 @@ class ResourceAlreadyExistsError(DaoError):
 
     def __init__(self, *, id_: ID):
         message = f'The resource with the id "{id_}" already exists.'
+        super().__init__(message)
+
+
+class UniqueConstraintViolationError(DaoError):
+    """Raised when attempting to insert a resource violated a uniqueness constraint.
+
+    This does not apply to the default unique index automatically applied to
+    the ID field.
+    """
+
+    def __init__(self, *, unique_fields: dict[str, Any]):
+        message = (
+            f"A resource with the unique field value(s) {unique_fields} already exists."
+        )
         super().__init__(message)
 
 
@@ -268,16 +294,19 @@ class DaoFactoryBase:
         cls,
         *,
         dto_model: type[Dto],
-        fields_to_index: Collection[str] | None,
+        indexes: Collection[Index] | None,
     ) -> None:
         """Checks that all provided fields are present in the dto_model.
         Raises IndexFieldsInvalidError otherwise.
         """
-        if fields_to_index is None:
+        if not indexes:
             return
 
         try:
-            validate_fields_in_model(model=dto_model, fields=fields_to_index)
+            for index in indexes:
+                validate_fields_in_model(
+                    model=dto_model, fields=index.list_field_names()
+                )
         except FieldNotInModelError as error:
             raise cls.IndexFieldsInvalidError(
                 f"Provided index fields are invalid: {error}"
@@ -289,16 +318,14 @@ class DaoFactoryBase:
         *,
         dto_model: type[Dto],
         id_field: str,
-        fields_to_index: Collection[str] | None,
+        indexes: Collection[Index] | None,
     ) -> None:
         """Validates the input parameters of the get_dao method."""
         cls._validate_dto_model_id(dto_model=dto_model, id_field=id_field)
-        cls._validate_fields_to_index(
-            dto_model=dto_model, fields_to_index=fields_to_index
-        )
+        cls._validate_fields_to_index(dto_model=dto_model, indexes=indexes)
 
 
-class DaoFactoryProtocol(DaoFactoryBase, ABC):
+class DaoFactoryProtocol(DaoFactoryBase, ABC, Generic[Index]):
     """A protocol describing a factory to produce Data Access Objects (DAO) objects
     that are enclosed in transactional scopes.
     """
@@ -309,7 +336,7 @@ class DaoFactoryProtocol(DaoFactoryBase, ABC):
         name: str,
         dto_model: type[Dto],
         id_field: str,
-        fields_to_index: Collection[str] | None = None,
+        indexes: Collection[Index] | None = None,
     ) -> Dao[Dto]:
         """Constructs a DAO for interacting with resources in a database.
 
@@ -322,9 +349,9 @@ class DaoFactoryProtocol(DaoFactoryBase, ABC):
             id_field:
                 The name of the field of the `dto_model` that serves as resource ID.
                 (DAO implementation might use this field as primary key.)
-            fields_to_index:
-                Optionally, provide any fields that should be indexed in addition to the
-                `id_field`. Defaults to None.
+            indexes:
+                Optionally, provide any indexes that should be created in addition to
+                the provider's default index on `id_field`. Defaults to None.
         Returns:
             A DAO specific to the provided DTO model.
 
@@ -334,17 +361,13 @@ class DaoFactoryProtocol(DaoFactoryBase, ABC):
             self.IdTypeNotSupportedError:
                 Raised when the id_field of the dto_model has an unexpected type.
         """
-        self._validate(
-            dto_model=dto_model,
-            id_field=id_field,
-            fields_to_index=fields_to_index,
-        )
+        self._validate(dto_model=dto_model, id_field=id_field, indexes=indexes)
 
         return await self._get_dao(
             name=name,
             dto_model=dto_model,
             id_field=id_field,
-            fields_to_index=fields_to_index,
+            indexes=indexes,
         )
 
     @abstractmethod
@@ -354,7 +377,7 @@ class DaoFactoryProtocol(DaoFactoryBase, ABC):
         name: str,
         dto_model: type[Dto],
         id_field: str,
-        fields_to_index: Collection[str] | None,
+        indexes: Collection[Index] | None,
     ) -> Dao[Dto]:
         """*To be implemented by the provider. Input validation is done outside of this
         method.*
