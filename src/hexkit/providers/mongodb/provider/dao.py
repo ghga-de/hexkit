@@ -21,7 +21,6 @@ Utilities for testing are located in `./testutils.py`.
 
 from collections.abc import AsyncIterator, Callable, Collection, Mapping
 from contextlib import AbstractAsyncContextManager, asynccontextmanager
-from dataclasses import dataclass
 from functools import partial
 from typing import Any, Generic, Literal, TypeAlias
 
@@ -121,41 +120,52 @@ FieldName: TypeAlias = str
 SortOrder: TypeAlias = Literal[1] | Literal[-1]
 
 
-@dataclass
 class MongoDbIndex(IndexBase):
-    """Information required to apply a single MongoDbIndex.
+    """Information required to apply a single MongoDbIndex."""
 
-    **Args**
-    - `fields`: a single field name or a dict containing the field name and the sort
-        order. For sort order, 1 means ascending and -1 means descending. If the index
-        covers the model's `id_field`, then specify the actual field name instead of
-        "_id". When passing a field name instead of a dict, ascending sort order is used.
-    - `properties`: a dictionary where the keys are MongoDB index property names, and
-        the values are the value to pass for that property.
-
-    More information on index creation with Pymongo, including a list of the supported
-    index properties, can be found [here](https://pymongo.readthedocs.io/en/stable/api/pymongo/collection.html#pymongo.collection.Collection.create_index)
-
-    Example:
-    ```python
-    # This creates a compound unique index over field_a and field_b.
-    MongoDbIndex(
-        fields={"field_a": 1, "field_b": -1},
-        properties={"unique": True}
-    )
-
-    # This creates an ascending-sorted index over field_a.
-    MongoDbIndex("field_a")
-    ```
-    """
-
-    fields: FieldName | dict[FieldName, SortOrder]
+    fields: dict[FieldName, SortOrder]
     properties: dict[str, Any] | None = None
+
+    def __init__(
+        self,
+        *,
+        fields: FieldName | dict[FieldName, SortOrder],
+        properties: dict[str, Any] | None = None,
+    ):
+        """Initialize the index.
+
+        **Args**
+        - `fields`: a single field name or a dict containing the field name and the sort
+            order. For sort order, 1 means ascending and -1 means descending. If the index
+            covers the model's `id_field`, then specify the actual field name instead of
+            "_id". When passing a field name instead of a dict, ascending sort order is used.
+        - `properties`: a dictionary where the keys are MongoDB index property names, and
+            the values are the value to pass for that property.
+
+        More information on index creation with Pymongo, including a list of the supported
+        index properties, can be found [here](https://pymongo.readthedocs.io/en/stable/api/pymongo/collection.html#pymongo.collection.Collection.create_index)
+
+        Example:
+        ```python
+        # This creates a compound unique index over field_a and field_b.
+        MongoDbIndex(
+            fields={"field_a": 1, "field_b": -1},
+            properties={"unique": True}
+        )
+
+        # This creates an ascending-sorted index over field_a.
+        MongoDbIndex("field_a")
+        ```
+        """
+        if isinstance(fields, str):
+            self.fields = {fields: 1}
+        else:
+            self.fields = fields
+
+        self.properties = properties
 
     def list_field_names(self) -> list[str]:
         """Return a list of all the field names contained in this index"""
-        if isinstance(self.fields, str):
-            return [self.fields]
         return list(self.fields)
 
     def fields_with_id_replaced(
@@ -164,8 +174,6 @@ class MongoDbIndex(IndexBase):
         """Returns the `fields` property with all instances of `id_field`
         replaced with `"_id"`.
         """
-        if isinstance(self.fields, str):
-            return "_id" if self.fields == id_field else self.fields
         return [("_id" if f == id_field else f, so) for f, so in self.fields.items()]
 
 
