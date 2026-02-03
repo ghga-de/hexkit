@@ -25,7 +25,7 @@ dependencies = [
 [project.optional-dependencies]
 akafka = ["aiokafka[zstd,lz4,snappy]~=0.13.0", "jsonschema >=4.25, <5"]
 s3 = ["boto3 >=1.42, <2", "botocore >=1.42, <2"]
-mongodb = ["pymongo >=4.15, <5"]
+mongodb = ["pymongo >=4.16, <5"]
 redis = ["redis >=7.1, <8"]
 opentelemetry-base = [
     "opentelemetry-sdk >=1.39.1, <2",
@@ -64,10 +64,10 @@ opentelemetry = [
     "hexkit[opentelemetry-fastapi]",
     "hexkit[opentelemetry-s3]",
 ]
-test-akafka = ["hexkit[akafka]", "testcontainers[kafka] >=4.13, <5"]
-test-s3 = ["hexkit[s3]", "testcontainers >=4.13, <5"]
-test-mongodb = ["hexkit[mongodb]", "testcontainers[mongo] >=4.13, <5"]
-test-redis = ["hexkit[redis]", "testcontainers[redis] >=4.13, <5"]
+test-akafka = ["hexkit[akafka]", "testcontainers[kafka] >=4.14, <5"]
+test-s3 = ["hexkit[s3]", "testcontainers >=4.14, <5"]
+test-mongodb = ["hexkit[mongodb]", "testcontainers[mongo] >=4.14, <5"]
+test-redis = ["hexkit[redis]", "testcontainers[redis] >=4.14, <5"]
 test = ["hexkit[test-akafka,test-s3,test-mongodb]"]
 
 all = ["hexkit[test]", "hexkit[opentelemetry]"]
@@ -100,7 +100,7 @@ legacy_tox_ini = """
     commands =
         py310: pip install --no-deps \
             backports.asyncio.runner==1.2.0 \
-            exceptiongroup==1.3.0 \
+            exceptiongroup==1.3.1 \
             tomli==2.2.1
         pytest {posargs}
 """
