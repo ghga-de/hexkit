@@ -243,12 +243,19 @@ class MongoDbDao(Generic[Dto]):
         Raises:
             ResourceNotFoundError:
                 when resource with the id specified in the dto was not found
+            UniqueConstraintViolationError:
+                when updating the dto would violate a unique index constraint over some
+                field other than the ID field.
         """
         document = self._dto_to_document(dto)
         with translate_pymongo_errors():
-            result = await self._collection.replace_one(
-                {"_id": document["_id"]}, document
-            )
+            try:
+                result = await self._collection.replace_one(
+                    {"_id": document["_id"]}, document
+                )
+            except DuplicateKeyError as error:
+                key_value = error.details.get("keyValue", {})  # type: ignore
+                raise UniqueConstraintViolationError(unique_fields=key_value) from error
 
         if result.matched_count == 0:
             raise ResourceNotFoundError(id_=document["_id"])
@@ -353,6 +360,9 @@ class MongoDbDao(Generic[Dto]):
         Raises:
             ResourceAlreadyExistsError:
                 when a resource with the ID specified in the dto does already exist.
+            UniqueConstraintViolationError:
+                when inserting the dto would violate a unique index constraint over some
+                field other than the ID field.
         """
         document = self._dto_to_document(dto)
         with translate_pymongo_errors():
@@ -373,12 +383,21 @@ class MongoDbDao(Generic[Dto]):
             dto:
                 Resource content as a pydantic-based data transfer object including the
                 resource ID.
+
+        Raises:
+            UniqueConstraintViolationError:
+                when upserting the dto would violate a unique index constraint over some
+                field other than the ID field.
         """
         document = self._dto_to_document(dto)
         with translate_pymongo_errors():
-            await self._collection.replace_one(
-                {"_id": document["_id"]}, document, upsert=True
-            )
+            try:
+                await self._collection.replace_one(
+                    {"_id": document["_id"]}, document, upsert=True
+                )
+            except DuplicateKeyError as error:
+                key_value = error.details.get("keyValue", {})  # type: ignore
+                raise UniqueConstraintViolationError(unique_fields=key_value) from error
 
 
 class MongoDbDaoFactory(DaoFactoryProtocol[MongoDbIndex]):

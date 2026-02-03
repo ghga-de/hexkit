@@ -178,6 +178,9 @@ class Dao(typing.Protocol[Dto]):
         Raises:
             ResourceNotFoundError:
                 when resource with the id specified in the dto was not found
+            UniqueConstraintViolationError:
+                when updating the dto would violate a unique index constraint over some
+                field other than the ID field.
         """
         ...
 
@@ -250,6 +253,9 @@ class Dao(typing.Protocol[Dto]):
         Raises:
             ResourceAlreadyExistsError:
                 when a resource with the ID specified in the dto does already exist.
+            UniqueConstraintViolationError:
+                when inserting the dto would violate a unique index constraint over some
+                field other than the ID field.
         """
         ...
 
@@ -260,6 +266,11 @@ class Dao(typing.Protocol[Dto]):
             dto:
                 Resource content as a pydantic-based data transfer object including the
                 resource ID.
+
+        Raises:
+            UniqueConstraintViolationError:
+                when upserting the dto would violate a unique index constraint over some
+                field other than the ID field.
         """
         ...
 

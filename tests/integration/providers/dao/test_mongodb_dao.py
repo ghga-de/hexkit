@@ -601,6 +601,14 @@ async def test_indexing_simple(mongodb: MongoDbFixture):
     dto4 = ExampleDto(field_b=700)
     await dao.insert(dto4)
 
+    # Make sure both update and upsert perform the correct error handling too
+    dto5 = dto3.model_copy(update={"field_a": dto.field_a})
+    with pytest.raises(UniqueConstraintViolationError):
+        await dao.update(dto5)
+
+    with pytest.raises(UniqueConstraintViolationError):
+        await dao.upsert(dto5)
+
 
 async def test_apply_index_multiple_times(mongodb: MongoDbFixture):
     """Test that nothing breaks when an index is created subsequent times.

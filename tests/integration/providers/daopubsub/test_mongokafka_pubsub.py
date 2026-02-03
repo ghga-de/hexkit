@@ -36,6 +36,7 @@ from hexkit.correlation import (
 from hexkit.protocols.dao import (
     ResourceAlreadyExistsError,
     ResourceNotFoundError,
+    UniqueConstraintViolationError,
     UUID4Field,
 )
 from hexkit.protocols.daosub import DaoSubscriberProtocol, DtoValidationError
@@ -53,6 +54,7 @@ from hexkit.providers.akafka.testutils import (
     kafka_fixture,  # noqa: F401
 )
 from hexkit.providers.mongodb.provider import dto_to_document
+from hexkit.providers.mongodb.provider.dao import MongoDbIndex
 from hexkit.providers.mongodb.testutils import (
     mongodb_container_fixture,  # noqa: F401
     mongodb_fixture,  # noqa: F401
@@ -913,3 +915,51 @@ async def test_documents_without_metadata(mongo_kafka: MongoKafkaFixture):
             "deleted": True,
             "published": True,
         }
+
+
+async def test_unique_index_error_handling(mongo_kafka: MongoKafkaFixture):
+    """Make sure that DuplicateKeyErrors from unique index violations are
+    handled correctly in the insert, upsert, and update methods of the mongokafka dao.
+    """
+    async with MongoKafkaDaoPublisherFactory.construct(
+        config=mongo_kafka.config
+    ) as factory:
+        dao = await factory.get_dao(
+            name="example",
+            dto_model=ExampleDto,
+            id_field="id",
+            dto_to_event=lambda dto: dto.model_dump(),
+            event_topic=EXAMPLE_TOPIC,
+            indexes=[
+                MongoDbIndex(
+                    fields={"field_a": 1, "field_b": 1}, properties={"unique": True}
+                )
+            ],
+        )
+
+        dto = ExampleDto()
+        dto2 = ExampleDto()
+
+        # Test insert
+        await dao.insert(dto)
+        with pytest.raises(ResourceAlreadyExistsError):
+            await dao.insert(dto)
+
+        with pytest.raises(UniqueConstraintViolationError):
+            await dao.insert(dto2)
+
+        # The first value in the unique index is different, but the second is the same
+        dto3 = ExampleDto(field_a="banana")
+        await dao.insert(dto3)
+
+        # The second value in the unique index is different, but the first is the same
+        dto4 = ExampleDto(field_b=700)
+        await dao.insert(dto4)
+
+        # Make sure both update and upsert perform the correct error handling too
+        dto5 = dto3.model_copy(update={"field_a": dto.field_a})
+        with pytest.raises(UniqueConstraintViolationError):
+            await dao.update(dto5)
+
+        with pytest.raises(UniqueConstraintViolationError):
+            await dao.upsert(dto5)

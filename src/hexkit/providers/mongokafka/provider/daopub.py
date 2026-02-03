@@ -28,10 +28,16 @@ from uuid import uuid4
 from aiokafka import AIOKafkaProducer
 from pymongo import AsyncMongoClient
 from pymongo.asynchronous.collection import AsyncCollection
+from pymongo.errors import DuplicateKeyError
 
 from hexkit.correlation import get_correlation_id, set_correlation_id
 from hexkit.custom_types import ID, JsonObject
-from hexkit.protocols.dao import Dao, Dto, ResourceNotFoundError
+from hexkit.protocols.dao import (
+    Dao,
+    Dto,
+    ResourceNotFoundError,
+    UniqueConstraintViolationError,
+)
 from hexkit.protocols.daopub import DaoPublisher, DaoPublisherFactoryProtocol
 from hexkit.protocols.eventpub import EventPublisherProtocol
 from hexkit.providers.akafka import KafkaEventPublisher
@@ -263,21 +269,29 @@ class MongoKafkaDaoPublisher(Generic[Dto]):
         Raises:
             ResourceNotFoundError:
                 when resource with the id specified in the dto was not found
+            UniqueConstraintViolationError:
+                when updating the dto would violate a unique index constraint over some
+                field other than the ID field.
         """
         correlation_id = get_correlation_id()
         document = self._dao._dto_to_document(dto)
         document.setdefault("__metadata__", {})["correlation_id"] = correlation_id
         with translate_pymongo_errors():
-            result = await self._collection.replace_one(
-                {
-                    "_id": document["_id"],
-                    "$or": [
-                        {"__metadata__": {"$exists": False}},
-                        {"__metadata__.deleted": False},
-                    ],
-                },
-                document,
-            )
+            try:
+                result = await self._collection.replace_one(
+                    {
+                        "_id": document["_id"],
+                        "$or": [
+                            {"__metadata__": {"$exists": False}},
+                            {"__metadata__.deleted": False},
+                        ],
+                    },
+                    document,
+                )
+            except DuplicateKeyError as error:
+                key_value = error.details.get("keyValue", {})  # type: ignore
+                raise UniqueConstraintViolationError(unique_fields=key_value) from error
+
         if result.matched_count == 0:
             raise ResourceNotFoundError(id_=document["_id"])
 
@@ -389,6 +403,9 @@ class MongoKafkaDaoPublisher(Generic[Dto]):
         Raises:
             ResourceAlreadyExistsError:
                 when a resource with the ID specified in the dto does already exist.
+            UniqueConstraintViolationError:
+                when inserting the dto would violate a unique index constraint over some
+                field other than the ID field.
         """
         await self._dao.insert(dto=dto)
 
@@ -402,8 +419,17 @@ class MongoKafkaDaoPublisher(Generic[Dto]):
             dto:
                 Resource content as a pydantic-based data transfer object including the
                 resource ID.
+
+        Raises:
+            UniqueConstraintViolationError:
+                when upserting the dto would violate a unique index constraint over some
+                field other than the ID field.
         """
-        await self._dao.upsert(dto=dto)
+        try:
+            await self._dao.upsert(dto=dto)
+        except DuplicateKeyError as error:
+            key_value = error.details.get("keyValue", {})  # type: ignore
+            raise UniqueConstraintViolationError(unique_fields=key_value) from error
         if self._autopublish:
             await self._publish_change(dto)
 
