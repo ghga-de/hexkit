@@ -402,17 +402,44 @@ class S3ObjectStorage(ObjectStorageProtocol):
         )
 
     async def _list_multipart_uploads(
-        self, *, bucket_id: str, object_id: str | None = None
-    ) -> dict[str, str]:
-        """Lists all active multipart uploads in a bucket, optionally filtering for
-        the given object ID.
+        self, *, bucket_id: str, object_id: str
+    ) -> list[str]:
+        """Lists all active multipart uploads for the given object ID.
+
+        Raises a `BucketNotFoundError` if the bucket does not exist.
+
+        Boto3 Documentation:
+        https://boto3.amazonaws.com/v1/documentation/api/latest/reference/services/s3/client/list_multipart_uploads.html#S3.Client.list_multipart_uploads
+        """
+        uploads: list[str] = []
+        try:
+            response_iter = await asyncio.to_thread(
+                self._client.get_paginator("list_multipart_uploads").paginate,
+                Bucket=bucket_id,
+            )
+            for response_page in response_iter:
+                uploads.extend(
+                    [
+                        upload["UploadId"]
+                        for upload in response_page.get("Uploads", [])
+                        if upload["Key"] == object_id
+                    ]
+                )
+        except botocore.exceptions.ClientError as error:
+            raise self._translate_s3_client_errors(
+                error, bucket_id=bucket_id, object_id=object_id
+            ) from error
+
+        return uploads
+
+    async def _get_all_multipart_uploads(self, *, bucket_id: str) -> dict[str, str]:
+        """Gets all active multipart uploads for the given bucket ID.
 
         Returns a dict where the keys are upload IDs and values are object IDs.
         S3 allows multiple ongoing multi-part uploads, so it's possible for some upload
         IDs to map to the same object ID.
 
-        Boto3 Documentation:
-        https://boto3.amazonaws.com/v1/documentation/api/latest/reference/services/s3/client/list_multipart_uploads.html#S3.Client.list_multipart_uploads
+        Raises a `BucketNotFoundError` if the bucket does not exist.
         """
         uploads: dict[str, str] = {}
         try:
@@ -425,12 +452,11 @@ class S3ObjectStorage(ObjectStorageProtocol):
                     {
                         upload["UploadId"]: upload["Key"]
                         for upload in response_page.get("Uploads", [])
-                        if (upload["Key"] == object_id or not object_id)
                     }
                 )
         except botocore.exceptions.ClientError as error:
             raise self._translate_s3_client_errors(
-                error, bucket_id=bucket_id, object_id=object_id
+                error, bucket_id=bucket_id
             ) from error
 
         return uploads
