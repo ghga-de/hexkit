@@ -484,13 +484,13 @@ async def test_abort_multipart_upload(empty_upload: bool, s3: S3Fixture):
         await upload_part_shortcut(part_number=1)
 
 
-async def test_list_multipart_uploads(s3: S3Fixture):
-    """Test the list_multipart_uploads method."""
+async def test_list_multipart_uploads_for_object(s3: S3Fixture):
+    """Test the list_multipart_uploads_for_object method."""
     bucket_id = "my-bucket"
 
     # Should raise an error if called before bucket creation
     with pytest.raises(ObjectStorageProtocol.BucketNotFoundError):
-        _ = await s3.storage.list_multipart_uploads(
+        _ = await s3.storage.list_multipart_uploads_for_object(
             bucket_id=bucket_id, object_id="some-object"
         )
 
@@ -500,7 +500,7 @@ async def test_list_multipart_uploads(s3: S3Fixture):
     object_id_2 = "object-2"
 
     # Initially, there should be no uploads
-    uploads = await s3.storage.list_multipart_uploads(
+    uploads = await s3.storage.list_multipart_uploads_for_object(
         bucket_id=bucket_id, object_id=object_id_1
     )
     assert uploads == []
@@ -514,12 +514,12 @@ async def test_list_multipart_uploads(s3: S3Fixture):
     )
 
     # List uploads for each object - should only see one upload per object
-    uploads = await s3.storage.list_multipart_uploads(
+    uploads = await s3.storage.list_multipart_uploads_for_object(
         bucket_id=bucket_id, object_id=object_id_1
     )
     assert uploads == [upload_id_1]
 
-    uploads = await s3.storage.list_multipart_uploads(
+    uploads = await s3.storage.list_multipart_uploads_for_object(
         bucket_id=bucket_id, object_id=object_id_2
     )
     assert uploads == [upload_id_2]
@@ -537,7 +537,7 @@ async def test_list_multipart_uploads(s3: S3Fixture):
         upload_id=upload_id_1, bucket_id=bucket_id, object_id=object_id_1
     )
 
-    uploads = await s3.storage.list_multipart_uploads(
+    uploads = await s3.storage.list_multipart_uploads_for_object(
         bucket_id=bucket_id, object_id=object_id_1
     )
     assert uploads == []
@@ -547,7 +547,7 @@ async def test_list_multipart_uploads(s3: S3Fixture):
         upload_id=upload_id_2, bucket_id=bucket_id, object_id=object_id_2
     )
 
-    uploads = await s3.storage.list_multipart_uploads(
+    uploads = await s3.storage.list_multipart_uploads_for_object(
         bucket_id=bucket_id, object_id=object_id_2
     )
     assert uploads == []

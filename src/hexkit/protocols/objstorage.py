@@ -182,7 +182,7 @@ class ObjectStorageProtocol(ABC):
             anticipated_part_size=anticipated_part_size,
         )
 
-    async def list_multipart_uploads(
+    async def list_multipart_uploads_for_object(
         self, *, bucket_id: str, object_id: str
     ) -> list[str]:
         """Lists all active multipart uploads for the given object ID.
@@ -191,7 +191,7 @@ class ObjectStorageProtocol(ABC):
         """
         self._validate_bucket_id(bucket_id)
         self._validate_object_id(object_id)
-        return await self._list_multipart_uploads(
+        return await self._list_multipart_uploads_for_object(
             bucket_id=bucket_id, object_id=object_id
         )
 
@@ -430,7 +430,7 @@ class ObjectStorageProtocol(ABC):
         ...
 
     @abstractmethod
-    async def _list_multipart_uploads(
+    async def _list_multipart_uploads_for_object(
         self, *, bucket_id: str, object_id: str
     ) -> list[str]:
         """Lists all active multipart uploads for the given object ID.

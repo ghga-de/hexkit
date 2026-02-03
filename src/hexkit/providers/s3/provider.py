@@ -401,7 +401,7 @@ class S3ObjectStorage(ObjectStorageProtocol):
             url=presigned_url["url"], fields=presigned_url["fields"]
         )
 
-    async def _list_multipart_uploads(
+    async def _list_multipart_uploads_for_object(
         self, *, bucket_id: str, object_id: str
     ) -> list[str]:
         """Lists all active multipart uploads for the given object ID.
@@ -463,7 +463,7 @@ class S3ObjectStorage(ObjectStorageProtocol):
 
     async def _assert_no_multipart_upload(self, *, bucket_id: str, object_id: str):
         """Ensure that there are no active multi-part uploads for the given object."""
-        upload_ids = await self._list_multipart_uploads(
+        upload_ids = await self._list_multipart_uploads_for_object(
             bucket_id=bucket_id, object_id=object_id
         )
         if len(upload_ids) > 0:
@@ -485,7 +485,7 @@ class S3ObjectStorage(ObjectStorageProtocol):
         By default, also verifies that this upload is the only upload active for
         that file. Otherwise, raises MultipleActiveUploadsError.
         """
-        upload_ids = await self._list_multipart_uploads(
+        upload_ids = await self._list_multipart_uploads_for_object(
             bucket_id=bucket_id, object_id=object_id
         )
         n_uploads = len(upload_ids)
@@ -908,7 +908,7 @@ class S3ObjectStorage(ObjectStorageProtocol):
                 # There should only be one ongoing multipart upload/copy at at a time as long
                 # as a new object ID is generated for each attempt
                 try:
-                    upload_ids = await self._list_multipart_uploads(
+                    upload_ids = await self._list_multipart_uploads_for_object(
                         bucket_id=dest_bucket_id, object_id=dest_object_id
                     )
                     if len(upload_ids) == 1:

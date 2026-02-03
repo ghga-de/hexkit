@@ -168,7 +168,7 @@ class InMemObjectStorage(ObjectStorageProtocol):
         uploads_for_object = self.uploads[bucket_id].get(object_id, set())
         return sorted(uploads_for_object)
 
-    async def _list_multipart_uploads(
+    async def _list_multipart_uploads_for_object(
         self, *, bucket_id: str, object_id: str
     ) -> list[str]:
         """Lists all active multipart uploads for the given object ID.

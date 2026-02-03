@@ -466,20 +466,22 @@ async def test_copy_object():
         await fn()
 
 
-async def test_list_multipart_uploads():
-    """Test the `.list_multipart_uploads()` method"""
+async def test_list_multipart_uploads_for_object():
+    """Test the `.list_multipart_uploads_for_object()` method"""
     s3 = InMemObjectStorage(config=config)
     object_id2 = "object2"
 
     # Should raise error when bucket doesn't exist
     with pytest.raises(InMemObjectStorage.BucketNotFoundError):
-        await s3.list_multipart_uploads(bucket_id=BUCKET1, object_id=OBJECT1)
+        await s3.list_multipart_uploads_for_object(bucket_id=BUCKET1, object_id=OBJECT1)
 
     # Create bucket
     await s3.create_bucket(BUCKET1)
 
     # Should return empty list when no uploads exist for the object
-    uploads = await s3.list_multipart_uploads(bucket_id=BUCKET1, object_id=OBJECT1)
+    uploads = await s3.list_multipart_uploads_for_object(
+        bucket_id=BUCKET1, object_id=OBJECT1
+    )
     assert uploads == []
 
     # Create multiple uploads for different objects
@@ -487,19 +489,24 @@ async def test_list_multipart_uploads():
     upload_id2 = await s3.init_multipart_upload(bucket_id=BUCKET1, object_id=object_id2)
 
     # List uploads for specific object
-    uploads = await s3.list_multipart_uploads(bucket_id=BUCKET1, object_id=OBJECT1)
+    uploads = await s3.list_multipart_uploads_for_object(
+        bucket_id=BUCKET1, object_id=OBJECT1
+    )
     assert uploads == [upload_id1]
 
-    uploads = await s3.list_multipart_uploads(bucket_id=BUCKET1, object_id=object_id2)
+    uploads = await s3.list_multipart_uploads_for_object(
+        bucket_id=BUCKET1, object_id=object_id2
+    )
     assert uploads == [upload_id2]
 
     # Complete one upload and verify it's removed from the list
     await s3.complete_multipart_upload(
         upload_id=upload_id1, bucket_id=BUCKET1, object_id=OBJECT1
     )
-    uploads = await s3.list_multipart_uploads(bucket_id=BUCKET1, object_id=OBJECT1)
-    assert len(uploads) == 0
-    assert upload_id1 not in uploads
+    uploads = await s3.list_multipart_uploads_for_object(
+        bucket_id=BUCKET1, object_id=OBJECT1
+    )
+    assert not uploads
 
 
 async def test_get_all_multipart_uploads():
