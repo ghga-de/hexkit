@@ -1,6 +1,9 @@
-FROM mcr.microsoft.com/devcontainers/python:2.0.2-3.13-trixie
+FROM mcr.microsoft.com/devcontainers/python:3.0.5-3.13-trixie
 
 ENV PYTHONUNBUFFERED=1
+
+# Update and upgrade system packages for latest security fixes
+RUN apt-get update && apt-get upgrade -y
 
 # Update args in docker-compose.yaml to set the UID/GID of the "vscode" user.
 ARG USER_UID=1000
