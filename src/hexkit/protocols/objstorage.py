@@ -1,4 +1,4 @@
-# Copyright 2021 - 2025 Universität Tübingen, DKFZ, EMBL, and Universität zu Köln
+# Copyright 2021 - 2026 Universität Tübingen, DKFZ, EMBL, and Universität zu Köln
 # for the German Human Genome-Phenome Archive (GHGA)
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
@@ -181,6 +181,31 @@ class ObjectStorageProtocol(ABC):
             anticipated_part_quantity=anticipated_part_quantity,
             anticipated_part_size=anticipated_part_size,
         )
+
+    async def list_multipart_uploads_for_object(
+        self, *, bucket_id: str, object_id: str
+    ) -> list[str]:
+        """Lists all active multipart uploads for the given object ID.
+
+        Raises a `BucketNotFoundError` if the bucket does not exist.
+        """
+        self._validate_bucket_id(bucket_id)
+        self._validate_object_id(object_id)
+        return await self._list_multipart_uploads_for_object(
+            bucket_id=bucket_id, object_id=object_id
+        )
+
+    async def get_all_multipart_uploads(self, *, bucket_id: str) -> dict[str, str]:
+        """Gets all active multipart uploads for the given bucket ID.
+
+        Returns a dict where the keys are upload IDs and values are object IDs.
+        S3 allows multiple ongoing multi-part uploads, so it's possible for some upload
+        IDs to map to the same object ID.
+
+        Raises a `BucketNotFoundError` if the bucket does not exist.
+        """
+        self._validate_bucket_id(bucket_id)
+        return await self._get_all_multipart_uploads(bucket_id=bucket_id)
 
     async def get_object_download_url(
         self, *, bucket_id: str, object_id: str, expires_after: int = 86400
@@ -403,6 +428,29 @@ class ObjectStorageProtocol(ABC):
         method.*
         """
         ...
+
+    @abstractmethod
+    async def _list_multipart_uploads_for_object(
+        self, *, bucket_id: str, object_id: str
+    ) -> list[str]:
+        """Lists all active multipart uploads for the given object ID.
+
+        *To be implemented by the provider. Input validation is done outside of this
+        method.*
+        """
+        ...
+
+    @abstractmethod
+    async def _get_all_multipart_uploads(self, *, bucket_id: str) -> dict[str, str]:
+        """Gets all active multipart uploads for the given bucket ID.
+
+        Returns a dict where the keys are upload IDs and values are object IDs.
+        S3 allows multiple ongoing multi-part uploads, so it's possible for some upload
+        IDs to map to the same object ID.
+
+        *To be implemented by the provider. Input validation is done outside of this
+        method.*
+        """
 
     @abstractmethod
     async def _get_object_download_url(

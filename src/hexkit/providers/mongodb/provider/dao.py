@@ -1,4 +1,4 @@
-# Copyright 2021 - 2025 Universität Tübingen, DKFZ, EMBL, and Universität zu Köln
+# Copyright 2021 - 2026 Universität Tübingen, DKFZ, EMBL, and Universität zu Köln
 # for the German Human Genome-Phenome Archive (GHGA)
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
@@ -22,7 +22,7 @@ Utilities for testing are located in `./testutils.py`.
 from collections.abc import AsyncIterator, Callable, Collection, Mapping
 from contextlib import AbstractAsyncContextManager, asynccontextmanager
 from functools import partial
-from typing import Any, Generic
+from typing import Any, Generic, Literal, TypeAlias
 
 from pymongo import AsyncMongoClient
 from pymongo.asynchronous.collection import AsyncCollection
@@ -33,11 +33,13 @@ from hexkit.protocols.dao import (
     Dao,
     DaoFactoryProtocol,
     Dto,
+    IndexBase,
     InvalidFindMappingError,
     MultipleHitsFoundError,
     NoHitsFoundError,
     ResourceAlreadyExistsError,
     ResourceNotFoundError,
+    UniqueConstraintViolationError,
 )
 from hexkit.providers.mongodb.config import MongoDbConfig
 from hexkit.providers.mongodb.provider.client import ConfiguredMongoClient
@@ -51,6 +53,7 @@ from hexkit.utils import FieldNotInModelError, validate_fields_in_model
 __all__ = [
     "MongoDbDao",
     "MongoDbDaoFactory",
+    "MongoDbIndex",
     "get_single_hit",
     "replace_id_field_in_find_mapping",
     "validate_find_mapping",
@@ -111,6 +114,67 @@ async def get_single_hit(
         return dto
 
     raise MultipleHitsFoundError(mapping=mapping)
+
+
+FieldName: TypeAlias = str
+SortOrder: TypeAlias = Literal[1] | Literal[-1]
+
+
+class MongoDbIndex(IndexBase):
+    """Information required to apply a single MongoDbIndex."""
+
+    fields: dict[FieldName, SortOrder]
+    properties: dict[str, Any] | None = None
+
+    def __init__(
+        self,
+        *,
+        fields: FieldName | dict[FieldName, SortOrder],
+        properties: dict[str, Any] | None = None,
+    ):
+        """Initialize the index.
+
+        **Args**
+        - `fields`: a single field name or a dict containing the field name and the sort
+            order. For sort order, 1 means ascending and -1 means descending. If the index
+            covers the model's `id_field`, then specify the actual field name instead of
+            "_id". When passing a field name instead of a dict, ascending sort order is used.
+        - `properties`: a dictionary where the keys are MongoDB index property names, and
+            the values are the value to pass for that property.
+
+        More information on index creation with Pymongo, including a list of the supported
+        index properties, can be found [here](https://pymongo.readthedocs.io/en/stable/api/pymongo/collection.html#pymongo.collection.Collection.create_index)
+
+        Example:
+        ```python
+        # This creates a compound unique index over field_a and field_b.
+        MongoDbIndex(
+            fields={"field_a": 1, "field_b": -1},
+            properties={"unique": True}
+        )
+
+        # This creates an ascending-sorted index over field_a.
+        MongoDbIndex("field_a")
+        ```
+        """
+        if isinstance(fields, str):
+            self.fields = {fields: 1}
+        else:
+            self.fields = fields
+
+        self.properties = properties
+
+    def list_field_names(self) -> list[str]:
+        """Return a list of all the field names contained in this index"""
+        return list(self.fields)
+
+    def fields_with_id_replaced(
+        self, id_field: str
+    ) -> str | list[tuple[FieldName, SortOrder]]:
+        """Returns the `fields` property with all instances of `id_field`
+        replaced with `"_id"`.
+        """
+        return [("_id" if f == id_field else f, so) for f, so in self.fields.items()]
 
 
 class MongoDbDao(Generic[Dto]):
@@ -295,6 +359,11 @@ class MongoDbDao(Generic[Dto]):
             try:
                 await self._collection.insert_one(document)
             except DuplicateKeyError as error:
+                key_value = error.details.get("keyValue")  # type: ignore
+                if key_value is not None and list(key_value) != ["_id"]:
+                    raise UniqueConstraintViolationError(
+                        unique_fields=key_value
+                    ) from error
                 raise ResourceAlreadyExistsError(id_=document["_id"]) from error
 
     async def upsert(self, dto: Dto) -> None:
@@ -312,7 +381,7 @@ class MongoDbDao(Generic[Dto]):
             )
 
 
-class MongoDbDaoFactory(DaoFactoryProtocol):
+class MongoDbDaoFactory(DaoFactoryProtocol[MongoDbIndex]):
     """A MongoDB-based provider implementing the DaoFactoryProtocol."""
 
     @classmethod
@@ -354,7 +423,7 @@ class MongoDbDaoFactory(DaoFactoryProtocol):
         name: str,
         dto_model: type[Dto],
         id_field: str,
-        fields_to_index: Collection[str] | None,
+        indexes: Collection[MongoDbIndex] | None = None,
     ) -> Dao[Dto]:
         """Constructs a DAO for interacting with resources in a MongoDB database.
 
@@ -366,12 +435,13 @@ class MongoDbDaoFactory(DaoFactoryProtocol):
         from the database server. Thus for compliance with the DaoFactoryProtocol, this
         method is async.
         """
-        if fields_to_index is not None:
-            raise NotImplementedError(
-                "Indexing on non-ID fields has not been implemented, yet."
-            )
-
         collection = self._db[name]
+
+        for index in indexes or []:
+            properties = index.properties or {}
+            await collection.create_index(
+                index.fields_with_id_replaced(id_field=id_field), **properties
+            )
 
         return MongoDbDao(
             collection=collection,

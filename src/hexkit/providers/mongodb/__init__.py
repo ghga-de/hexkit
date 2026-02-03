@@ -1,4 +1,4 @@
-# Copyright 2021 - 2025 Universität Tübingen, DKFZ, EMBL, and Universität zu Köln
+# Copyright 2021 - 2026 Universität Tübingen, DKFZ, EMBL, and Universität zu Köln
 # for the German Human Genome-Phenome Archive (GHGA)
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
@@ -23,6 +23,7 @@ from .provider import (
     MongoDbDao,
     MongoDbDaoFactory,
     MongoDbDtoKeyValueStore,
+    MongoDbIndex,
     MongoDbJsonKeyValueStore,
     MongoDbStrKeyValueStore,
     translate_pymongo_errors,
@@ -35,6 +36,7 @@ __all__ = [
     "MongoDbDao",
     "MongoDbDaoFactory",
     "MongoDbDtoKeyValueStore",
+    "MongoDbIndex",
     "MongoDbJsonKeyValueStore",
     "MongoDbStrKeyValueStore",
     "translate_pymongo_errors",

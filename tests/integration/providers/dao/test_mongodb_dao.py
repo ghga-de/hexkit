@@ -1,4 +1,4 @@
-# Copyright 2021 - 2025 Universität Tübingen, DKFZ, EMBL, and Universität zu Köln
+# Copyright 2021 - 2026 Universität Tübingen, DKFZ, EMBL, and Universität zu Köln
 # for the German Human Genome-Phenome Archive (GHGA)
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
@@ -31,8 +31,10 @@ from hexkit.protocols.dao import (
     NoHitsFoundError,
     ResourceAlreadyExistsError,
     ResourceNotFoundError,
+    UniqueConstraintViolationError,
     UUID4Field,
 )
+from hexkit.providers.mongodb import MongoDbIndex
 from hexkit.providers.mongodb.testutils import (
     MongoDbFixture,
     mongodb_container_fixture,  # noqa: F401
@@ -565,3 +567,172 @@ async def test_dao_crud_happy(dto_model: type, mongodb: MongoDbFixture):
     # make sure that only 2 resources are left:
     obtained_hits = {hit async for hit in dao.find_all(mapping={})}
     assert len(obtained_hits) == 2
+
+
+async def test_indexing_simple(mongodb: MongoDbFixture):
+    """Verify that the indexing features work for MongoDB"""
+    dao: Dao[ExampleDto] = await mongodb.dao_factory.get_dao(
+        name="data",
+        dto_model=ExampleDto,
+        id_field="id",
+        indexes=[
+            MongoDbIndex(
+                fields={"field_a": 1, "field_b": 1}, properties={"unique": True}
+            )
+        ],
+    )
+
+    dto = ExampleDto()
+    dto2 = ExampleDto()
+
+    await dao.insert(dto)
+
+    with pytest.raises(ResourceAlreadyExistsError):
+        await dao.insert(dto)
+
+    with pytest.raises(UniqueConstraintViolationError):
+        await dao.insert(dto2)
+
+    # The first value in the unique index is different, but the second is the same
+    dto3 = ExampleDto(field_a="banana")
+    await dao.insert(dto3)
+
+    # The second value in the unique index is different, but the first is the same
+    dto4 = ExampleDto(field_b=700)
+    await dao.insert(dto4)
+
+
+async def test_apply_index_multiple_times(mongodb: MongoDbFixture):
+    """Test that nothing breaks when an index is created subsequent times.
+
+    This makes sure that there won't be problems when a service restarts after
+    applying an index for the first time.
+    """
+    collection_name = "data"
+    dao: Dao[ExampleDto] = await mongodb.dao_factory.get_dao(
+        name=collection_name,
+        dto_model=ExampleDto,
+        id_field="id",
+        indexes=[
+            MongoDbIndex(
+                fields={"field_a": 1, "field_b": 1}, properties={"unique": True}
+            )
+        ],
+    )
+
+    dto = ExampleDto()
+
+    await dao.insert(dto)
+
+    _ = await mongodb.dao_factory.get_dao(
+        name=collection_name,
+        dto_model=ExampleDto,
+        id_field="id",
+        indexes=[
+            MongoDbIndex(
+                fields={"field_a": 1, "field_b": 1}, properties={"unique": True}
+            )
+        ],
+    )
+
+    config = mongodb.config
+    collection = mongodb.client[config.db_name][collection_name]
+
+    indexes = collection.index_information()
+    assert len(indexes) == 2  # default index and the one added above
+    _ = indexes.pop("_id_")  # get rid of default index
+    index = next(iter(indexes.values()))
+    assert "unique" in index
+    assert index["unique"] is True
+    assert index["key"] == [("field_a", 1), ("field_b", 1)]
+
+
+async def test_indexing_complex(mongodb: MongoDbFixture):
+    """Check indexing on nested fields and such"""
+    collection_name = "data"
+    dao: Dao[ComplexDto] = await mongodb.dao_factory.get_dao(
+        name=collection_name,
+        dto_model=ComplexDto,
+        id_field="id",
+        indexes=[
+            MongoDbIndex(
+                fields={"sub.field_a": 1, "sub.field_b": 1},
+                properties={"unique": True},
+            )
+        ],
+    )
+
+    dto = ComplexDto()
+    dto2 = ComplexDto()
+
+    await dao.insert(dto)
+
+    with pytest.raises(ResourceAlreadyExistsError):
+        await dao.insert(dto)
+
+    with pytest.raises(UniqueConstraintViolationError):
+        await dao.insert(dto2)
+
+    config = mongodb.config
+    collection = mongodb.client[config.db_name][collection_name]
+    indexes = collection.index_information()
+    assert len(indexes) == 2  # default index and the one added above
+    _ = indexes.pop("_id_")  # get rid of default index
+    index = next(iter(indexes.values()))
+    assert "unique" in index
+    assert index["unique"] is True
+    assert index["key"] == [("sub.field_a", 1), ("sub.field_b", 1)]
+
+
+async def test_compound_unique_index_with_id_field(mongodb: MongoDbFixture):
+    """Verify that when a compound unique index is placed on fields which include the
+    _id field (`id` on the ExampleDto), that:
+    A) The field validation in DaoFactoryBase doesn't trip up
+    B) The index field name actually submitted to pymongo is "_id", not the model's
+    field name.
+
+    And when that index is violated because of the _id field, a
+    ResourceAlreadyExistsError is raised and not a UniqueConstraintViolationError.
+    """
+    dao: Dao[ExampleDto] = await mongodb.dao_factory.get_dao(
+        name="data",
+        dto_model=ExampleDto,
+        id_field="id",
+        indexes=[
+            MongoDbIndex(fields={"id": 1, "field_b": 1}, properties={"unique": True})
+        ],
+    )
+
+    dto = ExampleDto()
+    dto2 = ExampleDto(id=dto.id)
+
+    await dao.insert(dto)
+
+    with pytest.raises(ResourceAlreadyExistsError):
+        await dao.insert(dto2)
+
+
+async def test_index_with_string_field(mongodb: MongoDbFixture):
+    """Verify that an index can be created by passing just a field name string
+    instead of a dict.
+    """
+    collection_name = "data"
+    dao: Dao[ExampleDto] = await mongodb.dao_factory.get_dao(
+        name=collection_name,
+        dto_model=ExampleDto,
+        id_field="id",
+        indexes=[MongoDbIndex(fields="field_a")],
+    )
+
+    dto = ExampleDto(field_a="test_value")
+    await dao.insert(dto)
+
+    # Verify the index was created
+    config = mongodb.config
+    collection = mongodb.client[config.db_name][collection_name]
+    indexes = collection.index_information()
+    assert len(indexes) == 2  # default index and the one added above
+    _ = indexes.pop("_id_")  # get rid of default index
+    index = next(iter(indexes.values()))
+    # When passing a string, it should create an ascending index
+    assert index["key"] == [("field_a", 1)]

@@ -1,4 +1,4 @@
-# Copyright 2021 - 2025 Universität Tübingen, DKFZ, EMBL, and Universität zu Köln
+# Copyright 2021 - 2026 Universität Tübingen, DKFZ, EMBL, and Universität zu Köln
 # for the German Human Genome-Phenome Archive (GHGA)
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
@@ -45,6 +45,7 @@ from hexkit.providers.mongodb.provider import (
     translate_pymongo_errors,
     validate_find_mapping,
 )
+from hexkit.providers.mongodb.provider.dao import MongoDbIndex
 from hexkit.providers.mongokafka.config import MongoKafkaConfig
 
 
@@ -437,7 +438,7 @@ class MongoKafkaDaoPublisher(Generic[Dto]):
             await self.publish_document(document)
 
 
-class MongoKafkaDaoPublisherFactory(DaoPublisherFactoryProtocol):
+class MongoKafkaDaoPublisherFactory(DaoPublisherFactoryProtocol[MongoDbIndex]):
     """A provider implementing the DaoPublisherFactoryProtocol based on MongoDB and
     Apache Kafka.
     """
@@ -491,7 +492,7 @@ class MongoKafkaDaoPublisherFactory(DaoPublisherFactoryProtocol):
         name: str,
         dto_model: type[Dto],
         id_field: str,
-        fields_to_index: Collection[str] | None,
+        indexes: Collection[MongoDbIndex] | None,
         dto_to_event: Callable[[Dto], JsonObject | None],
         event_topic: str,
         autopublish: bool,
@@ -502,12 +503,13 @@ class MongoKafkaDaoPublisherFactory(DaoPublisherFactoryProtocol):
         Please see the DaoPublisherFactoryProtocol superclass for documentation of
         parameters.
         """
-        if fields_to_index is not None:
-            raise NotImplementedError(
-                "Indexing on non-ID fields has not been implemented, yet."
-            )
-
         collection = self._db[name]
+
+        for index in indexes or []:
+            properties = index.properties or {}
+            await collection.create_index(
+                index.fields_with_id_replaced(id_field=id_field), **properties
+            )
 
         dao = MongoDbDao(
             collection=collection,
