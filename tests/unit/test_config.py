@@ -17,11 +17,12 @@
 
 import os
 import shutil
+import tempfile
 from pathlib import Path
 
 import pytest
 
-from hexkit.config import config_from_yaml
+from hexkit.config import DEFAULT_CONFIG_PREFIX, config_from_yaml
 from tests.fixtures.config import BasicConfig, config_yamls, env_var_sets
 
 
@@ -53,6 +54,30 @@ def test_config_from_env():
 
     # compare to expected content:
     expected = BasicConfig(**env_var_fixture.env_vars)  # type: ignore [arg-type]
+    assert config.model_dump() == expected.model_dump()
+
+
+def test_config_from_yaml_and_dotenv():
+    """Test that config yaml and dotenv vars correctly overwrites
+    default parameters
+    """
+    config_yaml = config_yamls["basic"]
+    env_var_fixture = env_var_sets["basic_complete"]
+
+    with tempfile.TemporaryDirectory() as tmpdir:
+        prefix = Path(tmpdir)
+
+        dotenv_file_path = prefix / ".env"
+        with open(dotenv_file_path, "w") as tmp:
+            for key, value in env_var_fixture.env_vars.items():
+                tmp.write(f"{DEFAULT_CONFIG_PREFIX}_{key}={value}\n")
+
+        config_constructor = config_from_yaml(dotenv_prefix=prefix)(BasicConfig)
+        config: BasicConfig = config_constructor(config_yaml=config_yaml.path)
+
+    # compare to expected content:
+    overwrite_params = {**config_yaml.content, **env_var_fixture.env_vars}
+    expected = BasicConfig(**overwrite_params)
     assert config.model_dump() == expected.model_dump()
 
 
