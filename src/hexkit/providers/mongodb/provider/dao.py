@@ -243,6 +243,9 @@ class MongoDbDao(Generic[Dto]):
         Raises:
             ResourceNotFoundError:
                 when resource with the id specified in the dto was not found
+            UniqueConstraintViolationError:
+                when updating the dto would violate a unique index constraint over some
+                field other than the ID field.
         """
         document = self._dto_to_document(dto)
         with translate_pymongo_errors():
@@ -380,6 +383,11 @@ class MongoDbDao(Generic[Dto]):
             dto:
                 Resource content as a pydantic-based data transfer object including the
                 resource ID.
+
+        Raises:
+            UniqueConstraintViolationError:
+                when upserting the dto would violate a unique index constraint over some
+                field other than the ID field.
         """
         document = self._dto_to_document(dto)
         with translate_pymongo_errors():

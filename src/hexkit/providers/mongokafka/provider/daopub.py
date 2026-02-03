@@ -269,6 +269,9 @@ class MongoKafkaDaoPublisher(Generic[Dto]):
         Raises:
             ResourceNotFoundError:
                 when resource with the id specified in the dto was not found
+            UniqueConstraintViolationError:
+                when updating the dto would violate a unique index constraint over some
+                field other than the ID field.
         """
         correlation_id = get_correlation_id()
         document = self._dao._dto_to_document(dto)
@@ -400,6 +403,9 @@ class MongoKafkaDaoPublisher(Generic[Dto]):
         Raises:
             ResourceAlreadyExistsError:
                 when a resource with the ID specified in the dto does already exist.
+            UniqueConstraintViolationError:
+                when inserting the dto would violate a unique index constraint over some
+                field other than the ID field.
         """
         await self._dao.insert(dto=dto)
 
@@ -413,6 +419,11 @@ class MongoKafkaDaoPublisher(Generic[Dto]):
             dto:
                 Resource content as a pydantic-based data transfer object including the
                 resource ID.
+
+        Raises:
+            UniqueConstraintViolationError:
+                when upserting the dto would violate a unique index constraint over some
+                field other than the ID field.
         """
         try:
             await self._dao.upsert(dto=dto)
