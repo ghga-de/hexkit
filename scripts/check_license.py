@@ -291,7 +291,7 @@ def validate_year_string(year_string: str, min_year: int = MIN_YEAR) -> bool:
     if year_string.isnumeric():
         return int(year_string) == current_year
 
-    # Otherwise, a range (e.g. 2021 - 2025) is expected:
+    # Otherwise, a range (e.g. 2021 - 2026) is expected:
     match = re.match(r"(\d+) - (\d+)", year_string)
 
     if not match:
