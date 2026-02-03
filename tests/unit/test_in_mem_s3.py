@@ -464,3 +464,94 @@ async def test_copy_object():
     # Repeat the copy operation to get an ObjectAlreadyExistsError
     with pytest.raises(InMemObjectStorage.ObjectAlreadyExistsError):
         await fn()
+
+
+async def test_list_multipart_uploads_for_object():
+    """Test the `.list_multipart_uploads_for_object()` method"""
+    s3 = InMemObjectStorage(config=config)
+    object_id2 = "object2"
+
+    # Should raise error when bucket doesn't exist
+    with pytest.raises(InMemObjectStorage.BucketNotFoundError):
+        await s3.list_multipart_uploads_for_object(bucket_id=BUCKET1, object_id=OBJECT1)
+
+    # Create bucket
+    await s3.create_bucket(BUCKET1)
+
+    # Should return empty list when no uploads exist for the object
+    uploads = await s3.list_multipart_uploads_for_object(
+        bucket_id=BUCKET1, object_id=OBJECT1
+    )
+    assert uploads == []
+
+    # Create multiple uploads for different objects
+    upload_id1 = await s3.init_multipart_upload(bucket_id=BUCKET1, object_id=OBJECT1)
+    upload_id2 = await s3.init_multipart_upload(bucket_id=BUCKET1, object_id=object_id2)
+
+    # List uploads for specific object
+    uploads = await s3.list_multipart_uploads_for_object(
+        bucket_id=BUCKET1, object_id=OBJECT1
+    )
+    assert uploads == [upload_id1]
+
+    uploads = await s3.list_multipart_uploads_for_object(
+        bucket_id=BUCKET1, object_id=object_id2
+    )
+    assert uploads == [upload_id2]
+
+    # Complete one upload and verify it's removed from the list
+    await s3.complete_multipart_upload(
+        upload_id=upload_id1, bucket_id=BUCKET1, object_id=OBJECT1
+    )
+    uploads = await s3.list_multipart_uploads_for_object(
+        bucket_id=BUCKET1, object_id=OBJECT1
+    )
+    assert not uploads
+
+
+async def test_get_all_multipart_uploads():
+    """Test the `.get_all_multipart_uploads()` method"""
+    s3 = InMemObjectStorage(config=config)
+    bucket2 = "bucket2"
+    object_id2 = "object2"
+    object_id3 = "object3"
+
+    # Should raise error when bucket doesn't exist
+    with pytest.raises(InMemObjectStorage.BucketNotFoundError):
+        await s3.get_all_multipart_uploads(bucket_id=BUCKET1)
+
+    # Create buckets
+    await s3.create_bucket(BUCKET1)
+    await s3.create_bucket(bucket2)
+
+    # Should return empty dict when no uploads exist
+    uploads = await s3.get_all_multipart_uploads(bucket_id=BUCKET1)
+    assert uploads == {}
+
+    # Create multiple uploads for different objects
+    upload_id1 = await s3.init_multipart_upload(bucket_id=BUCKET1, object_id=OBJECT1)
+    upload_id2 = await s3.init_multipart_upload(bucket_id=BUCKET1, object_id=object_id2)
+
+    # Upload object 3 to a different bucket
+    upload_id3 = await s3.init_multipart_upload(bucket_id=bucket2, object_id=object_id3)
+
+    # Get all uploads for bucket1
+    uploads = await s3.get_all_multipart_uploads(bucket_id=BUCKET1)
+    assert uploads == {upload_id1: OBJECT1, upload_id2: object_id2}
+
+    # Get all uploads for bucket2
+    uploads = await s3.get_all_multipart_uploads(bucket_id=bucket2)
+    assert uploads == {upload_id3: object_id3}
+
+    # Complete one upload and verify it's removed from the list
+    await s3.complete_multipart_upload(
+        upload_id=upload_id1, bucket_id=BUCKET1, object_id=OBJECT1
+    )
+    uploads = await s3.get_all_multipart_uploads(bucket_id=BUCKET1)
+    assert uploads == {upload_id2: object_id2}
+
+    # Abort another upload and verify it's removed
+    await s3.abort_multipart_upload(
+        upload_id=upload_id2, bucket_id=BUCKET1, object_id=object_id2
+    )
+    assert not await s3.get_all_multipart_uploads(bucket_id=BUCKET1)

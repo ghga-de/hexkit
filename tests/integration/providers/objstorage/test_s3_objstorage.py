@@ -484,6 +484,137 @@ async def test_abort_multipart_upload(empty_upload: bool, s3: S3Fixture):
         await upload_part_shortcut(part_number=1)
 
 
+async def test_list_multipart_uploads_for_object(s3: S3Fixture):
+    """Test the list_multipart_uploads_for_object method."""
+    bucket_id = "my-bucket"
+
+    # Should raise an error if called before bucket creation
+    with pytest.raises(ObjectStorageProtocol.BucketNotFoundError):
+        _ = await s3.storage.list_multipart_uploads_for_object(
+            bucket_id=bucket_id, object_id="some-object"
+        )
+
+    await s3.storage.create_bucket(bucket_id)
+
+    object_id_1 = "object-1"
+    object_id_2 = "object-2"
+
+    # Initially, there should be no uploads
+    uploads = await s3.storage.list_multipart_uploads_for_object(
+        bucket_id=bucket_id, object_id=object_id_1
+    )
+    assert uploads == []
+
+    # Initialize uploads for two different objects
+    upload_id_1 = await s3.storage.init_multipart_upload(
+        bucket_id=bucket_id, object_id=object_id_1
+    )
+    upload_id_2 = await s3.storage.init_multipart_upload(
+        bucket_id=bucket_id, object_id=object_id_2
+    )
+
+    # List uploads for each object - should only see one upload per object
+    uploads = await s3.storage.list_multipart_uploads_for_object(
+        bucket_id=bucket_id, object_id=object_id_1
+    )
+    assert uploads == [upload_id_1]
+
+    uploads = await s3.storage.list_multipart_uploads_for_object(
+        bucket_id=bucket_id, object_id=object_id_2
+    )
+    assert uploads == [upload_id_2]
+
+    # Complete first upload and verify it's removed
+    await upload_part(
+        storage_dao=s3.storage,
+        upload_id=upload_id_1,
+        bucket_id=bucket_id,
+        object_id=object_id_1,
+        content=b"Test content",
+        part_number=1,
+    )
+    await s3.storage.complete_multipart_upload(
+        upload_id=upload_id_1, bucket_id=bucket_id, object_id=object_id_1
+    )
+
+    uploads = await s3.storage.list_multipart_uploads_for_object(
+        bucket_id=bucket_id, object_id=object_id_1
+    )
+    assert uploads == []
+
+    # Abort second upload and verify it's removed
+    await s3.storage.abort_multipart_upload(
+        upload_id=upload_id_2, bucket_id=bucket_id, object_id=object_id_2
+    )
+
+    uploads = await s3.storage.list_multipart_uploads_for_object(
+        bucket_id=bucket_id, object_id=object_id_2
+    )
+    assert uploads == []
+
+
+async def test_get_all_multipart_uploads(s3: S3Fixture):
+    """Test the get_all_multipart_uploads method."""
+    bucket_id = "my-bucket"
+
+    # Calling the method before bucket creation should raise an error
+    with pytest.raises(ObjectStorageProtocol.BucketNotFoundError):
+        _ = await s3.storage.get_all_multipart_uploads(bucket_id=bucket_id)
+
+    await s3.storage.create_bucket(bucket_id)
+
+    # Initially, there should be no uploads
+    uploads = await s3.storage.get_all_multipart_uploads(bucket_id=bucket_id)
+    assert uploads == {}
+
+    # Initialize multiple uploads for different objects
+    object_id1 = "object-1"
+    object_id2 = "object-2"
+    object_id3 = "object-3"
+
+    upload_id1 = await s3.storage.init_multipart_upload(
+        bucket_id=bucket_id, object_id=object_id1
+    )
+    upload_id2 = await s3.storage.init_multipart_upload(
+        bucket_id=bucket_id, object_id=object_id2
+    )
+    upload_id3 = await s3.storage.init_multipart_upload(
+        bucket_id=bucket_id, object_id=object_id3
+    )
+
+    # List all uploads in the bucket
+    uploads = await s3.storage.get_all_multipart_uploads(bucket_id=bucket_id)
+    assert uploads == {
+        upload_id1: object_id1,
+        upload_id2: object_id2,
+        upload_id3: object_id3,
+    }
+
+    # Complete one upload and verify it's removed from the list
+    await upload_part(
+        storage_dao=s3.storage,
+        upload_id=upload_id1,
+        bucket_id=bucket_id,
+        object_id=object_id1,
+        content=b"Test content for object 1",
+        part_number=1,
+    )
+    await s3.storage.complete_multipart_upload(
+        upload_id=upload_id1, bucket_id=bucket_id, object_id=object_id1
+    )
+
+    uploads = await s3.storage.get_all_multipart_uploads(bucket_id=bucket_id)
+    assert uploads == {upload_id2: object_id2, upload_id3: object_id3}
+
+    # Abort another upload and verify it's removed
+    await s3.storage.abort_multipart_upload(
+        upload_id=upload_id2, bucket_id=bucket_id, object_id=object_id2
+    )
+
+    uploads = await s3.storage.get_all_multipart_uploads(bucket_id=bucket_id)
+    assert uploads == {upload_id3: object_id3}
+
+
 async def test_multiple_active_uploads(s3: S3Fixture):
     """Test that multiple active uploads for the same object are not possible."""
     # initialize an upload:

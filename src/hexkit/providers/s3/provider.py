@@ -401,15 +401,17 @@ class S3ObjectStorage(ObjectStorageProtocol):
             url=presigned_url["url"], fields=presigned_url["fields"]
         )
 
-    async def _list_multipart_upload_for_object(
+    async def _list_multipart_uploads_for_object(
         self, *, bucket_id: str, object_id: str
     ) -> list[str]:
-        """Lists all active multipart uploads for the given object. Returns a list of
-        their IDs.
+        """Lists all active multipart uploads for the given object ID.
 
-        (S3 allows multiple ongoing multi-part uploads.)
+        Raises a `BucketNotFoundError` if the bucket does not exist.
+
+        Boto3 Documentation:
+        https://boto3.amazonaws.com/v1/documentation/api/latest/reference/services/s3/client/list_multipart_uploads.html#S3.Client.list_multipart_uploads
         """
-        uploads = []
+        uploads: list[str] = []
         try:
             response_iter = await asyncio.to_thread(
                 self._client.get_paginator("list_multipart_uploads").paginate,
@@ -430,9 +432,38 @@ class S3ObjectStorage(ObjectStorageProtocol):
 
         return uploads
 
+    async def _get_all_multipart_uploads(self, *, bucket_id: str) -> dict[str, str]:
+        """Gets all active multipart uploads for the given bucket ID.
+
+        Returns a dict where the keys are upload IDs and values are object IDs.
+        S3 allows multiple ongoing multi-part uploads, so it's possible for some upload
+        IDs to map to the same object ID.
+
+        Raises a `BucketNotFoundError` if the bucket does not exist.
+        """
+        uploads: dict[str, str] = {}
+        try:
+            response_iter = await asyncio.to_thread(
+                self._client.get_paginator("list_multipart_uploads").paginate,
+                Bucket=bucket_id,
+            )
+            for response_page in response_iter:
+                uploads.update(
+                    {
+                        upload["UploadId"]: upload["Key"]
+                        for upload in response_page.get("Uploads", [])
+                    }
+                )
+        except botocore.exceptions.ClientError as error:
+            raise self._translate_s3_client_errors(
+                error, bucket_id=bucket_id
+            ) from error
+
+        return uploads
+
     async def _assert_no_multipart_upload(self, *, bucket_id: str, object_id: str):
         """Ensure that there are no active multi-part uploads for the given object."""
-        upload_ids = await self._list_multipart_upload_for_object(
+        upload_ids = await self._list_multipart_uploads_for_object(
             bucket_id=bucket_id, object_id=object_id
         )
         if len(upload_ids) > 0:
@@ -454,14 +485,14 @@ class S3ObjectStorage(ObjectStorageProtocol):
         By default, also verifies that this upload is the only upload active for
         that file. Otherwise, raises MultipleActiveUploadsError.
         """
-        upload_ids = await self._list_multipart_upload_for_object(
+        upload_ids = await self._list_multipart_uploads_for_object(
             bucket_id=bucket_id, object_id=object_id
         )
         n_uploads = len(upload_ids)
 
         if assert_exclusiveness and n_uploads > 1:
             raise self.MultipleActiveUploadsError(
-                bucket_id=bucket_id, object_id=object_id, upload_ids=upload_ids
+                bucket_id=bucket_id, object_id=object_id, upload_ids=list(upload_ids)
             )
 
         if upload_id not in upload_ids:
@@ -877,12 +908,12 @@ class S3ObjectStorage(ObjectStorageProtocol):
                 # There should only be one ongoing multipart upload/copy at at a time as long
                 # as a new object ID is generated for each attempt
                 try:
-                    upload_ids = await self._list_multipart_upload_for_object(
+                    upload_ids = await self._list_multipart_uploads_for_object(
                         bucket_id=dest_bucket_id, object_id=dest_object_id
                     )
                     if len(upload_ids) == 1:
                         await self._abort_multipart_upload(
-                            upload_id=upload_ids[0],
+                            upload_id=next(iter(upload_ids)),
                             bucket_id=dest_bucket_id,
                             object_id=dest_object_id,
                         )
