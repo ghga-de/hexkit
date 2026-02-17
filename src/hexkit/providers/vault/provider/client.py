@@ -102,7 +102,7 @@ class ConfiguredVaultClient:
         Raises:
             FileNotFoundError: If service account token file doesn't exist.
         """
-        token_path = Path(self._config.service_account_token_path)
+        token_path = self._config.service_account_token_path
         if not token_path.exists():
             raise FileNotFoundError(f"Service account token not found at {token_path}")
 
