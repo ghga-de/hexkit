@@ -15,6 +15,7 @@
 
 """Test the Vault-based KVStore providers."""
 
+import re
 from collections.abc import AsyncGenerator, Callable
 from contextlib import AbstractAsyncContextManager
 from typing import Any
@@ -129,3 +130,21 @@ class TestVaultJsonKVStore(JsonKVStoreTestSuite):
 
 class TestVaultDtoKVStore(DtoKVStoreTestSuite):
     """Tests for Vault DTO KVStore implementation."""
+
+
+# Vault-specific tests
+
+
+async def test_store_repr(vault: VaultFixture):
+    """Test the repr of the string value store."""
+    async with VaultStrKeyValueStore.construct(config=vault.config) as store:
+        store_repr = repr(store)
+        store_repr = re.sub(r"'http://[^',)]+'", "<url>", store_repr)
+        store_repr = re.sub(r"SecretStr\('[^']+'\)", "<secret>", store_repr)
+
+        assert store_repr == (
+            "VaultStrKeyValueStore(config=VaultConfig("
+            "vault_url=<url>, vault_path='test', "
+            "vault_role_id=<secret>, vault_secret_id=<secret>, "
+            "vault_verify=False))"
+        )

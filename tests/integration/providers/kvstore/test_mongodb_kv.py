@@ -15,6 +15,7 @@
 
 """Test the MongoDB-based KVStore providers."""
 
+import re
 from collections.abc import AsyncGenerator, Callable
 from contextlib import AbstractAsyncContextManager
 from typing import Any
@@ -121,6 +122,21 @@ class TestMongoDbBytesKVStore(BytesKVStoreTestSuite):
 
 class TestMongoDbDtoKVStore(DtoKVStoreTestSuite):
     """Tests for MongoDB DTO KVStore implementation."""
+
+
+# MongoDB-specific tests
+
+
+async def test_store_repr(mongodb: MongoDbFixture):
+    """Test the repr of the JSON value store."""
+    async with MongoDbJsonKeyValueStore.construct(config=mongodb.config) as store:
+        store_repr = repr(store)
+        store_repr = re.sub(r"Secret\('[^']+'\)", "<secret>", store_repr)
+
+        assert store_repr == (
+            "MongoDbJsonKeyValueStore(config=MongoDbConfig("
+            "mongo_dsn=<secret>, db_name='test'))"
+        )
 
 
 # Whitebox/internals tests

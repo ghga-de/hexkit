@@ -97,7 +97,10 @@ class VaultBaseKeyValueStore(ABC, KeyValueStoreProtocol):
             path_prefix: Prefix for all paths to enable logical separation.
             **kwargs: Additional arguments specific to subclasses.
         """
-        args = [str(config)]
+        config_args = ", ".join(
+            f"{k}={v!r}" for k, v in config.model_dump(exclude_defaults=True).items()
+        )
+        args = [f"config=VaultConfig({config_args})"]
         if path_prefix != DEFAULT_PATH_PREFIX:
             args.append(f"path_prefix={path_prefix!r}")
         for key, val in kwargs.items():
