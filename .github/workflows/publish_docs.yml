@@ -28,15 +28,18 @@ jobs:
         with:
           python-version: '3.13'
 
-      - name: Install MkDocs
+      - name: Install MkDocs and pdoc
         run: |
-          pip install mkdocs
+          pip install mkdocs pdoc
 
       - name: Setup Pages
         uses: actions/configure-pages@v5
 
-      - name: Build with MkDocs
+      - name: Build written docs with MkDocs
         run: mkdocs build
+
+      - name: Build API reference with pdoc
+        run: pdoc -o site/api hexkit
 
       - name: Upload artifact
         uses: actions/upload-pages-artifact@v4
