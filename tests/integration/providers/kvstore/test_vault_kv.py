@@ -51,9 +51,7 @@ async def json_kvstore(
     vault: VaultFixture,
 ) -> AsyncGenerator[VaultJsonKeyValueStore, None]:
     """Provide a JSON KVStore bound to a test Vault instance."""
-    async with VaultJsonKeyValueStore.construct(
-        config=vault.config, path_prefix="test_json"
-    ) as store:
+    async with VaultJsonKeyValueStore.construct(config=vault.config) as store:
         yield store
 
 
@@ -62,9 +60,7 @@ async def str_kvstore(
     vault: VaultFixture,
 ) -> AsyncGenerator[VaultStrKeyValueStore, None]:
     """Provide a string KVStore bound to a test Vault instance."""
-    async with VaultStrKeyValueStore.construct(
-        config=vault.config, path_prefix="test_str"
-    ) as store:
+    async with VaultStrKeyValueStore.construct(config=vault.config) as store:
         yield store
 
 
@@ -73,9 +69,7 @@ async def bytes_kvstore(
     vault: VaultFixture,
 ) -> AsyncGenerator[VaultBytesKeyValueStore, None]:
     """Provide a bytes KVStore bound to a test Vault instance."""
-    async with VaultBytesKeyValueStore.construct(
-        config=vault.config, path_prefix="test_bytes"
-    ) as store:
+    async with VaultBytesKeyValueStore.construct(config=vault.config) as store:
         yield store
 
 
@@ -85,7 +79,7 @@ async def dto_kvstore(
 ) -> AsyncGenerator[VaultDtoKeyValueStore[SimpleDto], None]:
     """Provide a DTO KVStore bound to a test Vault instance."""
     async with VaultDtoKeyValueStore.construct(
-        config=vault.config, dto_model=SimpleDto, path_prefix="test_dto"
+        config=vault.config, dto_model=SimpleDto
     ) as store:
         yield store
 
@@ -96,11 +90,10 @@ def dto_store_factory(
 ) -> Callable[..., AbstractAsyncContextManager[VaultDtoKeyValueStore[Any]]]:
     """Factory to construct DTO KVStore for arbitrary models."""
 
-    def factory(dto_model, path_prefix: str = "test_factory", **kwargs):
+    def factory(dto_model, **kwargs):
         return VaultDtoKeyValueStore.construct(
             config=vault.config,
             dto_model=dto_model,
-            path_prefix=path_prefix,
             **kwargs,
         )
 
@@ -110,7 +103,7 @@ def dto_store_factory(
 @pytest.fixture()
 def kvstore_custom_kwargs() -> dict[str, Any]:
     """Provider-specific kwargs for custom options tests."""
-    return {"path_prefix": "custom"}
+    return {}
 
 
 # Common tests using shared test suites

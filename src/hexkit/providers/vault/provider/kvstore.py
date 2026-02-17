@@ -50,7 +50,6 @@ class VaultBaseKeyValueStore(ABC, KeyValueStoreProtocol):
     _repr: str
     _client: ConfiguredVaultClient
     _config: VaultConfig
-    _path_prefix: str
 
     @classmethod
     @asynccontextmanager
@@ -58,26 +57,21 @@ class VaultBaseKeyValueStore(ABC, KeyValueStoreProtocol):
         cls,
         *,
         config: VaultConfig,
-        path_prefix: str = DEFAULT_PATH_PREFIX,
         **kwargs,
     ):
         """Yields a store instance with the provided configuration.
 
-        The Store will use the specified path prefix for all paths,
-        allowing logical separation of different stores.
-
+        The Store will use the vault_path from config for all paths.
         The client connection is established and closed automatically.
 
         Args:
             config: Vault-specific config parameters.
-            path_prefix: Optional prefix for all paths (e.g., "myapp/users").
             **kwargs: Additional arguments specific to subclasses.
         """
         async with ConfiguredVaultClient(config) as client:
             yield cls(
                 client=client,
                 config=config,
-                path_prefix=path_prefix,
                 **kwargs,
             )
 
@@ -86,40 +80,36 @@ class VaultBaseKeyValueStore(ABC, KeyValueStoreProtocol):
         *,
         client: ConfiguredVaultClient,
         config: VaultConfig,
-        path_prefix: str = DEFAULT_PATH_PREFIX,
         **kwargs,
     ):
-        """Initialize the provider with configuration and path prefix.
+        """Initialize the provider with configuration.
 
         Args:
             client: An instance of a configured Vault client.
             config: Vault-specific config parameters.
-            path_prefix: Prefix for all paths to enable logical separation.
             **kwargs: Additional arguments specific to subclasses.
         """
         config_args = ", ".join(
             f"{k}={v!r}" for k, v in config.model_dump(exclude_defaults=True).items()
         )
         args = [f"config=VaultConfig({config_args})"]
-        if path_prefix != DEFAULT_PATH_PREFIX:
-            args.append(f"path_prefix={path_prefix!r}")
         for key, val in kwargs.items():
             with suppress(AttributeError):
                 val = val.__name__  # short repr e.g. for model classes
             args.append(f"{key}={val}")
         self._repr = f"{self.__class__.__name__}({', '.join(args)})"
-        self._client = client
-        self._config = config
-        self._path_prefix = path_prefix
+        self._check_auth = client._check_auth
+        self._api = client._client.secrets.kv.v2
+        self._path = config.vault_path.strip("/")
+        self._mount_point = config.vault_secrets_mount_point
 
     def __repr__(self) -> str:
         return self._repr
 
     def _make_path(self, key: str) -> str:
-        """Construct the full Vault path with prefix."""
-        if self._path_prefix:
-            return f"{self._path_prefix}/{key}"
-        return key
+        """Construct the full Vault path using vault_path from config."""
+        path = self._path
+        return f"{path}/{key}" if path else key
 
     @abstractmethod
     def _encode_value(self, value: Any) -> Any:
@@ -137,12 +127,12 @@ class VaultBaseKeyValueStore(ABC, KeyValueStoreProtocol):
         Returns the specified default value if there is no such value in the store.
         """
         path = self._make_path(key)
-        await self._client._check_auth()
+        await self._check_auth()
         try:
             response = await asyncio.to_thread(
-                self._client._client.secrets.kv.v2.read_secret_version,
+                self._api.read_secret_version,
                 path=path,
-                mount_point=self._config.vault_secrets_mount_point,
+                mount_point=self._mount_point,
                 raise_on_deleted_version=True,
             )
             data = response["data"]["data"]["value"]
@@ -156,13 +146,13 @@ class VaultBaseKeyValueStore(ABC, KeyValueStoreProtocol):
         Note that values cannot be None.
         """
         path = self._make_path(key)
-        await self._client._check_auth()
+        await self._check_auth()
         encoded = self._encode_value(value)
         await asyncio.to_thread(
-            self._client._client.secrets.kv.v2.create_or_update_secret,
+            self._api.create_or_update_secret,
             path=path,
             secret={"value": encoded},
-            mount_point=self._config.vault_secrets_mount_point,
+            mount_point=self._mount_point,
         )
 
     async def delete(self, key: str) -> None:
@@ -171,12 +161,12 @@ class VaultBaseKeyValueStore(ABC, KeyValueStoreProtocol):
         Does nothing if there is no such value.
         """
         path = self._make_path(key)
-        await self._client._check_auth()
+        await self._check_auth()
         with suppress(hvac.exceptions.InvalidPath):
             await asyncio.to_thread(
-                self._client._client.secrets.kv.v2.delete_metadata_and_all_versions,
+                self._api.delete_metadata_and_all_versions,
                 path=path,
-                mount_point=self._config.vault_secrets_mount_point,
+                mount_point=self._mount_point,
             )
 
     async def exists(self, key: str) -> bool:
@@ -253,21 +243,21 @@ class VaultDtoKeyValueStore(VaultBaseKeyValueStore, Generic[Dto]):
         client: ConfiguredVaultClient,
         config: VaultConfig,
         dto_model: type[Dto],
-        path_prefix: str,
+        **kwargs,
     ):
-        """Initialize the provider with configuration, model type, and path prefix.
+        """Initialize the provider with configuration and model type.
 
         Args:
             client: An instance of a configured Vault client.
             config: Vault-specific config parameters.
             dto_model: The Pydantic model type to support for values.
-            path_prefix: Prefix for all paths to enable logical separation.
+            **kwargs: Additional arguments specific to subclasses.
         """
         super().__init__(
             client=client,
             config=config,
-            path_prefix=path_prefix,
             dto_model=dto_model,
+            **kwargs,
         )
         self._dto_model = dto_model
 

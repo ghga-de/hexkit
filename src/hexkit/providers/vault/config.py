@@ -38,7 +38,6 @@ class VaultConfig(BaseSettings):
     vault_path: str = Field(
         ...,
         examples=["myapp/secrets", "production/config"],
-        pattern=r"^(?!/).*(?<!/)$",
         description=(
             "Path prefix for all keys stored in Vault."
             + " Should not contain leading or trailing slashes."
