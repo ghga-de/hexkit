@@ -37,8 +37,12 @@ __all__ = [
     "VAULT_IMAGE",
     "VAULT_TEST_ROOT_TOKEN",
     "VaultFixture",
+    "clean_vault_fixture",
+    "get_clean_vault_fixture",
+    "get_persistent_vault_fixture",
     "get_vault_container_fixture",
     "get_vault_fixture",
+    "persistent_vault_fixture",
     "vault_container_fixture",
     "vault_fixture",
 ]
@@ -53,6 +57,44 @@ class VaultFixture:
 
     config: VaultConfig
     container: DockerContainer
+
+    def clear_kv(self) -> None:
+        """Delete all secrets and metadata under the configured path prefix."""
+        client = hvac.Client(
+            url=self.config.vault_url,
+            token=VAULT_TEST_ROOT_TOKEN,
+            verify=self.config.vault_verify,
+        )
+        mount_point = self.config.vault_secrets_mount_point
+        path_prefix = self.config.vault_path.strip()
+
+        def _delete_recursive(path: str) -> None:
+            try:
+                listing = client.secrets.kv.v2.list_secrets(
+                    path=path,
+                    mount_point=mount_point,
+                )
+            except hvac.exceptions.InvalidPath:
+                return
+
+            for key in listing["data"]["keys"]:
+                if key.endswith("/"):
+                    next_path = f"{path}/{key[:-1]}" if path else key[:-1]
+                    _delete_recursive(next_path)
+                else:
+                    full_path = f"{path}/{key}" if path else key
+                    with suppress(hvac.exceptions.InvalidPath):
+                        client.secrets.kv.v2.delete_metadata_and_all_versions(
+                            path=full_path,
+                            mount_point=mount_point,
+                        )
+
+        _delete_recursive(path_prefix)
+        with suppress(hvac.exceptions.InvalidPath):
+            client.secrets.kv.v2.delete_metadata_and_all_versions(
+                path=path_prefix,
+                mount_point=mount_point,
+            )
 
 
 def _vault_container_fixture() -> Generator[VaultFixture, None, None]:
@@ -164,4 +206,53 @@ def get_vault_fixture(scope: PytestScope = "function", name: str = "vault"):
     return pytest.fixture(_vault_fixture, scope=scope, name=name)
 
 
-vault_fixture = get_vault_fixture()
+def _persistent_vault_fixture(
+    vault_container: VaultFixture,
+) -> Generator[VaultFixture, None, None]:
+    """Fixture function that gets a persistent Vault fixture.
+
+    The state of Vault is not cleaned up by the function.
+    """
+    yield vault_container
+
+
+def get_persistent_vault_fixture(scope: PytestScope = "function", name: str = "vault"):
+    """Get a Vault fixture with desired scope and name.
+
+    The state of the Vault test container is persisted across tests.
+
+    By default, the function scope is used for this fixture,
+    while the session scope is used for the underlying Vault test container.
+    """
+    return pytest.fixture(_persistent_vault_fixture, scope=scope, name=name)
+
+
+persistent_vault_fixture = get_persistent_vault_fixture()
+
+
+def _clean_vault_fixture(
+    vault_container: VaultFixture,
+) -> Generator[VaultFixture, None, None]:
+    """Fixture function that gets a clean Vault fixture.
+
+    The clean state is achieved by deleting all secrets under the
+    configured path prefix upfront.
+    """
+    for vault_fixture in _persistent_vault_fixture(vault_container):
+        vault_fixture.clear_kv()
+        yield vault_fixture
+
+
+def get_clean_vault_fixture(scope: PytestScope = "function", name: str = "vault"):
+    """Get a Vault fixture with desired scope and name.
+
+    The state of Vault is reset by clearing the configured path prefix
+    before running tests.
+
+    By default, the function scope is used for this fixture,
+    while the session scope is used for the underlying Vault test container.
+    """
+    return pytest.fixture(_clean_vault_fixture, scope=scope, name=name)
+
+
+vault_fixture = clean_vault_fixture = get_clean_vault_fixture()
