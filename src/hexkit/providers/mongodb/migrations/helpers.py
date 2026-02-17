@@ -13,7 +13,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-"""Prefab functions to help with migrations caused by changes in Hexkit."""
+"""Prefab functions to help with migrations caused by changes in hexkit."""
 
 from collections.abc import Awaitable, Callable
 from datetime import datetime, timezone
@@ -34,7 +34,7 @@ def convert_uuids_and_datetimes_v6(
     uuid_fields: list[str] | None = None,
     date_fields: list[str] | None = None,
 ) -> Callable[[Document], Awaitable[Document]]:
-    """Produce a function to convert a document to the format expected by Hexkit v6.
+    """Produce a function to convert a document to the format expected by hexkit v6.
 
     If `uuid_fields` is provided, it will convert those fields from string to UUID.
     If `date_fields` is provided, it will convert those fields from isoformat strings
@@ -60,7 +60,7 @@ def convert_uuids_and_datetimes_v6(
 
 
 async def convert_outbox_correlation_id_v6(doc: Document) -> Document:
-    """Convert an outbox document's correlation ID to the format expected by Hexkit v6.
+    """Convert an outbox document's correlation ID to the format expected by hexkit v6.
 
     This will only convert the __metadata__.correlation_id to a UUID.
 
@@ -77,7 +77,7 @@ _convert_persistent_event_existing_fields_v6 = convert_uuids_and_datetimes_v6(
 
 
 async def convert_persistent_event_v6(doc: Document) -> Document:
-    """Convert a persistent event document to the format expected by Hexkit v6.
+    """Convert a persistent event document to the format expected by hexkit v6.
 
     This will:
     - convert correlation_id to UUID
