@@ -25,7 +25,7 @@ In the following, we assume that Apache Kafka is used as the event streaming inf
 
 > See the [Kafka documentation](https://kafka.apache.org/intro) for in-depth information on Kafka's inner workings.
 
-Event-driven architecture refers to a protocol where information is exchanged indirectly and often asynchronously by interacting with a broker. Rather than making direct API calls from one service to another, one service, called the *producer*, publishes information to a broker in the form of an *event* (also called a *message*), and is ignorant of all downstream processing of the event. It is essentially "fire and forget". Other services, called *consumers*, can consume the event once it has been published. The same way the producer is ignorant of an event's fate, the consumers are ignorant of its origin. This has important implications for design. In Kafka, events have metadata headers, a timestamp, a *key*, and a *payload*. Hexkit adds a *type* field and an optional *event ID* field in the metadata headers to further distinguish events. Events are organized into configurable *topics*, and further organized within each topic by key. A topic can have any number of producers and consumers, and messages are not deleted after consumption (enabling rereads).
+Event-driven architecture refers to a communication pattern where information is exchanged indirectly and often asynchronously by interacting with a broker. Rather than making direct API calls from one service to another, one service, called the *producer*, publishes information to a broker in the form of an *event* (also called a *message*), and is unaware of all downstream processing of the event. It is essentially "fire and forget". Other services, called *consumers*, can consume the event once it has been published. Similarly, just as the producer is unaware of an event's fate, consumers are unaware of its origin. This has important implications for design. In Kafka, events have metadata headers, a timestamp, a *key*, and a *payload*. Hexkit adds a *type* field and an optional *event ID* field in the metadata headers to further distinguish events. Events are organized into configurable *topics*, and further organized within each topic by key. A topic can have any number of producers and consumers, and messages are not deleted after consumption (enabling rereads).
 
 In the context of microservices, event-driven architecture provides some important benefits:
 
@@ -33,18 +33,15 @@ In the context of microservices, event-driven architecture provides some importa
 2. **Asynchronous Communication:** Kafka facilitates asynchronous data processing, allowing services to operate independently without waiting for responses. This improves performance and fault tolerance, as services can continue functioning even if one component is slow or temporarily unavailable.
 3. **Consistency and Order Guarantee:** Kafka maintains the order of events within a partition for a given key, crucial for consistency in processing events that are related or dependent upon one another.
 
-But event-driven architecture also introduces challenges:
+However, event-driven architecture also introduces challenges:
 
-1. **Duplicate processing:** Because the event consumers have no way to know whether an event is a duplicate or a genuinely distinct event with the same payload, the consumers must be designed to be idempotent.
+1. **Duplicate processing:** Because event consumers have no way to know whether an event is a duplicate or a genuinely distinct event with the same payload, consumers must be designed to be idempotent.
 2. **Data Duplication:** If service A needs to access the data maintained by service B, the options are essentially an API call (which introduces security, performance and coupling concerns) or duplicating the data of service B for service A. Hexkit supports mitigating this issue via data duplication by way of the outbox pattern, described later in this document.
 3. **Tracing:** A single request flow can span many services with a multitude of messages being generated along the way. The agnostic nature of producers and consumers makes it harder to tag requests than with traditional API calls, and several consumers can process a given message in parallel, sometimes leading to complex request flows. Hexkit enables basic tracing by generating and propagating a *correlation ID* (also called a request ID) as an event header.
 
 ## Abstraction Layers
 
-Hexkit features protocols and providers to simplify using
-Kafka in services. Instead of writing the functionality from scratch in every new
-project, Hexkit provides the `KafkaEventPublisher` and `KafkaEventSubscriber`
-provider classes, in addition to an accompanying `KafkaConfig` Pydantic config class.
+Hexkit features protocols and providers to simplify Kafka usage in services. Rather than implementing this functionality from scratch in every new project, Hexkit provides the `KafkaEventPublisher` and `KafkaEventSubscriber` provider classes, along with a `KafkaConfig` Pydantic configuration class.
 
 ### Producers
 
@@ -52,7 +49,7 @@ When a service publishes an event, it uses the `KafkaEventPublisher` provider cl
 
 ### Consumers
 
-While the `KafkaEventPublisher` can be used directly, the `KafkaEventSubscriber` always requires a *translator* to deliver event payloads to the service's core components. The translator is defined outside of Hexkit (i.e. in the service code) and implements the `EventSubscriberProtocol`. The provider hands off the event to the translator through the protocol's `consume` method, which in turn calls an abstract method implemented by the translator. The translator receives the event and examines its attributes (the topic, payload, key, headers, etc.) to determine processing. Naturally, the actual processing logic varies, but usually the payload is validated against the expected schema and used to call a method in the service's core. When control is returned to the `KafkaEventSubscriber`, the underlying consumer (from `AIOKafka`) saves its offsets, declaring that it has successfully handled the event and is ready for the next.
+While the `KafkaEventPublisher` can be used directly, the `KafkaEventSubscriber` always requires a *translator* to deliver event payloads to the service's core components. The translator is defined outside of Hexkit (in the service code, not in Hexkit itself) and implements the `EventSubscriberProtocol`. The provider passes the event to the translator through the protocol's `consume` method, which then calls an abstract method implemented by the translator. The translator receives the event and examines its attributes (the topic, payload, key, headers, etc.) to determine processing. Naturally, the actual processing logic varies, but usually the payload is validated against the expected schema and used to call a method in the service's core. When control is returned to the `KafkaEventSubscriber`, the underlying consumer (from `AIOKafka`) saves its offsets, declaring that it has successfully handled the event and is ready for the next.
 
 A diagram illustrating the process of event publishing and consuming, starting with
 the microservice:
@@ -73,11 +70,11 @@ Topic compaction means retaining only the latest event per key in a topic. Why d
 
 ### Implications
 
-One requirement of using the outbox pattern as implemented in Hexkit is that consumers must be idempotent. The state of Kafka is stored in the database and can be republished as needed, so services must be prepared to consume the same event more than once. Event republishing might need to occur at any time, so it is possible for sequence-dependent events to be re-consumed out of sequence. Depending on the complexity of the microservice landscape, it can be difficult to foresee all the potential cases where out-of-order events could be problematic. That's why it's paramount to perform robust testing and use features like topic compaction where necessary.
+One requirement of using the outbox pattern as implemented in Hexkit is that consumers must be idempotent. The event state is stored in the database and can be republished as needed, so services must be prepared to consume the same event multiple times. Event republishing can occur at any point, which means that sequence-dependent events might be re-consumed out of order. Depending on the complexity of the microservice landscape, it can be difficult to foresee all cases where out-of-order events could cause problems. This is why it is essential to perform robust testing and use features like topic compaction where necessary.
 
 ## Dead Letter Queue
 
-Event consumers are sometimes unable to process received events due to validation errors, data inconsistencies, or temporary service failures. Since service consumers are expected to be idempotent and long-lived, individual event processing failures cannot simply crash the service. Hexkit addresses this challenge through a Dead Letter Queue (DLQ) mechanism, which automatically handles failed event processing.
+Event consumers are sometimes unable to process received events due to validation errors, data inconsistencies, or temporary service failures. Since service consumers are expected to be idempotent and long-lived, individual event processing failures cannot be allowed to crash the service. Hexkit addresses this challenge through a Dead Letter Queue (DLQ) mechanism, which automatically handles failed events.
 
 When an event consumer encounters an exception while processing an event, the `KafkaEventSubscriber` can be configured to:
 
@@ -85,7 +82,7 @@ When an event consumer encounters an exception while processing an event, the `K
 2. If retries are exhausted, publish the failed event to a dedicated DLQ topic
 3. Continue processing other events instead of crashing
 
-Events in the DLQ retain their original payload, type, and key, but include additional metadata headers with information about the failure (service name, original topic, exception details, etc.). This allows for later manual review and resolution. Failed events can then be republished to a service-specific retry topic, where they are reprocessed with the original topic name restored.
+Events in the DLQ retain their original payload, type, and key but include additional metadata headers with failure information (service name, original topic, exception details, etc.). This enables manual review and corrective action. Failed events can then be republished to a service-specific retry topic, where they are reprocessed with the original topic name restored.
 
 For a comprehensive understanding of the DLQ mechanism, configuration options, and recovery procedures, see the [Dead Letter Queue](dlq.md) documentation.
 
