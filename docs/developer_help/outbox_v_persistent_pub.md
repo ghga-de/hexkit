@@ -63,7 +63,7 @@ The Outbox Publisher should be used when:
 
 ### How the Two Publishers Store Information
 The Persistent Publisher stores data according to the Pydantic model defined
-[here](../api/hexkit/providers/mongokafka/provider/persistent_pub.html#PersistentKafkaEvent):
+[here](../api/hexkit/providers/mongokafka.html#PersistentKafkaEvent):
 
 ```python
 class PersistentKafkaEvent(BaseModel):

@@ -23,7 +23,7 @@ To learn more about the distinction between the Persistent Publisher and Outbox 
 
 ### Persistence Model
 The Persistent Publisher stores data according to the Pydantic model defined
-[here](../../api/hexkit/providers/mongokafka/provider/persistent_pub.md):
+[here](../../api/hexkit/providers/mongokafka.html#PersistentKafkaEvent):
 
 ```python
 class PersistentKafkaEvent(BaseModel):

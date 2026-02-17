@@ -95,11 +95,16 @@ legacy_tox_ini = """
 
     [testenv:docs]
     basepython = python3.13
+    allowlist_externals =
+        mv
+        rm
     deps =
         --no-deps -r ./lock/requirements-dev.txt
     commands =
+        pdoc hexkit -o docs/api
         mkdocs build
-        pdoc hexkit -o site/api
+        rm -rf site/api
+        mv docs/api site/api
 
     [testenv]
     pass_env =
