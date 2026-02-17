@@ -18,7 +18,7 @@
 
 When using `KafkaEventPublisher`, produced events are generated and sent to the Kafka
 broker in an ephemeral manner: there's no ability to generate the same events again.
-The Persistent Publisher is a Hexkit provider that solves this problem by storing
+The Persistent Publisher is a hexkit provider that solves this problem by storing
 a representation of events in MongoDB as they are published. This makes the database
 the de facto backup of Kafka, to an extent. The Persistent Publisher class is
 called `PersistentKafkaPublisher`, located in the `MongoKafka` subpackage.
@@ -105,7 +105,7 @@ a `user_id`, `name` and `email` field, the saved data might look like this:
     "deleted": false,
     "last_event_id": <UUID4>
   },
-  "_id": <UUID4>, // Hexkit converts models' ID field names to the MongoDB `_id`
+  "_id": <UUID4>, // hexkit converts models' ID field names to the MongoDB `_id`
   "name": "John Doe",
   "email": "doe@example.com"
 }

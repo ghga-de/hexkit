@@ -185,7 +185,7 @@ def test_validate_doc():
 async def test_v6_uuid_datetime_conversion(
     tz_aware: bool, original_dt: datetime, expected_dt: datetime
 ):
-    """Test the prefab uuid/datetime change function for Hexkit v6.
+    """Test the prefab uuid/datetime change function for hexkit v6.
 
     This test checks micro-to-millisecond conversion and timezone handling,
     in addition to UUID conversion.
