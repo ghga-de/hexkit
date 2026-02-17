@@ -20,6 +20,7 @@ from collections.abc import AsyncGenerator, Callable
 from contextlib import AbstractAsyncContextManager
 from typing import Any
 
+import hvac
 import pytest
 import pytest_asyncio
 
@@ -29,7 +30,9 @@ from hexkit.providers.vault import (
     VaultJsonKeyValueStore,
     VaultStrKeyValueStore,
 )
+from hexkit.providers.vault.config import VaultConfig
 from hexkit.providers.vault.testutils import (
+    VAULT_TEST_ROOT_TOKEN,
     VaultFixture,
     vault_container_fixture,  # noqa: F401
     vault_fixture,  # noqa: F401
@@ -141,3 +144,34 @@ async def test_store_repr(vault: VaultFixture):
             "vault_role_id=<secret>, vault_secret_id=<secret>, "
             "vault_verify=False))"
         )
+
+
+@pytest.mark.asyncio
+async def test_vault_path_storage(vault: VaultFixture):
+    """Verify that secrets are stored at the exact path specified by vault_path."""
+    custom_path = "custom/test/path"
+    custom_config = VaultConfig(
+        vault_url=vault.config.vault_url,
+        vault_secrets_mount_point=vault.config.vault_secrets_mount_point,
+        vault_path=custom_path,
+        vault_role_id=vault.config.vault_role_id,
+        vault_secret_id=vault.config.vault_secret_id,
+        vault_verify=False,
+    )
+    test_key = "my key"
+    test_value = "my secret value"
+    # Store a value using the provider
+    async with VaultStrKeyValueStore.construct(config=custom_config) as store:
+        await store.set(test_key, test_value)
+    # Use hvac to check the secret has been stored at the configured path
+    client = hvac.Client(
+        url=custom_config.vault_url,
+        token=VAULT_TEST_ROOT_TOKEN,
+        verify=False,
+    )
+    response = client.secrets.kv.v2.read_secret_version(
+        path=f"{custom_path}/{test_key}",
+        mount_point=custom_config.vault_secrets_mount_point,
+        raise_on_deleted_version=True,
+    )
+    assert response["data"]["data"]["value"] == test_value
