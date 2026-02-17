@@ -20,7 +20,6 @@ from pathlib import Path
 from typing import Any
 
 import hvac
-import hvac.exceptions
 
 from hexkit.providers.vault.config import VaultConfig
 
