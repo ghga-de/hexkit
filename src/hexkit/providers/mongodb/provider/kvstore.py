@@ -85,7 +85,10 @@ class MongoDbBaseKeyValueStore(ABC, KeyValueStoreProtocol):
             collection_name: Name of the collection to hold the key-value pairs.
             **kwargs: Additional arguments specific to subclasses.
         """
-        args = [str(config)]
+        config_args = ", ".join(
+            f"{k}={v!r}" for k, v in config.model_dump(exclude_defaults=True).items()
+        )
+        args = [f"config=MongoDbConfig({config_args})"]
         if collection_name != DEFAULT_KV_COLLECTION_NAME:
             args.append(f"collection_name={collection_name!r}")
         for key, val in kwargs.items():

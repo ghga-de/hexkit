@@ -16,6 +16,7 @@
 """Test the Redis-based KVStore providers."""
 
 import json
+import re
 from collections.abc import AsyncGenerator, Callable
 from contextlib import AbstractAsyncContextManager
 from typing import Any
@@ -124,6 +125,17 @@ class TestRedisDtoKVStore(DtoKVStoreTestSuite):
 
 
 # Redis-specific tests
+
+
+async def test_store_repr(redis: RedisFixture):
+    """Test the repr of the string value store."""
+    async with RedisStrKeyValueStore.construct(config=redis.config) as store:
+        store_repr = repr(store)
+        store_repr = re.sub(r"Secret\('[^']+'\)", "<secret>", store_repr)
+
+        assert store_repr == (
+            "RedisStrKeyValueStore(config=RedisConfig(redis_url=<secret>))"
+        )
 
 
 async def test_default_prefix_stores_keys_as_is(redis: RedisFixture):

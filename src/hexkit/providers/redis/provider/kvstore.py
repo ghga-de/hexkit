@@ -94,7 +94,10 @@ class RedisBaseKeyValueStore(ABC, KeyValueStoreProtocol):
             key_prefix: Prefix for all keys to enable logical separation.
             **kwargs: Additional arguments specific to subclasses.
         """
-        args = [str(config)]
+        config_args = ", ".join(
+            f"{k}={v!r}" for k, v in config.model_dump(exclude_defaults=True).items()
+        )
+        args = [f"config=RedisConfig({config_args})"]
         if key_prefix != DEFAULT_KV_PREFIX:
             args.append(f"key_prefix={key_prefix!r}")
         for key, val in kwargs.items():

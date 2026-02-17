@@ -50,6 +50,9 @@ mongodb = [
 redis = [
     "redis >=7.1, <8",
 ]
+vault = [
+    "hvac >=2.4, <3",
+]
 opentelemetry-base = [
     "opentelemetry-sdk >=1.39.1, <2",
     "opentelemetry-exporter-otlp >=1.39.1, <2",
@@ -103,8 +106,12 @@ test-redis = [
     "hexkit[redis]",
     "testcontainers[redis] >=4.14, <5",
 ]
+test-vault = [
+    "hexkit[vault]",
+    "testcontainers >=4.14, <5",
+]
 test = [
-    "hexkit[test-akafka,test-s3,test-mongodb]",
+    "hexkit[test-akafka,test-s3,test-mongodb,test-vault]",
 ]
 all = [
     "hexkit[test]",
