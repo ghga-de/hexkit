@@ -14,6 +14,7 @@
  See the License for the specific language governing permissions and
  limitations under the License.
 -->
+
 # Outbox Publisher
 
 A common challenge in microservice development is the need to replicate data between services without introducing tight coupling. The solution to this offered by Hexkit is a special form of `MongoDbDao` grafted with a `KafkaEventPublisher`, called a `MongoDbDaoPublisher` ("Outbox Publisher"). Contrasted with the other provider in the `MongoKafka` subpackage, the Outbox Publisher is used in place of the basic `MongoDbDao` provider and event publishing occurs "in the background". In addition, instances are created via the factory class, `MongoDbDaoPublisherFactory`. More on that below. Like the Persistent Publisher, the Persistent Publisher also provides methods to publish stored events that haven't been published yet or to publish all events regardless of publish status. Using this provider requires you to install hexkit with both the `akafka` and `mongodb` extras.
