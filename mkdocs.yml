@@ -75,3 +75,16 @@ plugins:
         python:
           paths:
             - src
+          import:
+            - https://docs.python.org/3/objects.inv
+            - https://docs.pydantic.dev/latest/objects.inv
+          options:
+            members: true
+            inherited_members: true
+            show_bases: true
+            show_source: false
+            preload_modules:
+              - pydantic
+            extensions:
+              - griffe_pydantic:
+                  schema: true
