@@ -16,7 +16,6 @@
 """Vault client configuration and connection management."""
 
 import asyncio
-from pathlib import Path
 from typing import Any
 
 import hvac
