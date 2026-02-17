@@ -14,6 +14,7 @@
  See the License for the specific language governing permissions and
  limitations under the License.
 -->
+
 # Persistent Publisher
 
 With the basic Kafka publish provider (`KafkaEventPublisher`), event publication is not repeatable. The outbox publisher (`MongoKafkaDaoPublisher`) allows for a version of event publication, but mandates the use of a DAO in domain logic. There are plausible scenarios where the desired behavior is to publish events and persist them in a database via some transparent mechanism. Hexkit offers a way to do this via the `PersistentKafkaPublisher` ("Persistent Publisher"). The Persistent Publisher replaces existing usage of the `KafkaEventPublisher` and uses the MongoDB features exposed by Hexkit to store a copy of each event as it is published, along with supplementary information such as when the event was published, whether the event was successfully published, the correlation ID associated with the event, and more. Like the Outbox Publisher, the Persistent Publisher also provides methods to publish stored events that haven't been published yet or to publish all events regardless of publish status. Using this provider requires you to install hexkit with both the `akafka` and `mongodb` extras.

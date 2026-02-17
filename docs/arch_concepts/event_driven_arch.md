@@ -25,7 +25,7 @@ In the following, we assume that Apache Kafka is used as the event streaming inf
 
 > See the [Kafka documentation](https://kafka.apache.org/intro) for in-depth information on Kafka's inner workings.
 
-Event-driven architecture refers to a protocol where information is exchanged indirectly and often asynchronously by interacting with a broker. Rather than making direct API calls from one service to another, one service, called the *producer*, publishes information to a broker in the form of an *event* (also called a *message*), and is ignorant of all downstream processing of the event. It is essentially "fire and forget". Other services, called *consumers*, can consume the event once it has been published. The same way the producer is ignorant of an event's fate, the consumers are ignorant of its origin. This has important implications for design. In Kafka, events have metadata headers, a timestamp, a *key*, and a *payload*. Hexkit adds a *type* field in the metadata headers to further distinguish events. Events are organized into configurable *topics*, and further organized within each topic by key. A topic can have any number of producers and consumers, and messages are not deleted after consumption (enabling rereads).
+Event-driven architecture refers to a protocol where information is exchanged indirectly and often asynchronously by interacting with a broker. Rather than making direct API calls from one service to another, one service, called the *producer*, publishes information to a broker in the form of an *event* (also called a *message*), and is ignorant of all downstream processing of the event. It is essentially "fire and forget". Other services, called *consumers*, can consume the event once it has been published. The same way the producer is ignorant of an event's fate, the consumers are ignorant of its origin. This has important implications for design. In Kafka, events have metadata headers, a timestamp, a *key*, and a *payload*. Hexkit adds a *type* field and an optional *event ID* field in the metadata headers to further distinguish events. Events are organized into configurable *topics*, and further organized within each topic by key. A topic can have any number of producers and consumers, and messages are not deleted after consumption (enabling rereads).
 
 In the context of microservices, event-driven architecture provides some important benefits:
 
@@ -74,6 +74,20 @@ Topic compaction means retaining only the latest event per key in a topic. Why d
 ### Implications
 
 One requirement of using the outbox pattern as implemented in Hexkit is that consumers must be idempotent. The state of Kafka is stored in the database and can be republished as needed, so services must be prepared to consume the same event more than once. Event republishing might need to occur at any time, so it is possible for sequence-dependent events to be re-consumed out of sequence. Depending on the complexity of the microservice landscape, it can be difficult to foresee all the potential cases where out-of-order events could be problematic. That's why it's paramount to perform robust testing and use features like topic compaction where necessary.
+
+## Dead Letter Queue
+
+Event consumers are sometimes unable to process received events due to validation errors, data inconsistencies, or temporary service failures. Since service consumers are expected to be idempotent and long-lived, individual event processing failures cannot simply crash the service. Hexkit addresses this challenge through a Dead Letter Queue (DLQ) mechanism, which automatically handles failed event processing.
+
+When an event consumer encounters an exception while processing an event, the `KafkaEventSubscriber` can be configured to:
+
+1. Retry the event processing a configurable number of times
+2. If retries are exhausted, publish the failed event to a dedicated DLQ topic
+3. Continue processing other events instead of crashing
+
+Events in the DLQ retain their original payload, type, and key, but include additional metadata headers with information about the failure (service name, original topic, exception details, etc.). This allows for later manual review and resolution. Failed events can then be republished to a service-specific retry topic, where they are reprocessed with the original topic name restored.
+
+For a comprehensive understanding of the DLQ mechanism, configuration options, and recovery procedures, see the [Dead Letter Queue](dlq.md) documentation.
 
 ## Tracing
 

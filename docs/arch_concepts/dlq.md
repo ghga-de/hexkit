@@ -14,6 +14,7 @@
  See the License for the specific language governing permissions and
  limitations under the License.
 -->
+
 # Dead Letter Queue (DLQ)
 
 ## Overview
@@ -48,7 +49,7 @@ topic name and proceeds with the normal request flow.
 When an event is published to the DLQ, it maintains the original payload, type, and key, but includes additional headers with information about the failure:
 
 | Header         | Description                                             |
-|----------------|---------------------------------------------------------|
+| -------------- | ------------------------------------------------------- |
 | event_id       | UUID4 unique to the event instance                      |
 | service        | The name of the microservice where failure occurred     |
 | original_topic | The topic where the event was originally published      |
@@ -111,7 +112,7 @@ Checklist:
 The DLQ functionality is controlled by several configuration parameters in the KafkaConfig class:
 
 | Parameter             | Description                                                    | Default | Example  |
-|-----------------------|----------------------------------------------------------------|---------|----------|
+| --------------------- | -------------------------------------------------------------- | ------- | -------- |
 | `kafka_max_retries`   | Maximum number of times to retry failed events                 | 0       | 3        |
 | `kafka_enable_dlq`    | Toggle to enable/disable DLQ functionality                     | False   | True     |
 | `kafka_dlq_topic`     | Topic name for the Dead Letter Queue                           | "dlq"   | "my-dlq" |
