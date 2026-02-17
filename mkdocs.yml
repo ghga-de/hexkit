@@ -47,7 +47,9 @@ nav:
     - developer_help/outbox_v_persistent_pub.md
   - Structure:
     - structure/overview.md
-  - Glossary: glossary.md
+  - API Reference: api/
+  - Glossary:
+    - glossary/index.md
 
 markdown_extensions:
   - admonition
@@ -60,3 +62,16 @@ markdown_extensions:
 
 plugins:
   - search
+  - mkdocs-autoapi:
+      autoapi_dir: src
+      autoapi_ignore:
+        - "**/tests/**"
+        - "**/examples/**"
+      autoapi_add_nav_entry: false
+      autoapi_keep_files: true
+      autoapi_root: api
+  - mkdocstrings:
+      handlers:
+        python:
+          paths:
+            - src

@@ -19,7 +19,7 @@
 """
 
 import logging
-from collections.abc import Sequence
+from collections.abc import AsyncGenerator, Sequence
 from contextlib import asynccontextmanager
 
 from aiokafka import AIOKafkaConsumer
@@ -57,7 +57,7 @@ class KafkaOutboxSubscriber(InboundProviderBase):
         translators: Sequence[DaoSubscriberProtocol],
         dlq_publisher: EventPublisherProtocol | None = None,
         kafka_consumer_cls: type[KafkaConsumerCompatible] = AIOKafkaConsumer,
-    ):
+    ) -> AsyncGenerator["KafkaOutboxSubscriber", None]:
         """Setup and teardown an instance of the provider.
 
         Args:

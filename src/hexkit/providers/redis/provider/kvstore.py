@@ -68,7 +68,8 @@ class RedisBaseKeyValueStore(ABC, KeyValueStoreProtocol):
         Args:
             config: Redis-specific config parameters.
             key_prefix: Optional prefix for all keys (e.g., "myapp:users:").
-            **kwargs: Additional arguments specific to subclasses.
+
+        You might be able to pass additional arguments specific to subclasses.
         """
         async with ConfiguredRedisClient(config) as client:
             yield cls(
@@ -92,7 +93,8 @@ class RedisBaseKeyValueStore(ABC, KeyValueStoreProtocol):
             client: An instance of an async Redis client.
             config: Redis-specific config parameters.
             key_prefix: Prefix for all keys to enable logical separation.
-            **kwargs: Additional arguments specific to subclasses.
+
+        You might be able to pass additional arguments specific to subclasses.
         """
         config_args = ", ".join(
             f"{k}={v!r}" for k, v in config.model_dump(exclude_defaults=True).items()

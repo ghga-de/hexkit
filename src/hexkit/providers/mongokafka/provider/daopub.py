@@ -19,7 +19,14 @@
 Requires dependencies of the `akafka` and `mongodb` extras.
 """
 
-from collections.abc import AsyncIterator, Awaitable, Callable, Collection, Mapping
+from collections.abc import (
+    AsyncGenerator,
+    AsyncIterator,
+    Awaitable,
+    Callable,
+    Collection,
+    Mapping,
+)
 from contextlib import AbstractAsyncContextManager, asynccontextmanager, contextmanager
 from functools import partial
 from typing import Any, Generic
@@ -476,7 +483,7 @@ class MongoKafkaDaoPublisherFactory(DaoPublisherFactoryProtocol[MongoDbIndex]):
         *,
         config: MongoKafkaConfig,
         kafka_producer_cls: type[KafkaProducerCompatible] = AIOKafkaProducer,
-    ):
+    ) -> AsyncGenerator["MongoKafkaDaoPublisherFactory", None]:
         """Setup and teardown an instance of the provider.
         This method will automatically close the DB connection upon exit.
 

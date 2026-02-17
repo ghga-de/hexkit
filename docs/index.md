@@ -15,4 +15,4 @@ to some guidance on when to use one feature over another.
 - [Providers](providers/overview.md)
 - [Observability Tools](observability_tools/overview.md)
 - [Developer Help](developer_help/overview.md)
-- [Glossary](glossary.md)
+- [Glossary](glossary/index.md)

@@ -19,7 +19,7 @@
 
 ## Introduction
 
-Triple Hexagonal Architecture, the design pattern embodied by Hexkit, is an extension of Hexagonal Architecture. If you are not already familiar with Hexagonal Architecture, please read the [Hexagonal Architecture](hexagonal_arch.md) chapter first.
+Triple Hexagonal Architecture, the design pattern embodied by hexkit, is an extension of Hexagonal Architecture. If you are not already familiar with Hexagonal Architecture, please read the [Hexagonal Architecture](hexagonal_arch.md) chapter first.
 
 ## The Motivation
 

@@ -644,11 +644,11 @@ class KafkaContainerFixture(KafkaContainer):
         """Run the given command in the kafka testcontainer.
 
         Args:
-            - `command`: The full command to run.
-            - `run_in_shell`: If True, will run the command in a shell.
+            command: The full command to run.
+            run_in_shell: If True, will run the command in a shell.
 
         Raises:
-            - `RuntimeError`: when the exit code returned by the command is not zero.
+            RuntimeError: when the exit code returned by the command is not zero.
         """
         cmd = ["sh", "-c", command] if run_in_shell else command
         exit_code, output = self.get_wrapped_container().exec_run(cmd)

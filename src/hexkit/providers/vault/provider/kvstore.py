@@ -66,7 +66,8 @@ class VaultBaseKeyValueStore(ABC, KeyValueStoreProtocol):
 
         Args:
             config: Vault-specific config parameters.
-            **kwargs: Additional arguments specific to subclasses.
+
+        You might be able to pass additional arguments specific to subclasses.
         """
         async with ConfiguredVaultClient(config) as client:
             yield cls(
@@ -87,7 +88,8 @@ class VaultBaseKeyValueStore(ABC, KeyValueStoreProtocol):
         Args:
             client: An instance of a configured Vault client.
             config: Vault-specific config parameters.
-            **kwargs: Additional arguments specific to subclasses.
+
+        You might be able to pass additional arguments specific to subclasses.
         """
         config_args = ", ".join(
             f"{k}={v!r}" for k, v in config.model_dump(exclude_defaults=True).items()
@@ -251,7 +253,8 @@ class VaultDtoKeyValueStore(VaultBaseKeyValueStore, Generic[Dto]):
             client: An instance of a configured Vault client.
             config: Vault-specific config parameters.
             dto_model: The Pydantic model type to support for values.
-            **kwargs: Additional arguments specific to subclasses.
+
+        You might be able to pass additional arguments specific to subclasses.
         """
         super().__init__(
             client=client,
