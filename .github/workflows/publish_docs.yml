@@ -36,7 +36,7 @@ jobs:
         uses: actions/configure-pages@v5
 
       - name: Build API reference with pdoc
-        run: pdoc hexkit -o docs/api
+        run: pdoc -d google -o docs/api hexkit
 
       - name: Build written docs with MkDocs
         run: |

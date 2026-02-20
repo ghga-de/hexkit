@@ -77,7 +77,6 @@ all = ["hexkit[test]", "hexkit[opentelemetry]"]
 [project.urls]
 Repository = "https://github.com/ghga-de/hexkit"
 
-
 [tool.ruff]
 target-version = "py310"
 
@@ -102,7 +101,7 @@ legacy_tox_ini = """
         --no-deps -r ./lock/requirements-dev.txt
     commands =
         rm -rf site/api
-        pdoc hexkit -o docs/api
+        pdoc -d google -o docs/api hexkit
         mv docs/api/index.html docs/api/index.md
         mkdocs build
         mv docs/api/index.md docs/api/index.html

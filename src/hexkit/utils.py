@@ -60,9 +60,11 @@ def calc_part_size(*, file_size: int, preferred_part_size: int | None = None) ->
             constraints, it will be returned unchanged. Otherwise, it is ignored and a
             technically viable part size is chosen instead.
 
-    Returns: a recommendation for the part size in bytes.
+    Returns:
+        int: a recommendation for the part size in bytes
 
-    Raises: ValueError: if file size exceeds the maximum of 5 TiB
+    Raises:
+        ValueError: if file size exceeds the maximum of 5 TiB
     """
     if preferred_part_size is None:
         preferred_part_size = 8 * 1024**2
