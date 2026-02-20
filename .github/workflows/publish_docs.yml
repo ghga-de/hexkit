@@ -39,7 +39,10 @@ jobs:
         run: pdoc hexkit -o docs/api
 
       - name: Build written docs with MkDocs
-        run: mkdocs build
+        run: |
+          mv docs/api/index.html docs/api/index.md
+          mkdocs build
+          mv docs/api/index.md docs/api/index.html
 
       - name: Move API docs to final location
         run: |

@@ -101,8 +101,11 @@ legacy_tox_ini = """
     deps =
         --no-deps -r ./lock/requirements-dev.txt
     commands =
+        rm -rf site/api
         pdoc hexkit -o docs/api
+        mv docs/api/index.html docs/api/index.md
         mkdocs build
+        mv docs/api/index.md docs/api/index.html
         rm -rf site/api
         mv docs/api site/api
 

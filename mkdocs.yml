@@ -48,7 +48,7 @@ nav:
   - Structure:
     - structure/overview.md
   - API Reference:
-    - api/index.html
+    - api/index.md
   - Glossary:
     - glossary/index.md
 
