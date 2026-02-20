@@ -83,7 +83,8 @@ class MongoDbBaseKeyValueStore(ABC, KeyValueStoreProtocol):
             client: An instance of an async MongoDB client.
             config: MongoDB-specific config parameters.
             collection_name: Name of the collection to hold the key-value pairs.
-            **kwargs: Additional arguments specific to subclasses.
+
+        You might be able to pass additional arguments specific to subclasses.
         """
         config_args = ", ".join(
             f"{k}={v!r}" for k, v in config.model_dump(exclude_defaults=True).items()

@@ -49,25 +49,9 @@ botocore.handlers.VALID_BUCKET = re.compile(
 
 class S3Config(BaseSettings):
     """S3-specific config params.
-    Inherit your config class from this class if you need
-    to talk to an S3 service in the backend.
 
-    Args:
-        s3_endpoint_url (str): The URL to the S3 endpoint.
-        s3_access_key_id (str):
-            Part of credentials for login into the S3 service. See:
-            https://boto3.amazonaws.com/v1/documentation/api/latest/guide/credentials.html
-        s3_secret_access_key (str):
-            Part of credentials for login into the S3 service. See:
-            https://boto3.amazonaws.com/v1/documentation/api/latest/guide/credentials.html
-        s3_session_token (str | None):
-            Optional part of credentials for login into the S3 service. See:
-            https://boto3.amazonaws.com/v1/documentation/api/latest/guide/credentials.html
-        aws_config_ini (Path | None):
-            Path to a config file for specifying more advanced S3 parameters.
-            This should follow the format described here:
-            https://boto3.amazonaws.com/v1/documentation/api/latest/guide/configuration.html#using-a-configuration-file
-            Defaults to None.
+    Inherit your config class from this class if you need to talk
+    to an S3 service in the backend.
     """
 
     s3_endpoint_url: str = Field(

@@ -18,13 +18,13 @@
 # Dead Letter Queue (DLQ)
 
 ## Overview
-This document describes the Dead Letter Queue (DLQ) mechanism in Hexkit, which provides robust error handling for event processing failures in Kafka-based event systems. The DLQ support allows services to gracefully handle failed event processing by redirecting problematic events to a dedicated queue for later analysis or reprocessing, rather than crashing the service.
+This document describes the Dead Letter Queue (DLQ) mechanism in hexkit, which provides robust error handling for event processing failures in Kafka-based event systems. The DLQ support allows services to gracefully handle failed event processing by redirecting problematic events to a dedicated queue for later analysis or reprocessing, rather than crashing the service.
 
 For information about general event subscription, see [Event Driven Architecture](./event_driven_arch.md).
 
 ## DLQ Lifecycle
 
-Apache Kafka doesn't provide out-of-the-box DLQ functionality, so Hexkit bridges that gap. The Kafka event subscriber provider in Hexkit can be configured to automatically handle a DLQ event flow with only minor changes in the standard usage. When an event consumer encounters an exception while processing an event, the system can:
+Apache Kafka doesn't provide out-of-the-box DLQ functionality, so hexkit bridges that gap. The Kafka event subscriber provider in hexkit can be configured to automatically handle a DLQ event flow with only minor changes in the standard usage. When an event consumer encounters an exception while processing an event, the system can:
 
 1. Retry the event processing (if configured)
 2. When retries are exhausted, publish the failed event to a dedicated DLQ topic
@@ -93,13 +93,13 @@ deal with the event later.
 
 ## Consuming From the DLQ
 
-While Hexkit makes it easy to both divert problematic events to a DLQ topic and reintroduce them once resolved, it does not provide a comprehensive toolbox for DLQ event resolution. The user is entirely responsible for monitoring and maintaining the DLQ topic and its events, although Hexkit does provide some facilitating classes. GHGA, for example, uses a dedicated DLQ Service.
-For consuming events from the DLQ, Hexkit provides the `DLQSubscriberProtocol`. This protocol extends the standard EventSubscriberProtocol with additional parameters for accessing the DLQ metadata.
+While hexkit makes it easy to both divert problematic events to a DLQ topic and reintroduce them once resolved, it does not provide a comprehensive toolbox for DLQ event resolution. The user is entirely responsible for monitoring and maintaining the DLQ topic and its events, although hexkit does provide some facilitating classes. GHGA, for example, uses a dedicated DLQ Service.
+For consuming events from the DLQ, hexkit provides the `DLQSubscriberProtocol`. This protocol extends the standard EventSubscriberProtocol with additional parameters for accessing the DLQ metadata.
 
 
 ## Republishing and Re-consuming DLQ Events
 
-Events that are dealt with in the DLQ topic and destined to be republished should receive a fresh `event_id` to mark them as distinct from the original. Furthermore, events should not be republished to their original topic. Instead, they should be republished to a special retry topic with a name in the format `retry-<service_name>`. The service name should match the value configured for `KafkaConfig.service_name` and thus the value included in the DLQ supplementary header, `service`. For instance, if the service name is `abc`, then the reviewed event should be republished to a topic called `retry-abc`. The `abc` service will consume this event and the `KafkaEventSubscriber` class from Hexkit will automatically substitute `retry-abc` with the the value for `original_topic` before passing the event to the service's event subscriber translator. The result is that the reintroduction procedure is completely transparent to the service's event subscriber translator, and the event gets processed identically to every other event.
+Events that are dealt with in the DLQ topic and destined to be republished should receive a fresh `event_id` to mark them as distinct from the original. Furthermore, events should not be republished to their original topic. Instead, they should be republished to a special retry topic with a name in the format `retry-<service_name>`. The service name should match the value configured for `KafkaConfig.service_name` and thus the value included in the DLQ supplementary header, `service`. For instance, if the service name is `abc`, then the reviewed event should be republished to a topic called `retry-abc`. The `abc` service will consume this event and the `KafkaEventSubscriber` class from hexkit will automatically substitute `retry-abc` with the the value for `original_topic` before passing the event to the service's event subscriber translator. The result is that the reintroduction procedure is completely transparent to the service's event subscriber translator, and the event gets processed identically to every other event.
 
 Checklist:
 - Generate a new UUID4 for the `event_id` header
@@ -139,4 +139,4 @@ The retry mechanism operates alongside and independently of the DLQ feature, but
 1. If retries are enabled (`kafka_max_retries` > 0), the event is retried immediately
 2. Each retry attempt uses exponential backoff based on the `kafka_retry_backoff` setting
 3. The backoff time doubles with each retry attempt: `backoff_time = retry_backoff * 2^(retry_number - 1)`
-4. If retries are exhausted and an error still occurs, the behavior depends on whether the DLQ is enabled. If the DLQ is enabled, the error bubbles up to the level of the Hexkit provider, which publishes the event to the DLQ along with the error information. If the DLQ is not enabled, the error is re-raised as a `RetriesExhaustedError`. If this error is unhandled at the service level, the service will crash. In order to handle `RetriesExhaustedError` instances, the `try/except` must be placed around the `.run()` call on the subscriber.
+4. If retries are exhausted and an error still occurs, the behavior depends on whether the DLQ is enabled. If the DLQ is enabled, the error bubbles up to the level of the hexkit provider, which publishes the event to the DLQ along with the error information. If the DLQ is not enabled, the error is re-raised as a `RetriesExhaustedError`. If this error is unhandled at the service level, the service will crash. In order to handle `RetriesExhaustedError` instances, the `try/except` must be placed around the `.run()` call on the subscriber.

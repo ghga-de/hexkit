@@ -47,7 +47,10 @@ nav:
     - developer_help/outbox_v_persistent_pub.md
   - Structure:
     - structure/overview.md
-  - Glossary: glossary.md
+  - API Reference:
+    - api/index.md
+  - Glossary:
+    - glossary/index.md
 
 markdown_extensions:
   - admonition

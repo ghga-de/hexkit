@@ -331,9 +331,11 @@ class KafkaConsumerCompatible(Protocol):
                 An identifier for the consumer group.
             auto_offset_reset:
                 Can be set to "earliest".
-            key_serializer:
+            enable_auto_commit:
+                Whether to enable auto-committing of offsets.
+            key_deserializer:
                 Function to deserialize the keys into strings.
-            value_serializer:
+            value_deserializer:
                 Function to deserialize the values into strings.
             max_partition_fetch_bytes:
                 Maximum receivable message size

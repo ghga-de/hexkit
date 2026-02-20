@@ -112,18 +112,16 @@ def config_from_yaml(
     """
 
     def decorator(settings) -> Callable:
-        # settings should be a pydantic BaseSetting,
-        # there is no type hint here to not restrict
-        # autocompletion for attributes of the
-        # modified settings class returned by the
-        # contructor_wrapper
         """The actual decorator function.
 
         Args
             settings (BaseSettings):
                 A pydantic BaseSettings class to be modified.
         """
-        # check if settings inherits from pydantic BaseSettings:
+        # The settings argument should be a pydantic BaseSetting,
+        # there is no type hint here to not restrict autocompletion for attributes
+        # of the modified settings class returned by the constructor_wrapper.
+        # Check if settings inherits from pydantic BaseSettings:
         if not issubclass(settings, BaseSettings):
             raise TypeError(
                 "The specified settings class is not a subclass of pydantic_settings.BaseSettings"
