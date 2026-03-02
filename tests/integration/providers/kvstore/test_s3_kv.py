@@ -143,7 +143,7 @@ async def test_store_repr(s3: S3Fixture):
     await s3.storage.create_bucket(KV_BUCKET)
     store = S3StrKeyValueStore(config=s3.config, bucket_id=KV_BUCKET)
     store_repr = repr(store)
-    store_repr = re.sub(r"Secret\('[^']+'\)", "<secret>", store_repr)
+    store_repr = re.sub(r"SecretStr\('[^']*'\)", "<secret>", store_repr)
 
     assert store_repr.startswith("S3StrKeyValueStore(config=S3Config(")
     assert f"s3_access_key_id={s3.config.s3_access_key_id!r}" in store_repr
