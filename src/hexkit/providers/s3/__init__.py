@@ -18,6 +18,19 @@
 
 # shortcuts:
 from hexkit.providers.s3.config import S3Config
-from hexkit.providers.s3.provider import S3ObjectStorage
+from hexkit.providers.s3.provider import (
+    S3BytesKeyValueStore,
+    S3DtoKeyValueStore,
+    S3JsonKeyValueStore,
+    S3ObjectStorage,
+    S3StrKeyValueStore,
+)
 
-__all__ = ["S3Config", "S3ObjectStorage"]
+__all__ = [
+    "S3BytesKeyValueStore",
+    "S3Config",
+    "S3DtoKeyValueStore",
+    "S3JsonKeyValueStore",
+    "S3ObjectStorage",
+    "S3StrKeyValueStore",
+]
