@@ -16,7 +16,7 @@
 
 """MongoDB-based provider implementing the DaoFactoryProtocol.
 
-Utilities for testing are located in `./testutils.py`.
+Utilities for testing are located in `../testutils.py`.
 """
 
 from collections.abc import AsyncIterator, Callable, Collection, Mapping

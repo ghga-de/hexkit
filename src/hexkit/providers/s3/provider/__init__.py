@@ -14,10 +14,11 @@
 # limitations under the License.
 #
 
-"""Subpackage containing an S3-based providers and associated utilities."""
+"""Subpackage containing an S3-based provider implementing the ObjectStorageProtocol
+and associated utilities.
+"""
 
 # shortcuts:
-from hexkit.providers.s3.config import S3Config
-from hexkit.providers.s3.provider import S3ObjectStorage
+from .objstorage import S3ObjectStorage
 
-__all__ = ["S3Config", "S3ObjectStorage"]
+__all__ = ["S3ObjectStorage"]

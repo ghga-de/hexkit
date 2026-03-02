@@ -37,7 +37,7 @@ from pydantic import SecretStr
 from testcontainers.localstack import LocalStackContainer
 
 from hexkit.custom_types import PytestScope
-from hexkit.providers.s3.provider import S3Config, S3ObjectStorage
+from hexkit.providers.s3 import S3Config, S3ObjectStorage
 
 from ._utils import FileObject, calc_md5, populate_storage, upload_file, upload_part
 
