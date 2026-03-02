@@ -28,9 +28,10 @@ jobs:
         with:
           python-version: '3.13'
 
-      - name: Install MkDocs and pdoc
+      - name: Install dependencies
         run: |
-          pip install mkdocs pdoc
+          pip install -e .
+          pip install --no-deps -r ./lock/requirements-dev.txt
 
       - name: Setup Pages
         uses: actions/configure-pages@v5
