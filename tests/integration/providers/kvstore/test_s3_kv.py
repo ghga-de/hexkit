@@ -140,15 +140,16 @@ class TestS3DtoKVStore(DtoKVStoreTestSuite):
 
 async def test_store_repr(s3: S3Fixture):
     """Test the repr of the string value store."""
-    await s3.storage.create_bucket(KV_BUCKET)
-    store = S3StrKeyValueStore(config=s3.config, bucket_id=KV_BUCKET)
+    custom_bucket = "custom-test-bucket"
+    await s3.storage.create_bucket(custom_bucket)
+    store = S3StrKeyValueStore(config=s3.config, bucket_id=custom_bucket)
     store_repr = repr(store)
     store_repr = re.sub(r"SecretStr\('[^']*'\)", "<secret>", store_repr)
 
     assert store_repr.startswith("S3StrKeyValueStore(config=S3Config(")
     assert f"s3_access_key_id={s3.config.s3_access_key_id!r}" in store_repr
     assert "s3_secret_access_key=<secret>" in store_repr
-    assert f"bucket_id={KV_BUCKET!r}" in store_repr
+    assert f"bucket_id={custom_bucket!r}" in store_repr
 
 
 # Whitebox/internals tests
