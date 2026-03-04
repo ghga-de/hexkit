@@ -14,21 +14,21 @@
 # limitations under the License.
 #
 
-"""Subpackage containing an S3-based providers and associated utilities."""
+"""Subpackage containing S3-based providers implementing the ObjectStorageProtocol
+and KeyValueStoreProtocol, and associated utilities.
+"""
 
 # shortcuts:
-from hexkit.providers.s3.config import S3Config
-from hexkit.providers.s3.provider import (
+from .kvstore import (
     S3BytesKeyValueStore,
     S3DtoKeyValueStore,
     S3JsonKeyValueStore,
-    S3ObjectStorage,
     S3StrKeyValueStore,
 )
+from .objstorage import S3ObjectStorage
 
 __all__ = [
     "S3BytesKeyValueStore",
-    "S3Config",
     "S3DtoKeyValueStore",
     "S3JsonKeyValueStore",
     "S3ObjectStorage",

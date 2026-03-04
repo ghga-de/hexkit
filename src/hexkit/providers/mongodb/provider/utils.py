@@ -15,7 +15,7 @@
 
 """MongoDB-based provider utilities.
 
-Utilities for testing are located in `./testutils.py`.
+Utilities for testing are located in `../testutils.py`.
 """
 
 from contextlib import contextmanager

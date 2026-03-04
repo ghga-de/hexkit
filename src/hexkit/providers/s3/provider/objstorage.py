@@ -16,7 +16,7 @@
 
 """S3-based provider implementing the ObjectStorageProtocol.
 
-Utilities for testing are located in `./testutils.py`.
+Utilities for testing are located in `../testutils`.
 """
 
 # ruff: noqa: PLR0913
@@ -28,68 +28,22 @@ from pathlib import Path
 from typing import Any
 
 import boto3
-import botocore.client
 import botocore.config
 import botocore.configloader
 import botocore.exceptions
 import botocore.handlers
 from boto3.s3.transfer import TransferConfig
-from pydantic import Field, SecretStr
-from pydantic_settings import BaseSettings
 
 from hexkit.protocols.objstorage import ObjectStorageProtocol, PresignedPostURL
+from hexkit.providers.s3.config import S3Config
 from hexkit.utils import calc_part_size
 
-__all__ = ["ObjectStorageProtocol", "PresignedPostURL"]
+__all__ = ["S3ObjectStorage"]
+
 # Allow colon character in bucket names to accommodate Ceph multi-tenancy S3
 botocore.handlers.VALID_BUCKET = re.compile(
     r"^(?:[a-zA-Z0-9_]{1,191}:)?[a-z0-9\-]{3,63}$"
 )
-
-
-class S3Config(BaseSettings):
-    """S3-specific config params.
-
-    Inherit your config class from this class if you need to talk
-    to an S3 service in the backend.
-    """
-
-    s3_endpoint_url: str = Field(
-        ..., examples=["http://localhost:4566"], description="URL to the S3 API."
-    )
-    s3_access_key_id: str = Field(
-        ...,
-        examples=["my-access-key-id"],
-        description=(
-            "Part of credentials for login into the S3 service. See:"
-            + " https://boto3.amazonaws.com/v1/documentation/api/latest/guide/credentials.html"
-        ),
-    )
-    s3_secret_access_key: SecretStr = Field(
-        ...,
-        examples=["my-secret-access-key"],
-        description=(
-            "Part of credentials for login into the S3 service. See:"
-            + " https://boto3.amazonaws.com/v1/documentation/api/latest/guide/credentials.html"
-        ),
-    )
-    s3_session_token: SecretStr | None = Field(
-        None,
-        examples=["my-session-token"],
-        description=(
-            "Part of credentials for login into the S3 service. See:"
-            + " https://boto3.amazonaws.com/v1/documentation/api/latest/guide/credentials.html"
-        ),
-    )
-    aws_config_ini: Path | None = Field(
-        None,
-        examples=["~/.aws/config"],
-        description=(
-            "Path to a config file for specifying more advanced S3 parameters."
-            + " This should follow the format described here:"
-            + " https://boto3.amazonaws.com/v1/documentation/api/latest/guide/configuration.html#using-a-configuration-file"
-        ),
-    )
 
 
 @lru_cache
@@ -155,7 +109,7 @@ class S3ObjectStorage(ObjectStorageProtocol):
             config=self._advanced_config,
         )
 
-    def __repr__(self) -> str:
+    def __repr__(self) -> str:  # noqa: D105
         return f"{self.__class__.__name__}(config={repr(self._config)})"
 
     @staticmethod
