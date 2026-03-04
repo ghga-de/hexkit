@@ -19,7 +19,6 @@ from collections import defaultdict
 from uuid import uuid4
 
 from hexkit.protocols.objstorage import ObjectStorageProtocol, PresignedPostURL
-from hexkit.providers.s3 import S3Config
 
 UploadID = str
 BucketID = str
@@ -29,14 +28,15 @@ ObjectID = str
 class InMemObjectStorage(ObjectStorageProtocol):
     """In-memory object storage mock just the method used in this service"""
 
-    def __init__(self, *, config: S3Config):
-        """Set bucket ID.
+    base_url = "https://storage.test"
+
+    def __init__(self):
+        """Initialize the in-memory object storage mock.
 
         Type aliases are used here only to clarify dictionary structure.
         """
         self.buckets: dict[BucketID, set[ObjectID]] = defaultdict(set)
         self.uploads: dict[BucketID, dict[ObjectID, set[UploadID]]] = defaultdict(dict)
-        self.endpoint_url = config.s3_endpoint_url
 
     async def _does_bucket_exist(self, bucket_id: str) -> bool:
         """Check whether a bucket with the specified ID (`bucket_id`) exists.
@@ -151,7 +151,7 @@ class InMemObjectStorage(ObjectStorageProtocol):
         if max_upload_size:
             fields["max_upload_size"] = str(max_upload_size)
         return PresignedPostURL(
-            url=f"https://s3.example.com/{bucket_id}/{object_id}", fields=fields
+            url=f"{self.base_url}/{bucket_id}/{object_id}", fields=fields
         )
 
     async def _list_multipart_upload_for_object(
@@ -315,7 +315,7 @@ class InMemObjectStorage(ObjectStorageProtocol):
         if part_md5:
             params["ContentMD5"] = part_md5
         return (
-            f"https://s3.example.com/{bucket_id}/{object_id}/{upload_id}"
+            f"https://storage.test/{bucket_id}/{object_id}/{upload_id}"
             + f"/part_no_{part_number}?{expires_after=}"
         )
 
@@ -376,7 +376,7 @@ class InMemObjectStorage(ObjectStorageProtocol):
             `ObjectNotFoundError`: If the object does not exist in the bucket.
         """
         await self._assert_object_exists(bucket_id=bucket_id, object_id=object_id)
-        return f"https://s3.example.com/{bucket_id}/{object_id}?{expires_after=}"
+        return f"{self.base_url}/{bucket_id}/{object_id}?{expires_after=}"
 
     async def _get_object_etag(self, *, bucket_id: str, object_id: str) -> str:
         """Return the etag of an object, which is hardcoded to be the string
