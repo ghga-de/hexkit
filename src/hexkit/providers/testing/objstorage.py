@@ -315,7 +315,7 @@ class InMemObjectStorage(ObjectStorageProtocol):
         if part_md5:
             params["ContentMD5"] = part_md5
         return (
-            f"https://storage.test/{bucket_id}/{object_id}/{upload_id}"
+            f"{self.base_url}/{bucket_id}/{object_id}/{upload_id}"
             + f"/part_no_{part_number}?{expires_after=}"
         )
 
