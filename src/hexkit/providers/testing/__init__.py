@@ -24,10 +24,20 @@ ATTENTION: Do not use these providers in production.
 
 from .dao import MockDAOEmptyError, new_mock_dao_class
 from .eventpub import InMemEventPublisher, InMemEventStore, TopicExhaustedError
+from .kvstore import (
+    InMemBytesKeyValueStore,
+    InMemDtoKeyValueStore,
+    InMemJsonKeyValueStore,
+    InMemStrKeyValueStore,
+)
 
 __all__ = [
+    "InMemBytesKeyValueStore",
+    "InMemDtoKeyValueStore",
     "InMemEventPublisher",
     "InMemEventStore",
+    "InMemJsonKeyValueStore",
+    "InMemStrKeyValueStore",
     "MockDAOEmptyError",
     "TopicExhaustedError",
     "new_mock_dao_class",
