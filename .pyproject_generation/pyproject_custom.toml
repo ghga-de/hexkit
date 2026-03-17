@@ -76,6 +76,9 @@ all = ["hexkit[test]", "hexkit[opentelemetry]"]
 
 [project.urls]
 Repository = "https://github.com/ghga-de/hexkit"
+Documentation = "https://ghga-de.github.io/hexkit/"
+"Release Notes" = "https://github.com/ghga-de/hexkit/releases"
+"Issue Tracker" = "https://github.com/ghga-de/hexkit/issues"
 
 [tool.ruff]
 target-version = "py310"
