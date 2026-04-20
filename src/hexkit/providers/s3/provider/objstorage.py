@@ -370,6 +370,58 @@ class S3ObjectStorage(ObjectStorageProtocol):
 
         return uploads
 
+    async def _list_parts(
+        self,
+        *,
+        bucket_id: str,
+        object_id: str,
+        upload_id: str,
+        max_parts: int | None = None,
+        first_part_no: int | None = None,
+    ) -> list[dict]:
+        """Lists the parts that have been uploaded for a specific multipart upload."""
+        await self._assert_multipart_upload_exists(
+            upload_id=upload_id, bucket_id=bucket_id, object_id=object_id
+        )
+
+        params: dict[str, Any] = {
+            "Bucket": bucket_id,
+            "Key": object_id,
+            "UploadId": upload_id,
+        }
+        if max_parts:
+            params["MaxParts"] = max_parts
+        if first_part_no:
+            # S3 returns parts starting *after* PartNumberMarker, so subtract 1 to get
+            #  more intuitive behavior where the first part returned is first_part_no
+            params["PartNumberMarker"] = first_part_no - 1
+
+        try:
+            if max_parts is not None:
+                # If max_parts is specified, make single call
+                response = await asyncio.to_thread(self._client.list_parts, **params)
+                return response.get("Parts", [])
+
+            # If max_parts isn't specified, paginate manually to collect all parts
+            parts: list[dict] = []
+            while True:
+                response = await asyncio.to_thread(self._client.list_parts, **params)
+                parts.extend(response.get("Parts", []))
+
+                # ListParts is limited to 1000 parts per paginated request, so repeat
+                #  the call until all parts are received (IsTruncated=False)
+                if not response.get("IsTruncated"):
+                    break
+                params["PartNumberMarker"] = response["NextPartNumberMarker"]
+            return parts
+        except botocore.exceptions.ClientError as error:
+            raise self._translate_s3_client_errors(
+                error,
+                upload_id=upload_id,
+                bucket_id=bucket_id,
+                object_id=object_id,
+            ) from error
+
     async def _get_all_multipart_uploads(self, *, bucket_id: str) -> dict[str, str]:
         """Gets all active multipart uploads for the given bucket ID.
 
@@ -506,54 +558,19 @@ class S3ObjectStorage(ObjectStorageProtocol):
                 object_id=object_id,
             ) from error
 
-    async def _get_parts_info(
-        self,
-        *,
-        upload_id: str,
-        bucket_id: str,
-        object_id: str,
-    ) -> dict:
-        """Get information on parts uploaded as part of the specified multi-part upload."""
-        await self._assert_multipart_upload_exists(
-            upload_id=upload_id, bucket_id=bucket_id, object_id=object_id
-        )
-
-        try:
-            response_iter = await asyncio.to_thread(
-                self._client.get_paginator("list_parts").paginate,
-                Bucket=bucket_id,
-                Key=object_id,
-                UploadId=upload_id,
-            )
-            complete_response: dict[str, Any] = {}
-            for response_page in response_iter:
-                if not complete_response:
-                    complete_response = response_page
-                    continue
-                complete_response["Parts"].extend(response_page["Parts"])
-            return complete_response
-        except botocore.exceptions.ClientError as error:
-            raise self._translate_s3_client_errors(
-                error,
-                upload_id=upload_id,
-                bucket_id=bucket_id,
-                object_id=object_id,
-            ) from error
-
     async def _check_uploaded_parts(
         self,
         *,
         upload_id: str,
         bucket_id: str,
         object_id: str,
-        parts_info: dict,
+        parts_info: list[dict],
         anticipated_part_quantity: int | None = None,
         anticipated_part_size: int | None = None,
     ) -> None:
         """Check size and quantity of parts"""
         # check the part quantity:
-        parts = parts_info.get("Parts")
-        if parts is None or len(parts) == 0:
+        if not parts_info:
             raise self.MultiPartUploadConfirmError(
                 upload_id=upload_id,
                 bucket_id=bucket_id,
@@ -561,7 +578,7 @@ class S3ObjectStorage(ObjectStorageProtocol):
                 reason="Zero parts received.",
             )
 
-        part_quantity = len(parts)
+        part_quantity = len(parts_info)
         if (
             anticipated_part_quantity is not None
             and part_quantity != anticipated_part_quantity
@@ -575,11 +592,11 @@ class S3ObjectStorage(ObjectStorageProtocol):
             )
 
         # check anticipated part size:
-        first_part_size = parts[0]["Size"]
-        last_part_size = parts[-1]["Size"]
+        first_part_size = parts_info[0]["Size"]
+        last_part_size = parts_info[-1]["Size"]
         if anticipated_part_size is not None:
             # if we have only one part, this is not required
-            if len(parts) > 1 and first_part_size != anticipated_part_size:
+            if len(parts_info) > 1 and first_part_size != anticipated_part_size:
                 raise self.MultiPartUploadConfirmError(
                     upload_id=upload_id,
                     bucket_id=bucket_id,
@@ -609,7 +626,7 @@ class S3ObjectStorage(ObjectStorageProtocol):
             )
 
         # check if all parts (except the last one) conform to the size of the first one:
-        for part in parts[1 : part_quantity - 1]:
+        for part in parts_info[1 : part_quantity - 1]:
             if part["Size"] != first_part_size:
                 raise self.MultiPartUploadConfirmError(
                     upload_id=upload_id,
@@ -660,7 +677,7 @@ class S3ObjectStorage(ObjectStorageProtocol):
         # https://boto3.amazonaws.com/v1/documentation/api/latest/reference/services/s3.html?highlight=abort_multipart_upload#S3.Client.abort_multipart_upload
         # )
         try:
-            parts_info = await self._get_parts_info(
+            parts = await self._list_parts(
                 upload_id=upload_id,
                 bucket_id=bucket_id,
                 object_id=object_id,
@@ -670,8 +687,7 @@ class S3ObjectStorage(ObjectStorageProtocol):
             return
 
         # verify that no parts are remaining:
-        parts = parts_info.get("Parts")
-        if parts is not None and len(parts) > 0:
+        if parts:
             raise self.MultiPartUploadAbortError(
                 upload_id=upload_id, bucket_id=bucket_id, object_id=object_id
             )
@@ -691,7 +707,7 @@ class S3ObjectStorage(ObjectStorageProtocol):
         This ensures that exactly the specified number of parts exist and that all parts
         (except the last one) have the specified size.
         """
-        parts_info = await self._get_parts_info(
+        parts = await self._list_parts(
             upload_id=upload_id,
             bucket_id=bucket_id,
             object_id=object_id,
@@ -701,13 +717,12 @@ class S3ObjectStorage(ObjectStorageProtocol):
             upload_id=upload_id,
             bucket_id=bucket_id,
             object_id=object_id,
-            parts_info=parts_info,
+            parts_info=parts,
             anticipated_part_quantity=anticipated_part_quantity,
             anticipated_part_size=anticipated_part_size,
         )
 
         # construct eTags list:
-        parts = parts_info.get("Parts", [])
         part_etags = [
             {"ETag": part["ETag"], "PartNumber": part["PartNumber"]} for part in parts
         ]
