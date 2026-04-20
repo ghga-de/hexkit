@@ -195,6 +195,26 @@ class ObjectStorageProtocol(ABC):
             bucket_id=bucket_id, object_id=object_id
         )
 
+    async def list_parts(
+        self,
+        *,
+        bucket_id: str,
+        object_id: str,
+        upload_id: str,
+        max_parts: int | None = None,
+        first_part_no: int | None = None,
+    ) -> list[dict]:
+        """Lists the parts that have been uploaded for a specific multipart upload."""
+        self._validate_bucket_id(bucket_id)
+        self._validate_object_id(object_id)
+        return await self._list_parts(
+            bucket_id=bucket_id,
+            object_id=object_id,
+            upload_id=upload_id,
+            max_parts=max_parts,
+            first_part_no=first_part_no,
+        )
+
     async def get_all_multipart_uploads(self, *, bucket_id: str) -> dict[str, str]:
         """Gets all active multipart uploads for the given bucket ID.
 
@@ -438,6 +458,19 @@ class ObjectStorageProtocol(ABC):
         *To be implemented by the provider. Input validation is done outside of this
         method.*
         """
+        ...
+
+    @abstractmethod
+    async def _list_parts(
+        self,
+        *,
+        bucket_id: str,
+        object_id: str,
+        upload_id: str,
+        max_parts: int | None = None,
+        first_part_no: int | None = None,
+    ) -> list[dict]:
+        """Lists the parts that have been uploaded for a specific multipart upload."""
         ...
 
     @abstractmethod
