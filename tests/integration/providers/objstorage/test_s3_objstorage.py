@@ -429,11 +429,6 @@ async def test_list_parts(s3: S3Fixture):
     )
     assert not no_parts
 
-    # Abort the upload
-    await s3.storage.abort_multipart_upload(
-        bucket_id=bucket_id, object_id="throwaway", upload_id=uid
-    )
-
 
 async def test_list_parts_invalid_args(s3: S3Fixture):
     """Test to make sure list_parts() validates args correctly."""
