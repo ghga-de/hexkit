@@ -470,6 +470,15 @@ async def test_list_parts_invalid_args(s3: S3Fixture):
             first_part_no=0,
         )
 
+    # Illustrate that setting first_part_no higher than actual part count returns []
+    results = await s3.storage.list_parts(
+        bucket_id=bucket_id,
+        object_id=object_id,
+        upload_id=upload_id,
+        first_part_no=10,
+    )
+    assert results == []
+
 
 @pytest.mark.parametrize(
     "part_sizes, anticipated_part_size, anticipated_part_quantity, exception",
