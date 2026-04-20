@@ -388,6 +388,10 @@ class S3ObjectStorage(ObjectStorageProtocol):
         specified, retrieved parts will start with the first part. Part numbers
         start at 1, not 0.
 
+        Returns a list of dict items, where each item contains information about one
+        file part. The dict keys are "PartNumber", "Size", "ETag", and "LastModified",
+        but additional fields may be present depending on the S3 instance setup.
+
         Raises:
             ValueError if `max_parts` or `first_part_no` are invalid.
             MultiPartUploadNotFoundError if no upload with `upload_id` exists.
@@ -582,7 +586,11 @@ class S3ObjectStorage(ObjectStorageProtocol):
         anticipated_part_quantity: int | None = None,
         anticipated_part_size: int | None = None,
     ) -> None:
-        """Check size and quantity of parts"""
+        """Check size and quantity of parts.
+
+        The items in the `parts` parameter should be dicts containing at least the
+        "Size" field where the value is the part content's size in bytes (as an int).
+        """
         # check the part quantity:
         if not parts:
             raise self.MultiPartUploadConfirmError(
