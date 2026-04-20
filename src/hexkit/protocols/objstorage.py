@@ -204,7 +204,19 @@ class ObjectStorageProtocol(ABC):
         max_parts: int | None = None,
         first_part_no: int | None = None,
     ) -> list[dict]:
-        """Lists the parts that have been uploaded for a specific multipart upload."""
+        """Lists the parts that have been uploaded for a specific multipart upload.
+
+        Specify `max_parts` to return a limited parts list. If not specified, all
+        parts will be returned (up to 10,000).
+
+        Specify `first_part_no` to get parts starting with that part number. If not
+        specified, retrieved parts will start with the first part. Part numbers
+        start at 1, not 0.
+
+        Raises:
+            ValueError if `max_parts` or `first_part_no` are invalid.
+            MultiPartUploadNotFoundError if no upload with `upload_id` exists.
+        """
         self._validate_bucket_id(bucket_id)
         self._validate_object_id(object_id)
         return await self._list_parts(
@@ -472,12 +484,16 @@ class ObjectStorageProtocol(ABC):
     ) -> list[dict]:
         """Lists the parts that have been uploaded for a specific multipart upload.
 
-        Specify `max_parts` to return a limited parts list. If the argument is invalid
-        or not specified, all parts will be returned (up to 10,000).
+        Specify `max_parts` to return a limited parts list. If not specified, all
+        parts will be returned (up to 10,000).
 
-        Specify `first_part_no` to get parts starting with that part number. If invalid
-        or not specified, retrieved parts will start with the first part. Part numbers
+        Specify `first_part_no` to get parts starting with that part number. If not
+        specified, retrieved parts will start with the first part. Part numbers
         start at 1, not 0.
+
+        Raises:
+            ValueError if `max_parts` or `first_part_no` are invalid.
+            MultiPartUploadNotFoundError if no upload with `upload_id` exists.
         """
         ...
 
