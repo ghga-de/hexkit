@@ -402,12 +402,12 @@ class S3ObjectStorage(ObjectStorageProtocol):
             "UploadId": upload_id,
         }
         if max_parts is not None:
-            if isinstance(max_parts, int) and max_parts > 0:
+            if max_parts > 0:
                 params["MaxParts"] = max_parts
             else:
                 raise ValueError(f"{max_parts} is not a valid argument for max_parts")
         if first_part_no is not None:
-            if isinstance(first_part_no, int) and first_part_no > 0:
+            if first_part_no > 0:
                 # S3 returns parts starting *after* PartNumberMarker, so subtract 1 to get
                 #  more intuitive behavior where the first part returned is first_part_no
                 params["PartNumberMarker"] = first_part_no - 1

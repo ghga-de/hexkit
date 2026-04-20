@@ -199,11 +199,9 @@ class InMemObjectStorage(ObjectStorageProtocol):
             object_id=object_id,
             assert_exclusiveness=False,
         )
-        if max_parts is not None and not (isinstance(max_parts, int) and max_parts > 0):
+        if max_parts is not None and max_parts <= 0:
             raise ValueError(f"{max_parts} is not a valid argument for max_parts")
-        if first_part_no is not None and not (
-            isinstance(first_part_no, int) and first_part_no > 0
-        ):
+        if first_part_no is not None and first_part_no <= 0:
             raise ValueError(
                 f"{first_part_no} is not a valid argument for first_part_no"
             )
