@@ -418,6 +418,23 @@ async def test_list_parts(s3: S3Fixture):
     assert results_with_offset[0]["PartNumber"] == 2
     assert results_with_offset[1]["PartNumber"] == 3
 
+    # Try with invalid max_parts
+    invalid_max_parts = await s3.storage.list_parts(
+        bucket_id=bucket_id, object_id=object_id, upload_id=upload_id, max_parts=-9
+    )
+    assert len(invalid_max_parts) == 3
+
+    invalid_first_part_no = await s3.storage.list_parts(
+        bucket_id=bucket_id, object_id=object_id, upload_id=upload_id, first_part_no=-9
+    )
+    assert len(invalid_first_part_no) == 3
+
+    # Try with valid but nonexistent first_part_no
+    out_of_range_first_part_no = await s3.storage.list_parts(
+        bucket_id=bucket_id, object_id=object_id, upload_id=upload_id, first_part_no=9
+    )
+    assert len(out_of_range_first_part_no) == 0
+
     # Create a new MPU with no parts uploaded
     uid = await s3.storage.init_multipart_upload(
         bucket_id=bucket_id, object_id="throwaway"

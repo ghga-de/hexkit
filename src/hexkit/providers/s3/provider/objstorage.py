@@ -379,7 +379,15 @@ class S3ObjectStorage(ObjectStorageProtocol):
         max_parts: int | None = None,
         first_part_no: int | None = None,
     ) -> list[dict]:
-        """Lists the parts that have been uploaded for a specific multipart upload."""
+        """Lists the parts that have been uploaded for a specific multipart upload.
+
+        Specify `max_parts` to return a limited parts list. If the argument is invalid
+        or not specified, all parts will be returned (up to 10,000).
+
+        Specify `first_part_no` to get parts starting with that part number. If invalid
+        or not specified, retrieved parts will start with the first part. Part numbers
+        start at 1, not 0.
+        """
         await self._assert_multipart_upload_exists(
             upload_id=upload_id, bucket_id=bucket_id, object_id=object_id
         )
@@ -389,9 +397,9 @@ class S3ObjectStorage(ObjectStorageProtocol):
             "Key": object_id,
             "UploadId": upload_id,
         }
-        if max_parts:
+        if isinstance(max_parts, int) and max_parts > 0:
             params["MaxParts"] = max_parts
-        if first_part_no:
+        if isinstance(first_part_no, int) and first_part_no > 0:
             # S3 returns parts starting *after* PartNumberMarker, so subtract 1 to get
             #  more intuitive behavior where the first part returned is first_part_no
             params["PartNumberMarker"] = first_part_no - 1

@@ -470,7 +470,15 @@ class ObjectStorageProtocol(ABC):
         max_parts: int | None = None,
         first_part_no: int | None = None,
     ) -> list[dict]:
-        """Lists the parts that have been uploaded for a specific multipart upload."""
+        """Lists the parts that have been uploaded for a specific multipart upload.
+
+        Specify `max_parts` to return a limited parts list. If the argument is invalid
+        or not specified, all parts will be returned (up to 10,000).
+
+        Specify `first_part_no` to get parts starting with that part number. If invalid
+        or not specified, retrieved parts will start with the first part. Part numbers
+        start at 1, not 0.
+        """
         ...
 
     @abstractmethod
