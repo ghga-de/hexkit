@@ -418,16 +418,16 @@ async def test_list_parts(s3: S3Fixture):
     assert results_with_offset[0]["PartNumber"] == 2
     assert results_with_offset[1]["PartNumber"] == 3
 
-    # Use the two optional params together to get part 2 only
+    # Use the two optional params together to get part 1 only
     part_2 = await s3.storage.list_parts(
         bucket_id=bucket_id,
         object_id=object_id,
         upload_id=upload_id,
         max_parts=1,
-        first_part_no=2,
+        first_part_no=1,
     )
     assert len(part_2) == 1
-    assert part_2[0]["PartNumber"] == 2
+    assert part_2[0]["PartNumber"] == 1
 
     # Create a new MPU with no parts uploaded
     uid = await s3.storage.init_multipart_upload(
