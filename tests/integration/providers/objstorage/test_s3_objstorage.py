@@ -475,9 +475,50 @@ async def test_list_parts_invalid_args(s3: S3Fixture):
         bucket_id=bucket_id,
         object_id=object_id,
         upload_id=upload_id,
+        max_parts=1001,
         first_part_no=10,
     )
     assert results == []
+
+
+async def test_list_parts_high_index(s3: S3Fixture):
+    """Verify that `.list_parts()` works as expected when part counts are over 1000,
+    which is the default max part count per pagination window.
+    """
+    # Create an MPU with 1 part uploaded
+    upload_id, bucket_id, object_id = await s3.prepare_non_completed_upload()
+    count = 1030
+
+    # Upload enough parts at minimum part size to exceed max pagination window size (1000)
+    for i in range(2, count + 1):  # Add 1 so `count` is accurate, not off by 1
+        await upload_part_of_size(
+            storage_dao=s3.storage,
+            upload_id=upload_id,
+            bucket_id=bucket_id,
+            object_id=object_id,
+            size=5 * 1024**2,
+            part_number=i,
+        )
+
+    # Perform tests inside a single setup instead of uploading all parts anew each time:
+    parts = []
+    for max_parts, first_part_no, expected_parts, fail_msg in [
+        (None, None, [n for n in range(1, count + 1)], "Basic pagination failed"),
+        (count, None, [n for n in range(1, count + 1)], "Failed when max_parts > 1000"),
+        (1, 1025, [1025], "Failed when targeting single part with PartNumber > 1001"),
+        (None, 1025, [n for n in range(1025, count + 1)], "Failed to get last parts"),
+        (3, None, [1, 2, 3], "Failed to get first three parts with no first_part_no"),
+    ]:
+        parts = await s3.storage.list_parts(
+            bucket_id=bucket_id,
+            object_id=object_id,
+            upload_id=upload_id,
+            max_parts=max_parts,
+            first_part_no=first_part_no,
+        )
+
+        # Inspect PartNumber to verify results
+        assert [p["PartNumber"] for p in parts] == expected_parts, fail_msg
 
 
 @pytest.mark.parametrize(

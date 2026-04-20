@@ -417,22 +417,16 @@ class S3ObjectStorage(ObjectStorageProtocol):
                 )
 
         try:
-            if max_parts is not None:
-                # If max_parts is specified, make single call
-                response = await asyncio.to_thread(self._client.list_parts, **params)
-                return response.get("Parts", [])
-
-            # If max_parts isn't specified, paginate manually to collect all parts
             parts: list[dict] = []
-            while True:
-                response = await asyncio.to_thread(self._client.list_parts, **params)
-                parts.extend(response.get("Parts", []))
+            response_iter = await asyncio.to_thread(
+                self._client.get_paginator("list_parts").paginate, **params
+            )
+            for page in response_iter:
+                parts.extend(page.get("Parts", []))
 
-                # ListParts is limited to 1000 parts per paginated request, so repeat
-                #  the call until all parts are received (IsTruncated=False)
-                if not response.get("IsTruncated"):
-                    break
-                params["PartNumberMarker"] = response["NextPartNumberMarker"]
+                # If max_parts specified, return once amount is reached
+                if max_parts and len(parts) >= max_parts:
+                    return parts[: max_parts + 1]
             return parts
         except botocore.exceptions.ClientError as error:
             raise self._translate_s3_client_errors(
