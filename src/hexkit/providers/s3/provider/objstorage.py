@@ -584,13 +584,13 @@ class S3ObjectStorage(ObjectStorageProtocol):
         upload_id: str,
         bucket_id: str,
         object_id: str,
-        parts_info: list[dict],
+        parts: list[dict],
         anticipated_part_quantity: int | None = None,
         anticipated_part_size: int | None = None,
     ) -> None:
         """Check size and quantity of parts"""
         # check the part quantity:
-        if not parts_info:
+        if not parts:
             raise self.MultiPartUploadConfirmError(
                 upload_id=upload_id,
                 bucket_id=bucket_id,
@@ -598,7 +598,7 @@ class S3ObjectStorage(ObjectStorageProtocol):
                 reason="Zero parts received.",
             )
 
-        part_quantity = len(parts_info)
+        part_quantity = len(parts)
         if (
             anticipated_part_quantity is not None
             and part_quantity != anticipated_part_quantity
@@ -612,11 +612,11 @@ class S3ObjectStorage(ObjectStorageProtocol):
             )
 
         # check anticipated part size:
-        first_part_size = parts_info[0]["Size"]
-        last_part_size = parts_info[-1]["Size"]
+        first_part_size = parts[0]["Size"]
+        last_part_size = parts[-1]["Size"]
         if anticipated_part_size is not None:
             # if we have only one part, this is not required
-            if len(parts_info) > 1 and first_part_size != anticipated_part_size:
+            if len(parts) > 1 and first_part_size != anticipated_part_size:
                 raise self.MultiPartUploadConfirmError(
                     upload_id=upload_id,
                     bucket_id=bucket_id,
@@ -646,7 +646,7 @@ class S3ObjectStorage(ObjectStorageProtocol):
             )
 
         # check if all parts (except the last one) conform to the size of the first one:
-        for part in parts_info[1 : part_quantity - 1]:
+        for part in parts[1 : part_quantity - 1]:
             if part["Size"] != first_part_size:
                 raise self.MultiPartUploadConfirmError(
                     upload_id=upload_id,
@@ -737,7 +737,7 @@ class S3ObjectStorage(ObjectStorageProtocol):
             upload_id=upload_id,
             bucket_id=bucket_id,
             object_id=object_id,
-            parts_info=parts,
+            parts=parts,
             anticipated_part_quantity=anticipated_part_quantity,
             anticipated_part_size=anticipated_part_size,
         )
