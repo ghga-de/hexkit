@@ -377,6 +377,64 @@ async def test_md5_in_part_url(s3: S3Fixture):
     assert "content-md5=dummy-md5" in url
 
 
+async def test_list_parts(s3: S3Fixture):
+    """Test that list_parts() works in the happy case."""
+    # Create an MPU with 1 part uploaded
+    upload_id, bucket_id, object_id = await s3.prepare_non_completed_upload()
+    parts_list = await s3.storage.list_parts(
+        bucket_id=bucket_id, object_id=object_id, upload_id=upload_id
+    )
+    assert len(parts_list) == 1
+
+    # Upload two more parts
+    for i in range(2, 4):
+        await upload_part_of_size(
+            storage_dao=s3.storage,
+            upload_id=upload_id,
+            bucket_id=bucket_id,
+            object_id=object_id,
+            size=6 * 1024**2,
+            part_number=i,
+        )
+
+    # Check list of parts
+    parts_list = await s3.storage.list_parts(
+        bucket_id=bucket_id, object_id=object_id, upload_id=upload_id
+    )
+    assert len(parts_list) == 3
+
+    # Verify that the limiter "max_parts" works
+    results_with_limit = await s3.storage.list_parts(
+        bucket_id=bucket_id, object_id=object_id, upload_id=upload_id, max_parts=1
+    )
+    assert len(results_with_limit) == 1
+    assert results_with_limit[0]["PartNumber"] == 1
+
+    # Verify that the offset "first_part_no" works
+    results_with_offset = await s3.storage.list_parts(
+        bucket_id=bucket_id, object_id=object_id, upload_id=upload_id, first_part_no=2
+    )
+    assert len(results_with_offset) == 2
+    assert results_with_offset[0]["PartNumber"] == 2
+    assert results_with_offset[1]["PartNumber"] == 3
+
+    # Create a new MPU with no parts uploaded
+    uid = await s3.storage.init_multipart_upload(
+        bucket_id=bucket_id, object_id="throwaway"
+    )
+
+    # Check parts list again, should get empty list
+    no_parts = await s3.storage.list_parts(
+        bucket_id=bucket_id, object_id="throwaway", upload_id=uid
+    )
+    assert not no_parts
+
+    # Abort the upload
+    await s3.storage.abort_multipart_upload(
+        bucket_id=bucket_id, object_id="throwaway", upload_id=uid
+    )
+
+
 @pytest.mark.parametrize(
     "part_sizes, anticipated_part_size, anticipated_part_quantity, exception",
     [
