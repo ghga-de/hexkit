@@ -481,6 +481,7 @@ async def test_list_parts_invalid_args(s3: S3Fixture):
     assert results == []
 
 
+@pytest.mark.skip(reason="This test uses a large amount of memory, run only locally.")
 async def test_list_parts_high_index(s3: S3Fixture):
     """Verify that `.list_parts()` works as expected when part counts are over 1000,
     which is the default max part count per pagination window.
