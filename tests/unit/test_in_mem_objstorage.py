@@ -564,3 +564,95 @@ async def test_get_all_multipart_uploads():
         upload_id=upload_id2, bucket_id=BUCKET1, object_id=object_id2
     )
     assert not await storage.get_all_multipart_uploads(bucket_id=BUCKET1)
+
+
+async def test_list_parts_normal():
+    """Test the dummy implementation of `.list_parts()`"""
+    storage = InMemObjectStorage()
+    await storage.create_bucket(BUCKET1)
+    upload_id = await storage.init_multipart_upload(
+        bucket_id=BUCKET1, object_id=OBJECT1
+    )
+
+    # Default call: returns 3 dummy parts starting at part number 1
+    parts = await storage.list_parts(
+        bucket_id=BUCKET1, object_id=OBJECT1, upload_id=upload_id
+    )
+    assert len(parts) == 3
+    assert [p["PartNumber"] for p in parts] == [1, 2, 3]
+
+    # max_parts limits the number of results returned
+    parts = await storage.list_parts(
+        bucket_id=BUCKET1, object_id=OBJECT1, upload_id=upload_id, max_parts=1
+    )
+    assert len(parts) == 1
+    assert parts[0]["PartNumber"] == 1
+
+    # first_part_no shifts the starting part number
+    parts = await storage.list_parts(
+        bucket_id=BUCKET1, object_id=OBJECT1, upload_id=upload_id, first_part_no=2
+    )
+    assert len(parts) == 3
+    assert [p["PartNumber"] for p in parts] == [2, 3, 4]
+
+    # Combine max_parts and first_part_no together
+    parts = await storage.list_parts(
+        bucket_id=BUCKET1,
+        object_id=OBJECT1,
+        upload_id=upload_id,
+        max_parts=2,
+        first_part_no=3,
+    )
+    assert len(parts) == 2
+    assert [p["PartNumber"] for p in parts] == [3, 4]
+
+    # Each part dict has the expected keys
+    for part in parts:
+        assert "PartNumber" in part
+        assert "Size" in part
+        assert "ETag" in part
+
+
+async def test_list_parts_error():
+    """Test the `.list_parts()` method with bad args for max_parts and first_part_no."""
+    storage = InMemObjectStorage()
+
+    # Should raise error when bucket doesn't exist
+    with pytest.raises(InMemObjectStorage.BucketNotFoundError):
+        await storage.list_parts(bucket_id=BUCKET1, object_id="junk", upload_id="junk")
+
+    # Create buckets
+    await storage.create_bucket(BUCKET1)
+
+    # Should raise an error with the upload doesn't exist
+    with pytest.raises(InMemObjectStorage.MultiPartUploadNotFoundError):
+        await storage.list_parts(bucket_id=BUCKET1, object_id="junk", upload_id="junk")
+
+    # Create a multipart upload
+    upload_id = await storage.init_multipart_upload(
+        bucket_id=BUCKET1, object_id=OBJECT1
+    )
+
+    # Try with invalid max_parts
+    with pytest.raises(ValueError):
+        _ = await storage.list_parts(
+            bucket_id=BUCKET1, object_id=OBJECT1, upload_id=upload_id, max_parts=-9
+        )
+
+    # Try with negative first_part_no
+    with pytest.raises(ValueError):
+        _ = await storage.list_parts(
+            bucket_id=BUCKET1,
+            object_id=OBJECT1,
+            upload_id=upload_id,
+            first_part_no=-9,
+        )
+
+    # Try with first_part_no set to 0
+    with pytest.raises(ValueError):
+        _ = await storage.list_parts(
+            bucket_id=BUCKET1,
+            object_id=OBJECT1,
+            upload_id=upload_id,
+            first_part_no=0,
+        )

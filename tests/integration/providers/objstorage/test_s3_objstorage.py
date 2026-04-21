@@ -377,6 +377,151 @@ async def test_md5_in_part_url(s3: S3Fixture):
     assert "content-md5=dummy-md5" in url
 
 
+async def test_list_parts(s3: S3Fixture):
+    """Test that list_parts() works in the happy case."""
+    # Create an MPU with 1 part uploaded
+    upload_id, bucket_id, object_id = await s3.prepare_non_completed_upload()
+    parts_list = await s3.storage.list_parts(
+        bucket_id=bucket_id, object_id=object_id, upload_id=upload_id
+    )
+    assert len(parts_list) == 1
+
+    # Upload two more parts
+    for i in range(2, 4):
+        await upload_part_of_size(
+            storage_dao=s3.storage,
+            upload_id=upload_id,
+            bucket_id=bucket_id,
+            object_id=object_id,
+            size=6 * 1024**2,
+            part_number=i,
+        )
+
+    # Check list of parts
+    parts_list = await s3.storage.list_parts(
+        bucket_id=bucket_id, object_id=object_id, upload_id=upload_id
+    )
+    assert len(parts_list) == 3
+
+    # Verify that the limiter "max_parts" works
+    results_with_limit = await s3.storage.list_parts(
+        bucket_id=bucket_id, object_id=object_id, upload_id=upload_id, max_parts=1
+    )
+    assert len(results_with_limit) == 1
+    assert results_with_limit[0]["PartNumber"] == 1
+
+    # Verify that the offset "first_part_no" works
+    results_with_offset = await s3.storage.list_parts(
+        bucket_id=bucket_id, object_id=object_id, upload_id=upload_id, first_part_no=2
+    )
+    assert len(results_with_offset) == 2
+    assert results_with_offset[0]["PartNumber"] == 2
+    assert results_with_offset[1]["PartNumber"] == 3
+
+    # Use the two optional params together to get part 1 only
+    part_2 = await s3.storage.list_parts(
+        bucket_id=bucket_id,
+        object_id=object_id,
+        upload_id=upload_id,
+        max_parts=1,
+        first_part_no=1,
+    )
+    assert len(part_2) == 1
+    assert part_2[0]["PartNumber"] == 1
+
+    # Create a new MPU with no parts uploaded
+    uid = await s3.storage.init_multipart_upload(
+        bucket_id=bucket_id, object_id="throwaway"
+    )
+
+    # Check parts list again, should get empty list
+    no_parts = await s3.storage.list_parts(
+        bucket_id=bucket_id, object_id="throwaway", upload_id=uid
+    )
+    assert not no_parts
+
+
+async def test_list_parts_invalid_args(s3: S3Fixture):
+    """Test to make sure list_parts() validates args correctly."""
+    # Create an MPU with 1 part uploaded
+    upload_id, bucket_id, object_id = await s3.prepare_non_completed_upload()
+
+    # Try with invalid max_parts
+    with pytest.raises(ValueError):
+        _ = await s3.storage.list_parts(
+            bucket_id=bucket_id, object_id=object_id, upload_id=upload_id, max_parts=-9
+        )
+
+    # Try with negative first_part_no
+    with pytest.raises(ValueError):
+        _ = await s3.storage.list_parts(
+            bucket_id=bucket_id,
+            object_id=object_id,
+            upload_id=upload_id,
+            first_part_no=-9,
+        )
+
+    # Try with first_part_no set to 0
+    with pytest.raises(ValueError):
+        _ = await s3.storage.list_parts(
+            bucket_id=bucket_id,
+            object_id=object_id,
+            upload_id=upload_id,
+            first_part_no=0,
+        )
+
+    # Illustrate that setting first_part_no higher than actual part count returns []
+    results = await s3.storage.list_parts(
+        bucket_id=bucket_id,
+        object_id=object_id,
+        upload_id=upload_id,
+        max_parts=1001,
+        first_part_no=10,
+    )
+    assert results == []
+
+
+@pytest.mark.skip(reason="This test uses a large amount of memory, run only locally.")
+async def test_list_parts_high_index(s3: S3Fixture):
+    """Verify that `.list_parts()` works as expected when part counts are over 1000,
+    which is the default max part count per pagination window.
+    """
+    # Create an MPU with 1 part uploaded
+    upload_id, bucket_id, object_id = await s3.prepare_non_completed_upload()
+    count = 1031
+
+    # Upload enough parts at minimum part size to exceed max pagination window size (1000)
+    for i in range(2, count):
+        await upload_part_of_size(
+            storage_dao=s3.storage,
+            upload_id=upload_id,
+            bucket_id=bucket_id,
+            object_id=object_id,
+            size=5 * 1024**2,
+            part_number=i,
+        )
+
+    # Perform tests inside a single setup instead of uploading all parts anew each time:
+    parts = []
+    for max_parts, first_part_no, expected_parts, fail_msg in [
+        (None, None, [n for n in range(1, count)], "Basic pagination failed"),
+        (count, None, [n for n in range(1, count)], "Failed when max_parts > 1000"),
+        (1, 1025, [1025], "Failed when targeting single part with PartNumber > 1000"),
+        (None, 1025, [n for n in range(1025, count)], "Failed to get last parts"),
+        (3, None, [1, 2, 3], "Failed to get first three parts with no first_part_no"),
+    ]:
+        parts = await s3.storage.list_parts(
+            bucket_id=bucket_id,
+            object_id=object_id,
+            upload_id=upload_id,
+            max_parts=max_parts,
+            first_part_no=first_part_no,
+        )
+
+        # Inspect PartNumber to verify results
+        assert [p["PartNumber"] for p in parts] == expected_parts, fail_msg
+
+
 @pytest.mark.parametrize(
     "part_sizes, anticipated_part_size, anticipated_part_quantity, exception",
     [

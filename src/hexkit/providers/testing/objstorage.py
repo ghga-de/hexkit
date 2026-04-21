@@ -178,6 +178,42 @@ class InMemObjectStorage(ObjectStorageProtocol):
         await self._assert_bucket_exists(bucket_id)
         return list(self.uploads[bucket_id].get(object_id, set()))
 
+    async def _list_parts(
+        self,
+        *,
+        bucket_id: str,
+        object_id: str,
+        upload_id: str,
+        max_parts: int | None = None,
+        first_part_no: int | None = None,
+    ) -> list[dict]:
+        """Lists the parts that have been uploaded for a specific multipart upload.
+
+        This implementation only exists to round out the protocol implementation,
+        and the return value is dummy data only.
+        """
+        await self._assert_bucket_exists(bucket_id)
+        await self._assert_multipart_upload_exists(
+            upload_id=upload_id,
+            bucket_id=bucket_id,
+            object_id=object_id,
+            assert_exclusiveness=False,
+        )
+        if max_parts is not None and max_parts <= 0:
+            raise ValueError(f"{max_parts} is not a valid argument for max_parts")
+        if first_part_no is not None and first_part_no <= 0:
+            raise ValueError(
+                f"{first_part_no} is not a valid argument for first_part_no"
+            )
+
+        parts = []
+        # default is to make 3 dummy parts
+        start = first_part_no or 1
+        stop = start + (max_parts or 3)
+        for i in range(start, stop):
+            parts += [{"PartNumber": i, "Size": 100, "ETag": f"etag-for-part-{i}"}]
+        return parts
+
     async def _get_all_multipart_uploads(self, *, bucket_id: str) -> dict[str, str]:
         """Gets all active multipart uploads for the given bucket ID.
 
@@ -305,15 +341,6 @@ class InMemObjectStorage(ObjectStorageProtocol):
             upload_id=upload_id, bucket_id=bucket_id, object_id=object_id
         )
 
-        params = {
-            "Bucket": bucket_id,
-            "Key": object_id,
-            "UploadId": upload_id,
-            "PartNumber": part_number,
-        }
-        # add additional parameters if any were passed
-        if part_md5:
-            params["ContentMD5"] = part_md5
         return (
             f"{self.base_url}/{bucket_id}/{object_id}/{upload_id}"
             + f"/part_no_{part_number}?{expires_after=}"
