@@ -150,6 +150,7 @@ def config_from_yaml(
                     frozen=True,
                     env_prefix=f"{prefix}_",
                     env_file=(".env", dotenv_prefix / ".env"),
+                    env_nested_delimiter="__",
                 )
 
                 @classmethod
