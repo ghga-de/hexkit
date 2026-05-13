@@ -37,7 +37,7 @@ text = "Apache 2.0"
 
 [project.optional-dependencies]
 akafka = [
-    "aiokafka[zstd,lz4,snappy]~=0.13.0",
+    "aiokafka[zstd,lz4,snappy]~=0.14.0",
     "jsonschema >=4.25, <5",
 ]
 s3 = [
