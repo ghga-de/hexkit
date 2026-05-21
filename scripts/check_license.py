@@ -35,6 +35,7 @@ GLOBAL_COPYRIGHT_FILE_PATH = ROOT_DIR / ".devcontainer" / "license_header.txt"
 EXCLUDE = [
     ".coveragerc",
     ".devcontainer",
+    ".dockerignore",
     ".editorconfig",
     ".eggs",
     ".git",

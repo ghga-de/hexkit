@@ -23,7 +23,7 @@ lock/requirements-dev.txt
 lock/requirements.txt
 
 Dockerfile
-Dockerfile.debian
+Dockerfile.dhi
 config_schema.json
 example_config.yaml
 LICENSE

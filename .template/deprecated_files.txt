@@ -18,6 +18,7 @@ scripts/update_static_files.py
 
 docs
 
+Dockerfile.debian
 setup.py
 setup.cfg
 requirements-dev-common.in
