@@ -431,7 +431,7 @@ class S3ObjectStorage(ObjectStorageProtocol):
                 # If max_parts specified, return once amount is reached
                 if max_parts and len(parts) >= max_parts:
                     return parts[: max_parts + 1]
-            return parts
+            return sorted(parts, key=lambda p: p["PartNumber"])
         except botocore.exceptions.ClientError as error:
             raise self._translate_s3_client_errors(
                 error,
