@@ -744,3 +744,67 @@ async def test_index_with_string_field(mongodb: MongoDbFixture):
     index = next(iter(indexes.values()))
     # When passing a string, it should create an ascending index
     assert index["key"] == [("field_a", 1)]
+
+
+async def test_dao_find_all_pagination(mongodb: MongoDbFixture):
+    """Test that find_all() respects skip and limit parameters."""
+    dao = await mongodb.dao_factory.get_dao(
+        name="example",
+        dto_model=ExampleDto,
+        id_field="id",
+    )
+
+    # Insert some test resources into the database
+    resources = [ExampleDto(field_b=i) for i in range(5)]
+    for resource in resources:
+        await dao.insert(resource)
+
+    # Retrieve all items
+    full_set = {hit.id async for hit in dao.find_all(mapping={})}
+    assert len(full_set) == 5
+
+    # skip=2 should reduce results by 2
+    skipped = [hit async for hit in dao.find_all(mapping={}, skip=2)]
+    assert len(skipped) == 3
+    assert all(hit.id in full_set for hit in skipped)
+
+    # limit=3 should cap at 3 results
+    limited = [hit async for hit in dao.find_all(mapping={}, limit=3)]
+    assert len(limited) == 3
+    assert all(hit.id in full_set for hit in limited)
+
+    # skip=1, limit=2 should return exactly 2 results
+    paginated = [hit async for hit in dao.find_all(mapping={}, skip=1, limit=2)]
+    assert len(paginated) == 2
+    assert all(hit.id in full_set for hit in paginated)
+
+    # skip larger than collection size returns nothing
+    over_skip = [hit async for hit in dao.find_all(mapping={}, skip=10)]
+    assert over_skip == []
+
+
+async def test_dao_find_all_pagination_empty_collection(mongodb: MongoDbFixture):
+    """Test find_all() with skip and limit on an empty collection produces no errors."""
+    dao = await mongodb.dao_factory.get_dao(
+        name="example",
+        dto_model=ExampleDto,
+        id_field="id",
+    )
+
+    results = [hit async for hit in dao.find_all(mapping={}, skip=5, limit=10)]
+    assert results == []
+
+
+async def test_dao_find_all_pagination_negative_values(mongodb: MongoDbFixture):
+    """Test find_all() raises ValueError when skip or limit are negative."""
+    dao = await mongodb.dao_factory.get_dao(
+        name="example",
+        dto_model=ExampleDto,
+        id_field="id",
+    )
+
+    with pytest.raises(ValueError):
+        [hit async for hit in dao.find_all(mapping={}, skip=-1)]
+
+    with pytest.raises(ValueError):
+        [hit async for hit in dao.find_all(mapping={}, limit=-1)]

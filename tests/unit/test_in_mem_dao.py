@@ -484,3 +484,52 @@ async def test_fields_with_dollar_sign():
     mapping = {"$bogus": 8}
     with pytest.raises(MQLError):
         _ = build_predicates(mapping)
+
+
+async def test_find_all_pagination():
+    """Test find_all() with skip and/or limit parameters."""
+    dao = DaoClass()
+    titles = ["Apple", "Banana", "Cherry", "Date", "Elderberry"]
+    for title in titles:
+        await dao.insert(InventoryItem(title=title, count=1))
+
+    # skip=2 returns items starting from index 2 (insertion order is preserved)
+    results = [x.title async for x in dao.find_all(mapping={}, skip=2)]
+    assert results == ["Cherry", "Date", "Elderberry"]
+
+    # limit=3 returns first 3 items
+    results = [x.title async for x in dao.find_all(mapping={}, limit=3)]
+    assert results == ["Apple", "Banana", "Cherry"]
+
+    # skip=1, limit=2 returns banana and cherry
+    results = [x.title async for x in dao.find_all(mapping={}, skip=1, limit=2)]
+    assert results == ["Banana", "Cherry"]
+
+    # skip larger than collection size returns no results
+    results = [x.title async for x in dao.find_all(mapping={}, skip=10)]
+    assert results == []
+
+    # skip=0 and limit=0 behaves like no pagination (limit=0 means no limit in MongoDB)
+    results = [x.title async for x in dao.find_all(mapping={}, skip=0, limit=0)]
+    assert results == titles
+
+
+async def test_find_all_pagination_empty_collection():
+    """Test find_all() with skip and limit on an empty collection produces no errors."""
+    dao = DaoClass()
+    results = [x async for x in dao.find_all(mapping={}, skip=5, limit=10)]
+    assert results == []
+
+
+async def test_find_all_pagination_negative_values():
+    """Test find_all() raises ValueError when skip or limit are negative."""
+    dao = DaoClass()
+
+    with pytest.raises(ValueError):
+        [x async for x in dao.find_all(mapping={}, skip=-1)]
+
+    with pytest.raises(ValueError):
+        [x async for x in dao.find_all(mapping={}, limit=-1)]
+
+    with pytest.raises(ValueError):
+        [x async for x in dao.find_all(mapping={}, skip=-1, limit=-1)]
