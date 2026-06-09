@@ -31,6 +31,7 @@ from hexkit.protocols.dao import (
     NoHitsFoundError,
     ResourceAlreadyExistsError,
     ResourceNotFoundError,
+    SortSpec,
     UniqueConstraintViolationError,
     UUID4Field,
 )
@@ -746,40 +747,59 @@ async def test_index_with_string_field(mongodb: MongoDbFixture):
     assert index["key"] == [("field_a", 1)]
 
 
-async def test_dao_find_all_pagination(mongodb: MongoDbFixture):
-    """Test that find_all() respects skip and limit parameters."""
+async def test_dao_find_all_sort(mongodb: MongoDbFixture):
+    """Test that find_all() respects the sort parameter."""
     dao = await mongodb.dao_factory.get_dao(
         name="example",
         dto_model=ExampleDto,
         id_field="id",
     )
 
-    # Insert some test resources into the database
     resources = [ExampleDto(field_b=i) for i in range(5)]
     for resource in resources:
         await dao.insert(resource)
 
-    # Retrieve all items
-    full_set = {hit.id async for hit in dao.find_all(mapping={})}
-    assert len(full_set) == 5
+    # sort ascending by field_b — results should be ordered 0, 1, 2, 3, 4
+    asc: SortSpec = [("field_b", 1)]
+    asc_results = [hit.field_b async for hit in dao.find_all(mapping={}, sort=asc)]
+    assert asc_results == [0, 1, 2, 3, 4]
 
-    # skip=2 should reduce results by 2
-    skipped = [hit async for hit in dao.find_all(mapping={}, skip=2)]
-    assert len(skipped) == 3
-    assert all(hit.id in full_set for hit in skipped)
+    # sort descending by field_b — results should be ordered 4, 3, 2, 1, 0
+    desc: SortSpec = [("field_b", -1)]
+    desc_results = [hit.field_b async for hit in dao.find_all(mapping={}, sort=desc)]
+    assert desc_results == [4, 3, 2, 1, 0]
 
-    # limit=3 should cap at 3 results
-    limited = [hit async for hit in dao.find_all(mapping={}, limit=3)]
-    assert len(limited) == 3
-    assert all(hit.id in full_set for hit in limited)
 
-    # skip=1, limit=2 should return exactly 2 results
-    paginated = [hit async for hit in dao.find_all(mapping={}, skip=1, limit=2)]
-    assert len(paginated) == 2
-    assert all(hit.id in full_set for hit in paginated)
+async def test_dao_find_all_pagination(mongodb: MongoDbFixture):
+    """Test that find_all() respects skip and limit (with sort for determinism)."""
+    dao = await mongodb.dao_factory.get_dao(
+        name="example",
+        dto_model=ExampleDto,
+        id_field="id",
+    )
+
+    resources = [ExampleDto(field_b=i) for i in range(5)]
+    for resource in resources:
+        await dao.insert(resource)
+
+    asc: SortSpec = [("field_b", 1)]
+
+    # skip=2 returns items with field_b in [2, 3, 4]
+    skipped = [hit.field_b async for hit in dao.find_all(mapping={}, skip=2, sort=asc)]
+    assert skipped == [2, 3, 4]
+
+    # limit=3 returns items with field_b in [0, 1, 2]
+    limited = [hit.field_b async for hit in dao.find_all(mapping={}, limit=3, sort=asc)]
+    assert limited == [0, 1, 2]
+
+    # skip=1, limit=2 returns items with field_b in [1, 2]
+    paginated = [
+        hit.field_b async for hit in dao.find_all(mapping={}, skip=1, limit=2, sort=asc)
+    ]
+    assert paginated == [1, 2]
 
     # skip larger than collection size returns nothing
-    over_skip = [hit async for hit in dao.find_all(mapping={}, skip=10)]
+    over_skip = [hit async for hit in dao.find_all(mapping={}, skip=10, sort=asc)]
     assert over_skip == []
 
 

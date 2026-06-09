@@ -43,6 +43,7 @@ from hexkit.protocols.dao import (
     Dao,
     Dto,
     ResourceNotFoundError,
+    SortSpec,
     UniqueConstraintViolationError,
 )
 from hexkit.protocols.daopub import DaoPublisher, DaoPublisherFactoryProtocol
@@ -375,6 +376,7 @@ class MongoKafkaDaoPublisher(Generic[Dto]):
         mapping: Mapping[str, Any],
         skip: int | None = None,
         limit: int | None = None,
+        sort: SortSpec | None = None,
     ) -> AsyncIterator[Dto]:
         """Find all resources that match the specified mapping.
 
@@ -392,14 +394,14 @@ class MongoKafkaDaoPublisher(Generic[Dto]):
                 Defaults to None (no skipping).
             limit:
                 Maximum number of resources to yield. Defaults to None (no limit).
+            sort:
+                A list of (field_name, sort_order) pairs. sort_order is 1 (ascending)
+                or -1 (descending). Strongly recommended when using skip/limit.
+                Defaults to None (no sort).
 
         Returns:
             An AsyncIterator of hits. All hits are in the form of the respective DTO
             model.
-
-        Raises:
-            InvalidMappingError: If `mapping` doesn't pass validation.
-            ValueError: if `skip` or `limit` are less than 0.
 
         Raises:
             InvalidMappingError: If `mapping` doesn't pass validation.
@@ -415,8 +417,14 @@ class MongoKafkaDaoPublisher(Generic[Dto]):
         validate_find_mapping(mapping, dto_model=self._dto_model)
         mapping = replace_id_field_in_find_mapping(mapping, self._id_field)
 
+        if sort:
+            sort = [("_id" if f == self._id_field else f, o) for f, o in sort]
+
         with translate_pymongo_errors():
-            cursor = self._collection.find(filter=mapping).skip(skip).limit(limit)
+            cursor = self._collection.find(filter=mapping)
+            if sort:
+                cursor = cursor.sort(sort)
+            cursor = cursor.skip(skip).limit(limit)
 
             async for document in cursor:
                 if document.get("__metadata__", {}).get("deleted", False):

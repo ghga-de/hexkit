@@ -23,7 +23,7 @@ from abc import ABC, abstractmethod
 from collections.abc import AsyncIterator, Collection, Mapping
 from contextlib import AbstractAsyncContextManager
 from functools import partial
-from typing import Any, Generic, TypeVar
+from typing import Any, Generic, Literal, TypeVar
 from uuid import uuid4
 
 from pydantic import BaseModel, Field
@@ -38,9 +38,12 @@ __all__ = [
     "MultipleHitsFoundError",
     "ResourceAlreadyExistsError",
     "ResourceNotFoundError",
+    "SortSpec",
     "UUID4Field",
     "UniqueConstraintViolationError",
 ]
+
+SortSpec = list[tuple[str, Literal[1, -1]]]
 
 
 class IndexBase(ABC):
@@ -229,6 +232,7 @@ class Dao(typing.Protocol[Dto]):
         mapping: Mapping[str, Any],
         skip: int | None = None,
         limit: int | None = None,
+        sort: SortSpec | None = None,
     ) -> AsyncIterator[Dto]:
         """Find all resources that match the specified mapping.
 
@@ -246,6 +250,11 @@ class Dao(typing.Protocol[Dto]):
                 Defaults to None (no skipping).
             limit:
                 Maximum number of resources to yield. Defaults to None (no limit).
+            sort:
+                A list of (field_name, sort_order) pairs defining the sort order,
+                where sort_order is 1 (ascending) or -1 (descending). When paginating
+                with skip/limit, providing a sort order is strongly recommended to
+                ensure consistent, deterministic results. Defaults to None (no sort).
 
         Returns:
             An AsyncIterator of hits. All hits are in the form of the respective DTO

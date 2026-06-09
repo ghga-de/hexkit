@@ -39,6 +39,7 @@ from hexkit.protocols.dao import (
     NoHitsFoundError,
     ResourceAlreadyExistsError,
     ResourceNotFoundError,
+    SortSpec,
     UniqueConstraintViolationError,
 )
 from hexkit.providers.mongodb.config import MongoDbConfig
@@ -316,6 +317,7 @@ class MongoDbDao(Generic[Dto]):
         mapping: Mapping[str, Any],
         skip: int | None = None,
         limit: int | None = None,
+        sort: SortSpec | None = None,
     ) -> AsyncIterator[Dto]:
         """Find all resources that match the specified mapping.
 
@@ -333,6 +335,10 @@ class MongoDbDao(Generic[Dto]):
                 Defaults to None (no skipping).
             limit:
                 Maximum number of resources to yield. Defaults to None (no limit).
+            sort:
+                A list of (field_name, sort_order) pairs. sort_order is 1 (ascending)
+                or -1 (descending). Strongly recommended when using skip/limit.
+                Defaults to None (no sort).
 
         Returns:
             An AsyncIterator of hits. All hits are in the form of the respective DTO
@@ -348,8 +354,14 @@ class MongoDbDao(Generic[Dto]):
         validate_find_mapping(mapping, dto_model=self._dto_model)
         mapping = replace_id_field_in_find_mapping(mapping, self._id_field)
 
+        if sort:
+            sort = [("_id" if f == self._id_field else f, o) for f, o in sort]
+
         with translate_pymongo_errors():
-            cursor = self._collection.find(filter=mapping).skip(skip).limit(limit)
+            cursor = self._collection.find(filter=mapping)
+            if sort:
+                cursor = cursor.sort(sort)
+            cursor = cursor.skip(skip).limit(limit)
 
             async for document in cursor:
                 yield self._document_to_dto(document)

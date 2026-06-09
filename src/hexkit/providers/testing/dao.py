@@ -29,6 +29,7 @@ from hexkit.protocols.dao import (
     NoHitsFoundError,
     ResourceAlreadyExistsError,
     ResourceNotFoundError,
+    SortSpec,
 )
 from hexkit.providers.mongodb.provider import (
     document_to_dto,
@@ -411,6 +412,7 @@ class BaseInMemDao(Generic[DTO]):
         mapping: Mapping[str, Any],
         skip: int | None = None,
         limit: int | None = None,
+        sort: SortSpec | None = None,
     ) -> AsyncIterator[DTO]:
         """Find all resources that match the specified mapping."""
         skip = skip or 0
@@ -426,18 +428,20 @@ class BaseInMemDao(Generic[DTO]):
         _mapping = replace_id_field_in_find_mapping(mapping, self._id_field)
         predicates = build_predicates(_mapping) if self._handle_mql else []
 
-        skipped = 0
-        yielded = 0
-        for resource in self.resources.values():
-            if not self._resource_matches(resource, mapping, predicates):
-                continue
-            if skipped < skip:
-                skipped += 1
-                continue
+        matching = [
+            resource
+            for resource in self.resources.values()
+            if self._resource_matches(resource, mapping, predicates)
+        ]
+
+        if sort:
+            for field, order in reversed(sort):
+                doc_field = "_id" if field == self._id_field else field
+                matching.sort(key=lambda doc: doc[doc_field], reverse=(order == -1))
+
+        end = skip + limit if limit else None
+        for resource in matching[skip:end]:
             yield self._deserialize(resource)
-            yielded += 1
-            if limit and yielded >= limit:
-                return
 
     async def insert(self, dto: DTO) -> None:
         """Insert a resource.

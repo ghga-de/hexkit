@@ -20,7 +20,7 @@ from typing import Any
 import pytest
 from pydantic import BaseModel
 
-from hexkit.protocols.dao import NoHitsFoundError, ResourceNotFoundError
+from hexkit.protocols.dao import NoHitsFoundError, ResourceNotFoundError, SortSpec
 from hexkit.providers.testing import MockDAOEmptyError, new_mock_dao_class
 from hexkit.providers.testing.dao import (
     ComparisonPredicate,
@@ -486,31 +486,57 @@ async def test_fields_with_dollar_sign():
         _ = build_predicates(mapping)
 
 
+async def test_find_all_sort():
+    """Test find_all() with the sort parameter."""
+    dao = DaoClass()
+    await dao.insert(InventoryItem(title="Banana", count=2))
+    await dao.insert(InventoryItem(title="Apple", count=3))
+    await dao.insert(InventoryItem(title="Cherry", count=1))
+
+    # sort ascending by title
+    results = [x.title async for x in dao.find_all(mapping={}, sort=[("title", 1)])]
+    assert results == ["Apple", "Banana", "Cherry"]
+
+    # sort descending by title
+    results = [x.title async for x in dao.find_all(mapping={}, sort=[("title", -1)])]
+    assert results == ["Cherry", "Banana", "Apple"]
+
+    # sort ascending by count
+    results = [x.title async for x in dao.find_all(mapping={}, sort=[("count", 1)])]
+    assert results == ["Cherry", "Banana", "Apple"]
+
+
 async def test_find_all_pagination():
-    """Test find_all() with skip and/or limit parameters."""
+    """Test find_all() with skip and/or limit (with sort for deterministic ordering)."""
     dao = DaoClass()
     titles = ["Apple", "Banana", "Cherry", "Date", "Elderberry"]
     for title in titles:
         await dao.insert(InventoryItem(title=title, count=1))
 
-    # skip=2 returns items starting from index 2 (insertion order is preserved)
-    results = [x.title async for x in dao.find_all(mapping={}, skip=2)]
+    asc_sort: SortSpec = [("title", 1)]
+
+    # skip=2 returns items starting from index 2
+    results = [x.title async for x in dao.find_all(mapping={}, skip=2, sort=asc_sort)]
     assert results == ["Cherry", "Date", "Elderberry"]
 
     # limit=3 returns first 3 items
-    results = [x.title async for x in dao.find_all(mapping={}, limit=3)]
+    results = [x.title async for x in dao.find_all(mapping={}, limit=3, sort=asc_sort)]
     assert results == ["Apple", "Banana", "Cherry"]
 
-    # skip=1, limit=2 returns banana and cherry
-    results = [x.title async for x in dao.find_all(mapping={}, skip=1, limit=2)]
+    # skip=1, limit=2 returns the window [1, 3)
+    results = [
+        x.title async for x in dao.find_all(mapping={}, skip=1, limit=2, sort=asc_sort)
+    ]
     assert results == ["Banana", "Cherry"]
 
     # skip larger than collection size returns no results
-    results = [x.title async for x in dao.find_all(mapping={}, skip=10)]
+    results = [x.title async for x in dao.find_all(mapping={}, skip=10, sort=asc_sort)]
     assert results == []
 
-    # skip=0 and limit=0 behaves like no pagination (limit=0 means no limit in MongoDB)
-    results = [x.title async for x in dao.find_all(mapping={}, skip=0, limit=0)]
+    # skip=0, limit=0 behaves like no pagination (limit=0 means no limit)
+    results = [
+        x.title async for x in dao.find_all(mapping={}, skip=0, limit=0, sort=asc_sort)
+    ]
     assert results == titles
 
 
