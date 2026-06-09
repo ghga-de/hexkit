@@ -391,26 +391,53 @@ class BaseInMemDao(Generic[DTO]):
 
         raise MultipleHitsFoundError(mapping=mapping)
 
-    async def find_all(self, *, mapping: Mapping[str, Any]) -> AsyncIterator[DTO]:
+    def _resource_matches(
+        self,
+        resource: Document,
+        mapping: Mapping[str, Any],
+        predicates: list["Predicate"],
+    ) -> bool:
+        """Return whether a resource matches the given mapping or predicates."""
+        if self._handle_mql:
+            return all(p.evaluate(resource=resource) for p in predicates)
+        for key, expected_value in mapping.items():
+            if _get_nested_value(resource, key) != expected_value:
+                return False
+        return True
+
+    async def find_all(
+        self,
+        *,
+        mapping: Mapping[str, Any],
+        skip: int | None = None,
+        limit: int | None = None,
+    ) -> AsyncIterator[DTO]:
         """Find all resources that match the specified mapping."""
+        skip = skip or 0
+        limit = limit or 0
+        if skip < 0:
+            raise ValueError("skip must be >= 0")
+        if limit < 0:
+            raise ValueError("limit must be >= 0")
+
         if "" in mapping:
             raise KeyError("Query mappings can't contain empty-string keys")
 
         _mapping = replace_id_field_in_find_mapping(mapping, self._id_field)
         predicates = build_predicates(_mapping) if self._handle_mql else []
 
+        skipped = 0
+        yielded = 0
         for resource in self.resources.values():
-            if self._handle_mql:
-                matches = all(p.evaluate(resource=resource) for p in predicates)
-            else:
-                matches = True
-                for key, expected_value in mapping.items():
-                    actual_value = _get_nested_value(resource, key)
-                    if actual_value != expected_value:
-                        matches = False
-                        break
-            if matches:
-                yield self._deserialize(resource)
+            if not self._resource_matches(resource, mapping, predicates):
+                continue
+            if skipped < skip:
+                skipped += 1
+                continue
+            yield self._deserialize(resource)
+            yielded += 1
+            if limit and yielded >= limit:
+                return
 
     async def insert(self, dto: DTO) -> None:
         """Insert a resource.

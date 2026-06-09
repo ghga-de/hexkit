@@ -369,7 +369,13 @@ class MongoKafkaDaoPublisher(Generic[Dto]):
         hits = self.find_all(mapping=mapping)
         return await get_single_hit(hits=hits, mapping=mapping)
 
-    async def find_all(self, *, mapping: Mapping[str, Any]) -> AsyncIterator[Dto]:
+    async def find_all(
+        self,
+        *,
+        mapping: Mapping[str, Any],
+        skip: int | None = None,
+        limit: int | None = None,
+    ) -> AsyncIterator[Dto]:
         """Find all resources that match the specified mapping.
 
         The values in the mapping are used to filter the resources, these are
@@ -381,16 +387,36 @@ class MongoKafkaDaoPublisher(Generic[Dto]):
             mapping:
                 A mapping where the keys correspond to the names of resource fields
                 and the values correspond to the actual values of the resource fields.
+            skip:
+                Number of matching resources to skip before yielding results.
+                Defaults to None (no skipping).
+            limit:
+                Maximum number of resources to yield. Defaults to None (no limit).
 
         Returns:
             An AsyncIterator of hits. All hits are in the form of the respective DTO
             model.
+
+        Raises:
+            InvalidMappingError: If `mapping` doesn't pass validation.
+            ValueError: if `skip` or `limit` are less than 0.
+
+        Raises:
+            InvalidMappingError: If `mapping` doesn't pass validation.
+            ValueError: if `skip` or `limit` are less than 0.
         """
+        skip = skip or 0
+        limit = limit or 0
+        if skip < 0:
+            raise ValueError("skip must be >= 0")
+        if limit < 0:
+            raise ValueError("limit must be >= 0")
+
         validate_find_mapping(mapping, dto_model=self._dto_model)
         mapping = replace_id_field_in_find_mapping(mapping, self._id_field)
 
         with translate_pymongo_errors():
-            cursor = self._collection.find(filter=mapping)
+            cursor = self._collection.find(filter=mapping).skip(skip).limit(limit)
 
             async for document in cursor:
                 if document.get("__metadata__", {}).get("deleted", False):

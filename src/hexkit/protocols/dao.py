@@ -223,7 +223,13 @@ class Dao(typing.Protocol[Dto]):
         """
         ...
 
-    def find_all(self, *, mapping: Mapping[str, Any]) -> AsyncIterator[Dto]:
+    def find_all(
+        self,
+        *,
+        mapping: Mapping[str, Any],
+        skip: int | None = None,
+        limit: int | None = None,
+    ) -> AsyncIterator[Dto]:
         """Find all resources that match the specified mapping.
 
         The values in the mapping are used to filter the resources, these are
@@ -235,10 +241,19 @@ class Dao(typing.Protocol[Dto]):
             mapping:
                 A mapping where the keys correspond to the names of resource fields
                 and the values correspond to the actual values of the resource fields.
+            skip:
+                Number of matching resources to skip before yielding results.
+                Defaults to None (no skipping).
+            limit:
+                Maximum number of resources to yield. Defaults to None (no limit).
 
         Returns:
             An AsyncIterator of hits. All hits are in the form of the respective DTO
             model.
+
+        Raises:
+            InvalidMappingError: If `mapping` doesn't pass validation.
+            ValueError: if `skip` or `limit` are less than 0.
         """
         ...
 
