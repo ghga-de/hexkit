@@ -42,6 +42,7 @@ from hexkit.custom_types import ID, JsonObject
 from hexkit.protocols.dao import (
     Dao,
     Dto,
+    FindResult,
     ResourceNotFoundError,
     SortSpec,
     UniqueConstraintViolationError,
@@ -370,14 +371,14 @@ class MongoKafkaDaoPublisher(Generic[Dto]):
         hits = self.find_all(mapping=mapping)
         return await get_single_hit(hits=hits, mapping=mapping)
 
-    async def find_all(
+    def find_all(
         self,
         *,
         mapping: Mapping[str, Any],
         skip: int | None = None,
         limit: int | None = None,
         sort: SortSpec | None = None,
-    ) -> AsyncIterator[Dto]:
+    ) -> FindResult[Dto]:
         """Find all resources that match the specified mapping.
 
         The values in the mapping are used to filter the resources, these are
@@ -400,8 +401,7 @@ class MongoKafkaDaoPublisher(Generic[Dto]):
                 Defaults to None (no sort).
 
         Returns:
-            An AsyncIterator of hits. All hits are in the form of the respective DTO
-            model.
+            A FindResult that is async-iterable and also provides total_count().
 
         Raises:
             InvalidMappingError: If `mapping` doesn't pass validation.
@@ -420,18 +420,28 @@ class MongoKafkaDaoPublisher(Generic[Dto]):
         if sort:
             sort = [("_id" if f == self._id_field else f, o) for f, o in sort]
 
-        with translate_pymongo_errors():
-            cursor = self._collection.find(filter=mapping)
-            if sort:
-                cursor = cursor.sort(sort)
-            cursor = cursor.skip(skip).limit(limit)
+        id_field = self._id_field
+        dto_model = self._dto_model
+        collection = self._collection
 
-            async for document in cursor:
-                if document.get("__metadata__", {}).get("deleted", False):
-                    continue
-                yield document_to_dto(
-                    document, id_field=self._id_field, dto_model=self._dto_model
-                )
+        async def _iter() -> AsyncIterator[Dto]:
+            with translate_pymongo_errors():
+                cursor = collection.find(filter=mapping)
+                if sort:
+                    cursor = cursor.sort(sort)
+                async for document in cursor.skip(skip).limit(limit):
+                    if document.get("__metadata__", {}).get("deleted", False):
+                        continue
+                    yield document_to_dto(
+                        document, id_field=id_field, dto_model=dto_model
+                    )
+
+        async def _total_count() -> int:
+            not_deleted = {**mapping, "__metadata__.deleted": {"$ne": True}}
+            with translate_pymongo_errors():
+                return await collection.count_documents(filter=not_deleted)
+
+        return FindResult(results_iterator=_iter(), get_total_count=_total_count)
 
     async def insert(self, dto: Dto) -> None:
         """Create a new resource.

@@ -33,6 +33,7 @@ from hexkit.protocols.dao import (
     Dao,
     DaoFactoryProtocol,
     Dto,
+    FindResult,
     IndexBase,
     InvalidFindMappingError,
     MultipleHitsFoundError,
@@ -311,14 +312,14 @@ class MongoDbDao(Generic[Dto]):
         hits = self.find_all(mapping=mapping)
         return await get_single_hit(hits=hits, mapping=mapping)
 
-    async def find_all(
+    def find_all(
         self,
         *,
         mapping: Mapping[str, Any],
         skip: int | None = None,
         limit: int | None = None,
         sort: SortSpec | None = None,
-    ) -> AsyncIterator[Dto]:
+    ) -> FindResult[Dto]:
         """Find all resources that match the specified mapping.
 
         The values in the mapping are used to filter the resources, these are
@@ -341,8 +342,7 @@ class MongoDbDao(Generic[Dto]):
                 Defaults to None (no sort).
 
         Returns:
-            An AsyncIterator of hits. All hits are in the form of the respective DTO
-            model.
+            A FindResult that is async-iterable and also provides total_count().
         """
         skip = skip or 0
         limit = limit or 0
@@ -357,14 +357,21 @@ class MongoDbDao(Generic[Dto]):
         if sort:
             sort = [("_id" if f == self._id_field else f, o) for f, o in sort]
 
-        with translate_pymongo_errors():
-            cursor = self._collection.find(filter=mapping)
-            if sort:
-                cursor = cursor.sort(sort)
-            cursor = cursor.skip(skip).limit(limit)
+        collection = self._collection
 
-            async for document in cursor:
-                yield self._document_to_dto(document)
+        async def _iter() -> AsyncIterator[Dto]:
+            with translate_pymongo_errors():
+                cursor = collection.find(filter=mapping)
+                if sort:
+                    cursor = cursor.sort(sort)
+                async for document in cursor.skip(skip).limit(limit):
+                    yield self._document_to_dto(document)
+
+        async def _total_count() -> int:
+            with translate_pymongo_errors():
+                return await collection.count_documents(filter=mapping)
+
+        return FindResult(results_iterator=_iter(), get_total_count=_total_count)
 
     @classmethod
     def with_transaction(cls) -> AbstractAsyncContextManager["Dao[Dto]"]:

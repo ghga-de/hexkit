@@ -20,7 +20,7 @@ with the database.
 
 import typing
 from abc import ABC, abstractmethod
-from collections.abc import AsyncIterator, Collection, Mapping
+from collections.abc import AsyncIterator, Awaitable, Callable, Collection, Mapping
 from contextlib import AbstractAsyncContextManager
 from functools import partial
 from typing import Any, Generic, Literal, TypeVar
@@ -35,6 +35,7 @@ __all__ = [
     "Dao",
     "DaoFactoryProtocol",
     "FindError",
+    "FindResult",
     "MultipleHitsFoundError",
     "ResourceAlreadyExistsError",
     "ResourceNotFoundError",
@@ -140,6 +141,39 @@ class DbTimeoutError(DaoError):
 UUID4Field = partial(Field, default_factory=uuid4)
 
 
+class FindResult(AsyncIterator[Dto]):
+    """An async-iterable result from find_all() that also exposes pagination metadata.
+
+    The `total_count()` method performs an additional count query on first call (lazily)
+    and caches the result for subsequent calls.
+    """
+
+    def __init__(
+        self,
+        *,
+        results_iterator: AsyncIterator[Dto],
+        get_total_count: Callable[[], Awaitable[int]],
+    ) -> None:
+        self._iterator = results_iterator
+        self._get_total_count = get_total_count
+        self._cached_total: int | None = None
+
+    def __aiter__(self) -> "FindResult[Dto]":  # noqa: D105
+        return self
+
+    async def __anext__(self) -> Dto:  # noqa: D105
+        return await self._iterator.__anext__()
+
+    async def total_count(self) -> int:
+        """Total number of matching documents, ignoring skip and limit.
+
+        The result is cached after the first call.
+        """
+        if self._cached_total is None:
+            self._cached_total = await self._get_total_count()
+        return self._cached_total
+
+
 class Dao(typing.Protocol[Dto]):
     """A duck type with methods common to all DAOs."""
 
@@ -233,7 +267,7 @@ class Dao(typing.Protocol[Dto]):
         skip: int | None = None,
         limit: int | None = None,
         sort: SortSpec | None = None,
-    ) -> AsyncIterator[Dto]:
+    ) -> "FindResult[Dto]":
         """Find all resources that match the specified mapping.
 
         The values in the mapping are used to filter the resources, these are
@@ -257,8 +291,7 @@ class Dao(typing.Protocol[Dto]):
                 ensure consistent, deterministic results. Defaults to None (no sort).
 
         Returns:
-            An AsyncIterator of hits. All hits are in the form of the respective DTO
-            model.
+            A FindResult that is async-iterable and also provides total_count().
 
         Raises:
             InvalidMappingError: If `mapping` doesn't pass validation.

@@ -559,3 +559,104 @@ async def test_find_all_pagination_negative_values():
 
     with pytest.raises(ValueError):
         [x async for x in dao.find_all(mapping={}, skip=-1, limit=-1)]
+
+
+async def test_find_all_sort_by_id_field():
+    """Test that "_id" is used when sorting by the ID field.
+
+    DaoClass uses 'title' as its id_field. Documents are stored with '_id' as
+    the key internally, so sort=[("title", ...)] must translate to sorting on '_id'.
+    """
+    dao = DaoClass()
+    await dao.insert(InventoryItem(title="Cherry", count=1))
+    await dao.insert(InventoryItem(title="Apple", count=2))
+    await dao.insert(InventoryItem(title="Banana", count=3))
+
+    asc_sort: SortSpec = [("title", 1)]
+    results = [x.title async for x in dao.find_all(mapping={}, sort=asc_sort)]
+    assert results == ["Apple", "Banana", "Cherry"]
+
+    desc_sort: SortSpec = [("title", -1)]
+    results = [x.title async for x in dao.find_all(mapping={}, sort=desc_sort)]
+    assert results == ["Cherry", "Banana", "Apple"]
+
+
+async def test_find_all_sort_compound():
+    """Ensure compound sort (multiple fields) produces correct stable ordering."""
+    dao = DaoClass()
+    await dao.insert(InventoryItem(title="Cherry", count=1))
+    await dao.insert(InventoryItem(title="Banana", count=2))
+    await dao.insert(InventoryItem(title="Apple", count=2))
+    await dao.insert(InventoryItem(title="Date", count=2))
+
+    # Primary: count asc; secondary: title asc (tiebreak within count=2 group)
+    compound_sort: SortSpec = [("count", 1), ("title", 1)]
+    results = [x.title async for x in dao.find_all(mapping={}, sort=compound_sort)]
+    assert results == ["Cherry", "Apple", "Banana", "Date"]
+
+
+async def test_find_all_total_count_with_filter():
+    """Make sure that total_count() reflects the filtered match count, not
+    the total collection size.
+    """
+    dao = DaoClass()
+    for title in ["Apple", "Banana", "Cherry"]:
+        await dao.insert(InventoryItem(title=title, count=1))
+    for title in ["Date", "Elderberry"]:
+        await dao.insert(InventoryItem(title=title, count=2))
+
+    asc_sort: SortSpec = [("title", 1)]
+    result = dao.find_all(mapping={"count": 1}, skip=1, limit=1, sort=asc_sort)
+    page = [x.title async for x in result]
+    assert page == ["Banana"]
+
+    total = await result.total_count()
+    assert total == 3  # 3 match the filter, not 5
+
+
+async def test_find_all_total_count_before_iteration():
+    """Verify total_count() works correctly when called before consuming any results."""
+    dao = DaoClass()
+    for title in ["Apple", "Banana", "Cherry"]:
+        await dao.insert(InventoryItem(title=title, count=1))
+
+    result = dao.find_all(mapping={}, skip=1, limit=1)
+    total = await result.total_count()
+    assert total == 3
+
+    page = [x async for x in result]
+    assert len(page) == 1
+
+
+async def test_find_all_total_count_empty_filter_result():
+    """Test that total_count() returns 0 when no documents match the mapping."""
+    dao = DaoClass()
+    await dao.insert(InventoryItem(title="Apple", count=1))
+    await dao.insert(InventoryItem(title="Banana", count=1))
+
+    result = dao.find_all(mapping={"count": 999})
+    page = [x async for x in result]
+    assert page == []
+
+    total = await result.total_count()
+    assert total == 0
+
+
+async def test_find_all_total_count():
+    """Test that total_count() returns the full matching count regardless of skip/limit."""
+    dao = DaoClass()
+    titles = ["Apple", "Banana", "Cherry", "Date", "Elderberry"]
+    for title in titles:
+        await dao.insert(InventoryItem(title=title, count=1))
+
+    asc_sort: SortSpec = [("title", 1)]
+    result = dao.find_all(mapping={}, skip=2, limit=2, sort=asc_sort)
+    page = [x.title async for x in result]
+    assert page == ["Cherry", "Date"]
+
+    total = await result.total_count()
+    assert total == 5
+
+    # calling total_count() a second time uses the cached value
+    total_again = await result.total_count()
+    assert total_again == 5

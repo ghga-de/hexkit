@@ -25,6 +25,7 @@ from pydantic import BaseModel
 
 from hexkit.custom_types import ID
 from hexkit.protocols.dao import (
+    FindResult,
     MultipleHitsFoundError,
     NoHitsFoundError,
     ResourceAlreadyExistsError,
@@ -406,14 +407,14 @@ class BaseInMemDao(Generic[DTO]):
                 return False
         return True
 
-    async def find_all(
+    def find_all(
         self,
         *,
         mapping: Mapping[str, Any],
         skip: int | None = None,
         limit: int | None = None,
         sort: SortSpec | None = None,
-    ) -> AsyncIterator[DTO]:
+    ) -> "FindResult[DTO]":
         """Find all resources that match the specified mapping."""
         skip = skip or 0
         limit = limit or 0
@@ -439,9 +440,18 @@ class BaseInMemDao(Generic[DTO]):
                 doc_field = "_id" if field == self._id_field else field
                 matching.sort(key=lambda doc: doc[doc_field], reverse=(order == -1))
 
+        total = len(matching)
         end = skip + limit if limit else None
-        for resource in matching[skip:end]:
-            yield self._deserialize(resource)
+        page = matching[skip:end]
+
+        async def _iter() -> AsyncIterator[DTO]:
+            for resource in page:
+                yield self._deserialize(resource)
+
+        async def _total_count() -> int:
+            return total
+
+        return FindResult(results_iterator=_iter(), get_total_count=_total_count)
 
     async def insert(self, dto: DTO) -> None:
         """Insert a resource.
