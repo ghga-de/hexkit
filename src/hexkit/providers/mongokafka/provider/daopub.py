@@ -437,7 +437,7 @@ class MongoKafkaDaoPublisher(Generic[Dto]):
                     )
 
         async def _total_count() -> int:
-            not_deleted = {**mapping, "__metadata__.deleted": {"$ne": True}}
+            not_deleted = {**mapping, "__metadata__.deleted": False}
             with translate_pymongo_errors():
                 return await collection.count_documents(filter=not_deleted)
 
