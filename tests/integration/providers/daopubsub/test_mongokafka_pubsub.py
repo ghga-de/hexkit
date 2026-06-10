@@ -963,3 +963,34 @@ async def test_unique_index_error_handling(mongo_kafka: MongoKafkaFixture):
 
         with pytest.raises(UniqueConstraintViolationError):
             await dao.upsert(dto5)
+
+
+async def test_find_all_total_count_excludes_soft_deleted(
+    mongo_kafka: MongoKafkaFixture,
+):
+    """Verify that total_count() doesn't include deleted outbox documents."""
+    async with MongoKafkaDaoPublisherFactory.construct(
+        config=mongo_kafka.config
+    ) as factory:
+        dao = await factory.get_dao(
+            name="example",
+            dto_model=ExampleDto,
+            id_field="id",
+            dto_to_event=lambda dto: dto.model_dump(),
+            event_topic=EXAMPLE_TOPIC,
+        )
+
+        # Add four docs and then delete two of them (the 'dead' ones)
+        live1, live2, dead1, dead2 = (ExampleDto() for _ in range(4))
+        for dto in (live1, live2, dead1, dead2):
+            await dao.insert(dto)
+        await dao.delete(dead1.id)
+        await dao.delete(dead2.id)
+
+        # Run a query and make sure total_count() is 2
+        result = dao.find_all(mapping={})
+        page = [hit async for hit in result]
+        assert len(page) == 2
+
+        total = await result.total_count()
+        assert total == 2
