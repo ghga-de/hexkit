@@ -533,11 +533,27 @@ async def test_find_all_pagination():
     results = [x.title async for x in dao.find_all(mapping={}, skip=10, sort=asc_sort)]
     assert results == []
 
-    # skip=0, limit=0 behaves like no pagination (limit=0 means no limit)
-    results = [
-        x.title async for x in dao.find_all(mapping={}, skip=0, limit=0, sort=asc_sort)
-    ]
-    assert results == titles
+
+async def test_find_all_limit_zero_and_none():
+    """Test limit=0 and limit=None, but that total_count works either way.
+
+    When limit=0, no results should be returned.
+    When limit=None, all results should be returned.
+    """
+    dao = DaoClass()
+    titles = {"Apple", "Banana", "Cherry"}
+    for title in titles:
+        await dao.insert(InventoryItem(title=title, count=1))
+
+    result = dao.find_all(mapping={}, limit=0)
+    page = {x.title async for x in result}
+    assert page == []
+    assert await result.total_count() == 3
+
+    result = dao.find_all(mapping={}, limit=None)
+    page = {x.title async for x in result}
+    assert page == titles
+    assert await result.total_count() == 3
 
 
 async def test_find_all_pagination_empty_collection():

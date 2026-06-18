@@ -804,6 +804,23 @@ async def test_dao_find_all_pagination(mongodb: MongoDbFixture):
     assert over_skip == []
 
 
+async def test_dao_find_all_limit_zero(mongodb: MongoDbFixture):
+    """Test that limit=0 returns an empty iterator but total_count still works."""
+    dao = await mongodb.dao_factory.get_dao(
+        name="example",
+        dto_model=ExampleDto,
+        id_field="id",
+    )
+
+    for _ in range(3):
+        await dao.insert(ExampleDto())
+
+    result = dao.find_all(mapping={}, limit=0)
+    page = [hit async for hit in result]
+    assert page == []
+    assert await result.total_count() == 3
+
+
 async def test_dao_find_all_pagination_empty_collection(mongodb: MongoDbFixture):
     """Test find_all() with skip and limit on an empty collection produces no errors."""
     dao = await mongodb.dao_factory.get_dao(

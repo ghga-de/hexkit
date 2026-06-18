@@ -370,7 +370,7 @@ class MongoKafkaDaoPublisher(Generic[Dto]):
         hits = self.find_all(mapping=mapping)
         return await get_single_hit(hits=hits, mapping=mapping)
 
-    def find_all(
+    def find_all(  # noqa: C901
         self,
         *,
         mapping: Mapping[str, Any],
@@ -394,6 +394,7 @@ class MongoKafkaDaoPublisher(Generic[Dto]):
                 Defaults to None (no skipping).
             limit:
                 Maximum number of resources to yield. Defaults to None (no limit).
+                Specifying 0 is interpreted literally and returns no results.
             sort:
                 A list of field names defining the sort order, where field names
                 prefixed with "-" indicate *descending* order. For example, if sort is
@@ -411,10 +412,9 @@ class MongoKafkaDaoPublisher(Generic[Dto]):
             ValueError: if `skip` or `limit` are less than 0.
         """
         skip = skip or 0
-        limit = limit or 0
         if skip < 0:
             raise ValueError("skip must be >= 0")
-        if limit < 0:
+        if limit is not None and limit < 0:
             raise ValueError("limit must be >= 0")
 
         validate_find_mapping(mapping, dto_model=self._dto_model)
@@ -432,21 +432,34 @@ class MongoKafkaDaoPublisher(Generic[Dto]):
                 field = "_id"
             mongodb_sort.append((field, order))
 
-        async def _iter() -> AsyncIterator[Dto]:
-            with translate_pymongo_errors():
-                cursor = self._collection.find(filter=mapping_without_deleted)
-                if sort:
-                    cursor = cursor.sort(mongodb_sort)
-                async for document in cursor.skip(skip).limit(limit):
-                    yield document_to_dto(
-                        document, id_field=self._id_field, dto_model=self._dto_model
-                    )
+        collection = self._collection
 
         async def _total_count() -> int:
             with translate_pymongo_errors():
-                return await self._collection.count_documents(
-                    filter=mapping_without_deleted
-                )
+                return await collection.count_documents(filter=mapping_without_deleted)
+
+        if limit == 0:
+
+            async def _empty_iter() -> AsyncIterator[Dto]:
+                return
+                yield  # turns this into an async generator
+
+            return FindResult(
+                results_iterator=_empty_iter(), get_total_count=_total_count
+            )
+
+        async def _iter() -> AsyncIterator[Dto]:
+            with translate_pymongo_errors():
+                cursor = collection.find(filter=mapping_without_deleted)
+                if sort:
+                    cursor = cursor.sort(mongodb_sort)
+                cursor = cursor.skip(skip)
+                if limit:
+                    cursor = cursor.limit(limit)
+                async for document in cursor:
+                    yield document_to_dto(
+                        document, id_field=self._id_field, dto_model=self._dto_model
+                    )
 
         return FindResult(results_iterator=_iter(), get_total_count=_total_count)
 

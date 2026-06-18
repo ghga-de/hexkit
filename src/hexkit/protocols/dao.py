@@ -281,6 +281,7 @@ class Dao(typing.Protocol[Dto]):
                 Defaults to None (no skipping).
             limit:
                 Maximum number of resources to yield. Defaults to None (no limit).
+                Specifying 0 is interpreted literally and returns no results.
             sort:
                 A list of field names defining the sort order, where field names
                 prefixed with "-" indicate *descending* order. For example, if sort is

@@ -416,10 +416,9 @@ class BaseInMemDao(Generic[DTO]):
     ) -> "FindResult[DTO]":
         """Find all resources that match the specified mapping."""
         skip = skip or 0
-        limit = limit or 0
         if skip < 0:
             raise ValueError("skip must be >= 0")
-        if limit < 0:
+        if limit is not None and limit < 0:
             raise ValueError("limit must be >= 0")
 
         if "" in mapping:
@@ -442,15 +441,27 @@ class BaseInMemDao(Generic[DTO]):
             matching.sort(key=lambda doc: doc[doc_field], reverse=desc)
 
         total = len(matching)
-        end = skip + limit if limit else None
+
+        async def _total_count() -> int:
+            return total
+
+        if limit == 0:
+
+            async def _empty_iter() -> AsyncIterator[DTO]:
+                return
+                yield  # makes this an async generator
+
+            return FindResult(
+                results_iterator=_empty_iter(), get_total_count=_total_count
+            )
+
+        # Manually apply pagination params
+        end = (skip + limit) if limit is not None else None
         page = matching[skip:end]
 
         async def _iter() -> AsyncIterator[DTO]:
             for resource in page:
                 yield self._deserialize(resource)
-
-        async def _total_count() -> int:
-            return total
 
         return FindResult(results_iterator=_iter(), get_total_count=_total_count)
 
