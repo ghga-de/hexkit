@@ -417,6 +417,9 @@ class MongoKafkaDaoPublisher(Generic[Dto]):
         validate_find_mapping(mapping, dto_model=self._dto_model)
         mapping = replace_id_field_in_find_mapping(mapping, self._id_field)
 
+        # Ensure we don't retrieve deleted docs
+        mapping_without_deleted = {**mapping, "__metadata__.deleted": False}
+
         if sort:
             sort = [("_id" if f == self._id_field else f, o) for f, o in sort]
 
@@ -426,20 +429,17 @@ class MongoKafkaDaoPublisher(Generic[Dto]):
 
         async def _iter() -> AsyncIterator[Dto]:
             with translate_pymongo_errors():
-                cursor = collection.find(filter=mapping)
+                cursor = collection.find(filter=mapping_without_deleted)
                 if sort:
                     cursor = cursor.sort(sort)
                 async for document in cursor.skip(skip).limit(limit):
-                    if document.get("__metadata__", {}).get("deleted", False):
-                        continue
                     yield document_to_dto(
                         document, id_field=id_field, dto_model=dto_model
                     )
 
         async def _total_count() -> int:
-            not_deleted = {**mapping, "__metadata__.deleted": False}
             with translate_pymongo_errors():
-                return await collection.count_documents(filter=not_deleted)
+                return await collection.count_documents(filter=mapping_without_deleted)
 
         return FindResult(results_iterator=_iter(), get_total_count=_total_count)
 
