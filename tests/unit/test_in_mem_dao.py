@@ -547,7 +547,7 @@ async def test_find_all_limit_zero_and_none():
 
     result = dao.find_all(mapping={}, limit=0)
     page = {x.title async for x in result}
-    assert page == []
+    assert page == {}
     assert await result.total_count() == 3
 
     result = dao.find_all(mapping={}, limit=None)
