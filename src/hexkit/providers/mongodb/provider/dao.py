@@ -40,7 +40,6 @@ from hexkit.protocols.dao import (
     NoHitsFoundError,
     ResourceAlreadyExistsError,
     ResourceNotFoundError,
-    SortSpec,
     UniqueConstraintViolationError,
 )
 from hexkit.providers.mongodb.config import MongoDbConfig
@@ -318,7 +317,7 @@ class MongoDbDao(Generic[Dto]):
         mapping: Mapping[str, Any],
         skip: int | None = None,
         limit: int | None = None,
-        sort: SortSpec | None = None,
+        sort: list[str] | None = None,
     ) -> FindResult[Dto]:
         """Find all resources that match the specified mapping.
 
@@ -337,9 +336,13 @@ class MongoDbDao(Generic[Dto]):
             limit:
                 Maximum number of resources to yield. Defaults to None (no limit).
             sort:
-                A list of (field_name, sort_order) pairs. sort_order is 1 (ascending)
-                or -1 (descending). Strongly recommended when using skip/limit.
-                Defaults to None (no sort).
+                A list of field names defining the sort order, where field names
+                prefixed with "-" indicate *descending* order. For example, if sort is
+                specified as `["name", "-age"]`, the results would be sorted first by
+                "name" in ascending order, then by "age" in descending order. When
+                paginating with skip/limit, providing a sort order is strongly
+                recommended to ensure consistent, deterministic results. Defaults to
+                None (no sort).
 
         Returns:
             A FindResult that is async-iterable and also provides total_count().
@@ -354,8 +357,14 @@ class MongoDbDao(Generic[Dto]):
         validate_find_mapping(mapping, dto_model=self._dto_model)
         mapping = replace_id_field_in_find_mapping(mapping, self._id_field)
 
-        if sort:
-            sort = [("_id" if f == self._id_field else f, o) for f, o in sort]
+        # Convert generic sort spec to MongoDB-specific sort spec
+        mongodb_sort: list[tuple[str, int]] = []
+        for spec in sort or []:
+            field = spec.removeprefix("-")
+            order = 1 if field == spec else -1
+            if field == self._id_field:
+                field = "_id"
+            mongodb_sort.append((field, order))
 
         collection = self._collection
 
@@ -363,7 +372,7 @@ class MongoDbDao(Generic[Dto]):
             with translate_pymongo_errors():
                 cursor = collection.find(filter=mapping)
                 if sort:
-                    cursor = cursor.sort(sort)
+                    cursor = cursor.sort(mongodb_sort)
                 async for document in cursor.skip(skip).limit(limit):
                     yield self._document_to_dto(document)
 

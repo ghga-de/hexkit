@@ -31,7 +31,6 @@ from hexkit.protocols.dao import (
     NoHitsFoundError,
     ResourceAlreadyExistsError,
     ResourceNotFoundError,
-    SortSpec,
     UniqueConstraintViolationError,
     UUID4Field,
 )
@@ -760,13 +759,15 @@ async def test_dao_find_all_sort(mongodb: MongoDbFixture):
         await dao.insert(resource)
 
     # sort ascending by field_b — results should be ordered 0, 1, 2, 3, 4
-    asc: SortSpec = [("field_b", 1)]
-    asc_results = [hit.field_b async for hit in dao.find_all(mapping={}, sort=asc)]
+    asc_results = [
+        hit.field_b async for hit in dao.find_all(mapping={}, sort=["field_b"])
+    ]
     assert asc_results == [0, 1, 2, 3, 4]
 
     # sort descending by field_b — results should be ordered 4, 3, 2, 1, 0
-    desc: SortSpec = [("field_b", -1)]
-    desc_results = [hit.field_b async for hit in dao.find_all(mapping={}, sort=desc)]
+    desc_results = [
+        hit.field_b async for hit in dao.find_all(mapping={}, sort=["-field_b"])
+    ]
     assert desc_results == [4, 3, 2, 1, 0]
 
 
@@ -782,7 +783,7 @@ async def test_dao_find_all_pagination(mongodb: MongoDbFixture):
     for resource in resources:
         await dao.insert(resource)
 
-    asc: SortSpec = [("field_b", 1)]
+    asc = ["field_b"]
 
     # skip=2 returns items with field_b in [2, 3, 4]
     skipped = [hit.field_b async for hit in dao.find_all(mapping={}, skip=2, sort=asc)]
@@ -841,11 +842,11 @@ async def test_dao_find_all_sort_by_id_field(mongodb: MongoDbFixture):
     for custom_id in [30, 10, 20]:
         await dao.insert(ExampleDtoWithIntID(custom_id=custom_id))
 
-    asc: SortSpec = [("custom_id", 1)]
+    asc = ["custom_id"]
     asc_results = [hit.custom_id async for hit in dao.find_all(mapping={}, sort=asc)]
     assert asc_results == [10, 20, 30]
 
-    desc: SortSpec = [("custom_id", -1)]
+    desc = ["-custom_id"]
     desc_results = [hit.custom_id async for hit in dao.find_all(mapping={}, sort=desc)]
     assert desc_results == [30, 20, 10]
 
@@ -864,7 +865,7 @@ async def test_dao_find_all_sort_compound(mongodb: MongoDbFixture):
     await dao.insert(ExampleDto(field_a="date", field_b=2))
 
     # Primary: field_b asc; secondary: field_a asc (tiebreak within field_b=2 group)
-    compound_sort: SortSpec = [("field_b", 1), ("field_a", 1)]
+    compound_sort = ["field_b", "field_a"]
     results = [
         hit.field_a async for hit in dao.find_all(mapping={}, sort=compound_sort)
     ]
@@ -887,8 +888,7 @@ async def test_dao_find_all_total_count_with_filter(mongodb: MongoDbFixture):
     for field_a in ["d", "e"]:
         await dao.insert(ExampleDto(field_a=field_a, field_b=20))
 
-    asc: SortSpec = [("field_a", 1)]
-    result = dao.find_all(mapping={"field_b": 10}, skip=1, limit=1, sort=asc)
+    result = dao.find_all(mapping={"field_b": 10}, skip=1, limit=1, sort=["field_a"])
     page = [hit.field_a async for hit in result]
     assert page == ["b"]
 
@@ -945,8 +945,7 @@ async def test_dao_find_all_total_count(mongodb: MongoDbFixture):
     for resource in resources:
         await dao.insert(resource)
 
-    asc: SortSpec = [("field_b", 1)]
-    result = dao.find_all(mapping={}, skip=2, limit=2, sort=asc)
+    result = dao.find_all(mapping={}, skip=2, limit=2, sort=["field_b"])
     page = [hit.field_b async for hit in result]
     assert page == [2, 3]
 

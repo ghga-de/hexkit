@@ -30,7 +30,6 @@ from hexkit.protocols.dao import (
     NoHitsFoundError,
     ResourceAlreadyExistsError,
     ResourceNotFoundError,
-    SortSpec,
 )
 from hexkit.providers.mongodb.provider import (
     document_to_dto,
@@ -413,7 +412,7 @@ class BaseInMemDao(Generic[DTO]):
         mapping: Mapping[str, Any],
         skip: int | None = None,
         limit: int | None = None,
-        sort: SortSpec | None = None,
+        sort: list[str] | None = None,
     ) -> "FindResult[DTO]":
         """Find all resources that match the specified mapping."""
         skip = skip or 0
@@ -435,10 +434,12 @@ class BaseInMemDao(Generic[DTO]):
             if self._resource_matches(resource, mapping, predicates)
         ]
 
-        if sort:
-            for field, order in reversed(sort):
-                doc_field = "_id" if field == self._id_field else field
-                matching.sort(key=lambda doc: doc[doc_field], reverse=(order == -1))
+        # Interpret the sorting specification and sort our resources accordingly
+        for spec in reversed(sort or []):
+            desc = spec.startswith("-")
+            field = spec.removeprefix("-")
+            doc_field = "_id" if field == self._id_field else field
+            matching.sort(key=lambda doc: doc[doc_field], reverse=desc)
 
         total = len(matching)
         end = skip + limit if limit else None

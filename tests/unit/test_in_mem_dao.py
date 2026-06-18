@@ -20,7 +20,7 @@ from typing import Any
 import pytest
 from pydantic import BaseModel
 
-from hexkit.protocols.dao import NoHitsFoundError, ResourceNotFoundError, SortSpec
+from hexkit.protocols.dao import NoHitsFoundError, ResourceNotFoundError
 from hexkit.providers.testing import MockDAOEmptyError, new_mock_dao_class
 from hexkit.providers.testing.dao import (
     ComparisonPredicate,
@@ -494,15 +494,15 @@ async def test_find_all_sort():
     await dao.insert(InventoryItem(title="Cherry", count=1))
 
     # sort ascending by title
-    results = [x.title async for x in dao.find_all(mapping={}, sort=[("title", 1)])]
+    results = [x.title async for x in dao.find_all(mapping={}, sort=["title"])]
     assert results == ["Apple", "Banana", "Cherry"]
 
     # sort descending by title
-    results = [x.title async for x in dao.find_all(mapping={}, sort=[("title", -1)])]
+    results = [x.title async for x in dao.find_all(mapping={}, sort=["-title"])]
     assert results == ["Cherry", "Banana", "Apple"]
 
     # sort ascending by count
-    results = [x.title async for x in dao.find_all(mapping={}, sort=[("count", 1)])]
+    results = [x.title async for x in dao.find_all(mapping={}, sort=["count"])]
     assert results == ["Cherry", "Banana", "Apple"]
 
 
@@ -513,7 +513,7 @@ async def test_find_all_pagination():
     for title in titles:
         await dao.insert(InventoryItem(title=title, count=1))
 
-    asc_sort: SortSpec = [("title", 1)]
+    asc_sort = ["title"]
 
     # skip=2 returns items starting from index 2
     results = [x.title async for x in dao.find_all(mapping={}, skip=2, sort=asc_sort)]
@@ -572,12 +572,10 @@ async def test_find_all_sort_by_id_field():
     await dao.insert(InventoryItem(title="Apple", count=2))
     await dao.insert(InventoryItem(title="Banana", count=3))
 
-    asc_sort: SortSpec = [("title", 1)]
-    results = [x.title async for x in dao.find_all(mapping={}, sort=asc_sort)]
+    results = [x.title async for x in dao.find_all(mapping={}, sort=["title"])]
     assert results == ["Apple", "Banana", "Cherry"]
 
-    desc_sort: SortSpec = [("title", -1)]
-    results = [x.title async for x in dao.find_all(mapping={}, sort=desc_sort)]
+    results = [x.title async for x in dao.find_all(mapping={}, sort=["-title"])]
     assert results == ["Cherry", "Banana", "Apple"]
 
 
@@ -590,8 +588,7 @@ async def test_find_all_sort_compound():
     await dao.insert(InventoryItem(title="Date", count=2))
 
     # Primary: count asc; secondary: title asc (tiebreak within count=2 group)
-    compound_sort: SortSpec = [("count", 1), ("title", 1)]
-    results = [x.title async for x in dao.find_all(mapping={}, sort=compound_sort)]
+    results = [x.title async for x in dao.find_all(mapping={}, sort=["count", "title"])]
     assert results == ["Cherry", "Apple", "Banana", "Date"]
 
 
@@ -605,8 +602,7 @@ async def test_find_all_total_count_with_filter():
     for title in ["Date", "Elderberry"]:
         await dao.insert(InventoryItem(title=title, count=2))
 
-    asc_sort: SortSpec = [("title", 1)]
-    result = dao.find_all(mapping={"count": 1}, skip=1, limit=1, sort=asc_sort)
+    result = dao.find_all(mapping={"count": 1}, skip=1, limit=1, sort=["title"])
     page = [x.title async for x in result]
     assert page == ["Banana"]
 
@@ -649,8 +645,7 @@ async def test_find_all_total_count():
     for title in titles:
         await dao.insert(InventoryItem(title=title, count=1))
 
-    asc_sort: SortSpec = [("title", 1)]
-    result = dao.find_all(mapping={}, skip=2, limit=2, sort=asc_sort)
+    result = dao.find_all(mapping={}, skip=2, limit=2, sort=["title"])
     page = [x.title async for x in result]
     assert page == ["Cherry", "Date"]
 

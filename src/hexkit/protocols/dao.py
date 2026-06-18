@@ -23,7 +23,7 @@ from abc import ABC, abstractmethod
 from collections.abc import AsyncIterator, Awaitable, Callable, Collection, Mapping
 from contextlib import AbstractAsyncContextManager
 from functools import partial
-from typing import Any, Generic, Literal, TypeVar
+from typing import Any, Generic, TypeVar
 from uuid import uuid4
 
 from pydantic import BaseModel, Field
@@ -39,12 +39,9 @@ __all__ = [
     "MultipleHitsFoundError",
     "ResourceAlreadyExistsError",
     "ResourceNotFoundError",
-    "SortSpec",
     "UUID4Field",
     "UniqueConstraintViolationError",
 ]
-
-SortSpec = list[tuple[str, Literal[1, -1]]]
 
 
 class IndexBase(ABC):
@@ -266,7 +263,7 @@ class Dao(typing.Protocol[Dto]):
         mapping: Mapping[str, Any],
         skip: int | None = None,
         limit: int | None = None,
-        sort: SortSpec | None = None,
+        sort: list[str] | None = None,
     ) -> "FindResult[Dto]":
         """Find all resources that match the specified mapping.
 
@@ -285,10 +282,13 @@ class Dao(typing.Protocol[Dto]):
             limit:
                 Maximum number of resources to yield. Defaults to None (no limit).
             sort:
-                A list of (field_name, sort_order) pairs defining the sort order,
-                where sort_order is 1 (ascending) or -1 (descending). When paginating
-                with skip/limit, providing a sort order is strongly recommended to
-                ensure consistent, deterministic results. Defaults to None (no sort).
+                A list of field names defining the sort order, where field names
+                prefixed with "-" indicate *descending* order. For example, if sort is
+                specified as `["name", "-age"]`, the results would be sorted first by
+                "name" in ascending order, then by "age" in descending order. When
+                paginating with skip/limit, providing a sort order is strongly
+                recommended to ensure consistent, deterministic results. Defaults to
+                None (no sort).
 
         Returns:
             A FindResult that is async-iterable and also provides total_count().
