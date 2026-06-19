@@ -1021,7 +1021,7 @@ async def test_pagination_against_flaky_metadata(
             db = mongo_kafka.mongodb.client.get_database(mongo_kafka.config.db_name)
             collection = db["example"]
             retrieved_docs = collection.find().to_list()
-            assert len(docs) == 4
+            assert len(retrieved_docs) == 4
             for doc in retrieved_docs:
                 del doc["__metadata__"]
                 collection.replace_one({"_id": doc["_id"]}, doc)
