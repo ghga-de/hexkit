@@ -995,8 +995,6 @@ async def test_find_all_total_count_excludes_soft_deleted(
         total = await result.total_count()
         assert total == 2
 
-
-# @pytest.mark.parametrize("skip")
 @pytest.mark.parametrize("delete_metadata", [True, False])
 async def test_pagination_against_flaky_metadata(
     mongo_kafka: MongoKafkaFixture, delete_metadata: bool
