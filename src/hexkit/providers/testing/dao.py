@@ -25,6 +25,7 @@ from pydantic import BaseModel
 
 from hexkit.custom_types import ID
 from hexkit.protocols.dao import (
+    FindResult,
     MultipleHitsFoundError,
     NoHitsFoundError,
     ResourceAlreadyExistsError,
@@ -391,26 +392,78 @@ class BaseInMemDao(Generic[DTO]):
 
         raise MultipleHitsFoundError(mapping=mapping)
 
-    async def find_all(self, *, mapping: Mapping[str, Any]) -> AsyncIterator[DTO]:
+    def _resource_matches(
+        self,
+        resource: Document,
+        mapping: Mapping[str, Any],
+        predicates: list["Predicate"],
+    ) -> bool:
+        """Return whether a resource matches the given mapping or predicates."""
+        if self._handle_mql:
+            return all(p.evaluate(resource=resource) for p in predicates)
+        for key, expected_value in mapping.items():
+            if _get_nested_value(resource, key) != expected_value:
+                return False
+        return True
+
+    def find_all(
+        self,
+        *,
+        mapping: Mapping[str, Any],
+        skip: int | None = None,
+        limit: int | None = None,
+        sort: list[str] | None = None,
+    ) -> "FindResult[DTO]":
         """Find all resources that match the specified mapping."""
+        skip = skip or 0
+        if skip < 0:
+            raise ValueError("skip must be >= 0")
+        if limit is not None and limit < 0:
+            raise ValueError("limit must be >= 0")
+
         if "" in mapping:
             raise KeyError("Query mappings can't contain empty-string keys")
 
         _mapping = replace_id_field_in_find_mapping(mapping, self._id_field)
         predicates = build_predicates(_mapping) if self._handle_mql else []
 
-        for resource in self.resources.values():
-            if self._handle_mql:
-                matches = all(p.evaluate(resource=resource) for p in predicates)
-            else:
-                matches = True
-                for key, expected_value in mapping.items():
-                    actual_value = _get_nested_value(resource, key)
-                    if actual_value != expected_value:
-                        matches = False
-                        break
-            if matches:
+        matching = [
+            resource
+            for resource in self.resources.values()
+            if self._resource_matches(resource, mapping, predicates)
+        ]
+
+        # Interpret the sorting specification and sort our resources accordingly
+        for spec in reversed(sort or []):
+            desc = spec.startswith("-")
+            field = spec.removeprefix("-")
+            doc_field = "_id" if field == self._id_field else field
+            matching.sort(key=lambda doc: doc[doc_field], reverse=desc)
+
+        total = len(matching)
+
+        async def _total_count() -> int:
+            return total
+
+        if limit == 0:
+
+            async def _empty_iter() -> AsyncIterator[DTO]:
+                return
+                yield  # makes this an async generator
+
+            return FindResult(
+                results_iterator=_empty_iter(), get_total_count=_total_count
+            )
+
+        # Manually apply pagination params
+        end = (skip + limit) if limit is not None else None
+        page = matching[skip:end]
+
+        async def _iter() -> AsyncIterator[DTO]:
+            for resource in page:
                 yield self._deserialize(resource)
+
+        return FindResult(results_iterator=_iter(), get_total_count=_total_count)
 
     async def insert(self, dto: DTO) -> None:
         """Insert a resource.

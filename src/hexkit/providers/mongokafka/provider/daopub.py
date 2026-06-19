@@ -42,6 +42,7 @@ from hexkit.custom_types import ID, JsonObject
 from hexkit.protocols.dao import (
     Dao,
     Dto,
+    FindResult,
     ResourceNotFoundError,
     UniqueConstraintViolationError,
 )
@@ -369,7 +370,14 @@ class MongoKafkaDaoPublisher(Generic[Dto]):
         hits = self.find_all(mapping=mapping)
         return await get_single_hit(hits=hits, mapping=mapping)
 
-    async def find_all(self, *, mapping: Mapping[str, Any]) -> AsyncIterator[Dto]:
+    def find_all(  # noqa: C901
+        self,
+        *,
+        mapping: Mapping[str, Any],
+        skip: int | None = None,
+        limit: int | None = None,
+        sort: list[str] | None = None,
+    ) -> FindResult[Dto]:
         """Find all resources that match the specified mapping.
 
         The values in the mapping are used to filter the resources, these are
@@ -381,23 +389,79 @@ class MongoKafkaDaoPublisher(Generic[Dto]):
             mapping:
                 A mapping where the keys correspond to the names of resource fields
                 and the values correspond to the actual values of the resource fields.
+            skip:
+                Number of matching resources to skip before yielding results.
+                Defaults to None (no skipping).
+            limit:
+                Maximum number of resources to yield. Defaults to None (no limit).
+                Specifying 0 is interpreted literally and returns no results.
+            sort:
+                A list of field names defining the sort order, where field names
+                prefixed with "-" indicate *descending* order. For example, if sort is
+                specified as `["name", "-age"]`, the results would be sorted first by
+                "name" in ascending order, then by "age" in descending order. When
+                paginating with skip/limit, providing a sort order is strongly
+                recommended to ensure consistent, deterministic results. Defaults to
+                None (no sort).
 
         Returns:
-            An AsyncIterator of hits. All hits are in the form of the respective DTO
-            model.
+            A FindResult that is async-iterable and also provides total_count().
+
+        Raises:
+            InvalidMappingError: If `mapping` doesn't pass validation.
+            ValueError: if `skip` or `limit` are less than 0.
         """
+        skip = skip or 0
+        if skip < 0:
+            raise ValueError("skip must be >= 0")
+        if limit is not None and limit < 0:
+            raise ValueError("limit must be >= 0")
+
         validate_find_mapping(mapping, dto_model=self._dto_model)
         mapping = replace_id_field_in_find_mapping(mapping, self._id_field)
 
-        with translate_pymongo_errors():
-            cursor = self._collection.find(filter=mapping)
+        # Ensure we don't retrieve deleted docs
+        mapping_without_deleted = {**mapping, "__metadata__.deleted": False}
 
-            async for document in cursor:
-                if document.get("__metadata__", {}).get("deleted", False):
-                    continue
-                yield document_to_dto(
-                    document, id_field=self._id_field, dto_model=self._dto_model
-                )
+        # Convert generic sort spec to MongoDB-specific sort spec
+        mongodb_sort: list[tuple[str, int]] = []
+        for spec in sort or []:
+            field = spec.removeprefix("-")
+            order = 1 if field == spec else -1
+            if field == self._id_field:
+                field = "_id"
+            mongodb_sort.append((field, order))
+
+        collection = self._collection
+
+        async def _total_count() -> int:
+            with translate_pymongo_errors():
+                return await collection.count_documents(filter=mapping_without_deleted)
+
+        if limit == 0:
+
+            async def _empty_iter() -> AsyncIterator[Dto]:
+                return
+                yield  # turns this into an async generator
+
+            return FindResult(
+                results_iterator=_empty_iter(), get_total_count=_total_count
+            )
+
+        async def _iter() -> AsyncIterator[Dto]:
+            with translate_pymongo_errors():
+                cursor = collection.find(filter=mapping_without_deleted)
+                if sort:
+                    cursor = cursor.sort(mongodb_sort)
+                cursor = cursor.skip(skip)
+                if limit:
+                    cursor = cursor.limit(limit)
+                async for document in cursor:
+                    yield document_to_dto(
+                        document, id_field=self._id_field, dto_model=self._dto_model
+                    )
+
+        return FindResult(results_iterator=_iter(), get_total_count=_total_count)
 
     async def insert(self, dto: Dto) -> None:
         """Create a new resource.

@@ -744,3 +744,231 @@ async def test_index_with_string_field(mongodb: MongoDbFixture):
     index = next(iter(indexes.values()))
     # When passing a string, it should create an ascending index
     assert index["key"] == [("field_a", 1)]
+
+
+async def test_dao_find_all_sort(mongodb: MongoDbFixture):
+    """Test that find_all() respects the sort parameter."""
+    dao = await mongodb.dao_factory.get_dao(
+        name="example",
+        dto_model=ExampleDto,
+        id_field="id",
+    )
+
+    resources = [ExampleDto(field_b=i) for i in range(5)]
+    for resource in resources:
+        await dao.insert(resource)
+
+    # sort ascending by field_b — results should be ordered 0, 1, 2, 3, 4
+    asc_results = [
+        hit.field_b async for hit in dao.find_all(mapping={}, sort=["field_b"])
+    ]
+    assert asc_results == [0, 1, 2, 3, 4]
+
+    # sort descending by field_b — results should be ordered 4, 3, 2, 1, 0
+    desc_results = [
+        hit.field_b async for hit in dao.find_all(mapping={}, sort=["-field_b"])
+    ]
+    assert desc_results == [4, 3, 2, 1, 0]
+
+
+async def test_dao_find_all_pagination(mongodb: MongoDbFixture):
+    """Test that find_all() respects skip and limit (with sort for determinism)."""
+    dao = await mongodb.dao_factory.get_dao(
+        name="example",
+        dto_model=ExampleDto,
+        id_field="id",
+    )
+
+    resources = [ExampleDto(field_b=i) for i in range(5)]
+    for resource in resources:
+        await dao.insert(resource)
+
+    asc = ["field_b"]
+
+    # skip=2 returns items with field_b in [2, 3, 4]
+    skipped = [hit.field_b async for hit in dao.find_all(mapping={}, skip=2, sort=asc)]
+    assert skipped == [2, 3, 4]
+
+    # limit=3 returns items with field_b in [0, 1, 2]
+    limited = [hit.field_b async for hit in dao.find_all(mapping={}, limit=3, sort=asc)]
+    assert limited == [0, 1, 2]
+
+    # skip=1, limit=2 returns items with field_b in [1, 2]
+    paginated = [
+        hit.field_b async for hit in dao.find_all(mapping={}, skip=1, limit=2, sort=asc)
+    ]
+    assert paginated == [1, 2]
+
+    # skip larger than collection size returns nothing
+    over_skip = [hit async for hit in dao.find_all(mapping={}, skip=10, sort=asc)]
+    assert over_skip == []
+
+
+async def test_dao_find_all_limit_zero(mongodb: MongoDbFixture):
+    """Test that limit=0 returns an empty iterator but total_count still works."""
+    dao = await mongodb.dao_factory.get_dao(
+        name="example",
+        dto_model=ExampleDto,
+        id_field="id",
+    )
+
+    for _ in range(3):
+        await dao.insert(ExampleDto())
+
+    result = dao.find_all(mapping={}, limit=0)
+    page = [hit async for hit in result]
+    assert page == []
+    assert await result.total_count() == 3
+
+
+async def test_dao_find_all_pagination_empty_collection(mongodb: MongoDbFixture):
+    """Test find_all() with skip and limit on an empty collection produces no errors."""
+    dao = await mongodb.dao_factory.get_dao(
+        name="example",
+        dto_model=ExampleDto,
+        id_field="id",
+    )
+
+    results = [hit async for hit in dao.find_all(mapping={}, skip=5, limit=10)]
+    assert results == []
+
+
+async def test_dao_find_all_pagination_negative_values(mongodb: MongoDbFixture):
+    """Test find_all() raises ValueError when skip or limit are negative."""
+    dao = await mongodb.dao_factory.get_dao(
+        name="example",
+        dto_model=ExampleDto,
+        id_field="id",
+    )
+
+    with pytest.raises(ValueError):
+        [hit async for hit in dao.find_all(mapping={}, skip=-1)]
+
+    with pytest.raises(ValueError):
+        [hit async for hit in dao.find_all(mapping={}, limit=-1)]
+
+
+async def test_dao_find_all_sort_by_id_field(mongodb: MongoDbFixture):
+    """Test that sorting correctly substitutes the id field with "_id"."""
+    dao = await mongodb.dao_factory.get_dao(
+        name="example",
+        dto_model=ExampleDtoWithIntID,
+        id_field="custom_id",
+    )
+
+    for custom_id in [30, 10, 20]:
+        await dao.insert(ExampleDtoWithIntID(custom_id=custom_id))
+
+    asc = ["custom_id"]
+    asc_results = [hit.custom_id async for hit in dao.find_all(mapping={}, sort=asc)]
+    assert asc_results == [10, 20, 30]
+
+    desc = ["-custom_id"]
+    desc_results = [hit.custom_id async for hit in dao.find_all(mapping={}, sort=desc)]
+    assert desc_results == [30, 20, 10]
+
+
+async def test_dao_find_all_sort_compound(mongodb: MongoDbFixture):
+    """Test that compound sort (multiple fields) works."""
+    dao = await mongodb.dao_factory.get_dao(
+        name="example",
+        dto_model=ExampleDto,
+        id_field="id",
+    )
+
+    await dao.insert(ExampleDto(field_a="cherry", field_b=1))
+    await dao.insert(ExampleDto(field_a="banana", field_b=2))
+    await dao.insert(ExampleDto(field_a="apple", field_b=2))
+    await dao.insert(ExampleDto(field_a="date", field_b=2))
+
+    # Primary: field_b asc; secondary: field_a asc (tiebreak within field_b=2 group)
+    compound_sort = ["field_b", "field_a"]
+    results = [
+        hit.field_a async for hit in dao.find_all(mapping={}, sort=compound_sort)
+    ]
+    assert results == ["cherry", "apple", "banana", "date"]
+
+
+async def test_dao_find_all_total_count_with_filter(mongodb: MongoDbFixture):
+    """Make sure that total_count() reflects the filtered match count, not the total
+    collection size.
+    """
+    dao = await mongodb.dao_factory.get_dao(
+        name="example",
+        dto_model=ExampleDto,
+        id_field="id",
+    )
+
+    # Insert some docs with two different values for field_b
+    for field_a in ["a", "b", "c"]:
+        await dao.insert(ExampleDto(field_a=field_a, field_b=10))
+    for field_a in ["d", "e"]:
+        await dao.insert(ExampleDto(field_a=field_a, field_b=20))
+
+    result = dao.find_all(mapping={"field_b": 10}, skip=1, limit=1, sort=["field_a"])
+    page = [hit.field_a async for hit in result]
+    assert page == ["b"]
+
+    assert await result.total_count() == 3
+
+
+async def test_dao_find_all_total_count_before_iteration(mongodb: MongoDbFixture):
+    """Test that total_count() works correctly when called before consuming any results."""
+    dao = await mongodb.dao_factory.get_dao(
+        name="example",
+        dto_model=ExampleDto,
+        id_field="id",
+    )
+
+    for _ in range(3):
+        await dao.insert(ExampleDto())
+
+    result = dao.find_all(mapping={}, skip=1, limit=1)
+    total = await result.total_count()
+    assert total == 3
+
+    page = [hit async for hit in result]
+    assert len(page) == 1
+
+
+async def test_dao_find_all_total_count_empty_filter_result(mongodb: MongoDbFixture):
+    """Test that total_count() returns 0 when no documents match the mapping."""
+    dao = await mongodb.dao_factory.get_dao(
+        name="example",
+        dto_model=ExampleDto,
+        id_field="id",
+    )
+
+    await dao.insert(ExampleDto())
+    await dao.insert(ExampleDto())
+
+    result = dao.find_all(mapping={"field_b": 99999})
+    page = [hit async for hit in result]
+    assert page == []
+
+    total = await result.total_count()
+    assert total == 0
+
+
+async def test_dao_find_all_total_count(mongodb: MongoDbFixture):
+    """Test that total_count() returns the full matching count regardless of skip/limit."""
+    dao = await mongodb.dao_factory.get_dao(
+        name="example",
+        dto_model=ExampleDto,
+        id_field="id",
+    )
+
+    resources = [ExampleDto(field_b=i) for i in range(5)]
+    for resource in resources:
+        await dao.insert(resource)
+
+    result = dao.find_all(mapping={}, skip=2, limit=2, sort=["field_b"])
+    page = [hit.field_b async for hit in result]
+    assert page == [2, 3]
+
+    total = await result.total_count()
+    assert total == 5
+
+    # calling total_count() a second time uses the cached value
+    total_again = await result.total_count()
+    assert total_again == 5

@@ -963,3 +963,80 @@ async def test_unique_index_error_handling(mongo_kafka: MongoKafkaFixture):
 
         with pytest.raises(UniqueConstraintViolationError):
             await dao.upsert(dto5)
+
+
+async def test_find_all_total_count_excludes_soft_deleted(
+    mongo_kafka: MongoKafkaFixture,
+):
+    """Verify that total_count() doesn't include deleted outbox documents."""
+    async with MongoKafkaDaoPublisherFactory.construct(
+        config=mongo_kafka.config
+    ) as factory:
+        dao = await factory.get_dao(
+            name="example",
+            dto_model=ExampleDto,
+            id_field="id",
+            dto_to_event=lambda dto: dto.model_dump(),
+            event_topic=EXAMPLE_TOPIC,
+        )
+
+        # Add four docs and then delete two of them (the 'dead' ones)
+        live1, live2, dead1, dead2 = (ExampleDto() for _ in range(4))
+        for dto in (live1, live2, dead1, dead2):
+            await dao.insert(dto)
+        await dao.delete(dead1.id)
+        await dao.delete(dead2.id)
+
+        # Run a query and make sure total_count() is 2
+        result = dao.find_all(mapping={})
+        page = [hit async for hit in result]
+        assert len(page) == 2
+
+        total = await result.total_count()
+        assert total == 2
+
+
+@pytest.mark.parametrize("delete_metadata", [True, False])
+async def test_pagination_against_flaky_metadata(
+    mongo_kafka: MongoKafkaFixture, delete_metadata: bool
+):
+    """Test pagination when many outbox documents have been deleted or lack metadata."""
+    async with MongoKafkaDaoPublisherFactory.construct(
+        config=mongo_kafka.config
+    ) as factory:
+        dao = await factory.get_dao(
+            name="example",
+            dto_model=ExampleDto,
+            id_field="id",
+            dto_to_event=lambda dto: dto.model_dump(),
+            event_topic=EXAMPLE_TOPIC,
+        )
+
+        # Add four docs and then delete all of them
+        docs = [ExampleDto() for _ in range(4)]
+        for dto in docs:
+            await dao.insert(dto)
+            await dao.delete(dto.id)
+
+        if delete_metadata:
+            db = mongo_kafka.mongodb.client.get_database(mongo_kafka.config.db_name)
+            collection = db["example"]
+            retrieved_docs = collection.find().to_list()
+            assert len(retrieved_docs) == 4
+            for doc in retrieved_docs:
+                del doc["__metadata__"]
+                collection.replace_one({"_id": doc["_id"]}, doc)
+
+        # Insert a document that will be last when sorted
+        live_id = uuid.UUID("99999999-9999-4999-9999-999999999999")
+        live_doc = ExampleDto(id=live_id)
+        await dao.insert(live_doc)
+
+        # Now find_all but with limit set to 4
+        #  If filtering is not done properly, this would return an empty list
+        results_limit = [x async for x in dao.find_all(mapping={}, skip=None, limit=4)]
+        assert results_limit == [live_doc]
+
+        # Check that using skip=1 and no limit returns an empty list
+        results_skip = [x async for x in dao.find_all(mapping={}, skip=1)]
+        assert results_skip == []
