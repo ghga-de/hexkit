@@ -16,10 +16,10 @@
 """A mock (in-memory) DAO"""
 
 from collections.abc import AsyncIterator, Callable, Mapping
-from contextlib import suppress
+from contextlib import AbstractAsyncContextManager, suppress
 from copy import deepcopy
 from typing import Any, Generic, Protocol, TypeVar
-from unittest.mock import AsyncMock, Mock
+from unittest.mock import AsyncMock
 
 from pydantic import BaseModel
 
@@ -346,7 +346,10 @@ class BaseInMemDao(Generic[DTO]):
     _deserialize: Callable
     publish_pending = AsyncMock()
     republish = AsyncMock()
-    with_transaction = Mock()
+
+    @classmethod
+    def with_transaction(cls) -> AbstractAsyncContextManager["BaseInMemDao[DTO]"]:
+        raise NotImplementedError()
 
     def __init__(self) -> None:
         self.resources: dict[ID, Document] = {}
