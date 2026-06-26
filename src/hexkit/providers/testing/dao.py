@@ -88,6 +88,18 @@ def _get_nested_value(resource: Document, field_path: str) -> Any:
     return value
 
 
+def _sort_key(resource: Document, *, field_path: str) -> tuple[bool, Any]:
+    """Build a sort key for a (possibly nested) field path of a resource.
+
+    Missing values (None) are grouped together and sorted ahead of present values,
+    mirroring MongoDB's handling of missing/null fields. The leading boolean keeps
+    None values from being compared against present values (or one another), which
+    would otherwise raise a TypeError.
+    """
+    value = _get_nested_value(resource, field_path)
+    return (value is not None, value if value is not None else 0)
+
+
 class Predicate(Protocol):
     def evaluate(self, resource: dict[str, Any]) -> bool:
         """Determine if the supplied dict value satisfies the predicate."""
@@ -410,7 +422,7 @@ class BaseInMemDao(Generic[DTO]):
                 return False
         return True
 
-    def find_all(  # noqa: C901
+    def find_all(
         self,
         *,
         mapping: Mapping[str, Any],
@@ -441,17 +453,12 @@ class BaseInMemDao(Generic[DTO]):
         for spec in reversed(sort or []):
             desc = spec.startswith("-")
             field = spec.removeprefix("-")
-            if field == self._id_field or field.startswith(f"{self._id_field}."):
-                doc_field = "_id" + field[len(self._id_field) :]
-            else:
-                doc_field = field
-
-            # Handle nested fields
-            if "." in doc_field:
-                nested_sort_key = partial(_get_nested_value, field_path=doc_field)
-                matching.sort(key=nested_sort_key, reverse=desc)
-            else:
-                matching.sort(key=lambda doc: doc[doc_field], reverse=desc)
+            # Only the exact ID field is translated to the internal "_id" field, matching
+            # the MongoDB provider. Other fields (including nested sub-fields of the ID,
+            # which MongoDB cannot sort by) are looked up as-is and resolve to None when
+            # absent, sorting consistently rather than raising - again like MongoDB.
+            doc_field = "_id" if field == self._id_field else field
+            matching.sort(key=partial(_sort_key, field_path=doc_field), reverse=desc)
 
         total = len(matching)
 
