@@ -671,3 +671,41 @@ async def test_find_all_total_count():
     # calling total_count() a second time uses the cached value
     total_again = await result.total_count()
     assert total_again == 5
+
+
+@pytest.mark.parametrize("id_field", ["id", "inner"])
+async def test_nested_sort_in_find_all(id_field: str):
+    """Test to make sure `sort` works correctly in find_all() when the field is nested.
+
+    Also tests that it works when the specified nested sort field starts with the ID
+    field of the DTO. For that to work, had to define a hash method on the InnerDto
+    model since it is stored as a dict key.
+    """
+
+    class InnerDto(BaseModel):
+        def __hash__(self) -> int:
+            return self.x
+
+        x: int
+
+    class OuterDto(BaseModel):
+        id: int
+        inner: InnerDto
+
+    OuterDtoDao = new_mock_dao_class(dto_model=OuterDto, id_field=id_field)  # noqa: N806
+    dao = OuterDtoDao()
+
+    dtos = [
+        OuterDto(id=1, inner=InnerDto(x=3)),
+        OuterDto(id=2, inner=InnerDto(x=1)),
+        OuterDto(id=3, inner=InnerDto(x=7)),
+    ]
+
+    for dto in dtos:
+        await dao.insert(dto)
+
+    # First retrieve results and make sure they're returned in the order defined above
+    assert [x.id async for x in dao.find_all(mapping={})] == [1, 2, 3]
+
+    # Now apply sorting on the nested field
+    assert [x.id async for x in dao.find_all(mapping={}, sort=["inner.x"])] == [2, 1, 3]

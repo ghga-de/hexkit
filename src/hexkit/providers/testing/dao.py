@@ -18,6 +18,7 @@
 from collections.abc import AsyncIterator, Callable, Mapping
 from contextlib import AbstractAsyncContextManager, suppress
 from copy import deepcopy
+from functools import partial
 from typing import Any, Generic, Protocol, TypeVar
 from unittest.mock import AsyncMock
 
@@ -409,7 +410,7 @@ class BaseInMemDao(Generic[DTO]):
                 return False
         return True
 
-    def find_all(
+    def find_all(  # noqa: C901
         self,
         *,
         mapping: Mapping[str, Any],
@@ -440,8 +441,18 @@ class BaseInMemDao(Generic[DTO]):
         for spec in reversed(sort or []):
             desc = spec.startswith("-")
             field = spec.removeprefix("-")
-            doc_field = "_id" if field == self._id_field else field
-            matching.sort(key=lambda doc: doc[doc_field], reverse=desc)
+            doc_field = (
+                field.replace(self._id_field, "_id")
+                if field.startswith(self._id_field)
+                else field
+            )
+
+            # Handle nested fields
+            if "." in doc_field:
+                nested_sort_key = partial(_get_nested_value, field_path=doc_field)
+                matching.sort(key=nested_sort_key, reverse=desc)
+            else:
+                matching.sort(key=lambda doc: doc[doc_field], reverse=desc)
 
         total = len(matching)
 
