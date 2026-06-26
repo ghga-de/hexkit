@@ -441,11 +441,10 @@ class BaseInMemDao(Generic[DTO]):
         for spec in reversed(sort or []):
             desc = spec.startswith("-")
             field = spec.removeprefix("-")
-            doc_field = (
-                field.replace(self._id_field, "_id")
-                if field.startswith(self._id_field)
-                else field
-            )
+            if field == self._id_field or field.startswith(f"{self._id_field}."):
+                doc_field = "_id" + field[len(self._id_field) :]
+            else:
+                doc_field = field
 
             # Handle nested fields
             if "." in doc_field:
