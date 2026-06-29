@@ -671,3 +671,139 @@ async def test_find_all_total_count():
     # calling total_count() a second time uses the cached value
     total_again = await result.total_count()
     assert total_again == 5
+
+
+async def test_nested_sort_in_find_all():
+    """Test that `sort` works correctly in find_all() when the field is nested."""
+
+    class InnerDto(BaseModel):
+        x: int
+
+    class OuterDto(BaseModel):
+        id: int
+        inner: InnerDto
+
+    OuterDtoDao = new_mock_dao_class(dto_model=OuterDto, id_field="id")  # noqa: N806
+    dao = OuterDtoDao()
+
+    dtos = [
+        OuterDto(id=1, inner=InnerDto(x=3)),
+        OuterDto(id=2, inner=InnerDto(x=1)),
+        OuterDto(id=3, inner=InnerDto(x=7)),
+    ]
+
+    for dto in dtos:
+        await dao.insert(dto)
+
+    find_all = dao.find_all
+
+    # First retrieve results and make sure they're returned in the order defined above
+    assert [x.id async for x in find_all(mapping={})] == [1, 2, 3]
+
+    # Now apply ascending and descending sorting on the nested field
+    assert [x.id async for x in find_all(mapping={}, sort=["inner.x"])] == [2, 1, 3]
+    assert [x.id async for x in find_all(mapping={}, sort=["-inner.x"])] == [3, 1, 2]
+
+
+async def test_sort_field_starting_with_id_field():
+    """Test that only the exact ID field is translated to the internal "_id" field.
+
+    A field whose name merely starts with the ID field (e.g. "id_code" when
+    the ID field is "id") must be left untouched.
+    """
+
+    class ItemDto(BaseModel):
+        id: int
+        id_code: int
+
+    ItemDtoDao = new_mock_dao_class(dto_model=ItemDto, id_field="id")  # noqa: N806
+    dao = ItemDtoDao()
+
+    dtos = [
+        ItemDto(id=1, id_code=30),
+        ItemDto(id=2, id_code=10),
+        ItemDto(id=3, id_code=20),
+    ]
+    for dto in dtos:
+        await dao.insert(dto)
+
+    # Sorting by the exact ID field maps to the internal "_id" field
+    assert [x.id async for x in dao.find_all(mapping={}, sort=["id"])] == [1, 2, 3]
+    assert [x.id async for x in dao.find_all(mapping={}, sort=["-id"])] == [3, 2, 1]
+
+    # Sorting by the prefix-colliding field sorts by *that* field, not the ID field
+    assert [x.id async for x in dao.find_all(mapping={}, sort=["id_code"])] == [2, 3, 1]
+
+
+async def test_sort_with_missing_values_matches_mongodb():
+    """Test that missing values are sorted consistently, matching MongoDB.
+
+    Missing/None values are grouped together and sorted ahead of present values in
+    ascending order (and after them in descending order), matching MongoDB. This also
+    exercises comparisons between None and present values, which would raise a TypeError
+    without the None-safe sort key.
+    """
+
+    class InnerDto(BaseModel):
+        x: int
+
+    class OuterDto(BaseModel):
+        id: int
+        inner: InnerDto | None = None
+
+    OuterDtoDao = new_mock_dao_class(dto_model=OuterDto, id_field="id")  # noqa: N806
+    dao = OuterDtoDao()
+
+    dtos = [
+        OuterDto(id=1, inner=InnerDto(x=3)),
+        OuterDto(id=2, inner=None),
+        OuterDto(id=3, inner=InnerDto(x=1)),
+        OuterDto(id=4, inner=None),
+    ]
+    for dto in dtos:
+        await dao.insert(dto)
+
+    # Ascending: missing (None) values first (insertion order kept among them), then
+    # present values in ascending order.
+    asc = [x.id async for x in dao.find_all(mapping={}, sort=["inner.x"])]
+    assert asc == [2, 4, 3, 1]
+
+    # Descending: present values in descending order, missing values last.
+    desc = [x.id async for x in dao.find_all(mapping={}, sort=["-inner.x"])]
+    assert desc == [1, 3, 2, 4]
+
+
+async def test_nested_id_sort_matches_mongodb():
+    """The in-mem DAO matches MongoDB's (limited) behavior: it cannot sort by a nested
+    sub-field of the ID field, because the ID is stored under "_id". Such a sort is a
+    no-op that preserves the existing order rather than raising or secretly resolving
+    the value - exactly as MongoDB would silently fail to sort by "inner.x".
+    """
+
+    class InnerDto(BaseModel):
+        def __hash__(self) -> int:
+            return self.x
+
+        x: int
+
+    class OuterDto(BaseModel):
+        inner: InnerDto
+        label: int
+
+    OuterDtoDao = new_mock_dao_class(dto_model=OuterDto, id_field="inner")  # noqa: N806
+    dao = OuterDtoDao()
+
+    dtos = [
+        OuterDto(inner=InnerDto(x=3), label=1),
+        OuterDto(inner=InnerDto(x=1), label=2),
+        OuterDto(inner=InnerDto(x=7), label=3),
+    ]
+    for dto in dtos:
+        await dao.insert(dto)
+
+    # Sorting by a nested sub-field of the ID field is a no-op (insertion order kept)
+    assert [x.label async for x in dao.find_all(mapping={}, sort=["inner.x"])] == [
+        1,
+        2,
+        3,
+    ]

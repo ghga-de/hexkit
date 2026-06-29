@@ -18,6 +18,7 @@
 from collections.abc import AsyncIterator, Callable, Mapping
 from contextlib import AbstractAsyncContextManager, suppress
 from copy import deepcopy
+from functools import partial
 from typing import Any, Generic, Protocol, TypeVar
 from unittest.mock import AsyncMock
 
@@ -85,6 +86,18 @@ def _get_nested_value(resource: Document, field_path: str) -> Any:
             except (KeyError, AttributeError):
                 value = None
     return value
+
+
+def _sort_key(resource: Document, *, field_path: str) -> tuple[bool, Any]:
+    """Build a sort key for a (possibly nested) field path of a resource.
+
+    Missing values (None) are grouped together and sorted ahead of present values,
+    mirroring MongoDB's handling of missing/null fields. The leading boolean keeps
+    None values from being compared against present values (or one another), which
+    would otherwise raise a TypeError.
+    """
+    value = _get_nested_value(resource, field_path)
+    return (value is not None, value if value is not None else 0)
 
 
 class Predicate(Protocol):
@@ -440,8 +453,12 @@ class BaseInMemDao(Generic[DTO]):
         for spec in reversed(sort or []):
             desc = spec.startswith("-")
             field = spec.removeprefix("-")
+            # Only the exact ID field is translated to the internal "_id" field, matching
+            # the MongoDB provider. Other fields (including nested sub-fields of the ID,
+            # which MongoDB cannot sort by) are looked up as-is and resolve to None when
+            # absent, sorting consistently rather than raising - again like MongoDB.
             doc_field = "_id" if field == self._id_field else field
-            matching.sort(key=lambda doc: doc[doc_field], reverse=desc)
+            matching.sort(key=partial(_sort_key, field_path=doc_field), reverse=desc)
 
         total = len(matching)
 
