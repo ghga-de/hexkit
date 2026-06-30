@@ -1120,3 +1120,27 @@ async def test_pagination_against_metadataless_docs(mongo_kafka: MongoKafkaFixtu
         assert len(page) == 4
         remaining = [x async for x in dao.find_all(mapping={}, skip=4)]
         assert len(remaining) == 1
+
+
+async def test_find_all_to_list(mongo_kafka: MongoKafkaFixture):
+    """Test that to_list() collects all results into a list."""
+    async with MongoKafkaDaoPublisherFactory.construct(
+        config=mongo_kafka.config
+    ) as factory:
+        dao = await factory.get_dao(
+            name="example",
+            dto_model=ExampleDto,
+            id_field="id",
+            dto_to_event=lambda dto: dto.model_dump(),
+            event_topic=EXAMPLE_TOPIC,
+        )
+
+        dtos = [ExampleDto(field_b=i) for i in range(3)]
+        for dto in dtos:
+            await dao.insert(dto)
+
+        result = dao.find_all(mapping={}, sort=["field_b"])
+        items = await result.to_list()
+        assert isinstance(items, list)
+        assert items == dtos
+        assert await result.total_count() == 3

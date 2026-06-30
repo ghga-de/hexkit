@@ -673,6 +673,18 @@ async def test_find_all_total_count():
     assert total_again == 5
 
 
+async def test_find_all_to_list():
+    """Test that to_list() collects all results into a list."""
+    dao = DaoClass()
+    titles = ["Apple", "Banana", "Cherry"]
+    for title in titles:
+        await dao.insert(InventoryItem(title=title, count=1))
+
+    result = dao.find_all(mapping={}, sort=["title"])
+    items = await result.to_list()
+    assert [item.title for item in items] == ["Apple", "Banana", "Cherry"]
+
+
 async def test_nested_sort_in_find_all():
     """Test that `sort` works correctly in find_all() when the field is nested."""
 

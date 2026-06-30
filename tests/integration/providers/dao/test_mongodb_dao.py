@@ -972,3 +972,20 @@ async def test_dao_find_all_total_count(mongodb: MongoDbFixture):
     # calling total_count() a second time uses the cached value
     total_again = await result.total_count()
     assert total_again == 5
+
+
+async def test_dao_find_all_to_list(mongodb: MongoDbFixture):
+    """Test that to_list() collects all results into a list."""
+    dao = await mongodb.dao_factory.get_dao(
+        name="example",
+        dto_model=ExampleDto,
+        id_field="id",
+    )
+
+    resources = [ExampleDto(field_b=i) for i in range(3)]
+    for resource in resources:
+        await dao.insert(resource)
+
+    result = dao.find_all(mapping={}, sort=["field_b"])
+    items = await result.to_list()
+    assert [item.field_b for item in items] == [0, 1, 2]
