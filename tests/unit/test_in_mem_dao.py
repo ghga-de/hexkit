@@ -559,8 +559,7 @@ async def test_find_all_limit_zero_and_none():
 async def test_find_all_pagination_empty_collection():
     """Test find_all() with skip and limit on an empty collection produces no errors."""
     dao = DaoClass()
-    results = [x async for x in dao.find_all(mapping={}, skip=5, limit=10)]
-    assert results == []
+    assert await dao.find_all(mapping={}, skip=5, limit=10).to_list() == []
 
 
 async def test_find_all_pagination_negative_values():
@@ -568,13 +567,13 @@ async def test_find_all_pagination_negative_values():
     dao = DaoClass()
 
     with pytest.raises(ValueError):
-        [x async for x in dao.find_all(mapping={}, skip=-1)]
+        _ = dao.find_all(mapping={}, skip=-1)
 
     with pytest.raises(ValueError):
-        [x async for x in dao.find_all(mapping={}, limit=-1)]
+        _ = dao.find_all(mapping={}, limit=-1)
 
     with pytest.raises(ValueError):
-        [x async for x in dao.find_all(mapping={}, skip=-1, limit=-1)]
+        _ = dao.find_all(mapping={}, skip=-1, limit=-1)
 
 
 async def test_find_all_sort_by_id_field():
@@ -636,7 +635,7 @@ async def test_find_all_total_count_before_iteration():
     total = await result.total_count()
     assert total == 3
 
-    page = [x async for x in result]
+    page = await result.to_list()
     assert len(page) == 1
 
 
@@ -647,7 +646,7 @@ async def test_find_all_total_count_empty_filter_result():
     await dao.insert(InventoryItem(title="Banana", count=1))
 
     result = dao.find_all(mapping={"count": 999})
-    page = [x async for x in result]
+    page = await result.to_list()
     assert page == []
 
     total = await result.total_count()

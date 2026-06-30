@@ -316,7 +316,7 @@ async def test_dao_outbox_happy(dto_model: type, mongo_kafka: MongoKafkaFixture)
             await dao.get_by_id(example_id)
 
         # make sure that only 3 resources are left:
-        obtained_hits = {hit async for hit in dao.find_all(mapping={})}
+        obtained_hits = await dao.find_all(mapping={}).to_list()
         assert len(obtained_hits) == 3
 
 
@@ -400,13 +400,13 @@ async def test_complex_models(mongo_kafka: MongoKafkaFixture):
             for mapping in mappings:
                 obtained_hit = await dao.find_one(mapping=mapping)
                 assert obtained_hit == resource
-                obtained_hits = [hit async for hit in dao.find_all(mapping=mapping)]
+                obtained_hits = await dao.find_all(mapping=mapping).to_list()
                 assert obtained_hits == [resource]
 
         # stage 4: delete
         for i in range(3):
             await dao.delete(resources[i].id)
-            obtained_hits = [hit async for hit in dao.find_all(mapping={})]
+            obtained_hits = await dao.find_all(mapping={}).to_list()
             assert len(obtained_hits) == 2 - i
 
     # check that the expected events have been created
@@ -508,7 +508,7 @@ async def test_suppress_publishing(mongo_kafka: MongoKafkaFixture):
                 await dao.insert(example)
 
         # check that all resources were saved:
-        records = [record async for record in dao.find_all(mapping={})]
+        records = await dao.find_all(mapping={}).to_list()
         assert len(records) == 3
         assert any(record.field_c for record in records)
 
@@ -1033,11 +1033,10 @@ async def test_find_all_total_count_excludes_soft_deleted(
 
         # Run a query and make sure total_count() is 2
         result = dao.find_all(mapping={})
-        page = [hit async for hit in result]
+        page = await result.to_list()
         assert len(page) == 2
 
-        total = await result.total_count()
-        assert total == 2
+        assert await result.total_count() == 2
 
 
 async def test_pagination_against_deleted_docs(mongo_kafka: MongoKafkaFixture):
