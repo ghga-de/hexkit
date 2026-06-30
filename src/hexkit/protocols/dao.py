@@ -171,7 +171,11 @@ class FindResult(AsyncIterator[Dto]):
         return self._cached_total
 
     async def to_list(self) -> list[Dto]:
-        """Collect all results into a list."""
+        """Collect all results into a list.
+
+        Calling this function will consume the iterator. Subsequent cals will return
+        an empty list.
+        """
         return [item async for item in self]
 
 

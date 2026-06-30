@@ -988,4 +988,9 @@ async def test_dao_find_all_to_list(mongodb: MongoDbFixture):
 
     result = dao.find_all(mapping={}, sort=["field_b"])
     items = await result.to_list()
-    assert [item.field_b for item in items] == [0, 1, 2]
+    assert isinstance(items, list)
+    assert items == resources
+    assert await result.total_count() == 3
+
+    # Check that calling to_list() again returns an empty list
+    assert await result.to_list() == []
