@@ -917,6 +917,50 @@ async def test_documents_without_metadata(mongo_kafka: MongoKafkaFixture):
         }
 
 
+async def test_find_returns_documents_without_metadata(mongo_kafka: MongoKafkaFixture):
+    """Regression test for a publisher DAO dropping metadata-less documents from finds.
+
+    A document written without outbox `__metadata__` (e.g. by a plain MongoDbDao, an
+    external writer, or seeded directly) must still be returned by `find_all` and
+    `find_one`. The 8.3.0 query filter `{"__metadata__.deleted": False}` matched only
+    documents whose metadata was literally not-deleted, silently hiding metadata-less
+    documents that 8.1.0 returned. This also re-aligns `find_all` with `update` and
+    `delete`, which already tolerate metadata-less documents.
+    """
+    live_id = uuid.uuid4()
+    deleted_id = uuid.uuid4()
+    live_example = ExampleDto(id=live_id)
+
+    # Seed a document with no metadata and a (soft-)deleted document with metadata.
+    live_doc = dto_to_document(live_example, id_field="id")
+    deleted_doc = dto_to_document(ExampleDto(id=deleted_id), id_field="id")
+    deleted_doc["__metadata__"] = {"deleted": True, "published": True}
+
+    db_name = mongo_kafka.config.db_name
+    mongo_client: MongoClient = mongo_kafka.mongodb.client
+    mongo_client[db_name]["example"].insert_one(live_doc)
+    mongo_client[db_name]["example"].insert_one(deleted_doc)
+
+    async with MongoKafkaDaoPublisherFactory.construct(
+        config=mongo_kafka.config
+    ) as factory:
+        dao = await factory.get_dao(
+            name="example",
+            dto_model=ExampleDto,
+            id_field="id",
+            dto_to_event=lambda dto: dto.model_dump(),
+            event_topic=EXAMPLE_TOPIC,
+        )
+
+        # find_all must return the metadata-less document but not the deleted one.
+        result = dao.find_all(mapping={})
+        assert [hit async for hit in result] == [live_example]
+        assert await result.total_count() == 1
+
+        # find_one (which delegates to find_all) must locate it as well.
+        assert await dao.find_one(mapping={"id": live_id}) == live_example
+
+
 async def test_unique_index_error_handling(mongo_kafka: MongoKafkaFixture):
     """Make sure that DuplicateKeyErrors from unique index violations are
     handled correctly in the insert, upsert, and update methods of the mongokafka dao.
