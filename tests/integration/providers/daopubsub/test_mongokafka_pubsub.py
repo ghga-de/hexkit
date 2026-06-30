@@ -1115,9 +1115,9 @@ async def test_pagination_against_metadataless_docs(mongo_kafka: MongoKafkaFixtu
         assert await result.total_count() == 5
 
         # Pagination still applies across all five live docs.
-        page = [x async for x in dao.find_all(mapping={}, limit=4)]
+        page = await dao.find_all(mapping={}, limit=4).to_list()
         assert len(page) == 4
-        remaining = [x async for x in dao.find_all(mapping={}, skip=4)]
+        remaining = await dao.find_all(mapping={}, skip=4).to_list()
         assert len(remaining) == 1
 
 
@@ -1134,10 +1134,15 @@ async def test_find_all_to_list(mongo_kafka: MongoKafkaFixture):
             event_topic=EXAMPLE_TOPIC,
         )
 
+        # Test on empty list
+        assert await dao.find_all(mapping={}).to_list() == []
+
+        # Insert 3 docs
         dtos = [ExampleDto(field_b=i) for i in range(3)]
         for dto in dtos:
             await dao.insert(dto)
 
+        # Verify that to_list does what it should
         result = dao.find_all(mapping={}, sort=["field_b"])
         items = await result.to_list()
         assert isinstance(items, list)

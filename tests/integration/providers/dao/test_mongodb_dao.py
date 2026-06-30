@@ -978,6 +978,10 @@ async def test_dao_find_all_to_list(mongodb: MongoDbFixture):
         id_field="id",
     )
 
+    # Verify that calling to_list() on an empty collection returns an empty list
+    assert await dao.find_all(mapping={}).to_list() == []
+
+    # Insert 3 docs
     resources = [ExampleDto(field_b=i) for i in range(3)]
     for resource in resources:
         await dao.insert(resource)
