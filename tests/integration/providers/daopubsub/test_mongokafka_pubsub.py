@@ -917,6 +917,50 @@ async def test_documents_without_metadata(mongo_kafka: MongoKafkaFixture):
         }
 
 
+async def test_find_returns_documents_without_metadata(mongo_kafka: MongoKafkaFixture):
+    """Regression test for a publisher DAO dropping metadata-less documents from finds.
+
+    A document written without outbox `__metadata__` (e.g. by a plain MongoDbDao, an
+    external writer, or seeded directly) must still be returned by `find_all` and
+    `find_one`. The 8.3.0 query filter `{"__metadata__.deleted": False}` matched only
+    documents whose metadata was literally not-deleted, silently hiding metadata-less
+    documents that 8.1.0 returned. This also re-aligns `find_all` with `update` and
+    `delete`, which already tolerate metadata-less documents.
+    """
+    live_id = uuid.uuid4()
+    deleted_id = uuid.uuid4()
+    live_example = ExampleDto(id=live_id)
+
+    # Seed a document with no metadata and a (soft-)deleted document with metadata.
+    live_doc = dto_to_document(live_example, id_field="id")
+    deleted_doc = dto_to_document(ExampleDto(id=deleted_id), id_field="id")
+    deleted_doc["__metadata__"] = {"deleted": True, "published": True}
+
+    db_name = mongo_kafka.config.db_name
+    mongo_client: MongoClient = mongo_kafka.mongodb.client
+    mongo_client[db_name]["example"].insert_one(live_doc)
+    mongo_client[db_name]["example"].insert_one(deleted_doc)
+
+    async with MongoKafkaDaoPublisherFactory.construct(
+        config=mongo_kafka.config
+    ) as factory:
+        dao = await factory.get_dao(
+            name="example",
+            dto_model=ExampleDto,
+            id_field="id",
+            dto_to_event=lambda dto: dto.model_dump(),
+            event_topic=EXAMPLE_TOPIC,
+        )
+
+        # find_all must return the metadata-less document but not the deleted one.
+        result = dao.find_all(mapping={})
+        assert [hit async for hit in result] == [live_example]
+        assert await result.total_count() == 1
+
+        # find_one (which delegates to find_all) must locate it as well.
+        assert await dao.find_one(mapping={"id": live_id}) == live_example
+
+
 async def test_unique_index_error_handling(mongo_kafka: MongoKafkaFixture):
     """Make sure that DuplicateKeyErrors from unique index violations are
     handled correctly in the insert, upsert, and update methods of the mongokafka dao.
@@ -996,11 +1040,8 @@ async def test_find_all_total_count_excludes_soft_deleted(
         assert total == 2
 
 
-@pytest.mark.parametrize("delete_metadata", [True, False])
-async def test_pagination_against_flaky_metadata(
-    mongo_kafka: MongoKafkaFixture, delete_metadata: bool
-):
-    """Test pagination when many outbox documents have been deleted or lack metadata."""
+async def test_pagination_against_deleted_docs(mongo_kafka: MongoKafkaFixture):
+    """Test pagination when many outbox documents have been soft-deleted."""
     async with MongoKafkaDaoPublisherFactory.construct(
         config=mongo_kafka.config
     ) as factory:
@@ -1018,21 +1059,12 @@ async def test_pagination_against_flaky_metadata(
             await dao.insert(dto)
             await dao.delete(dto.id)
 
-        if delete_metadata:
-            db = mongo_kafka.mongodb.client.get_database(mongo_kafka.config.db_name)
-            collection = db["example"]
-            retrieved_docs = collection.find().to_list()
-            assert len(retrieved_docs) == 4
-            for doc in retrieved_docs:
-                del doc["__metadata__"]
-                collection.replace_one({"_id": doc["_id"]}, doc)
-
         # Insert a document that will be last when sorted
         live_id = uuid.UUID("99999999-9999-4999-9999-999999999999")
         live_doc = ExampleDto(id=live_id)
         await dao.insert(live_doc)
 
-        # Now find_all but with limit set to 4
+        # Only live_doc remains; the soft-deleted docs are excluded.
         #  If filtering is not done properly, this would return an empty list
         results_limit = [x async for x in dao.find_all(mapping={}, skip=None, limit=4)]
         assert results_limit == [live_doc]
@@ -1040,3 +1072,51 @@ async def test_pagination_against_flaky_metadata(
         # Check that using skip=1 and no limit returns an empty list
         results_skip = [x async for x in dao.find_all(mapping={}, skip=1)]
         assert results_skip == []
+
+
+async def test_pagination_against_metadataless_docs(mongo_kafka: MongoKafkaFixture):
+    """Test pagination when many outbox documents lack metadata.
+
+    Metadata-less documents are treated as live, so they must be retrieved rather than
+    silently dropped.
+    """
+    async with MongoKafkaDaoPublisherFactory.construct(
+        config=mongo_kafka.config
+    ) as factory:
+        dao = await factory.get_dao(
+            name="example",
+            dto_model=ExampleDto,
+            id_field="id",
+            dto_to_event=lambda dto: dto.model_dump(),
+            event_topic=EXAMPLE_TOPIC,
+        )
+
+        # Add four docs and then strip their metadata
+        docs = [ExampleDto() for _ in range(4)]
+        for dto in docs:
+            await dao.insert(dto)
+
+        db = mongo_kafka.mongodb.client.get_database(mongo_kafka.config.db_name)
+        collection = db["example"]
+        retrieved_docs = collection.find().to_list()
+        assert len(retrieved_docs) == 4
+        for doc in retrieved_docs:
+            del doc["__metadata__"]
+            collection.replace_one({"_id": doc["_id"]}, doc)
+
+        # Insert a document that will be last when sorted
+        live_id = uuid.UUID("99999999-9999-4999-9999-999999999999")
+        live_doc = ExampleDto(id=live_id)
+        await dao.insert(live_doc)
+
+        # The metadata-less docs are live, so they must be retrieved alongside live_doc.
+        result = dao.find_all(mapping={})
+        all_hits = {hit async for hit in result}
+        assert all_hits == {*docs, live_doc}
+        assert await result.total_count() == 5
+
+        # Pagination still applies across all five live docs.
+        page = [x async for x in dao.find_all(mapping={}, limit=4)]
+        assert len(page) == 4
+        remaining = [x async for x in dao.find_all(mapping={}, skip=4)]
+        assert len(remaining) == 1

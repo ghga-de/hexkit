@@ -420,8 +420,20 @@ class MongoKafkaDaoPublisher(Generic[Dto]):
         validate_find_mapping(mapping, dto_model=self._dto_model)
         mapping = replace_id_field_in_find_mapping(mapping, self._id_field)
 
-        # Ensure we don't retrieve deleted docs
-        mapping_without_deleted = {**mapping, "__metadata__.deleted": False}
+        # Ensure we don't retrieve deleted docs. Documents lacking outbox metadata are
+        # treated as valid (matching update/delete), and the $and wrapper avoids
+        # clobbering any caller-supplied $or in the mapping.
+        mapping_without_deleted = {
+            "$and": [
+                dict(mapping),
+                {
+                    "$or": [
+                        {"__metadata__": {"$exists": False}},
+                        {"__metadata__.deleted": False},
+                    ]
+                },
+            ]
+        }
 
         # Convert generic sort spec to MongoDB-specific sort spec
         mongodb_sort: list[tuple[str, int]] = []
