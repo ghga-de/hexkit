@@ -170,6 +170,14 @@ class FindResult(AsyncIterator[Dto]):
             self._cached_total = await self._get_total_count()
         return self._cached_total
 
+    async def to_list(self) -> list[Dto]:
+        """Collect all results into a list.
+
+        Calling this function will consume the iterator. Subsequent cals will return
+        an empty list.
+        """
+        return [item async for item in self]
+
 
 class Dao(typing.Protocol[Dto]):
     """A duck type with methods common to all DAOs."""

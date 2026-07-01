@@ -400,13 +400,13 @@ async def test_complex_models(mongo_kafka: MongoKafkaFixture):
             for mapping in mappings:
                 obtained_hit = await dao.find_one(mapping=mapping)
                 assert obtained_hit == resource
-                obtained_hits = [hit async for hit in dao.find_all(mapping=mapping)]
+                obtained_hits = await dao.find_all(mapping=mapping).to_list()
                 assert obtained_hits == [resource]
 
         # stage 4: delete
         for i in range(3):
             await dao.delete(resources[i].id)
-            obtained_hits = [hit async for hit in dao.find_all(mapping={})]
+            obtained_hits = await dao.find_all(mapping={}).to_list()
             assert len(obtained_hits) == 2 - i
 
     # check that the expected events have been created
@@ -508,7 +508,7 @@ async def test_suppress_publishing(mongo_kafka: MongoKafkaFixture):
                 await dao.insert(example)
 
         # check that all resources were saved:
-        records = [record async for record in dao.find_all(mapping={})]
+        records = await dao.find_all(mapping={}).to_list()
         assert len(records) == 3
         assert any(record.field_c for record in records)
 
@@ -1033,11 +1033,10 @@ async def test_find_all_total_count_excludes_soft_deleted(
 
         # Run a query and make sure total_count() is 2
         result = dao.find_all(mapping={})
-        page = [hit async for hit in result]
+        page = await result.to_list()
         assert len(page) == 2
 
-        total = await result.total_count()
-        assert total == 2
+        assert await result.total_count() == 2
 
 
 async def test_pagination_against_deleted_docs(mongo_kafka: MongoKafkaFixture):
@@ -1116,7 +1115,70 @@ async def test_pagination_against_metadataless_docs(mongo_kafka: MongoKafkaFixtu
         assert await result.total_count() == 5
 
         # Pagination still applies across all five live docs.
-        page = [x async for x in dao.find_all(mapping={}, limit=4)]
+        page = await dao.find_all(mapping={}, limit=4).to_list()
         assert len(page) == 4
-        remaining = [x async for x in dao.find_all(mapping={}, skip=4)]
+        remaining = await dao.find_all(mapping={}, skip=4).to_list()
         assert len(remaining) == 1
+
+
+async def test_find_all_pagination_total_count(mongo_kafka: MongoKafkaFixture):
+    """Test that a paginated find_all() returns only the paginated slice via to_list()
+    while total_count() reflects the full number of documents matching the filter.
+    """
+    async with MongoKafkaDaoPublisherFactory.construct(
+        config=mongo_kafka.config
+    ) as factory:
+        dao = await factory.get_dao(
+            name="example",
+            dto_model=ExampleDto,
+            id_field="id",
+            dto_to_event=lambda dto: dto.model_dump(),
+            event_topic=EXAMPLE_TOPIC,
+        )
+
+        # Five documents match the filter (field_c=True), two others should be excluded.
+        c_true_docs = [ExampleDto(field_b=b, field_c=True) for b in range(5)]
+        for doc in c_true_docs:
+            await dao.insert(doc)
+        for field_b in (100, 101):
+            await dao.insert(ExampleDto(field_b=field_b, field_c=False))
+
+        result = dao.find_all(
+            mapping={"field_c": True}, skip=1, limit=3, sort=["field_b"]
+        )
+
+        # to_list() returns only the paginated slice: field_b in [1, 2, 3]
+        page = await result.to_list()
+        assert page == c_true_docs[1:4]
+
+        # total_count() reflects all documents matching the filter, ignoring skip/limit
+        assert await result.total_count() == 5
+
+
+async def test_find_all_to_list(mongo_kafka: MongoKafkaFixture):
+    """Test that to_list() collects all results into a list."""
+    async with MongoKafkaDaoPublisherFactory.construct(
+        config=mongo_kafka.config
+    ) as factory:
+        dao = await factory.get_dao(
+            name="example",
+            dto_model=ExampleDto,
+            id_field="id",
+            dto_to_event=lambda dto: dto.model_dump(),
+            event_topic=EXAMPLE_TOPIC,
+        )
+
+        # Test on empty list
+        assert await dao.find_all(mapping={}).to_list() == []
+
+        # Insert 3 docs
+        dtos = [ExampleDto(field_b=i) for i in range(3)]
+        for dto in dtos:
+            await dao.insert(dto)
+
+        # Verify that to_list does what it should
+        result = dao.find_all(mapping={}, sort=["field_b"])
+        items = await result.to_list()
+        assert isinstance(items, list)
+        assert items == dtos
+        assert await result.total_count() == 3

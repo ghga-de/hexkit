@@ -137,26 +137,23 @@ async def test_dao_find_all_with_id(mongodb: MongoDbFixture):
     await dao.insert(resource)
 
     # retrieve the resource with find_all
-    resources_read = [x async for x in dao.find_all(mapping={"id": resource.id})]
+    resources_read = await dao.find_all(mapping={"id": resource.id}).to_list()
     assert len(resources_read) == 1
     assert resources_read[0].id == resource.id
 
     # make sure the previous check wasn't a false positive
-    no_results = [x async for x in dao.find_all(mapping={"id": "noresults"})]
+    no_results = await dao.find_all(mapping={"id": "noresults"}).to_list()
     assert len(no_results) == 0
 
     # make sure other fields beside ID aren't getting ignored
-    no_results_multifield = [
-        x async for x in dao.find_all(mapping={"id": resource.id, "field_b": 134293487})
-    ]
+    no_results_multifield = await dao.find_all(
+        mapping={"id": resource.id, "field_b": 134293487}
+    ).to_list()
     assert len(no_results_multifield) == 0
 
-    multifield_found = [
-        x
-        async for x in dao.find_all(
-            mapping={"id": resource.id, "field_b": resource.field_b}
-        )
-    ]
+    multifield_found = await dao.find_all(
+        mapping={"id": resource.id, "field_b": resource.field_b}
+    ).to_list()
     assert len(multifield_found) == 1
     assert multifield_found[0] == resource
 
@@ -177,7 +174,7 @@ async def test_dao_find_all_without_collection(mongodb: MongoDbFixture):
     assert found is not None
 
     # retrieve the resource with find_all
-    resources_read = [x async for x in found]
+    resources_read = await found.to_list()
     assert len(resources_read) == 0
 
 
@@ -324,7 +321,7 @@ async def test_dao_find_invalid_mapping(mongodb: MongoDbFixture):
         await dao.find_one(mapping=mapping)
 
     with pytest.raises(InvalidFindMappingError):
-        [hit async for hit in dao.find_all(mapping=mapping)]
+        _ = dao.find_all(mapping=mapping)
 
 
 async def test_dao_find_no_hits(mongodb: MongoDbFixture):
@@ -339,7 +336,7 @@ async def test_dao_find_no_hits(mongodb: MongoDbFixture):
     with pytest.raises(NoHitsFoundError):
         await dao.find_one(mapping=mapping)
 
-    resources = [hit async for hit in dao.find_all(mapping=mapping)]
+    resources = await dao.find_all(mapping=mapping).to_list()
     assert len(resources) == 0
 
 
@@ -422,12 +419,12 @@ async def test_complex_models(mongodb: MongoDbFixture):
         for mapping in mappings:
             obtained_hit = await dao.find_one(mapping=mapping)
             assert obtained_hit == resource
-            obtained_hits = [hit async for hit in dao.find_all(mapping=mapping)]
+            obtained_hits = await dao.find_all(mapping=mapping).to_list()
             assert obtained_hits == [resource]
 
     for i in range(3):
         await dao.delete(resources[i].id)
-        obtained_hits = [hit async for hit in dao.find_all(mapping={})]
+        obtained_hits = await dao.find_all(mapping={}).to_list()
         assert len(obtained_hits) == 2 - i
 
 
@@ -786,22 +783,19 @@ async def test_dao_find_all_pagination(mongodb: MongoDbFixture):
     asc = ["field_b"]
 
     # skip=2 returns items with field_b in [2, 3, 4]
-    skipped = [hit.field_b async for hit in dao.find_all(mapping={}, skip=2, sort=asc)]
-    assert skipped == [2, 3, 4]
+    skipped = await dao.find_all(mapping={}, skip=2, sort=asc).to_list()
+    assert skipped == resources[2:]
 
     # limit=3 returns items with field_b in [0, 1, 2]
-    limited = [hit.field_b async for hit in dao.find_all(mapping={}, limit=3, sort=asc)]
-    assert limited == [0, 1, 2]
+    limited = await dao.find_all(mapping={}, limit=3, sort=asc).to_list()
+    assert limited == resources[:3]
 
     # skip=1, limit=2 returns items with field_b in [1, 2]
-    paginated = [
-        hit.field_b async for hit in dao.find_all(mapping={}, skip=1, limit=2, sort=asc)
-    ]
-    assert paginated == [1, 2]
+    paginated = await dao.find_all(mapping={}, skip=1, limit=2, sort=asc).to_list()
+    assert paginated == resources[1:3]
 
     # skip larger than collection size returns nothing
-    over_skip = [hit async for hit in dao.find_all(mapping={}, skip=10, sort=asc)]
-    assert over_skip == []
+    assert await dao.find_all(mapping={}, skip=10, sort=asc).to_list() == []
 
 
 async def test_dao_find_all_limit_zero(mongodb: MongoDbFixture):
@@ -816,7 +810,7 @@ async def test_dao_find_all_limit_zero(mongodb: MongoDbFixture):
         await dao.insert(ExampleDto())
 
     result = dao.find_all(mapping={}, limit=0)
-    page = [hit async for hit in result]
+    page = await result.to_list()
     assert page == []
     assert await result.total_count() == 3
 
@@ -829,8 +823,7 @@ async def test_dao_find_all_pagination_empty_collection(mongodb: MongoDbFixture)
         id_field="id",
     )
 
-    results = [hit async for hit in dao.find_all(mapping={}, skip=5, limit=10)]
-    assert results == []
+    assert await dao.find_all(mapping={}, skip=5, limit=10).to_list() == []
 
 
 async def test_dao_find_all_pagination_negative_values(mongodb: MongoDbFixture):
@@ -842,10 +835,10 @@ async def test_dao_find_all_pagination_negative_values(mongodb: MongoDbFixture):
     )
 
     with pytest.raises(ValueError):
-        [hit async for hit in dao.find_all(mapping={}, skip=-1)]
+        _ = dao.find_all(mapping={}, skip=-1)
 
     with pytest.raises(ValueError):
-        [hit async for hit in dao.find_all(mapping={}, limit=-1)]
+        _ = dao.find_all(mapping={}, limit=-1)
 
 
 async def test_dao_find_all_sort_by_id_field(mongodb: MongoDbFixture):
@@ -927,7 +920,7 @@ async def test_dao_find_all_total_count_before_iteration(mongodb: MongoDbFixture
     total = await result.total_count()
     assert total == 3
 
-    page = [hit async for hit in result]
+    page = await result.to_list()
     assert len(page) == 1
 
 
@@ -943,7 +936,7 @@ async def test_dao_find_all_total_count_empty_filter_result(mongodb: MongoDbFixt
     await dao.insert(ExampleDto())
 
     result = dao.find_all(mapping={"field_b": 99999})
-    page = [hit async for hit in result]
+    page = await result.to_list()
     assert page == []
 
     total = await result.total_count()
@@ -972,3 +965,29 @@ async def test_dao_find_all_total_count(mongodb: MongoDbFixture):
     # calling total_count() a second time uses the cached value
     total_again = await result.total_count()
     assert total_again == 5
+
+
+async def test_dao_find_all_to_list(mongodb: MongoDbFixture):
+    """Test that to_list() collects all results into a list."""
+    dao = await mongodb.dao_factory.get_dao(
+        name="example",
+        dto_model=ExampleDto,
+        id_field="id",
+    )
+
+    # Verify that calling to_list() on an empty collection returns an empty list
+    assert await dao.find_all(mapping={}).to_list() == []
+
+    # Insert 3 docs
+    resources = [ExampleDto(field_b=i) for i in range(3)]
+    for resource in resources:
+        await dao.insert(resource)
+
+    result = dao.find_all(mapping={}, sort=["field_b"])
+    items = await result.to_list()
+    assert isinstance(items, list)
+    assert items == resources
+    assert await result.total_count() == 3
+
+    # Check that calling to_list() again returns an empty list
+    assert await result.to_list() == []
