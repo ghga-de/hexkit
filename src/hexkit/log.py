@@ -49,12 +49,12 @@ class LoggingConfig(BaseSettings):
         default="INFO", description="The minimum log level to capture."
     )
     service_name: str = Field(
-        ...,
+        default=...,
         examples=["my-cool-special-service"],
         description="The name of the (micro-)service. This will be included in log messages.",
     )
     service_instance_id: str = Field(
-        ...,
+        default=...,
         examples=["germany-bw-instance-001"],
         description=(
             "A string that uniquely identifies this instance across all instances of"
