@@ -316,7 +316,7 @@ async def test_dao_outbox_happy(dto_model: type, mongo_kafka: MongoKafkaFixture)
             await dao.get_by_id(example_id)
 
         # make sure that only 3 resources are left:
-        obtained_hits = await dao.find_all(mapping={}).to_list()
+        obtained_hits = {hit async for hit in dao.find_all(mapping={})}
         assert len(obtained_hits) == 3
 
 
@@ -1119,6 +1119,40 @@ async def test_pagination_against_metadataless_docs(mongo_kafka: MongoKafkaFixtu
         assert len(page) == 4
         remaining = await dao.find_all(mapping={}, skip=4).to_list()
         assert len(remaining) == 1
+
+
+async def test_find_all_pagination_total_count(mongo_kafka: MongoKafkaFixture):
+    """Test that a paginated find_all() returns only the paginated slice via to_list()
+    while total_count() reflects the full number of documents matching the filter.
+    """
+    async with MongoKafkaDaoPublisherFactory.construct(
+        config=mongo_kafka.config
+    ) as factory:
+        dao = await factory.get_dao(
+            name="example",
+            dto_model=ExampleDto,
+            id_field="id",
+            dto_to_event=lambda dto: dto.model_dump(),
+            event_topic=EXAMPLE_TOPIC,
+        )
+
+        # Five documents match the filter (field_c=True), two others should be excluded.
+        c_true_docs = [ExampleDto(field_b=b, field_c=True) for b in range(5)]
+        for doc in c_true_docs:
+            await dao.insert(doc)
+        for field_b in (100, 101):
+            await dao.insert(ExampleDto(field_b=field_b, field_c=False))
+
+        result = dao.find_all(
+            mapping={"field_c": True}, skip=1, limit=3, sort=["field_b"]
+        )
+
+        # to_list() returns only the paginated slice: field_b in [1, 2, 3]
+        page = await result.to_list()
+        assert page == c_true_docs[1:4]
+
+        # total_count() reflects all documents matching the filter, ignoring skip/limit
+        assert await result.total_count() == 5
 
 
 async def test_find_all_to_list(mongo_kafka: MongoKafkaFixture):

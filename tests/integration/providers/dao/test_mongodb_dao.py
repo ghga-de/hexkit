@@ -801,6 +801,33 @@ async def test_dao_find_all_pagination(mongodb: MongoDbFixture):
     assert over_skip == []
 
 
+async def test_dao_find_all_pagination_total_count(mongodb: MongoDbFixture):
+    """Test that a paginated find_all() returns only the paginated slice via to_list()
+    while total_count() reflects the full number of documents matching the filter.
+    """
+    dao = await mongodb.dao_factory.get_dao(
+        name="example",
+        dto_model=ExampleDto,
+        id_field="id",
+    )
+
+    # Five documents match the filter (field_c=True), two others should be excluded.
+    c_true_docs = [ExampleDto(field_b=b, field_c=True) for b in range(5)]
+    for doc in c_true_docs:
+        await dao.insert(doc)
+    for field_b in (100, 101):
+        await dao.insert(ExampleDto(field_b=field_b, field_c=False))
+
+    result = dao.find_all(mapping={"field_c": True}, skip=1, limit=3, sort=["field_b"])
+
+    # to_list() returns only the paginated slice: field_b in [1, 2, 3]
+    page = await result.to_list()
+    assert page == c_true_docs[1:4]
+
+    # total_count() reflects all documents matching the filter, ignoring skip/limit
+    assert await result.total_count() == 5
+
+
 async def test_dao_find_all_limit_zero(mongodb: MongoDbFixture):
     """Test that limit=0 returns an empty iterator but total_count still works."""
     dao = await mongodb.dao_factory.get_dao(
