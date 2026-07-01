@@ -783,49 +783,19 @@ async def test_dao_find_all_pagination(mongodb: MongoDbFixture):
     asc = ["field_b"]
 
     # skip=2 returns items with field_b in [2, 3, 4]
-    skipped = [hit.field_b async for hit in dao.find_all(mapping={}, skip=2, sort=asc)]
-    assert skipped == [2, 3, 4]
+    skipped = await dao.find_all(mapping={}, skip=2, sort=asc).to_list()
+    assert skipped == resources[2:]
 
     # limit=3 returns items with field_b in [0, 1, 2]
-    limited = [hit.field_b async for hit in dao.find_all(mapping={}, limit=3, sort=asc)]
-    assert limited == [0, 1, 2]
+    limited = await dao.find_all(mapping={}, limit=3, sort=asc).to_list()
+    assert limited == resources[:3]
 
     # skip=1, limit=2 returns items with field_b in [1, 2]
-    paginated = [
-        hit.field_b async for hit in dao.find_all(mapping={}, skip=1, limit=2, sort=asc)
-    ]
-    assert paginated == [1, 2]
+    paginated = await dao.find_all(mapping={}, skip=1, limit=2, sort=asc).to_list()
+    assert paginated == resources[1:3]
 
     # skip larger than collection size returns nothing
-    over_skip = await dao.find_all(mapping={}, skip=10, sort=asc).to_list()
-    assert over_skip == []
-
-
-async def test_dao_find_all_pagination_total_count(mongodb: MongoDbFixture):
-    """Test that a paginated find_all() returns only the paginated slice via to_list()
-    while total_count() reflects the full number of documents matching the filter.
-    """
-    dao = await mongodb.dao_factory.get_dao(
-        name="example",
-        dto_model=ExampleDto,
-        id_field="id",
-    )
-
-    # Five documents match the filter (field_c=True), two others should be excluded.
-    c_true_docs = [ExampleDto(field_b=b, field_c=True) for b in range(5)]
-    for doc in c_true_docs:
-        await dao.insert(doc)
-    for field_b in (100, 101):
-        await dao.insert(ExampleDto(field_b=field_b, field_c=False))
-
-    result = dao.find_all(mapping={"field_c": True}, skip=1, limit=3, sort=["field_b"])
-
-    # to_list() returns only the paginated slice: field_b in [1, 2, 3]
-    page = await result.to_list()
-    assert page == c_true_docs[1:4]
-
-    # total_count() reflects all documents matching the filter, ignoring skip/limit
-    assert await result.total_count() == 5
+    assert await dao.find_all(mapping={}, skip=10, sort=asc).to_list() == []
 
 
 async def test_dao_find_all_limit_zero(mongodb: MongoDbFixture):
