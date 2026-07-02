@@ -28,7 +28,7 @@ class RedisConfig(BaseSettings):
     """
 
     redis_url: Secret[RedisDsn] = Field(
-        ...,
+        default=...,
         examples=["redis://localhost:6379/0", "redis://:password@localhost:6379/1"],
         description=(
             "Redis connection URL. Might include credentials and database selection."

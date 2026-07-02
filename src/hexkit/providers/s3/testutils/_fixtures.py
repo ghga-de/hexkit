@@ -241,7 +241,7 @@ class S3ContainerFixture(LocalStackContainer):
         # since IPVv6 can sometimes use a different port mapping,
         # which can shadow the IPv4 port mapping of a different container.
         url = url.replace("localhost", "127.0.0.1")
-        s3_config = S3Config(  # type: ignore [call-arg]
+        s3_config = S3Config(
             s3_endpoint_url=url,
             s3_access_key_id="test",
             s3_secret_access_key=SecretStr("test"),

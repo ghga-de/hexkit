@@ -31,10 +31,12 @@ class S3Config(BaseSettings):
     """
 
     s3_endpoint_url: str = Field(
-        ..., examples=["http://localhost:4566"], description="URL to the S3 API."
+        default=...,
+        examples=["http://localhost:4566"],
+        description="URL to the S3 API.",
     )
     s3_access_key_id: str = Field(
-        ...,
+        default=...,
         examples=["my-access-key-id"],
         description=(
             "Part of credentials for login into the S3 service. See:"
@@ -42,7 +44,7 @@ class S3Config(BaseSettings):
         ),
     )
     s3_secret_access_key: SecretStr = Field(
-        ...,
+        default=...,
         examples=["my-secret-access-key"],
         description=(
             "Part of credentials for login into the S3 service. See:"
@@ -50,7 +52,7 @@ class S3Config(BaseSettings):
         ),
     )
     s3_session_token: SecretStr | None = Field(
-        None,
+        default=None,
         examples=["my-session-token"],
         description=(
             "Part of credentials for login into the S3 service. See:"
@@ -58,7 +60,7 @@ class S3Config(BaseSettings):
         ),
     )
     aws_config_ini: Path | None = Field(
-        None,
+        default=None,
         examples=["~/.aws/config"],
         description=(
             "Path to a config file for specifying more advanced S3 parameters."

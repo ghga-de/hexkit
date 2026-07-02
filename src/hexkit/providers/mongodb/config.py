@@ -29,7 +29,7 @@ class MongoDbConfig(BaseSettings):
     """
 
     mongo_dsn: Secret[MongoDsn] = Field(
-        ...,
+        default=...,
         examples=["mongodb://localhost:27017"],
         description=(
             "MongoDB connection string. Might include credentials."
@@ -38,7 +38,7 @@ class MongoDbConfig(BaseSettings):
         ),
     )
     db_name: str = Field(
-        ...,
+        default=...,
         examples=["my-database"],
         description="Name of the database located on the MongoDB server.",
     )

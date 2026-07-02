@@ -31,12 +31,12 @@ class VaultConfig(BaseSettings):
     """
 
     vault_url: str = Field(
-        ...,
+        default=...,
         examples=["http://localhost:8200", "https://vault.example.com:8200"],
         description="URL of the Vault server.",
     )
     vault_path: str = Field(
-        ...,
+        default=...,
         examples=["myapp/secrets", "production/config"],
         description=(
             "Path prefix for all keys stored in Vault."
