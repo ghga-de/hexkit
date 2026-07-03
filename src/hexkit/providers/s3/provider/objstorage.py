@@ -344,8 +344,8 @@ class S3ObjectStorage(ObjectStorageProtocol):
     ) -> list[str]:
         """Lists all active multipart uploads for the given object ID.
 
-        Uses a filter (Prefix=object_id) to narrow the selection server side, which
-        currently holds for hexkit. If this ever changes, the filter needs to be removed.
+        Uses a filter (Prefix=object_id) to narrow the selection server side. Only works
+        as long as Key=object_id. If this ever changes, the filter needs to be removed.
 
         Raises a `BucketNotFoundError` if the bucket does not exist.
 
