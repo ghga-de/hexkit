@@ -73,6 +73,9 @@ instance/
 # Sphinx documentation
 docs/_build/
 
+# Great Docs ephemeral build directory (source is copied here and rendered)
+/great-docs/
+
 # PyBuilder
 target/
 

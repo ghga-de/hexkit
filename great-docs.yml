@@ -36,10 +36,9 @@ pre_render: scripts/fix_source_link_paths.py
 
 # Module Name (optional)
 # ----------------------
-# hexkit lives at the repo root (src/hexkit), but this great-docs project root
-# is docs/, so we name the importable module explicitly. hexkit is installed
-# (editable) in the environment, so introspection imports it directly.
-module: hexkit
+# The importable module is auto-detected from the package name in pyproject.toml
+# (`hexkit`, at src/hexkit, installed editable in the environment). Set `module:`
+# only if the importable name ever diverges from the project name.
 
 # Docstring Parser
 # ----------------
@@ -77,7 +76,9 @@ dynamic: true
 # You can add additional fields: github, orcid, affiliation, homepage
 authors:
   - name: German Human Genome Phenome Archive (GHGA)
-    role: Author
+    # role omitted on purpose: GHGA is the organization behind hexkit (author and
+    # maintainer), not a named individual, so a "role" label reads oddly. Great-docs
+    # only renders the role line when `role:` is set, so leaving it out hides it.
     # affiliation:
     email: contact@ghga.de
     # github:
@@ -326,8 +327,9 @@ reference:
 # --------
 # Canonical address of the deployed documentation site.
 # Required for subdirectory deployments, skills page install commands,
-# .well-known/ discovery, and sitemaps.
-# site_url: "https://your-org.github.io/your-package/"
+# .well-known/ discovery, and sitemaps. hexkit deploys to GitHub Pages under the
+# repo-name subpath, so this must be set for correct link/asset resolution.
+site_url: "https://ghga-de.github.io/hexkit/"
 
 # Site Settings
 # -------------

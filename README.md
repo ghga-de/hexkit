@@ -5,8 +5,22 @@
 
 # hexkit
 
-A chassis library for building domain-focused, infrastructure-agnostic, and event-driven
-microservices in Python.
+*hexkit is a chassis library for building domain-focused, infrastructure-agnostic,
+and event-driven microservices in Python.*
+
+Read the short developer summary below, or jump straight to our full
+📖 **[User Guide](https://ghga-de.github.io/hexkit/user-guide/)** to learn the abstract
+concepts and patterns as well as the concrete infrastructure integrations and testing
+tools that hexkit provides for building better microservices.
+
+<!--
+TODO: Reconcile this README with the User Guide (user_guide/). Now that the README is
+also the docs landing page, it overlaps heavily with the User Guide — architecture
+overview, the protocol/provider table, and "getting started" all appear in both. We
+should decide what belongs here (a concise landing plus contributor/dev info) versus
+in the User Guide (the in-depth narrative), so there is less duplication and readers
+have a clear, single place to start.
+-->
 
 ## In a Nutshell
 
@@ -129,26 +143,34 @@ docker run -it hexkit /bin/bash
 
 ### Documentation
 
-The documentation lives under [`./docs`](./docs) and is built with
+The narrative docs live under [`./user_guide`](./user_guide) and the site is
+configured by [`./great-docs.yml`](./great-docs.yml); it is built with
 [Great Docs](https://posit-dev.github.io/great-docs/) (which uses Quarto, already
 installed in the devcontainer). Build the site, then serve it locally:
 
 ``` bash
-# Build the site into docs/great-docs/_site/
-great-docs build --project-path docs
+# Build the site into great-docs/_site/
+great-docs build
 
 # Serve the built site at http://localhost:3000
-great-docs preview --project-path docs
+great-docs preview
 ```
 
 `preview` only serves the existing build (it builds first only when no build exists
-yet) and does not watch for changes. After editing a page or `docs/great-docs.yml`,
-re-run `great-docs build` in a second terminal and refresh the browser while the
-preview keeps running.
+yet) and does not watch for changes. Because `great-docs build` clears and
+regenerates the build directory, don't rebuild while a preview is running — instead,
+after editing a page or `great-docs.yml`, stop the preview (`Ctrl+C`), re-run
+`great-docs build`, and start `great-docs preview` again to view your changes.
 
 > **Note:** great-docs' `build --watch` doesn't track edits to your
-> `docs/user_guide/` source (it only watches the generated build directory), so
+> `user_guide/` source (it only watches the generated build directory), so
 > rebuild manually as above. A full rebuild takes ~2 minutes.
+
+## Credits
+
+Hexkit is developed and maintained by the developer team of GHGA. We would especially
+like to thank its original author, Kersten Breuer, who came up with the idea for the
+library and designed and coded its first versions.
 
 ## License
 

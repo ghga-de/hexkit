@@ -42,12 +42,12 @@ jobs:
         uses: actions/configure-pages@v5
 
       - name: Build docs with Great Docs
-        run: great-docs build --project-path docs
+        run: great-docs build
 
       - name: Upload artifact
         uses: actions/upload-pages-artifact@v4
         with:
-          path: ./docs/great-docs/_site
+          path: ./great-docs/_site
 
   deploy:
     environment:

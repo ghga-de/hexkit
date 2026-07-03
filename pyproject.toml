@@ -259,7 +259,7 @@ legacy_tox_ini = """
     deps =
         --no-deps -r ./lock/requirements-dev.txt
     commands =
-        great-docs build --project-path docs
+        great-docs build
 
     [testenv]
     pass_env =
