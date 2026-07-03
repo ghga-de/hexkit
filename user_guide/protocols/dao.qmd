@@ -1,0 +1,447 @@
+---
+title: "Data Access Objects"
+---
+
+<!--
+ Copyright 2021 - 2026 Universität Tübingen, DKFZ, EMBL, and Universität zu Köln
+ for the German Human Genome-Phenome Archive (GHGA)
+
+ Licensed under the Apache License, Version 2.0 (the "License");
+ you may not use this file except in compliance with the License.
+ You may obtain a copy of the License at
+
+     http://www.apache.org/licenses/LICENSE-2.0
+
+ Unless required by applicable law or agreed to in writing, software
+ distributed under the License is distributed on an "AS IS" BASIS,
+ WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ See the License for the specific language governing permissions and
+ limitations under the License.
+-->
+
+The DAO protocol, defined in `hexkit.protocols.dao`, is hexkit's abstract interface
+for database access. It lets application code create, read, update, delete, and search
+resources without knowing which database sits behind it. This chapter documents the
+protocol itself; for the architectural background see
+[The DAO Pattern](../arch_concepts/dao_pattern.qmd), and for the production
+implementation see the [MongoDB DAO provider](../providers/mongodb.qmd#mongodb-dao).
+
+The protocol consists of two interfaces that work together:
+
+- [`Dao`](../../reference/protocols.dao.Dao.qmd) describes the operations available on
+  a single resource type. It is a structural type (a `typing.Protocol`), so any class
+  with matching methods satisfies it, no inheritance required.
+- [`DaoFactoryProtocol`](../../reference/protocols.dao.DaoFactoryProtocol.qmd) is the
+  abstract base class that providers implement. Its `get_dao()` method constructs DAO
+  instances, one per resource type.
+
+All operations are asynchronous and fully typed: a `Dao[Book]` accepts and returns
+`Book` instances, and type checkers will hold you to that.
+
+## DTO Models
+
+Every DAO is bound to a *data transfer object* (DTO) model: a Pydantic `BaseModel`
+subclass describing the shape of the resources it manages. The DTO carries all fields
+of the resource, including its ID:
+
+```python
+from pydantic import BaseModel, ConfigDict, UUID4
+
+from hexkit.protocols.dao import UUID4Field
+
+
+class Book(BaseModel):
+    """A book in our catalog."""
+
+    model_config = ConfigDict(frozen=True)
+
+    id: UUID4 = UUID4Field(description="The ID of the book.")
+    title: str
+    author: str
+    pages: int
+```
+
+A few things are worth noting here:
+
+- **The ID lives on the model.** There is no separate "generated key" mechanism: you
+  put the ID on the DTO before inserting. The
+  [`UUID4Field`](../../reference/index.qmd#protocols-data-access-objects) helper (a
+  `pydantic.Field` preconfigured with a UUID4 default factory) makes self-generated IDs
+  a one-liner.
+- **The ID field can have any name.** You tell the factory which field serves as the
+  ID via the `id_field` argument. Its type must translate to a string or integer in
+  the model's JSON schema, so `str`, `int`, and UUID types all qualify.
+- **Freezing the model is recommended.** DAOs treat DTOs as value objects that are
+  written and read as a whole. An immutable model avoids accidental in-place edits
+  that never reach the database; to modify a resource, create an updated copy with
+  `model_copy(update=...)` and pass it to the DAO.
+
+## Obtaining a DAO: the Factory
+
+DAOs are constructed by a factory that implements
+[`DaoFactoryProtocol`](../../reference/protocols.dao.DaoFactoryProtocol.qmd). Which
+factory you instantiate decides the storage backend; everything after that call is
+backend-independent:
+
+```python
+book_dao = await dao_factory.get_dao(
+    name="books",  # the resource type, think "table" or "collection" name
+    dto_model=Book,
+    id_field="id",
+    indexes=None,  # optionally, provider-specific index definitions
+)
+```
+
+The factory validates its inputs before handing them to the provider and raises
+descriptive errors when something is off:
+
+- `IdFieldNotFoundError` if the DTO model has no field named `id_field`
+- `IdTypeNotSupportedError` if the ID field is not string- or integer-typed
+- `IndexFieldsInvalidError` if an index references fields the model does not have
+
+Providers always maintain a unique index on the ID field, so IDs are guaranteed to be
+unique per resource type. Additional indexes can be requested through the `indexes`
+argument. Since index capabilities differ between databases, each provider brings its
+own index class derived from `IndexBase` (for example
+[`MongoDbIndex`](../providers/mongodb.qmd#defining-indexes)); the index definitions are
+the only provider-specific ingredient in an otherwise generic setup.
+
+## CRUD Operations
+
+The [`Dao`](../../reference/protocols.dao.Dao.qmd) interface offers seven operations:
+
+| Operation | Description | Raises |
+| --------- | ----------- | ------ |
+| `insert(dto)` | Create a new resource. | `ResourceAlreadyExistsError`, `UniqueConstraintViolationError` |
+| `get_by_id(id_)` | Fetch a resource by its ID. | `ResourceNotFoundError` |
+| `update(dto)` | Replace an existing resource. | `ResourceNotFoundError`, `UniqueConstraintViolationError` |
+| `upsert(dto)` | Update the resource if it exists, insert it otherwise. | `UniqueConstraintViolationError` |
+| `delete(id_)` | Remove a resource by its ID. | `ResourceNotFoundError` |
+| `find_one(mapping=...)` | Fetch the single resource matching a filter. | `NoHitsFoundError`, `MultipleHitsFoundError`, `InvalidFindMappingError` |
+| `find_all(mapping=...)` | Iterate over all resources matching a filter. | `InvalidFindMappingError`, `ValueError` |
+
+The write operations are deliberately strict about existence. `insert` refuses to
+overwrite, `update` refuses to create, and both signal violations with exceptions
+rather than silent no-ops. That makes accidental data loss loud instead of quiet. When
+"create or replace" is genuinely what you want, say so explicitly by calling `upsert`.
+
+A typical session with a DAO looks like this:
+
+```python
+book = Book(title="Refactoring", author="Martin Fowler", pages=448)
+
+await book_dao.insert(book)
+
+# Modify by copying (the model is frozen) and writing back:
+extended = book.model_copy(update={"pages": 464})
+await book_dao.update(extended)
+
+same_book = await book_dao.get_by_id(book.id)
+assert same_book == extended
+
+await book_dao.delete(book.id)
+```
+
+## Finding Resources
+
+Beyond lookups by ID, DAOs support searching by field values. Both find methods take a
+`mapping`: a dictionary whose keys are field names of the DTO model and whose values
+are the values a matching resource must have. Multiple entries must all match (a
+logical AND):
+
+```python
+# Exactly one match expected:
+book = await book_dao.find_one(mapping={"title": "Refactoring"})
+
+# Any number of matches:
+async for book in book_dao.find_all(mapping={"author": "Martin Fowler"}):
+    print(book.title)
+
+# An empty mapping matches everything:
+all_books = await book_dao.find_all(mapping={}).to_list()
+```
+
+`find_one` enforces that exactly one resource matches and raises `NoHitsFoundError` or
+`MultipleHitsFoundError` otherwise. Use it when your logic depends on uniqueness; use
+`find_all` when zero or many hits are acceptable.
+
+Mapping keys are validated against the DTO model, so a typo in a field name raises
+`InvalidFindMappingError` instead of silently matching nothing. Pass mapping values
+using the same Python types as the corresponding model fields: a `UUID` for a UUID
+field, a `datetime` for a datetime field, and so on. Whether richer values (nested
+structures, or query operators expressed as dictionaries) are supported is up to the
+provider. The [MongoDB provider](../providers/mongodb.qmd#queries-and-filters), for
+example, passes dictionary values through to MongoDB's query language, enabling range
+and pattern queries.
+
+### Pagination and Sorting
+
+`find_all` accepts three optional arguments for shaping large result sets:
+
+- `skip`: number of matching resources to pass over before yielding results
+- `limit`: maximum number of resources to yield (a limit of `0` is taken literally and
+  yields nothing)
+- `sort`: a list of field names defining the sort order; prefix a name with `-` for
+  descending order, so `["author", "-pages"]` sorts by author ascending, then by page
+  count descending
+
+When paginating with `skip` and `limit`, always provide a `sort`. Without a defined
+order, the database is free to return matches in any order, and page boundaries may
+shift between calls.
+
+### The FindResult
+
+Note that `find_all` is not awaited: it immediately returns a
+[`FindResult`](../../reference/protocols.dao.FindResult.qmd), and the actual database
+work happens lazily while you consume it. A `FindResult` is an async iterator with two
+extra conveniences:
+
+```python
+result = book_dao.find_all(
+    mapping={"author": "Martin Fowler"},
+    skip=20, limit=10, sort=["title"],
+)
+
+books = await result.to_list()   # collect everything into a list
+total = await result.total_count()  # matches ignoring skip and limit
+```
+
+`total_count()` reports how many resources match the mapping in total, deliberately
+ignoring `skip` and `limit`, which is exactly the number you need to render pagination
+controls. It runs an extra count query on first call and caches the answer. Keep in
+mind that iterating (or calling `to_list()`) consumes the iterator, so collect the
+results once and reuse the list.
+
+## Error Handling
+
+All DAO errors derive from a common base,
+[`DaoError`](../../reference/protocols.dao.DaoError.qmd), so a single `except DaoError`
+catches any database-related failure. The full hierarchy:
+
+- `DaoError`: base for everything below
+  - `ResourceNotFoundError`: the requested ID does not exist (`get_by_id`, `update`,
+    `delete`)
+  - `ResourceAlreadyExistsError`: the ID is already taken (`insert`)
+  - `UniqueConstraintViolationError`: a write would break a unique index on a field
+    other than the ID
+  - `FindError`: base for find-related errors
+    - `InvalidFindMappingError`: a mapping key is not a field of the DTO model
+    - `NoHitsFoundError`: `find_one` found nothing
+    - `MultipleHitsFoundError`: `find_one` found more than one match
+  - `DbTimeoutError`: a database operation timed out
+
+Providers translate their native driver errors into these types, so your error
+handling stays portable across backends:
+
+```python
+from hexkit.protocols.dao import ResourceNotFoundError
+
+try:
+    book = await book_dao.get_by_id(book_id)
+except ResourceNotFoundError:
+    raise BookNotInCatalogError(book_id) from None
+```
+
+## Transactions
+
+The `Dao` interface declares a `with_transaction()` class method that is intended to
+provide transaction-scoped DAOs through an async context manager, committing on success
+and rolling back on error. This is currently a forward-looking part of the interface:
+the shipped providers do not implement it yet and raise `NotImplementedError`. Each
+individual DAO operation is atomic on its own, but there is no way yet to group several
+operations into one transaction through the protocol.
+
+## Available Providers
+
+Two implementations of the DAO protocol ship with hexkit:
+
+- The [MongoDB provider](../providers/mongodb.qmd#mongodb-dao)
+  ([`MongoDbDaoFactory`](../../reference/providers.mongodb.MongoDbDaoFactory.qmd))
+  stores resources as documents in MongoDB collections. This is the production-grade
+  implementation.
+- The [in-memory mock DAO](../providers/testing.qmd)
+  ([`new_mock_dao_class`](../../reference/providers.testing.new_mock_dao_class.qmd))
+  stores resources in a plain dictionary and even understands a subset of MongoDB's
+  query operators. It is ideal for unit tests, where it lets you exercise real DAO
+  semantics without any database.
+
+For extensive, runnable usage examples, the
+[DAO integration tests](https://github.com/ghga-de/hexkit/blob/main/tests/integration/providers/dao/test_mongodb_dao.py)
+in the hexkit repository are a good complement to this guide.
+
+## Outbox Variants
+
+Two sibling protocols extend the DAO idea with event publishing, implementing a
+variation of the *outbox pattern*:
+
+- [`DaoPublisher`](../../reference/protocols.daopub.DaoPublisher.qmd) and
+  [`DaoPublisherFactoryProtocol`](../../reference/protocols.daopub.DaoPublisherFactoryProtocol.qmd)
+  (from `hexkit.protocols.daopub`) describe DAOs that automatically publish an event
+  whenever a resource is inserted, updated, or deleted.
+- [`DaoSubscriberProtocol`](../../reference/protocols.daosub.DaoSubscriberProtocol.qmd)
+  (from `hexkit.protocols.daosub`) is the consuming counterpart for services that want
+  to mirror those changes.
+
+These are implemented by the
+[MongoDB + Kafka provider](../providers/mongokafka.qmd) and discussed in the
+[Publisher Variants](../developer_help/outbox_v_persistent_pub.qmd) chapter. If you
+only need plain persistence, you can safely ignore them; they build on everything
+described above.
+
+## Implementing a Custom Provider
+
+Supporting a new database means implementing the two interfaces for it. Three rules
+keep a custom provider well-behaved:
+
+1. **Subclass `DaoFactoryProtocol` and implement `_get_dao()`.** The public `get_dao()`
+   method performs all input validation and then delegates to your `_get_dao()`, so
+   your implementation can trust its arguments.
+2. **Return objects that structurally satisfy `Dao`.** Since `Dao` is a
+   `typing.Protocol`, your DAO class does not inherit from anything; it just needs the
+   right methods with the right signatures.
+3. **Raise the shared error types.** Translate your driver's errors into
+   `ResourceNotFoundError`, `DbTimeoutError`, and friends, so that translators written
+   against the protocol keep working with your provider.
+
+The following compact but functional example stores resources in plain dictionaries.
+A real provider would talk to a database instead, but the structure stays the same
+(compare with the
+[MongoDB implementation](https://github.com/ghga-de/hexkit/blob/main/src/hexkit/providers/mongodb/provider/dao.py)):
+
+```python
+from collections.abc import AsyncIterator, Collection, Mapping
+from contextlib import AbstractAsyncContextManager
+from typing import Any, Generic
+
+from hexkit.custom_types import ID
+from hexkit.protocols.dao import (
+    Dao,
+    DaoFactoryProtocol,
+    Dto,
+    FindResult,
+    IndexBase,
+    MultipleHitsFoundError,
+    NoHitsFoundError,
+    ResourceAlreadyExistsError,
+    ResourceNotFoundError,
+)
+
+
+class DictIndex(IndexBase):
+    """Index description for the dict provider (declared but not acted upon)."""
+
+    def __init__(self, *fields: str):
+        self._fields = list(fields)
+
+    def list_field_names(self) -> list[str]:
+        """Return the names of all fields covered by this index."""
+        return self._fields
+
+
+class DictDao(Generic[Dto]):
+    """A DAO keeping all resources in an in-memory dict."""
+
+    def __init__(self, *, dto_model: type[Dto], id_field: str):
+        self._dto_model = dto_model
+        self._id_field = id_field
+        self._resources: dict[ID, Dto] = {}
+
+    def _id_of(self, dto: Dto) -> ID:
+        return getattr(dto, self._id_field)
+
+    async def get_by_id(self, id_: ID) -> Dto:
+        try:
+            return self._resources[id_]
+        except KeyError as error:
+            raise ResourceNotFoundError(id_=id_) from error
+
+    async def insert(self, dto: Dto) -> None:
+        id_ = self._id_of(dto)
+        if id_ in self._resources:
+            raise ResourceAlreadyExistsError(id_=id_)
+        self._resources[id_] = dto
+
+    async def update(self, dto: Dto) -> None:
+        id_ = self._id_of(dto)
+        if id_ not in self._resources:
+            raise ResourceNotFoundError(id_=id_)
+        self._resources[id_] = dto
+
+    async def upsert(self, dto: Dto) -> None:
+        self._resources[self._id_of(dto)] = dto
+
+    async def delete(self, id_: ID) -> None:
+        if id_ not in self._resources:
+            raise ResourceNotFoundError(id_=id_)
+        del self._resources[id_]
+
+    async def find_one(self, *, mapping: Mapping[str, Any]) -> Dto:
+        hits = await self.find_all(mapping=mapping).to_list()
+        if not hits:
+            raise NoHitsFoundError(mapping=mapping)
+        if len(hits) > 1:
+            raise MultipleHitsFoundError(mapping=mapping)
+        return hits[0]
+
+    def find_all(
+        self,
+        *,
+        mapping: Mapping[str, Any],
+        skip: int | None = None,
+        limit: int | None = None,
+        sort: list[str] | None = None,  # sorting omitted for brevity
+    ) -> FindResult[Dto]:
+        hits = [
+            dto
+            for dto in self._resources.values()
+            if all(getattr(dto, field) == value for field, value in mapping.items())
+        ]
+        end = None if limit is None else (skip or 0) + limit
+        page = hits[skip or 0 : end]
+
+        async def _iterate() -> AsyncIterator[Dto]:
+            for dto in page:
+                yield dto
+
+        async def _total_count() -> int:
+            return len(hits)
+
+        return FindResult(results_iterator=_iterate(), get_total_count=_total_count)
+
+    @classmethod
+    def with_transaction(cls) -> AbstractAsyncContextManager["Dao[Dto]"]:
+        raise NotImplementedError()
+
+
+class DictDaoFactory(DaoFactoryProtocol[DictIndex]):
+    """A DAO factory producing dict-backed DAOs."""
+
+    def __init__(self) -> None:
+        self._daos: dict[str, DictDao[Any]] = {}
+
+    async def _get_dao(
+        self,
+        *,
+        name: str,
+        dto_model: type[Dto],
+        id_field: str,
+        indexes: Collection[DictIndex] | None,
+    ) -> Dao[Dto]:
+        """Called by get_dao() after input validation, so arguments can be trusted."""
+        if name not in self._daos:
+            self._daos[name] = DictDao(dto_model=dto_model, id_field=id_field)
+        return self._daos[name]
+```
+
+With this in place, the factory is a drop-in replacement anywhere a
+`DaoFactoryProtocol` is expected:
+
+```python
+dao_factory = DictDaoFactory()
+book_dao = await dao_factory.get_dao(name="books", dto_model=Book, id_field="id")
+
+await book_dao.insert(Book(title="Refactoring", author="Martin Fowler", pages=448))
+```
+
+If you build a provider for a widely used database, please consider
+[contributing it to hexkit](https://github.com/ghga-de/hexkit).

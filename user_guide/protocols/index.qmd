@@ -67,6 +67,22 @@ want: `Bytes` for binary or already-serialized payloads, `Str` for plain text,
 `Json` for flexible schema-light objects, and `Dto` for schema-validated typed
 models.
 
+### Dao and DaoFactoryProtocol
+
+The [`Dao`](../../reference/protocols.dao.Dao.qmd) protocol defines asynchronous CRUD
+and find operations on resources described by Pydantic models, and the
+[`DaoFactoryProtocol`](../../reference/protocols.dao.DaoFactoryProtocol.qmd) describes
+the factory that constructs DAOs, one per resource type. Together they let services
+persist and query data without depending on a specific database.
+
+The protocol is implemented by the [MongoDB provider](../providers/mongodb.qmd#mongodb-dao)
+for production use and by an [in-memory mock DAO](../providers/testing.qmd) for unit
+testing.
+
+These interfaces are documented in depth in the dedicated
+[Data Access Objects](dao.qmd) chapter; for the architectural background, see
+[The DAO Pattern](../arch_concepts/dao_pattern.qmd).
+
 ### (one section for each protocol)
 
 TBD

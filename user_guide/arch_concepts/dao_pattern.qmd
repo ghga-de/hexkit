@@ -1,0 +1,220 @@
+---
+title: "The DAO Pattern"
+---
+
+<!--
+ Copyright 2021 - 2026 Universität Tübingen, DKFZ, EMBL, and Universität zu Köln
+ for the German Human Genome-Phenome Archive (GHGA)
+
+ Licensed under the Apache License, Version 2.0 (the "License");
+ you may not use this file except in compliance with the License.
+ You may obtain a copy of the License at
+
+     http://www.apache.org/licenses/LICENSE-2.0
+
+ Unless required by applicable law or agreed to in writing, software
+ distributed under the License is distributed on an "AS IS" BASIS,
+ WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ See the License for the specific language governing permissions and
+ limitations under the License.
+-->
+
+## Introduction
+
+A Data Access Object (DAO) is an object that gives the rest of an application a small,
+well-defined interface for storing and retrieving data, while hiding which database is
+used and how the data is mapped to it. The pattern was popularized in the early 2000s
+by Sun's *Core J2EE Patterns* catalog, but the underlying idea is much older and not
+tied to any language or framework: business logic should say *what* it wants to persist
+or look up, and a dedicated object should worry about *how* that happens.
+
+In hexkit, the DAO pattern is one of the supported architecture patterns and the
+library's answer to database access in general. This chapter explains the pattern
+itself, why it is worth the extra indirection, and how it maps onto hexkit's
+[Triple Hexagonal Architecture](triple_hexagonal_arch.qmd). If you are looking for the
+concrete interfaces and code, jump ahead to the [DAO protocol](../protocols/dao.qmd)
+chapter or the [MongoDB DAO provider](../providers/mongodb.qmd#mongodb-dao).
+
+## The Problem It Solves
+
+Consider a service that manages user accounts and talks to its database directly from
+the business logic:
+
+```python
+async def deactivate_user(user_id: str):
+    result = await db.users.update_one(
+        {"_id": user_id}, {"$set": {"active": False}}
+    )
+    if result.matched_count == 0:
+        raise UserNotFound(user_id)
+```
+
+This works, but the domain logic (deactivating a user) is now entangled with MongoDB
+specifics: the `_id` convention, the `$set` update syntax, and the shape of pymongo's
+result objects. This entanglement has consequences that grow with the codebase:
+
+- **Testing gets heavy.** Every test of the business rule needs a real or carefully
+  mocked database, even though the rule itself has nothing to do with MongoDB.
+- **The technology choice hardens.** Query syntax spreads through the codebase, so
+  moving to a different database (or even a new major version of the driver) means
+  touching business logic everywhere.
+- **Persistence concerns leak.** Details like retry behavior, index management, and
+  error translation end up duplicated wherever the database is touched.
+
+The DAO pattern addresses this by pulling all persistence access behind an interface
+that speaks in terms of the application's data, not the database's:
+
+```python
+async def deactivate_user(user_id: UUID):
+    user = await user_dao.get_by_id(user_id)
+    await user_dao.update(user.model_copy(update={"active": False}))
+```
+
+The business logic no longer knows or cares what is behind `user_dao`. In production
+it is MongoDB; in a unit test it can be a simple in-memory object.
+
+## The Shape of the Pattern
+
+A classic DAO setup has three participants:
+
+1. **A data transfer object (DTO)** describing the shape of the data being stored. In
+   hexkit, DTOs are [Pydantic](https://docs.pydantic.dev) models, which gives you
+   validation and serialization for free.
+2. **An abstract DAO interface** declaring the available operations. Hexkit defines
+   this once, generically, as the [`Dao`](../../reference/protocols.dao.Dao.qmd)
+   protocol: CRUD operations (create, read, update, delete) plus `find` operations for
+   querying by field values.
+3. **A concrete implementation** of that interface for a specific storage technology,
+   such as hexkit's [`MongoDbDao`](../../reference/providers.mongodb.MongoDbDao.qmd).
+
+Because the interface is generic over the DTO type, one DAO instance manages exactly
+one kind of resource (users, books, upload jobs, and so on), roughly corresponding to
+one table or collection in the database. A service typically holds one DAO per resource
+type it persists.
+
+## DAO or Repository?
+
+You may have encountered the closely related *repository* pattern from Domain-Driven
+Design. The two are often confused, and in simple applications they can look identical.
+The difference is one of intent:
+
+- A **DAO** is persistence-oriented. It mirrors the storage structure (one DAO per
+  table or collection) and offers generic data operations: insert this record, fetch
+  that one, find all records matching these values.
+- A **repository** is domain-oriented. It presents itself as an in-memory collection of
+  domain aggregates and speaks pure domain language, for example
+  `overdue_loans_for(member)`.
+
+Hexkit deliberately provides the DAO as the generic, reusable building block, since a
+repository's domain-specific interface cannot be provided by a library. If your service
+calls for repositories, the natural approach in hexkit is to define the repository as a
+port of your application and implement it as a thin translator on top of one or more
+DAOs. For straightforward services, using the DAOs directly as outbound dependencies of
+your domain logic is perfectly fine.
+
+## DAOs in the Triple Hexagonal Architecture
+
+Hexkit structures all infrastructure access according to the
+[Triple Hexagonal Architecture](triple_hexagonal_arch.qmd), which splits each adapter
+into a service-independent *provider* and a service-specific *translator*, connected
+through an abstract *protocol*. Database access via DAOs follows exactly this scheme:
+
+- **The port** is defined by your application in domain terms. From the application's
+  perspective, persisting and retrieving data is a *transactional query operation*: it
+  sends or requests data and relies on the answer, without assumptions about the
+  storage technology. The port might be a repository interface, or it might simply be
+  the DAO interface typed to your DTO model.
+- **The protocol** is hexkit's [`Dao`](../../reference/protocols.dao.Dao.qmd)
+  interface together with the
+  [`DaoFactoryProtocol`](../../reference/protocols.dao.DaoFactoryProtocol.qmd). It
+  defines an abstract vocabulary for CRUD-style database access (resources, IDs, DTO
+  models, find mappings, indexes) without committing to any particular database. The
+  [DAO protocol](../protocols/dao.qmd) chapter describes it in detail.
+- **The provider** implements the protocol for a concrete technology. Hexkit currently
+  ships a [MongoDB provider](../providers/mongodb.qmd#mongodb-dao) for production use
+  and an [in-memory mock DAO](../providers/testing.qmd) for unit testing. Providers for
+  other databases can be added without touching any service code, and the
+  [DAO protocol](../protocols/dao.qmd#implementing-a-custom-provider) chapter shows how
+  to write your own.
+- **The translator** is the small piece you write per service: it wires a DAO produced
+  by the factory to your port, converting between domain objects and DTOs where the two
+  differ.
+
+The [Querying a Database](triple_hexagonal_arch.qmd#querying-a-database) example in
+the [Triple Hexagonal Architecture](triple_hexagonal_arch.qmd) chapter walks through
+this exact scenario step by step.
+
+In practice, using a DAO looks like this:
+
+```python
+from pydantic import BaseModel
+
+
+class Book(BaseModel):
+    """A book in our catalog (the DTO model)."""
+
+    id: str
+    title: str
+    author: str
+
+
+# The factory is provided by a concrete provider, e.g. MongoDbDaoFactory.
+# One DAO manages one resource type:
+book_dao = await dao_factory.get_dao(name="books", dto_model=Book, id_field="id")
+
+await book_dao.insert(Book(id="9780134757599", title="Refactoring", author="Fowler"))
+book = await book_dao.get_by_id("9780134757599")
+async for hit in book_dao.find_all(mapping={"author": "Fowler"}):
+    print(hit.title)
+```
+
+Nothing in this code mentions MongoDB. Swapping the factory for another provider, for
+example the in-memory one during testing, changes the storage backend without changing
+a single line of the logic.
+
+## When to Use a DAO, and When Not To
+
+The DAO protocol is intentionally simple. It models resources as self-contained
+documents identified by an ID, and supports CRUD operations plus filtering by field
+values. This makes it a great fit when:
+
+- your resources are document-shaped, with no complex relations between them,
+- CRUD operations and simple filtered lookups cover your query needs,
+- you want to unit test business logic without a running database, and
+- you value the freedom to change the storage backend later.
+
+It is deliberately *not* a general-purpose database abstraction. If your service leans
+heavily on relational features such as joins across many tables, rich aggregations, or
+complex multi-statement transactions, an ORM like SQLAlchemy or direct use of a
+database client will serve you better than forcing those needs through a CRUD-shaped
+interface.
+
+Crucially, this is not an all-or-nothing decision. The Triple Hexagonal Architecture is
+non-greedy: you decide per port whether the pattern applies. A service can happily use
+hexkit DAOs for its document-shaped resources and SQLAlchemy for a reporting feature
+next door. The
+[Limitations and Exceptions](triple_hexagonal_arch.qmd#limitations-and-exceptions)
+section of the Triple Hexagonal Architecture chapter discusses this trade-off in more
+depth, including why ORMs can themselves be viewed as an instance of the same design
+idea.
+
+## Beyond Plain Persistence
+
+Because all database access flows through one narrow interface, hexkit can layer
+additional behavior on top of it. The most notable example is the *outbox pattern*: the
+[`DaoPublisher`](../../reference/protocols.daopub.DaoPublisher.qmd) variant of the DAO
+automatically publishes an event whenever a resource changes, so other services can
+follow the state of your resources without you writing any publishing code. See the
+[Publisher Variants](../developer_help/outbox_v_persistent_pub.qmd) chapter for when
+this is useful.
+
+## Further Reading
+
+- [DAO protocol](../protocols/dao.qmd): the interfaces, operations, and error model in
+  detail, including how to implement your own provider
+- [MongoDB DAO provider](../providers/mongodb.qmd#mongodb-dao): configuration, queries,
+  indexes, and error handling with the production MongoDB implementation
+- [Triple Hexagonal Architecture](triple_hexagonal_arch.qmd): the architectural context
+  that protocols and providers live in
+- [Core J2EE Patterns: Data Access Object](https://www.oracle.com/java/technologies/dataaccessobject.html):
+  the original catalog entry that popularized the pattern

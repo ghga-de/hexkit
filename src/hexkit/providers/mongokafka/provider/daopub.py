@@ -347,10 +347,11 @@ class MongoKafkaDaoPublisher(Generic[Dto]):
         It is expected that at most one resource matches the constraints.
         An exception is raised if no or multiple hits are found.
 
-        The values in the mapping are used to filter the resources, these are
-        assumed to be standard JSON scalar types. Particularly, UUIDs and datetimes
-        must be represented as strings. Dictionaries can be passed as values to
-        specify more complex MongoDB queries.
+        The values in the mapping are used to filter the resources. Provide them
+        using the same Python types as the corresponding DTO model fields; UUIDs
+        and datetimes are stored and matched natively, so they must not be passed
+        as strings. Dictionaries can be passed as values to specify more complex
+        MongoDB queries.
 
         Args:
             mapping:
@@ -380,10 +381,11 @@ class MongoKafkaDaoPublisher(Generic[Dto]):
     ) -> FindResult[Dto]:
         """Find all resources that match the specified mapping.
 
-        The values in the mapping are used to filter the resources, these are
-        assumed to be standard JSON scalar types. Particularly, UUIDs and datetimes
-        must be represented as strings. Dictionaries can be passed as values to
-        specify more complex MongoDB queries.
+        The values in the mapping are used to filter the resources. Provide them
+        using the same Python types as the corresponding DTO model fields; UUIDs
+        and datetimes are stored and matched natively, so they must not be passed
+        as strings. Dictionaries can be passed as values to specify more complex
+        MongoDB queries.
 
         Args:
             mapping:
