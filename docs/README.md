@@ -9,10 +9,10 @@ to some guidance on when to use one feature over another.
 
 ## Table of Contents
 
-- [Architecture Concepts](user-guide/arch_concepts/overview.qmd)
-- [Library Structure and Conventions](user-guide/structure/overview.qmd)
-- [Protocols](user-guide/protocols/overview.qmd)
-- [Providers](user-guide/providers/overview.qmd)
-- [Observability Tools](user-guide/observability_tools/overview.qmd)
-- [Developer Help](user-guide/developer_help/overview.qmd)
+- [Architectural Concepts](user-guide/arch_concepts/index.qmd)
+- [Library Structure and Conventions](user-guide/structure.qmd)
+- [Protocols](user-guide/protocols/index.qmd)
+- [Providers](user-guide/providers/index.qmd)
+- [Observability Tools](user-guide/observability_tools/index.qmd)
+- [Developer Help](user-guide/developer_help/index.qmd)
 - [Glossary](user-guide/glossary/index.qmd)

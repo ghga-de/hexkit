@@ -111,23 +111,22 @@ user_guide:
     contents:
       - text: "Introduction"
         href: index.qmd
-  - section: "Architecture Concepts"
+      - text: "Library Structure and Conventions"
+        href: structure.qmd
+  - section: "Architectural Concepts"
     contents:
-      - arch_concepts/overview.qmd
+      - arch_concepts/index.qmd
       - arch_concepts/hexagonal_arch.qmd
       - arch_concepts/triple_hexagonal_arch.qmd
       - arch_concepts/event_driven_arch.qmd
       - arch_concepts/dlq.qmd
-  - section: "Library Structure and Conventions"
-    contents:
-      - structure/overview.qmd
   - section: "Protocols"
     contents:
-      - protocols/overview.qmd
+      - protocols/index.qmd
   - section: "Providers"
     contents:
       - text: "Overview"
-        href: providers/overview.qmd
+        href: providers/index.qmd
       - providers/kafka.qmd
       - providers/mongodb.qmd
       - providers/mongokafka.qmd
@@ -137,12 +136,12 @@ user_guide:
       - providers/vault.qmd
   - section: "Observability Tools"
     contents:
-      - observability_tools/overview.qmd
+      - observability_tools/index.qmd
       - observability_tools/correlation_ids.qmd
       - observability_tools/logging.qmd
   - section: "Developer Help"
     contents:
-      - developer_help/overview.qmd
+      - developer_help/index.qmd
       # Short sidebar label; the page keeps its full `title:` as the on-page heading.
       - text: "Outbox vs Persistent Publisher"
         href: developer_help/outbox_v_persistent_pub.qmd
