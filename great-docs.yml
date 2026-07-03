@@ -47,9 +47,19 @@ parser: google
 
 # Dynamic Introspection
 # ---------------------
-# Use runtime introspection for more accurate documentation (default: true)
-# Set to false if your package has cyclic alias issues (e.g., PyO3/Rust bindings)
-dynamic: true
+# Use runtime introspection for more accurate documentation (default: true).
+#
+# Kept false for hexkit: dynamic mode resolves every `reference:` entry by
+# attribute access from the top-level package (`getattr(hexkit, "custom_types")`,
+# `getattr(hexkit, "base")`, ...), but `hexkit/__init__.py` intentionally exposes
+# only `__version__` and re-exports no submodules — so resolution fails on the very
+# first entry. (Re-exporting them would eagerly import every provider and thus
+# require all optional extras — akafka, mongodb, s3, ... — to be installed.) With
+# `dynamic: true`, great-docs prints a "Dynamic introspection failed for a resolved
+# item, retrying with static analysis..." warning, then rebuilds the whole
+# reference with static analysis anyway. Setting it false selects static up front:
+# identical output, no warning, single-pass (faster) build.
+dynamic: false
 
 # API Discovery Settings
 # ----------------------
@@ -338,6 +348,25 @@ site_url: "https://ghga-de.github.io/hexkit/"
 #   toc: true                  # Show table of contents (default: true)
 #   toc-depth: 2               # TOC heading depth (default: 2)
 #   toc-title: On this page    # TOC title (default: "On this page")
+
+# Custom CSS Overrides
+# --------------------
+# Injected verbatim into <head> after the great-docs theme stylesheet, so these
+# rules override the defaults.
+include_in_header:
+  # Vertically center the navbar title ("hexkit") inside its bordered pill.
+  # The word has ascenders (h, k, t) but no descenders, so its glyphs sit high in
+  # the line box, leaving a larger gap below the text than above. The theme's
+  # default `.navbar-title` padding (3px top / 4px bottom) is bottom-heavy and
+  # compounds this; shifting the padding downward compensates for the roughly
+  # descender-height gap so the text reads as optically centered.
+  - |
+    <style>
+      .navbar .navbar-title {
+        padding-top: 6px;
+        padding-bottom: 1px;
+      }
+    </style>
 
 # Jupyter Kernel
 # --------------

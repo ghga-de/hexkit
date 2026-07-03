@@ -53,12 +53,12 @@ authors. We like to add support for more protocols and technologies over time.
 
 The following protocols and providers are currently available:
 
-| Protocol | Providers |
-|---|---|
-| Event Publishing | Apache Kafka |
-| Event Subscription | Apache Kafka |
-| Object Storage | S3(-compatible) |
-| Data Access Object | MongoDB |
+| Protocol           | Providers       |
+| ------------------ | --------------- |
+| Event Publishing   | Apache Kafka    |
+| Event Subscription | Apache Kafka    |
+| Object Storage     | S3(-compatible) |
+| Data Access Object | MongoDB         |
 
 You are not forced to go all-in on the idea of Triple Hexagonal Architecture.
 You can use it just for the technologies where you see benefits and use another approach
@@ -106,17 +106,17 @@ The following extras are available:
 ## Development
 
 For setting up the development environment, we rely on the
-[devcontainer feature](https://code.visualstudio.com/docs/remote/containers) of vscode.
+[devcontainer feature](https://code.visualstudio.com/docs/remote/containers) of VS Code.
 
 To use it, you need Docker and VS Code with the "Remote - Containers" extension
 (`ms-vscode-remote.remote-containers`) installed.
-Then, you just have to open this repo in vscode and run the command
-`Remote-Containers: Reopen in Container` from the vscode "Command Palette".
+Then, you just have to open this repo in VS Code and run the command
+`Remote-Containers: Reopen in Container` from the VS Code "Command Palette".
 
 This will give you a full-fledged, pre-configured development environment including:
 
 - infrastructural dependencies of the service (databases, etc.)
-- all relevant vscode extensions pre-installed
+- all relevant VS Code extensions pre-installed
 - pre-configured linting and auto-formatting
 - a pre-configured debugger
 - automatic license-header insertion
@@ -128,7 +128,7 @@ Additionally, the following convenience command is available inside the devconta
 (please run that if you are starting the devcontainer for the first time
 or if added any python dependencies to the [`./pyproject.toml`](./pyproject.toml))
 
-If you prefer not to use vscode, you could get a similar setup (without the editor
+If you prefer not to use VS Code, you could get a similar setup (without the editor
 specific features) by running the following commands:
 
 ``` bash

@@ -214,8 +214,8 @@ class ObjectStorageProtocol(ABC):
         start at 1, not 0.
 
         Raises:
-            ValueError if `max_parts` or `first_part_no` are invalid.
-            MultiPartUploadNotFoundError if no upload with `upload_id` exists.
+            ValueError: if `max_parts` or `first_part_no` are invalid.
+            MultiPartUploadNotFoundError: if no upload with `upload_id` exists.
         """
         self._validate_bucket_id(bucket_id)
         self._validate_object_id(object_id)
@@ -492,8 +492,8 @@ class ObjectStorageProtocol(ABC):
         start at 1, not 0.
 
         Raises:
-            ValueError if `max_parts` or `first_part_no` are invalid.
-            MultiPartUploadNotFoundError if no upload with `upload_id` exists.
+            ValueError: if `max_parts` or `first_part_no` are invalid.
+            MultiPartUploadNotFoundError: if no upload with `upload_id` exists.
         """
         ...
 
