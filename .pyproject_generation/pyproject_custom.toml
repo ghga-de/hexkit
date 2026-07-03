@@ -99,6 +99,10 @@ legacy_tox_ini = """
     basepython = python3.13
     deps =
         --no-deps -r ./lock/requirements-dev.txt
+    commands_pre =
+        # great-docs (Python >= 3.11 only) is kept out of the shared dev lock so it
+        # does not break the py310 test env; install it here where docs are built.
+        pip install great-docs==0.14.1
     commands =
         great-docs build
 
