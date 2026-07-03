@@ -5,12 +5,34 @@
 # ------------
 display_name: Hexkit
 
+# GitHub Repository
+# -----------------
+# Enables the per-object "view source" links on reference pages (each class,
+# method, and function links to its exact lines on GitHub) and the GitHub navbar
+# widget. Without this, great-docs skips source-link generation entirely.
+repo: "https://github.com/ghga-de/hexkit"
+
 # Source Link Configuration
 # -------------------------
-# hexkit's sources live under src/hexkit relative to the git repo root (one level
-# above this docs.new/ project root), so point "view source" links at that path.
+# `branch: main` pins "view source" links to the published branch rather than the
+# docs feature branch that happens to be checked out at build time.
+#
+# NOTE: hexkit uses a src/ layout, but great-docs builds source URLs from griffe's
+# package-relative path (`hexkit/...`), omitting the `src/` prefix — so the links
+# would 404. The `fix_source_link_paths.py` pre_render hook (below) reinserts it.
+# TODO: Drop the `fix_source_link_paths.py` hook once great-docs ships a release
+# > 0.14.1 that includes the upstream fix (posit-dev/great-docs PR #245, merged
+# 2026-06-30; unreleased as of 0.14.1). It fixes this natively and re-enables the
+# `source.path` override if we ever prefer that over the pre_render workaround.
 source:
-  path: src/hexkit
+  branch: main
+
+# Pre-render Hooks
+# ----------------
+# Scripts run after the reference pages are generated but before Quarto renders
+# them. `fix_source_link_paths.py` reinserts the `src/` prefix that great-docs
+# omits from "view source" URLs for src/-layout packages (see note above).
+pre_render: scripts/fix_source_link_paths.py
 
 # Module Name (optional)
 # ----------------------
