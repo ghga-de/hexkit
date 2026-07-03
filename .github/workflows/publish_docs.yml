@@ -34,6 +34,9 @@ jobs:
         run: |
           pip install -e .
           pip install --no-deps -r ./lock/requirements-dev.txt
+          # great-docs (Python >= 3.11 only) is kept out of the shared dev lock so it
+          # does not break the py310 test env; install it here where docs are built.
+          pip install great-docs==0.14.1
 
       - name: Set up Quarto
         uses: quarto-dev/quarto-actions/setup@v2

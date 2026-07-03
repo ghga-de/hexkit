@@ -7,4 +7,13 @@
 cryptography>=46.0.4
 pytest-asyncio>=1.3.0
 tox>=4.34
-great-docs>=0.14.1
+
+# NOTE: great-docs is intentionally NOT listed here. It is only needed to build the
+# docs and requires Python >= 3.11, so keeping it out of this shared dev lock avoids
+# breaking the py310 test env (which installs the full lock via `--no-deps -r`). It is
+# instead installed directly where docs are built: the `docs` tox env (see the
+# [tool.tox] section in pyproject.toml) and the `publish_docs` GitHub workflow.
+
+# rpds-py switched to CalVer (2026.x) which dropped Python 3.10; pin to the last
+# 0.x line so the single-env lock stays installable on the py310 test env.
+rpds-py<2026
