@@ -698,6 +698,46 @@ async def test_list_multipart_uploads_for_object(s3: S3Fixture):
     assert uploads == []
 
 
+async def test_prefix_filter_ignores_sibling_object_ids(s3: S3Fixture):
+    """Ensure server-side `Prefix` filtering does not conflate object IDs that share
+    a prefix.
+    """
+    bucket_id = "test"
+    await s3.storage.create_bucket(bucket_id)
+
+    # "abc" is a strict prefix of "abcd", so Prefix="abc" matches both server-side.
+    short_object_id = "abc"
+    long_object_id = "abcd"
+
+    short_upload_id = await s3.storage.init_multipart_upload(
+        bucket_id=bucket_id, object_id=short_object_id
+    )
+    long_upload_id = await s3.storage.init_multipart_upload(
+        bucket_id=bucket_id, object_id=long_object_id
+    )
+
+    # Filter matches both, but we extract by key on the filtered list
+    # These should return only for the correct object id
+    uploads = await s3.storage.list_multipart_uploads_for_object(
+        bucket_id=bucket_id, object_id=short_object_id
+    )
+    assert uploads == [short_upload_id]
+
+    uploads = await s3.storage.list_multipart_uploads_for_object(
+        bucket_id=bucket_id, object_id=long_object_id
+    )
+    assert uploads == [long_upload_id]
+
+    # Ensure this also doesn't raise MultipleActiveUploadsError.
+    url = await s3.storage.get_part_upload_url(
+        upload_id=short_upload_id,
+        bucket_id=bucket_id,
+        object_id=short_object_id,
+        part_number=1,
+    )
+    assert url
+
+
 async def test_get_all_multipart_uploads(s3: S3Fixture):
     """Test the get_all_multipart_uploads method."""
     bucket_id = "my-bucket"
