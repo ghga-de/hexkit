@@ -5,8 +5,8 @@
 
 # hexkit
 
-*hexkit is a chassis library for building domain-focused, infrastructure-agnostic,
-and event-driven microservices in Python.*
+*A chassis library for building domain-focused, infrastructure-agnostic,
+and event-driven microservices in Python*
 
 Read the short developer summary below, or jump straight to our full
 📖 **[User Guide](https://ghga-de.github.io/hexkit/user-guide/)** to learn the abstract
@@ -47,7 +47,7 @@ for an individual service is to implement service-specific translators between t
 service's ports and the general-purpose protocols (in addition to implementing the
 domain functionality of the service, of course).
 
-Hexkit is designed as a general-purpose library. However, it currently contains only
+Although hexkit is designed as a general-purpose library, it currently contains only
 a limited collection of protocol-provider pairs that are of immediate interest to the
 authors. We like to add support for more protocols and technologies over time.
 
@@ -60,7 +60,7 @@ The following protocols and providers are currently available:
 | Object Storage | S3(-compatible) |
 | Data Access Object | MongoDB |
 
-Hexkit does not force you to go all-in on the idea of Triple Hexagonal Architecture.
+You are not forced to go all-in on the idea of Triple Hexagonal Architecture.
 You can use it just for the technologies where you see benefits and use another approach
 for the rest. For example, you could use hexkit for simplifying the exchange of events
 between microservices but use a classical web framework such as FastAPI for designing
@@ -168,7 +168,7 @@ after editing a page or `great-docs.yml`, stop the preview (`Ctrl+C`), re-run
 
 ## Credits
 
-Hexkit is developed and maintained by the developer team of GHGA. We would especially
+The hexkit library is developed and maintained by the developer team of GHGA. We would especially
 like to thank its original author, Kersten Breuer, who came up with the idea for the
 library and designed and coded its first versions.
 
