@@ -127,6 +127,24 @@ docker run -it hexkit /bin/bash
 
 ```
 
+### Documentation
+
+The documentation lives under [`./docs`](./docs) and is built with
+[Great Docs](https://posit-dev.github.io/great-docs/) (which uses Quarto, already
+installed in the devcontainer). To preview it locally:
+
+``` bash
+# Build the site and serve it at http://localhost:3000
+great-docs preview --project-path docs
+```
+
+`preview` serves the last build; it does not watch for changes. After editing a
+page or `docs/great-docs.yml`, rebuild in another terminal and refresh:
+
+``` bash
+great-docs build --project-path docs
+```
+
 ## License
 
 This repository is free to use and modify according to the [Apache 2.0 License](./LICENSE).
