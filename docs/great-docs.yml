@@ -111,18 +111,20 @@ user_guide:
     contents:
       - text: "Introduction"
         href: index.qmd
-      - text: "Library Structure and Conventions"
+      - text: "Structure and Conventions"
         href: structure.qmd
   - section: "Architectural Concepts"
     contents:
-      - arch_concepts/index.qmd
+      - text: "Overview"
+        href: arch_concepts/index.qmd
       - arch_concepts/hexagonal_arch.qmd
       - arch_concepts/triple_hexagonal_arch.qmd
       - arch_concepts/event_driven_arch.qmd
       - arch_concepts/dlq.qmd
   - section: "Protocols"
     contents:
-      - protocols/index.qmd
+      - text: "Overview"
+        href: protocols/index.qmd
   - section: "Providers"
     contents:
       - text: "Overview"
@@ -132,24 +134,27 @@ user_guide:
       - providers/mongokafka.qmd
       - providers/s3.qmd
       - providers/redis.qmd
-      - providers/testing.qmd
       - providers/vault.qmd
+      - providers/testing.qmd
   - section: "Observability Tools"
     contents:
-      - observability_tools/index.qmd
+      - text: "Overview"
+        href: observability_tools/index.qmd
       - observability_tools/correlation_ids.qmd
       - observability_tools/logging.qmd
   - section: "Developer Help"
     contents:
-      - developer_help/index.qmd
+      - text: "Overview"
+        href: developer_help/index.qmd
       # Short sidebar label; the page keeps its full `title:` as the on-page heading.
-      - text: "Outbox vs Persistent Publisher"
+      - text: "Publisher Variants"
         href: developer_help/outbox_v_persistent_pub.qmd
       - text: "Test Fixtures"
         href: developer_help/testing.qmd
   - section: "Glossary"
     contents:
-      - glossary/index.qmd
+      - text: "Overview"
+        href: glossary/index.qmd
 
 # API Reference Structure
 # -----------------------

@@ -6,9 +6,17 @@ This user guide covers the functional components of `hexkit` — providers, test
 utilities, and observability tools — alongside the architectural concepts that guide
 its development, with example code and guidance on when to use each feature.
 
-- [Architectural Concepts](arch_concepts/index.qmd)
-- [Protocols](protocols/index.qmd)
-- [Providers](providers/index.qmd)
-- [Observability Tools](observability_tools/index.qmd)
-- [Developer Help](developer_help/index.qmd)
-- [Glossary](glossary/index.qmd)
+## What's next?
+
+Familiarize yourself with the [library structure and conventions](structure.qmd), or
+explore the [architectural concepts](arch_concepts/index.qmd) that this library helps
+you implement.
+
+## Other sections
+
+- [Protocols](protocols/index.qmd) — the ports that define hexkit's abstractions
+- [Providers](providers/index.qmd) — concrete backends implementing those protocols
+- [Observability Tools](observability_tools/index.qmd) — correlation IDs and logging
+- [Developer Help](developer_help/index.qmd) — practical guidance and test fixtures
+- [Glossary](glossary/index.qmd) — key terms used throughout the docs
+- [API Reference](../reference/index.qmd) — the full class and function reference

@@ -131,30 +131,24 @@ docker run -it hexkit /bin/bash
 
 The documentation lives under [`./docs`](./docs) and is built with
 [Great Docs](https://posit-dev.github.io/great-docs/) (which uses Quarto, already
-installed in the devcontainer). To build the site and preview it locally:
+installed in the devcontainer). Build the site, then serve it locally:
 
 ``` bash
-# Builds the site, then serves it at http://localhost:3000
+# Build the site into docs/great-docs/_site/
+great-docs build --project-path docs
+
+# Serve the built site at http://localhost:3000
 great-docs preview --project-path docs
 ```
 
-`preview` serves the build it just made; it does not watch for changes. After
-editing a page or `docs/great-docs.yml`, rebuild and refresh the browser. You can
-rebuild in a second terminal while the preview keeps running, serving the
-already-built site so the two don't rebuild into `docs/great-docs/` at once:
+`preview` only serves the existing build (it builds first only when no build exists
+yet) and does not watch for changes. After editing a page or `docs/great-docs.yml`,
+re-run `great-docs build` in a second terminal and refresh the browser while the
+preview keeps running.
 
-``` bash
-# Terminal 1 — serve the current build (no rebuild)
-great-docs preview --site-dir docs/great-docs/_site
-
-# Terminal 2 — rebuild after each round of edits, then refresh the browser
-great-docs build --project-path docs
-```
-
-> **Note:** great-docs' built-in `build --watch` auto-rebuild mode currently
-> crashes with this project (a Quarto preview error on the excluded `skill`
-> page), so rebuild manually as above. A full rebuild takes ~2 minutes;
-> `--no-refresh` skips API re-discovery but is not meaningfully faster here.
+> **Note:** great-docs' `build --watch` doesn't track edits to your
+> `docs/user_guide/` source (it only watches the generated build directory), so
+> rebuild manually as above. A full rebuild takes ~2 minutes.
 
 ## License
 
