@@ -32,7 +32,16 @@ source:
 # Scripts run after the reference pages are generated but before Quarto renders
 # them. `fix_source_link_paths.py` reinserts the `src/` prefix that great-docs
 # omits from "view source" URLs for src/-layout packages (see note above).
-pre_render: scripts/fix_source_link_paths.py
+# `add_member_anchor_ids.py` injects the fully qualified anchors (e.g.
+# `#hexkit.protocols.dao.Dao.insert`) that great-docs' automatic API
+# cross-linker promises in objects.json but the generated reference pages do
+# not carry (they only have short ids like `#insert`) — without it, auto-links
+# from user-guide pages land on the right page but do not scroll to the member.
+# Unfixed upstream as of great-docs 0.14.1 (checked issues, PRs, and releases
+# on 2026-07-03).
+pre_render:
+  - scripts/fix_source_link_paths.py
+  - scripts/add_member_anchor_ids.py
 
 # Module Name (optional)
 # ----------------------
