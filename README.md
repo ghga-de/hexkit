@@ -1,7 +1,9 @@
-![tests](https://github.com/ghga-de/hexkit/actions/workflows/tests.yaml/badge.svg)
 [![PyPI version shields.io](https://img.shields.io/pypi/v/hexkit.svg)](https://pypi.python.org/pypi/hexkit/)
 [![PyPI pyversions](https://img.shields.io/pypi/pyversions/hexkit.svg)](https://pypi.python.org/pypi/hexkit/)
+![tests](https://github.com/ghga-de/hexkit/actions/workflows/tests.yaml/badge.svg)
 [![Coverage Status](https://coveralls.io/repos/github/ghga-de/hexkit/badge.svg?branch=main)](https://coveralls.io/github/ghga-de/hexkit?branch=main)
+[![Ruff](https://img.shields.io/endpoint?url=https://raw.githubusercontent.com/astral-sh/ruff/main/assets/badge/v2.json)](https://github.com/astral-sh/ruff)
+[![Checked with mypy](https://www.mypy-lang.org/static/mypy_badge.svg)](https://mypy-lang.org/)
 
 # hexkit
 

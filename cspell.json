@@ -6,6 +6,12 @@
   "import": [],
   "version": "0.2",
   "words": [
-    "hexkit"
+    "hexkit",
+    "mypy",
+    "pip",
+    "pypi",
+    "pytest",
+    "pyversions",
+    "ruff"
   ]
 }
