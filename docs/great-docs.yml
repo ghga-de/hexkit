@@ -37,7 +37,7 @@ pre_render: scripts/fix_source_link_paths.py
 # Module Name (optional)
 # ----------------------
 # hexkit lives at the repo root (src/hexkit), but this great-docs project root
-# is docs.new/, so we name the importable module explicitly. hexkit is installed
+# is docs/, so we name the importable module explicitly. hexkit is installed
 # (editable) in the environment, so introspection imports it directly.
 module: hexkit
 

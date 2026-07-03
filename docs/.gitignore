@@ -1,2 +1,2 @@
-# ignore pdoc-generated API documentation
-api/
+# great-docs ephemeral build directory (source is copied here and rendered)
+great-docs/

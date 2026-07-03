@@ -256,19 +256,10 @@ legacy_tox_ini = """
 
     [testenv:docs]
     basepython = python3.13
-    allowlist_externals =
-        mv
-        rm
     deps =
         --no-deps -r ./lock/requirements-dev.txt
     commands =
-        rm -rf site/api
-        pdoc -d google -o docs/api hexkit
-        mv docs/api/index.html docs/api/index.md
-        mkdocs build
-        mv docs/api/index.md docs/api/index.html
-        rm -rf site/api
-        mv docs/api site/api
+        great-docs build --project-path docs
 
     [testenv]
     pass_env =

@@ -1,4 +1,4 @@
-# Minimal project metadata so great-docs can treat docs.new/ as a self-contained
+# Minimal project metadata so great-docs can treat docs/ as a self-contained
 # project root. The actual package (hexkit) is imported from the editable install
 # in the environment; `module: hexkit` in great-docs.yml points introspection at it.
 # This file exists ONLY to satisfy great-docs' package-name detection and is not a
