@@ -143,8 +143,11 @@ user_guide:
   - section: "Developer Help"
     contents:
       - developer_help/overview.qmd
-      - developer_help/outbox_v_persistent_pub.qmd
-      - developer_help/testing.qmd
+      # Short sidebar label; the page keeps its full `title:` as the on-page heading.
+      - text: "Outbox vs Persistent Publisher"
+        href: developer_help/outbox_v_persistent_pub.qmd
+      - text: "Test Fixtures"
+        href: developer_help/testing.qmd
   - section: "Glossary"
     contents:
       - glossary/index.qmd
