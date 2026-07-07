@@ -344,31 +344,34 @@ class S3ObjectStorage(ObjectStorageProtocol):
     ) -> list[str]:
         """Lists all active multipart uploads for the given object ID.
 
+        Uses a filter (Prefix=object_id) to narrow the selection server side. Only works
+        as long as Key=object_id. If this ever changes, the filter needs to be removed.
+
         Raises a `BucketNotFoundError` if the bucket does not exist.
 
         Boto3 Documentation:
         https://boto3.amazonaws.com/v1/documentation/api/latest/reference/services/s3/client/list_multipart_uploads.html#S3.Client.list_multipart_uploads
         """
-        uploads: list[str] = []
-        try:
-            response_iter = await asyncio.to_thread(
-                self._client.get_paginator("list_multipart_uploads").paginate,
-                Bucket=bucket_id,
-            )
-            for response_page in response_iter:
+
+        def _list_uploads() -> list[str]:
+            """Factored out, so .paginate is called inside asyncio.to_thread."""
+            paginator = self._client.get_paginator("list_multipart_uploads")
+            uploads: list[str] = []
+            # prefix filtering only works as long as Key=object_id
+            for response_page in paginator.paginate(Bucket=bucket_id, Prefix=object_id):
                 uploads.extend(
-                    [
-                        upload["UploadId"]
-                        for upload in response_page.get("Uploads", [])
-                        if upload["Key"] == object_id
-                    ]
+                    upload["UploadId"]
+                    for upload in response_page.get("Uploads", [])
+                    if upload["Key"] == object_id
                 )
+            return uploads
+
+        try:
+            return await asyncio.to_thread(_list_uploads)
         except botocore.exceptions.ClientError as error:
             raise self._translate_s3_client_errors(
                 error, bucket_id=bucket_id, object_id=object_id
             ) from error
-
-        return uploads
 
     async def _list_parts(
         self,
@@ -420,18 +423,20 @@ class S3ObjectStorage(ObjectStorageProtocol):
                     f"{first_part_no} is not a valid argument for first_part_no"
                 )
 
-        try:
+        def _list_parts() -> list[dict]:
+            """Factored out, so .paginate is called inside asyncio.to_thread."""
+            paginator = self._client.get_paginator("list_parts")
             parts: list[dict] = []
-            response_iter = await asyncio.to_thread(
-                self._client.get_paginator("list_parts").paginate, **params
-            )
-            for page in response_iter:
+            for page in paginator.paginate(**params):
                 parts.extend(page.get("Parts", []))
 
                 # If max_parts specified, return once amount is reached
                 if max_parts and len(parts) >= max_parts:
                     return parts[: max_parts + 1]
             return sorted(parts, key=lambda p: p["PartNumber"])
+
+        try:
+            return await asyncio.to_thread(_list_parts)
         except botocore.exceptions.ClientError as error:
             raise self._translate_s3_client_errors(
                 error,
@@ -449,25 +454,26 @@ class S3ObjectStorage(ObjectStorageProtocol):
 
         Raises a `BucketNotFoundError` if the bucket does not exist.
         """
-        uploads: dict[str, str] = {}
-        try:
-            response_iter = await asyncio.to_thread(
-                self._client.get_paginator("list_multipart_uploads").paginate,
-                Bucket=bucket_id,
-            )
-            for response_page in response_iter:
+
+        def _list_all_uploads() -> dict[str, str]:
+            """Factored out, so .paginate is called inside asyncio.to_thread."""
+            paginator = self._client.get_paginator("list_multipart_uploads")
+            uploads: dict[str, str] = {}
+            for response_page in paginator.paginate(Bucket=bucket_id):
                 uploads.update(
                     {
                         upload["UploadId"]: upload["Key"]
                         for upload in response_page.get("Uploads", [])
                     }
                 )
+            return uploads
+
+        try:
+            return await asyncio.to_thread(_list_all_uploads)
         except botocore.exceptions.ClientError as error:
             raise self._translate_s3_client_errors(
                 error, bucket_id=bucket_id
             ) from error
-
-        return uploads
 
     async def _assert_no_multipart_upload(self, *, bucket_id: str, object_id: str):
         """Ensure that there are no active multi-part uploads for the given object."""
