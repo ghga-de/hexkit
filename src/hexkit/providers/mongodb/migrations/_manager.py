@@ -291,8 +291,7 @@ class MigrationManager:
             if self._backward
             else range(current_ver + 1, self.target_ver + 1)
         )
-        steps = list(step_range)
-        return steps
+        return list(step_range)
 
     def _fetch_migration_cls(self, version: int) -> MigrationCls:
         """Return the stored migration for the specified version.
@@ -323,26 +322,36 @@ class MigrationManager:
 
         # Execute & time each migration in order to get to the target DB version
         for migration_cls in migrations:
-            try:
-                # Determine if this is the last migration to apply/unapply
-                is_final_migration = migration_cls.version == ver_sequence[-1]
+            # Determine if this is the last migration to apply/unapply
+            is_final_migration = migration_cls.version == ver_sequence[-1]
+            await self._run_migration(
+                migration_cls, is_final_migration=is_final_migration
+            )
 
-                # instantiate MigrationDefinition
-                migration = migration_cls(
-                    db=self.db,
-                    unapplying=self._backward,
-                    is_final_migration=is_final_migration,
-                )
+    async def _run_migration(
+        self, migration_cls: MigrationCls, *, is_final_migration: bool
+    ) -> None:
+        """Instantiate and apply/unapply a single migration.
 
-                # Call apply/unapply based on migration type
-                await migration.unapply() if self._backward else await migration.apply()
-            except BaseException as exc:
-                error = MigrationStepError(
-                    migration_class=migration_cls,
-                    backward=self._backward,
-                )
-                log.critical(error)
-                raise error from exc
+        Raises `MigrationStepError` if the migration fails.
+        """
+        try:
+            # instantiate MigrationDefinition
+            migration = migration_cls(
+                db=self.db,
+                unapplying=self._backward,
+                is_final_migration=is_final_migration,
+            )
+
+            # Call apply/unapply based on migration type
+            await migration.unapply() if self._backward else await migration.apply()
+        except BaseException as exc:
+            error = MigrationStepError(
+                migration_class=migration_cls,
+                backward=self._backward,
+            )
+            log.critical(error)
+            raise error from exc
 
     async def _migrate_db(self) -> bool:
         """Ensure the database is up to date before running the actual app.

@@ -175,7 +175,7 @@ async def test_v1_init(mongodb: MongoDbFixture):
     assert verdoc["version"] == 1
     completed = verdoc["completed"].astimezone(timezone.utc)
     assert completed - now < timedelta(seconds=3)
-    assert verdoc["backward"] == False
+    assert not verdoc["backward"]
     assert isinstance(verdoc["total_duration_ms"], int)
 
 
@@ -246,7 +246,7 @@ async def test_copy_indexes(mongodb: MongoDbFixture, indexes: list[IndexModel]):
 
     # Verify created index info
     index_info = collection.index_information()
-    created_indexes = [_ for _ in index_info.items()][1:]
+    created_indexes = list(index_info.items())[1:]
     assert len(created_indexes) == len(indexes)
     for expected, (created_name, created_index) in zip(
         expected_indexes, created_indexes, strict=True
@@ -276,7 +276,7 @@ async def test_copy_indexes(mongodb: MongoDbFixture, indexes: list[IndexModel]):
 
     # Repeat comparison to confirm the indexes were copied to the new collection
     index_info = collection.index_information()
-    copied_indexes = [_ for _ in index_info.items()][1:]
+    copied_indexes = list(index_info.items())[1:]
     assert len(copied_indexes) == len(indexes)
     for expected, (copied_name, copied_index) in zip(
         expected_indexes, copied_indexes, strict=True
@@ -370,7 +370,7 @@ async def test_unapply_not_defined(mongodb: MongoDbFixture):
     version_docs = version_collection.find().to_list()
     assert len(version_docs) == 2
     assert version_docs[-1]["version"] == 2
-    assert version_docs[-1]["backward"] == False
+    assert not version_docs[-1]["backward"]
 
     # Now run migrations with v1 as the target, in order to go backward and trigger error
     with pytest.raises(
@@ -416,7 +416,7 @@ async def test_successful_unapply(mongodb: MongoDbFixture):
     version_docs = version_collection.find().to_list()
     assert len(version_docs) == 3
     assert version_docs[-1]["version"] == 1
-    assert version_docs[-1]["backward"] == True
+    assert version_docs[-1]["backward"]
 
 
 async def test_batch_processing(mongodb: MongoDbFixture):

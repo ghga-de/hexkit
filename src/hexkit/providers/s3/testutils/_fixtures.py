@@ -186,11 +186,9 @@ class S3Fixture:
             bucket_id=bucket_id, object_id=object_id
         )
 
-        upload_details = UploadDetails(
+        return UploadDetails(
             upload_id=upload_id, bucket_id=bucket_id, object_id=object_id
         )
-
-        return upload_details
 
     async def prepare_non_completed_upload(
         self,
@@ -378,7 +376,7 @@ class FederatedS3Fixture:
         storage = self.storages[alias]
 
         # Populate the buckets so even empty buckets are established
-        await storage.populate_buckets([bucket for bucket in contents])
+        await storage.populate_buckets(list(contents))
 
         # Add the dummy items
         for bucket, objects in contents.items():

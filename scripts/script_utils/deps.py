@@ -71,5 +71,4 @@ def get_modified_pyproject(pyproject_toml_path: Path) -> dict[str, Any]:
     with open(pyproject_toml_path, "rb") as pyproject_toml:
         pyproject = tomllib.load(pyproject_toml)
 
-    modified_pyproject = remove_self_dependencies(pyproject)
-    return modified_pyproject
+    return remove_self_dependencies(pyproject)

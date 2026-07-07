@@ -61,7 +61,7 @@ def write_pyproject(pyproject: dict[str, object]) -> None:
 def merge_fields(*, source: dict[str, object], dest: dict[str, object]):
     """Merge fields existing in both custom and template pyproject definitions.
 
-    If a given field is a dictionary, merge or assign depending on if it's found in dest.
+    If a field is a dictionary, merge or assign depending on if it's found in dest.
     If the field is anything else either assign the value or exit with an error message
     if the values have different types.
     """
@@ -73,7 +73,7 @@ def merge_fields(*, source: dict[str, object], dest: dict[str, object]):
                 dest[field] = value
         else:
             if field in dest:
-                if type(value) == type(dest[field]):
+                if type(value) is type(dest[field]):
                     cli.echo_warning(f"Overriding value for '{field}'...")
                 else:
                     cli.echo_failure(f"Conflicting types for '{field}'...")
@@ -96,7 +96,7 @@ def merge_pyprojects(inputs: list[dict[str, object]]) -> dict[str, object]:
 
 
 def main(*, check: bool = False):
-    """Update the pyproject.toml or checks for updates if the check flag is specified."""
+    """Update the pyproject.toml or check for updates if the check flag is specified."""
     template_pyproject = read_template_pyproject()
     custom_pyproject = read_custom_pyproject()
     merged_pyproject = merge_pyprojects([template_pyproject, custom_pyproject])

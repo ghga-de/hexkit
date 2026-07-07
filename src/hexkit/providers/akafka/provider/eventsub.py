@@ -52,6 +52,8 @@ from hexkit.providers.akafka.provider.utils import (
 )
 from hexkit.utils import now_utc_ms_prec
 
+log = logging.getLogger(__name__)
+
 CHANGE_EVENT_TYPE = "upserted"
 DELETE_EVENT_TYPE = "deleted"
 EventOrDaoSubProtocol = DaoSubscriberProtocol | EventSubscriberProtocol
@@ -175,7 +177,7 @@ class ComboTranslator(EventSubscriberProtocol):
                         f"The event of type {type_} on topic {topic}"
                         + " was not valid wrt. the DTO model."
                     )
-                    logging.error(message)
+                    log.error(message)
                     raise DtoValidationError(message) from error
 
                 await translator.changed(resource_id=key, update=dto)
@@ -261,7 +263,7 @@ class ExtractedEventInfo:
                     else "No event_id header found"
                 )
 
-                logging.warning(
+                log.warning(
                     "%s. Generated a new one: %s.",
                     found_val,
                     new_event_id,
@@ -424,7 +426,7 @@ class KafkaEventSubscriber(InboundProviderBase):
         if config.kafka_enable_dlq:
             if using_dlq_protocol:
                 config = config.model_copy(update={"kafka_enable_dlq": False})
-                logging.warning(
+                log.warning(
                     "Can't enable DLQ when using DLQSubscriberProtocol. Disabling DLQ."
                 )
             else:
@@ -433,7 +435,7 @@ class KafkaEventSubscriber(InboundProviderBase):
                     error = ValueError(
                         "A publisher is required when the DLQ is enabled."
                     )
-                    logging.error(error)
+                    log.error(error)
                     raise error
 
         consumer = kafka_consumer_cls(
@@ -516,7 +518,7 @@ class KafkaEventSubscriber(InboundProviderBase):
         - `exc`: The exception that caused the event to be published to the DLQ.
         """
         dlq_event_id = uuid4()
-        logging.debug(
+        log.debug(
             "About to publish event to DLQ topic '%s'. DLQ event_id=%s, original_event_id=%s.",
             self._dlq_topic,
             dlq_event_id,
@@ -536,7 +538,7 @@ class KafkaEventSubscriber(InboundProviderBase):
                 HeaderNames.SERVICE_NAME: self._service_name,
             },
         )
-        logging.info(
+        log.info(
             "Published event to DLQ topic '%s'. DLQ event_id=%s, original_event_id=%s.",
             self._dlq_topic,
             dlq_event_id,
@@ -557,7 +559,7 @@ class KafkaEventSubscriber(InboundProviderBase):
             error = self.RetriesLeftError(
                 retries_left=retries_left, max_retries=self._max_retries
             )
-            logging.error(error)
+            log.error(error)
             raise error
 
         # Decrement retries_left and calculate backoff time, then wait and retry.
@@ -565,7 +567,7 @@ class KafkaEventSubscriber(InboundProviderBase):
         retry_number = self._max_retries - retries_left
         backoff_time = self._retry_backoff * 2 ** (retry_number - 1)
         try:
-            logging.info(
+            log.info(
                 "Retry %i of %i for event beginning in %i seconds. Topic=%s,"
                 + " type=%s, key=%s, event_id=%s.",
                 retry_number,
@@ -611,7 +613,7 @@ class KafkaEventSubscriber(InboundProviderBase):
         try:
             await self._translator_consume(event=event)
         except Exception as underlying_error:
-            logging.warning(
+            log.warning(
                 "Failed initial attempt to consume event. Topic=%s, type=%s,"
                 + " key=%s, event_id=%s.",
                 event.topic,
@@ -633,7 +635,7 @@ class KafkaEventSubscriber(InboundProviderBase):
                 # If the value for retries_left was invalid, we still want to handle it
                 # the same way as if all retries were exhausted. The separate error is
                 # for better traceability.
-                logging.warning(retry_error)
+                log.warning(retry_error)
                 if not self._enable_dlq:
                     raise retry_error from underlying_error
                 await self._publish_to_dlq(event=event, exc=underlying_error)
@@ -695,7 +697,7 @@ class KafkaEventSubscriber(InboundProviderBase):
             try:
                 self._validate_extracted_info(event_info)
             except RuntimeError as err:
-                logging.info(
+                log.info(
                     "Ignored event. Topic=%s, type=%s, key=%s, event_id=%s, errors: %s.",
                     event.topic,  # use actual topic, not event_info.topic
                     event_info.type_,
@@ -709,7 +711,7 @@ class KafkaEventSubscriber(InboundProviderBase):
                 return
 
             try:
-                logging.info(
+                log.info(
                     "Ignored event. Topic=%s, type=%s, key=%s, event_id=%s.",
                     event_info.topic,
                     event_info.type_,
@@ -721,7 +723,7 @@ class KafkaEventSubscriber(InboundProviderBase):
                     await self._handle_consumption(event=event_info)
             except Exception:
                 # Errors only bubble up here if the DLQ isn't used
-                logging.critical(
+                log.critical(
                     "Failed to process event. It was NOT placed in the DLQ topic (%s)."
                     + " Topic=%s, type=%s, key=%s, event_id=%s.",
                     self._dlq_topic if self._enable_dlq else "DLQ is disabled",

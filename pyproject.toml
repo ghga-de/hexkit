@@ -157,6 +157,9 @@ ignore = [
     "E111",
     "E114",
     "E116",
+    "E117",
+    "E501",
+    "W191",
     "PLW",
     "RUF001",
     "RUF010",
@@ -185,6 +188,13 @@ select = [
     "RUF",
     "SIM",
     "D",
+    "E",
+    "W",
+    "ASYNC",
+    "LOG",
+    "PERF",
+    "RET",
+    "C4",
 ]
 
 [tool.ruff.lint.mccabe]
@@ -196,6 +206,7 @@ max-complexity = 10
     "S",
     "SIM",
     "D",
+    "E402",
 ]
 "tests/*" = [
     "S",

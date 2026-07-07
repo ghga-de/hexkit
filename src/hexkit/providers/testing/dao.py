@@ -294,8 +294,7 @@ class DataTypePredicate(Predicate):
             path = self._field.rsplit(".", 1)
             value = _get_nested_value(resource, path[0])
             return self._fn(path[1], value) == self._target_value
-        else:
-            return self._fn(self._field, resource) == self._target_value
+        return self._fn(self._field, resource) == self._target_value
 
 
 def _build_mql_predicate(*, op: str, field: str | None, mapping: Any) -> Predicate:
@@ -309,12 +308,11 @@ def _build_mql_predicate(*, op: str, field: str | None, mapping: Any) -> Predica
             field=field,  # type: ignore
             target_value=mapping,
         )
-    elif op in MQL_LOGICAL_OPERATORS:
+    if op in MQL_LOGICAL_OPERATORS:
         return LogicalPredicate(op=op, field=field, mapping=mapping)
-    elif op in MQL_DATA_TYPE_OPERATORS:
+    if op in MQL_DATA_TYPE_OPERATORS:
         return DataTypePredicate(op=op, field=field, target_value=mapping)  # type: ignore
-    else:
-        raise MQLError(f"The {op} operator is not supported for use with the InMemDao.")
+    raise MQLError(f"The {op} operator is not supported for use with the InMemDao.")
 
 
 def build_predicates(mapping: Mapping[str, Any]) -> list[Predicate]:

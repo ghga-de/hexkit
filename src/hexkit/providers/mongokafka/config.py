@@ -21,6 +21,8 @@ from pydantic import field_validator
 from hexkit.providers.akafka.config import KafkaConfig
 from hexkit.providers.mongodb.config import MongoDbConfig
 
+log = logging.getLogger(__name__)
+
 
 class MongoKafkaConfig(MongoDbConfig, KafkaConfig):
     """Config parameters and their defaults."""
@@ -30,7 +32,7 @@ class MongoKafkaConfig(MongoDbConfig, KafkaConfig):
     def validate_max_message_size(cls, value: int) -> int:
         """Validate the maximum message size."""
         if value > 2**24:  # 16 MiB
-            logging.warning(
+            log.warning(
                 f"Max message size ({value}) exceeds the 16 MiB document size limit for MongoDB!"
             )
         return value

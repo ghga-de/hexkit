@@ -45,6 +45,8 @@ from hexkit.providers.akafka.provider.utils import (
     generate_ssl_context,
 )
 
+log = logging.getLogger(__name__)
+
 RESERVED_HEADERS = ["type", "correlation_id", "event_id"]
 
 
@@ -198,7 +200,7 @@ class KafkaEventPublisher(EventPublisherProtocol):
                 raise
 
             correlation_id = new_correlation_id()
-            logging.info("Generated new correlation ID: %s.", correlation_id)
+            log.info("Generated new correlation ID: %s.", correlation_id)
 
         # Create a shallow copy of the headers
         headers_copy = dict(headers)  # used for validation and logging only
@@ -220,12 +222,12 @@ class KafkaEventPublisher(EventPublisherProtocol):
                 f"The '{header}' header shouldn't be supplied, but was."
                 f" Overwriting old value ({old_value}) with {headers_copy[header]}."
             )
-            logging.warning(log_msg, extra={header: old_value})
+            log.warning(log_msg, extra={header: old_value})
 
         await self._producer.send_and_wait(
             topic, key=key, value=payload, headers=encoded_headers_list
         )
-        logging.info(
+        log.info(
             "Published event: topic=%s, type=%s, key=%s, event_id=%s.",
             topic,
             type_,

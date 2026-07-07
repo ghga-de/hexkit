@@ -96,8 +96,7 @@ def correlation_id_fixture() -> Generator[UUID4, None, None]:
 def get_mongo_collection(mongo_kafka: MongoKafkaFixture, name: str) -> Collection:
     """Get the MongoDB collection with the provided name."""
     db_name = mongo_kafka.config.db_name
-    collection = mongo_kafka.mongodb.client.get_database(db_name).get_collection(name)
-    return collection
+    return mongo_kafka.mongodb.client.get_database(db_name).get_collection(name)
 
 
 class DummyOutboxSubscriber(DaoSubscriberProtocol[ExampleDto]):

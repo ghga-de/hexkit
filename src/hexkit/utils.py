@@ -112,7 +112,7 @@ def validate_fields_in_model(
     Fields which start with $ are excluded from consideration.
     For fields with dot notation, only the top-level field will be validated.
     """
-    fields_set = set(f for f in fields if not f.startswith("$"))
+    fields_set = {f for f in fields if not f.startswith("$")}
     for field in fields:
         if "." in field:
             fields_set.remove(field)

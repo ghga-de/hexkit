@@ -803,7 +803,7 @@ class S3ObjectStorage(ObjectStorageProtocol):
             bucket_id=bucket_id, object_id=object_id
         )
 
-        if not "ETag" in object_metadata:
+        if "ETag" not in object_metadata:
             raise self.ObjectError(
                 f"Could not get the etag of the object with ID '{object_id}' in"
                 + f" bucket '{bucket_id}'."
@@ -819,7 +819,7 @@ class S3ObjectStorage(ObjectStorageProtocol):
             bucket_id=bucket_id, object_id=object_id
         )
 
-        if not "ContentLength" in object_metadata:
+        if "ContentLength" not in object_metadata:
             raise self.ObjectError(
                 f"Could not get the size of the object with ID '{object_id}' in"
                 + f" bucket '{bucket_id}'."
