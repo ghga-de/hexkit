@@ -730,7 +730,7 @@ async def test_prefix_filter_ignores_sibling_object_ids(s3: S3Fixture):
     )
     assert uploads == [long_upload_id]
 
-    # The upload check should still find the upload despite the prefix-sharing sibling.
+    # Ensure this also doesn't raise MultipleActiveUploadsError.
     url = await s3.storage.get_part_upload_url(
         upload_id=short_upload_id,
         bucket_id=bucket_id,
@@ -827,8 +827,27 @@ async def test_handling_multiple_coexisting_uploads(s3: S3Fixture):
         Bucket=bucket_id, Key=object_id
     )["UploadId"]
 
-    # uploading a part and completing the upload both target an explicit
-    # upload_id, so they keep working while a sibling upload is active:
+    # try to work on both uploads:
+    for upload_id in [upload1_id, upload2_id]:
+        with pytest.raises(ObjectStorageProtocol.MultipleActiveUploadsError):
+            await s3.storage.get_part_upload_url(
+                upload_id=upload_id,
+                bucket_id=bucket_id,
+                object_id=object_id,
+                part_number=1,
+            )
+
+        with pytest.raises(ObjectStorageProtocol.MultipleActiveUploadsError):
+            await s3.storage.complete_multipart_upload(
+                upload_id=upload_id, bucket_id=bucket_id, object_id=object_id
+            )
+
+    # aborting should work:
+    await s3.storage.abort_multipart_upload(
+        upload_id=upload2_id, bucket_id=bucket_id, object_id=object_id
+    )
+
+    # confirm that aborting one upload fixes the problem
     await upload_part(
         s3.storage,
         upload_id=upload1_id,
@@ -839,11 +858,6 @@ async def test_handling_multiple_coexisting_uploads(s3: S3Fixture):
     )
     await s3.storage.complete_multipart_upload(
         upload_id=upload1_id, bucket_id=bucket_id, object_id=object_id
-    )
-
-    # the other upload is left dangling and must be cleaned up explicitly
-    await s3.storage.abort_multipart_upload(
-        upload_id=upload2_id, bucket_id=bucket_id, object_id=object_id
     )
 
 

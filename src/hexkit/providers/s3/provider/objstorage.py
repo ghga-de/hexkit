@@ -549,13 +549,10 @@ class S3ObjectStorage(ObjectStorageProtocol):
                 + f" smaller or equal to {self.MAX_FILE_PART_NUMBER}"
             )
 
-        # Upload check needed: presigning is local-only, so a missing upload can
-        # only be detected here. Exclusiveness is not enforced: upload_id is explicit.
+        # Upload check needed: presigning is local-only, so a missing upload or
+        # multiple active uploads can only be detected here.
         await self._assert_multipart_upload_exists(
-            upload_id=upload_id,
-            bucket_id=bucket_id,
-            object_id=object_id,
-            assert_exclusiveness=False,
+            upload_id=upload_id, bucket_id=bucket_id, object_id=object_id
         )
 
         params = {
@@ -728,6 +725,12 @@ class S3ObjectStorage(ObjectStorageProtocol):
         This ensures that exactly the specified number of parts exist and that all parts
         (except the last one) have the specified size.
         """
+        # Upload check needed to keep raising MultipleActiveUploadsError for multiple
+        # active uploads; ListParts alone would only detect a missing upload.
+        await self._assert_multipart_upload_exists(
+            upload_id=upload_id, bucket_id=bucket_id, object_id=object_id
+        )
+
         parts = await self._list_parts(
             upload_id=upload_id,
             bucket_id=bucket_id,
