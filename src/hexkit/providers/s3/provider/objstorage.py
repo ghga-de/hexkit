@@ -185,14 +185,6 @@ class S3ObjectStorage(ObjectStorageProtocol):
             ) from error
         return True
 
-    async def _assert_bucket_exists(self, bucket_id: str) -> None:
-        """Assert that the bucket with the specified ID (`bucket_id`) exists.
-
-        If it does not exist, a BucketNotFoundError is raised.
-        """
-        if not await self.does_bucket_exist(bucket_id):
-            raise self.BucketNotFoundError(bucket_id=bucket_id)
-
     async def _assert_bucket_not_exists(self, bucket_id: str) -> None:
         """Assert that the bucket with the specified ID (`bucket_id`) does not exist.
 
@@ -206,6 +198,7 @@ class S3ObjectStorage(ObjectStorageProtocol):
         Create a bucket (= a structure that can hold multiple file objects) with the
         specified unique ID.
         """
+        # Bucket check needed: S3 silently succeeds when re-creating a bucket you own.
         await self._assert_bucket_not_exists(bucket_id)
 
         try:
@@ -224,8 +217,7 @@ class S3ObjectStorage(ObjectStorageProtocol):
         will be deleted, if False (the default) a BucketNotEmptyError will be raised if
         the bucket is not empty.
         """
-        await self._assert_bucket_exists(bucket_id)
-
+        # No bucket check needed: deletion raises NoSuchBucket for a missing bucket.
         try:
             bucket = self._resource.Bucket(bucket_id)  # pyright: ignore
             content = await asyncio.to_thread(bucket.objects.all)
@@ -239,8 +231,7 @@ class S3ObjectStorage(ObjectStorageProtocol):
 
     async def _list_all_object_ids(self, *, bucket_id: str) -> list[str]:
         """Retrieve a list of IDs for all objects currently present in the specified bucket"""
-        await self._assert_bucket_exists(bucket_id)
-
+        # No bucket check needed: listing raises NoSuchBucket for a missing bucket.
         try:
             bucket = self._resource.Bucket(bucket_id)  # pyright: ignore
             content = await asyncio.to_thread(bucket.objects.all)
@@ -277,11 +268,13 @@ class S3ObjectStorage(ObjectStorageProtocol):
         the specified ID (`bucket_id`) and throws an ObjectNotFoundError otherwise.
         If the bucket does not exist it throws a BucketNotFoundError.
         """
-        # first check if bucket exists:
-        await self._assert_bucket_exists(bucket_id)
-
-        if not await self.does_object_exist(bucket_id=bucket_id, object_id=object_id):
-            raise self.ObjectNotFoundError(bucket_id=bucket_id, object_id=object_id)
+        # head_object 404s can't tell a missing bucket from a missing object, so the
+        # bucket is only checked when the object check fails (common case: one call).
+        if await self.does_object_exist(bucket_id=bucket_id, object_id=object_id):
+            return
+        if not await self.does_bucket_exist(bucket_id):
+            raise self.BucketNotFoundError(bucket_id=bucket_id)
+        raise self.ObjectNotFoundError(bucket_id=bucket_id, object_id=object_id)
 
     async def _assert_object_not_exists(
         self, *, bucket_id: str, object_id: str
@@ -290,13 +283,13 @@ class S3ObjectStorage(ObjectStorageProtocol):
         the specified ID (`bucket_id`). If so, it throws an ObjectAlreadyExistsError.
         If the bucket does not exist it throws a BucketNotFoundError.
         """
-        # first check if bucket exists:
-        await self._assert_bucket_exists(bucket_id)
-
+        # See _assert_object_exists for why the object is checked before the bucket.
         if await self.does_object_exist(bucket_id=bucket_id, object_id=object_id):
             raise self.ObjectAlreadyExistsError(
                 bucket_id=bucket_id, object_id=object_id
             )
+        if not await self.does_bucket_exist(bucket_id):
+            raise self.BucketNotFoundError(bucket_id=bucket_id)
 
     async def _get_object_upload_url(
         self,
@@ -311,6 +304,8 @@ class S3ObjectStorage(ObjectStorageProtocol):
         You may also specify a custom expiry duration in seconds (`expires_after`) and
         a maximum size (bytes) for uploads (`max_upload_size`).
         """
+        # Bucket/object checks needed: presigning is local-only and uploading via
+        # the URL would silently overwrite an existing object.
         await self._assert_object_not_exists(bucket_id=bucket_id, object_id=object_id)
 
         conditions = (
@@ -399,10 +394,8 @@ class S3ObjectStorage(ObjectStorageProtocol):
             ValueError if `max_parts` or `first_part_no` are invalid.
             MultiPartUploadNotFoundError if no upload with `upload_id` exists.
         """
-        await self._assert_multipart_upload_exists(
-            upload_id=upload_id, bucket_id=bucket_id, object_id=object_id
-        )
-
+        # No upload check needed: ListParts raises NoSuchUpload/NoSuchBucket itself,
+        # and exclusiveness doesn't matter for one specific upload_id.
         params: dict[str, Any] = {
             "Bucket": bucket_id,
             "Key": object_id,
@@ -518,6 +511,8 @@ class S3ObjectStorage(ObjectStorageProtocol):
 
     async def _init_multipart_upload(self, *, bucket_id: str, object_id: str) -> str:
         """Initiates a multipart upload procedure. Returns the upload ID."""
+        # Upload check needed: S3 allows multiple concurrent uploads per object, so
+        # exclusiveness can only be ensured upfront (also covers NoSuchBucket).
         await self._assert_no_multipart_upload(bucket_id=bucket_id, object_id=object_id)
 
         try:
@@ -554,6 +549,8 @@ class S3ObjectStorage(ObjectStorageProtocol):
                 + f" smaller or equal to {self.MAX_FILE_PART_NUMBER}"
             )
 
+        # Upload check needed: presigning is local-only, so a missing upload or
+        # multiple active uploads can only be detected here.
         await self._assert_multipart_upload_exists(
             upload_id=upload_id, bucket_id=bucket_id, object_id=object_id
         )
@@ -675,15 +672,8 @@ class S3ObjectStorage(ObjectStorageProtocol):
         """Abort a multipart upload with the specified ID. All uploaded content is
         deleted.
         """
-        await self._assert_multipart_upload_exists(
-            upload_id=upload_id,
-            bucket_id=bucket_id,
-            object_id=object_id,
-            assert_exclusiveness=False,
-        )
-        # Exclusiveness is not enforced here since the abortion of an upload might be
-        # used to resolve the invalid state of multiple uploads for the same object.
-
+        # No upload check needed: abort raises NoSuchUpload/NoSuchBucket itself, and
+        # exclusiveness isn't enforced since aborting may resolve that very state.
         try:
             await asyncio.to_thread(
                 self._client.abort_multipart_upload,
@@ -779,6 +769,8 @@ class S3ObjectStorage(ObjectStorageProtocol):
         the specified ID (`object_id`) from bucket with the specified id (`bucket_id`).
         You may also specify a custom expiry duration in seconds (`expires_after`).
         """
+        # Bucket/object checks needed: presigning is local-only, so a URL for a
+        # missing object would be handed out without error.
         await self._assert_object_exists(bucket_id=bucket_id, object_id=object_id)
 
         try:
@@ -797,8 +789,6 @@ class S3ObjectStorage(ObjectStorageProtocol):
 
     async def _get_object_etag(self, *, bucket_id: str, object_id: str) -> str:
         """Return the etag of an object."""
-        await self._assert_object_exists(bucket_id=bucket_id, object_id=object_id)
-
         object_metadata = await self._get_object_metadata(
             bucket_id=bucket_id, object_id=object_id
         )
@@ -813,8 +803,6 @@ class S3ObjectStorage(ObjectStorageProtocol):
 
     async def _get_object_size(self, *, bucket_id: str, object_id: str) -> int:
         """Returns the size of an object in bytes."""
-        await self._assert_object_exists(bucket_id=bucket_id, object_id=object_id)
-
         object_metadata = await self._get_object_metadata(
             bucket_id=bucket_id, object_id=object_id
         )
@@ -830,17 +818,27 @@ class S3ObjectStorage(ObjectStorageProtocol):
     async def _get_object_metadata(
         self, *, bucket_id: str, object_id: str
     ) -> dict[str, Any]:
-        """Returns object metadata without downloading the actual object."""
+        """Returns object metadata without downloading the actual object.
+
+        No bucket/object checks needed: head_object fails itself; on its ambiguous
+        404, a bucket check picks BucketNotFoundError vs ObjectNotFoundError.
+        """
         try:
-            metadata = await asyncio.to_thread(
+            return await asyncio.to_thread(
                 self._client.head_object,
                 Bucket=bucket_id,
                 Key=object_id,
             )
         except botocore.exceptions.ClientError as error:
-            raise self._translate_s3_client_errors(error) from error
-
-        return metadata
+            if error.response["Error"]["Code"] == "404":
+                if not await self.does_bucket_exist(bucket_id):
+                    raise self.BucketNotFoundError(bucket_id=bucket_id) from error
+                raise self.ObjectNotFoundError(
+                    bucket_id=bucket_id, object_id=object_id
+                ) from error
+            raise self._translate_s3_client_errors(
+                error, bucket_id=bucket_id, object_id=object_id
+            ) from error
 
     async def _copy_object(
         self,
@@ -863,6 +861,8 @@ class S3ObjectStorage(ObjectStorageProtocol):
             bucket_id=source_bucket_id, object_id=source_object_id
         )
 
+        # Destination object check needed: CopyObject silently overwrites; the size
+        # lookup above already validated the source.
         await self._assert_object_not_exists(
             bucket_id=dest_bucket_id, object_id=dest_object_id
         )
@@ -907,6 +907,7 @@ class S3ObjectStorage(ObjectStorageProtocol):
         """Delete an object with the specified id (`object_id`) in the bucket with the
         specified id (`bucket_id`).
         """
+        # Object check needed: DeleteObject reports success even for missing objects.
         await self._assert_object_exists(bucket_id=bucket_id, object_id=object_id)
 
         try:
