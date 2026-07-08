@@ -551,6 +551,8 @@ class S3ObjectStorage(ObjectStorageProtocol):
 
         # Upload check needed: presigning is local-only, so a missing upload or
         # multiple active uploads can only be detected here.
+        # TODO: Since upload ID is included, we shouldn't check for multiple uploads
+        #  here - that should be done elsewhere. Set assert_exclusiveness to False
         await self._assert_multipart_upload_exists(
             upload_id=upload_id, bucket_id=bucket_id, object_id=object_id
         )

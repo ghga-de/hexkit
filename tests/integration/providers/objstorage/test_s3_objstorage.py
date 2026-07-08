@@ -15,7 +15,7 @@
 
 """Test S3 storage DAO"""
 
-from contextlib import AbstractContextManager, nullcontext
+from contextlib import nullcontext
 from unittest.mock import Mock
 
 import pytest
@@ -322,9 +322,6 @@ async def test_using_non_existing_upload(
     bucket_id = real_bucket_id if bucket_id_correct else "wrong-bucket"
     object_id = real_object_id if object_id_correct else "wrong-object"
 
-    def get_exception_context() -> AbstractContextManager:
-        return pytest.raises(exception) if exception else nullcontext()
-
     # call relevant methods from the provider:
     with pytest.raises(exception):
         await s3.storage._assert_multipart_upload_exists(
@@ -338,6 +335,11 @@ async def test_using_non_existing_upload(
 
     with pytest.raises(exception):
         await s3.storage.complete_multipart_upload(
+            upload_id=upload_id, bucket_id=bucket_id, object_id=object_id
+        )
+
+    with pytest.raises(exception):
+        await s3.storage.abort_multipart_upload(
             upload_id=upload_id, bucket_id=bucket_id, object_id=object_id
         )
 
@@ -817,35 +819,8 @@ async def test_handling_multiple_coexisting_uploads(s3: S3Fixture):
     Test that the invalid state of multiple uploads coexisting for the same object
     is correctly handled.
     """
-    # initialize an upload:
+    # initialize an upload and upload its one part before any sibling exists:
     upload1_id, bucket_id, object_id = await s3.get_initialized_upload()
-
-    # initialize another upload bypassing any checks:
-    upload2_id = s3.storage._client.create_multipart_upload(
-        Bucket=bucket_id, Key=object_id
-    )["UploadId"]
-
-    # try to work on both uploads:
-    for upload_id in [upload1_id, upload2_id]:
-        with pytest.raises(ObjectStorageProtocol.MultipleActiveUploadsError):
-            await s3.storage.get_part_upload_url(
-                upload_id=upload_id,
-                bucket_id=bucket_id,
-                object_id=object_id,
-                part_number=1,
-            )
-
-        with pytest.raises(ObjectStorageProtocol.MultipleActiveUploadsError):
-            await s3.storage.complete_multipart_upload(
-                upload_id=upload_id, bucket_id=bucket_id, object_id=object_id
-            )
-
-    # aborting should work:
-    await s3.storage.abort_multipart_upload(
-        upload_id=upload2_id, bucket_id=bucket_id, object_id=object_id
-    )
-
-    # confirm that aborting one upload fixes the problem
     await upload_part(
         s3.storage,
         upload_id=upload1_id,
@@ -854,8 +829,32 @@ async def test_handling_multiple_coexisting_uploads(s3: S3Fixture):
         content=b"Test content.",
         part_number=1,
     )
+
+    # initialize another upload bypassing any checks:
+    upload2_id = s3.storage._client.create_multipart_upload(
+        Bucket=bucket_id, Key=object_id
+    )["UploadId"]
+
+    # get_part_upload_url refuses to hand out a URL while multiple uploads are
+    # active for the object, no matter which of the two upload_ids is targeted,
+    # since it has no other opportunity to surface the anomaly (URL signing itself
+    # never touches S3):
+    for upload_id in [upload1_id, upload2_id]:
+        with pytest.raises(ObjectStorageProtocol.MultipleActiveUploadsError):
+            await s3.storage.get_part_upload_url(
+                upload_id=upload_id,
+                bucket_id=bucket_id,
+                object_id=object_id,
+                part_number=2,
+            )
+
     await s3.storage.complete_multipart_upload(
         upload_id=upload1_id, bucket_id=bucket_id, object_id=object_id
+    )
+
+    # the other upload is left dangling and must be cleaned up explicitly
+    await s3.storage.abort_multipart_upload(
+        upload_id=upload2_id, bucket_id=bucket_id, object_id=object_id
     )
 
 
