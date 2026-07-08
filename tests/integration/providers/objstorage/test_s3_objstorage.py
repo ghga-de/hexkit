@@ -730,7 +730,7 @@ async def test_prefix_filter_ignores_sibling_object_ids(s3: S3Fixture):
     )
     assert uploads == [long_upload_id]
 
-    # Ensure this also doesn't raise MultipleActiveUploadsError.
+    # The upload check should still find the upload despite the prefix-sharing sibling.
     url = await s3.storage.get_part_upload_url(
         upload_id=short_upload_id,
         bucket_id=bucket_id,
@@ -819,8 +819,16 @@ async def test_handling_multiple_coexisting_uploads(s3: S3Fixture):
     Test that the invalid state of multiple uploads coexisting for the same object
     is correctly handled.
     """
-    # initialize an upload and upload its one part before any sibling exists:
+    # initialize an upload:
     upload1_id, bucket_id, object_id = await s3.get_initialized_upload()
+
+    # initialize another upload bypassing any checks:
+    upload2_id = s3.storage._client.create_multipart_upload(
+        Bucket=bucket_id, Key=object_id
+    )["UploadId"]
+
+    # uploading a part and completing the upload both target an explicit
+    # upload_id, so they keep working while a sibling upload is active:
     await upload_part(
         s3.storage,
         upload_id=upload1_id,
@@ -829,25 +837,6 @@ async def test_handling_multiple_coexisting_uploads(s3: S3Fixture):
         content=b"Test content.",
         part_number=1,
     )
-
-    # initialize another upload bypassing any checks:
-    upload2_id = s3.storage._client.create_multipart_upload(
-        Bucket=bucket_id, Key=object_id
-    )["UploadId"]
-
-    # get_part_upload_url refuses to hand out a URL while multiple uploads are
-    # active for the object, no matter which of the two upload_ids is targeted,
-    # since it has no other opportunity to surface the anomaly (URL signing itself
-    # never touches S3):
-    for upload_id in [upload1_id, upload2_id]:
-        with pytest.raises(ObjectStorageProtocol.MultipleActiveUploadsError):
-            await s3.storage.get_part_upload_url(
-                upload_id=upload_id,
-                bucket_id=bucket_id,
-                object_id=object_id,
-                part_number=2,
-            )
-
     await s3.storage.complete_multipart_upload(
         upload_id=upload1_id, bucket_id=bucket_id, object_id=object_id
     )

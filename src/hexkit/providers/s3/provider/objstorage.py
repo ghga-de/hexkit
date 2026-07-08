@@ -549,8 +549,8 @@ class S3ObjectStorage(ObjectStorageProtocol):
                 + f" smaller or equal to {self.MAX_FILE_PART_NUMBER}"
             )
 
-        # Upload check needed: presigning is local-only, so a missing upload or
-        # multiple active uploads can only be detected here.
+        # Upload check needed: presigning is local-only, so a missing upload can
+        # only be detected here. Exclusiveness is not enforced: upload_id is explicit.
         await self._assert_multipart_upload_exists(
             upload_id=upload_id,
             bucket_id=bucket_id,
