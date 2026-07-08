@@ -504,10 +504,10 @@ async def test_list_parts_high_index(s3: S3Fixture):
     # Perform tests inside a single setup instead of uploading all parts anew each time:
     parts = []
     for max_parts, first_part_no, expected_parts, fail_msg in [
-        (None, None, [n for n in range(1, count)], "Basic pagination failed"),
-        (count, None, [n for n in range(1, count)], "Failed when max_parts > 1000"),
+        (None, None, list(range(1, count)), "Basic pagination failed"),
+        (count, None, list(range(1, count)), "Failed when max_parts > 1000"),
         (1, 1025, [1025], "Failed when targeting single part with PartNumber > 1000"),
-        (None, 1025, [n for n in range(1025, count)], "Failed to get last parts"),
+        (None, 1025, list(range(1025, count)), "Failed to get last parts"),
         (3, None, [1, 2, 3], "Failed to get first three parts with no first_part_no"),
     ]:
         parts = await s3.storage.list_parts(

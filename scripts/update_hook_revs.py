@@ -33,11 +33,7 @@ LOCK_FILE_PATH = REPO_ROOT_DIR / "lock" / "requirements-dev.txt"
 
 def make_dependency_dict(requirements: list[Requirement]) -> dict[str, str]:
     """Accept a list of Requirement objects and convert to dict"""
-    processed = {
-        req.name: str(req.specifier).removeprefix("==") for req in requirements
-    }
-
-    return processed
+    return {req.name: str(req.specifier).removeprefix("==") for req in requirements}
 
 
 def get_repl_value(match, dependencies: dict[str, str], outdated_hooks: list[str]):

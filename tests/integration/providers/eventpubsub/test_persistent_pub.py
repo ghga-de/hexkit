@@ -22,9 +22,6 @@ from uuid import UUID
 
 import pytest
 
-from hexkit.utils import now_utc_ms_prec
-
-pytestmark = pytest.mark.asyncio()
 from hexkit.correlation import set_correlation_id
 from hexkit.providers.akafka.testutils import (
     KafkaFixture,
@@ -42,6 +39,9 @@ from hexkit.providers.mongokafka.provider import (
     PersistentKafkaEvent,
     PersistentKafkaPublisher,
 )
+from hexkit.utils import now_utc_ms_prec
+
+pytestmark = pytest.mark.asyncio()
 
 TEST_TOPIC = "my-topic"
 TEST_TYPE = "my_type"
@@ -233,8 +233,8 @@ async def test_publish_pending(kafka: KafkaFixture, mongodb: MongoDbFixture):
         # Check that both events in the DB now say published = True
         events = collection.find().to_list()
         assert len(events) == 2
-        assert events[0]["published"] == True
-        assert events[1]["published"] == True
+        assert events[0]["published"]
+        assert events[1]["published"]
 
 
 async def test_compaction(kafka: KafkaFixture, mongodb: MongoDbFixture):

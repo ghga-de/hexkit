@@ -105,7 +105,7 @@ class JsonFormatter(Formatter):
         """
         # Create a log record dictionary
         log_record = record.__dict__
-        output: dict[str, Any] = dict()
+        output: dict[str, Any] = {}
 
         output["timestamp"] = log_record["timestamp"]
         output["service"] = log_record["service"]

@@ -43,9 +43,15 @@ fixable = [
     "RUF022", # sort items in __all__
 ]
 ignore = [
+    # Rules that conflict with ruff-format, kept in sync with Ruff's
+    # "formatter-incompatible rules" list:
+    # https://docs.astral.sh/ruff/formatter/#conflicting-lint-rules
     "E111", # indentation with invalid multiple (for formatter)
     "E114", # indentation with invalid multiple comment (for formatter)
-    "E116", # over indentation (for formatter)
+    "E116", # unexpected indentation of comment (for formatter)
+    "E117", # over-indented (for formatter)
+    "E501", # line too long
+    "W191", # tab indentation (for formatter)
     "PLW", # pylint warnings
     "RUF001", # ambiguous unicode character strings
     "RUF010", # explicit conversion to string or repr: !s or !r
@@ -74,13 +80,20 @@ select = [
     "RUF", # ruff
     "SIM", # flake8-simplify
     "D", # pydocstyle
+    "E", # pycodestyle errors (E402 import-not-at-top, E721 type ==, E731 lambda assign)
+    "W", # pycodestyle warnings, incl. W605 invalid escape sequence (e.g. in regexes)
+    "ASYNC", # flake8-async, catches blocking calls inside async def (high value for async services)
+    "LOG", # flake8-logging, logging-call correctness
+    "PERF", # perflint, cheap performance anti-patterns
+    "RET", # flake8-return, small mechanical return-statement cleanups
+    "C4", # flake8-comprehensions, mechanical comprehension cleanups
 ]
 
 [tool.ruff.lint.mccabe]
 max-complexity = 10
 
 [tool.ruff.lint.per-file-ignores]
-"scripts/*" = ["PL", "S", "SIM", "D"]
+"scripts/*" = ["PL", "S", "SIM", "D", "E402"] # scripts may do path setup before imports
 "tests/*" = ["S", "SIM", "PLR", "B011"]
 ".devcontainer/*" = ["S", "SIM", "D"]
 "examples/*" = ["S", "D"]

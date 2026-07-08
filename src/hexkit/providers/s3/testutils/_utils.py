@@ -16,6 +16,7 @@
 
 # ruff: noqa: PLR0913
 
+import asyncio
 import hashlib
 import os
 from pathlib import Path
@@ -133,7 +134,9 @@ async def upload_part(
         object_id=object_id,
         part_number=part_number,
     )
-    response = httpx.put(upload_url, content=content, timeout=TIMEOUT)
+    response = await asyncio.to_thread(
+        httpx.put, upload_url, content=content, timeout=TIMEOUT
+    )
     response.raise_for_status()
 
 
@@ -182,7 +185,8 @@ async def multipart_upload_file(
         bucket_id=bucket_id, object_id=object_id
     )
 
-    with open(file_path, "rb") as test_file:
+    test_file = await asyncio.to_thread(open, file_path, "rb")
+    with test_file:
         for part_number in range(1, ObjectStorageProtocol.MAX_FILE_PART_NUMBER + 1):
             print(f" - read {part_size} from file: {str(file_path)}")
             file_part = test_file.read(part_size)

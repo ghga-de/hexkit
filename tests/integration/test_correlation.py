@@ -87,7 +87,8 @@ async def test_correlation_id_isolation():
     """Make sure correlation IDs are isolated to the respective async task and that
     there's no interference from task switching.
     """
-    with open(SAMPLE_UUID_PATH) as f:
+    f = await asyncio.to_thread(open, SAMPLE_UUID_PATH)
+    with f:
         uuids = [UUID(line.strip()) for line in f.readlines()]
     tasks = [set_id_sleep_resume(uuid) for uuid in uuids]
     await asyncio.gather(*tasks)

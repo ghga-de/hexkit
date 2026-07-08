@@ -38,6 +38,8 @@ from hexkit.providers.akafka.provider.eventsub import (
     ComboTranslator as TranslatorConverter,  # for backwards compatibility
 )
 
+log = logging.getLogger(__name__)
+
 
 class KafkaOutboxSubscriber(InboundProviderBase):
     """Apache Kafka-specific provider using translators that implement the
@@ -76,7 +78,7 @@ class KafkaOutboxSubscriber(InboundProviderBase):
 
         if config.kafka_enable_dlq and dlq_publisher is None:
             error = ValueError("A publisher is required when the DLQ is enabled.")
-            logging.error(error)
+            log.error(error)
             raise error
 
         async with KafkaEventSubscriber.construct(

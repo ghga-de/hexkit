@@ -49,7 +49,7 @@ class FakeIndex(IndexBase):
 
     def list_field_names(self) -> list[str]:
         """Return all the fields in this 'index'"""
-        return [field for field in self.fields]
+        return list(self.fields)
 
 
 class FakeDaoFactory(DaoFactoryProtocol[FakeIndex]):

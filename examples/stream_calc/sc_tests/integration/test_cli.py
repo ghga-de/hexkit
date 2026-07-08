@@ -19,7 +19,6 @@
 import asyncio
 import os
 import site
-import subprocess
 import sys
 from pathlib import Path
 
@@ -51,12 +50,12 @@ async def test_cli(kafka: KafkaFixture, monkeypatch: pytest.MonkeyPatch):
 
     await submit_test_problems(CASES, kafka_server=kafka_server)
 
-    with subprocess.Popen(
-        args=["-m", "stream_calc"],
-        executable=sys.executable,
-    ) as process:
+    process = await asyncio.create_subprocess_exec(sys.executable, "-m", "stream_calc")
+    try:
         await asyncio.wait_for(
             check_problem_outcomes(cases=CASES, kafka_server=kafka_server),
             10,
         )
+    finally:
         process.terminate()
+        await process.wait()

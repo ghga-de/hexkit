@@ -200,7 +200,7 @@ async def test_mql_comparison_ops(mapping: dict[str, Any], expected: list[str]):
 
 async def test_build_predicates_empty_mapping():
     """Verify that running build_predicates() on an empty dict returns an empty list"""
-    assert build_predicates(dict()) == []
+    assert build_predicates({}) == []
 
 
 async def test_basic_nesting():
