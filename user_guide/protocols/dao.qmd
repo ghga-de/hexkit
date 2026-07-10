@@ -274,19 +274,17 @@ in the hexkit repository are a good complement to this guide.
 Two sibling protocols extend the DAO idea with event publishing, implementing a
 variation of the *outbox pattern*:
 
-- [`DaoPublisher`](../../reference/protocols.daopub.DaoPublisher.qmd) and
-  [`DaoPublisherFactoryProtocol`](../../reference/protocols.daopub.DaoPublisherFactoryProtocol.qmd)
-  (from `hexkit.protocols.daopub`) describe DAOs that automatically publish an event
-  whenever a resource is inserted, updated, or deleted.
-- [`DaoSubscriberProtocol`](../../reference/protocols.daosub.DaoSubscriberProtocol.qmd)
-  (from `hexkit.protocols.daosub`) is the consuming counterpart for services that want
-  to mirror those changes.
+- [`DaoPublisher`](daopublisher.qmd) and its factory (from `hexkit.protocols.daopub`)
+  describe DAOs that automatically publish an event whenever a resource is inserted,
+  updated, or deleted.
+- The [`DaoSubscriberProtocol`](daosubscriber.qmd) (from `hexkit.protocols.daosub`)
+  is the consuming counterpart for services that want to mirror those changes.
 
-These are implemented by the
-[MongoDB + Kafka provider](../providers/mongokafka.qmd) and discussed in the
-[Publisher Variants](../developer_help/outbox_v_persistent_pub.qmd) chapter. If you
-only need plain persistence, you can safely ignore them; they build on everything
-described above.
+Both have their own chapters, linked above; the publishing side is implemented by
+the [MongoDB + Kafka provider](../providers/mongokafka.qmd) and further discussed
+in the [Publisher Variants](../developer_help/outbox_v_persistent_pub.qmd) chapter.
+If you only need plain persistence, you can safely ignore them; they build on
+everything described above.
 
 ## Implementing a Custom Provider
 

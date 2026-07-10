@@ -1,0 +1,173 @@
+---
+title: "DAO Publisher"
+---
+
+<!--
+ Copyright 2021 - 2026 Universität Tübingen, DKFZ, EMBL, and Universität zu Köln
+ for the German Human Genome-Phenome Archive (GHGA)
+
+ Licensed under the Apache License, Version 2.0 (the "License");
+ you may not use this file except in compliance with the License.
+ You may obtain a copy of the License at
+
+     http://www.apache.org/licenses/LICENSE-2.0
+
+ Unless required by applicable law or agreed to in writing, software
+ distributed under the License is distributed on an "AS IS" BASIS,
+ WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ See the License for the specific language governing permissions and
+ limitations under the License.
+-->
+
+The DAO publisher protocol, defined in `hexkit.protocols.daopub`, is the publishing
+half of hexkit's [outbox pattern](../arch_concepts/event_driven_arch.qmd#outbox-pattern):
+a [DAO](dao.qmd) that automatically publishes an event for every insert, update,
+and delete. Services that own data use it in place of a plain DAO; other services
+mirror the data by consuming the resulting event stream through the
+[DAO Subscriber](daosubscriber.qmd), the consuming counterpart.
+
+The appeal of the pattern is that the database remains the single source of truth.
+Events are derived from persisted state, and can be derived from it *again*: if a
+publish fails, if a topic is lost, or if a new consumer needs the full data set,
+the events are simply re-emitted from the database.
+
+Like the plain DAO protocol, this one consists of two interfaces:
+
+- [`DaoPublisher`](../../reference/protocols.daopub.DaoPublisher.qmd) describes the
+  DAO handed to application code. It is a structural type (a `typing.Protocol`)
+  extending [`Dao`](dao.qmd) with two publishing methods.
+- [`DaoPublisherFactoryProtocol`](../../reference/protocols.daopub.DaoPublisherFactoryProtocol.qmd)
+  is the abstract base class that providers implement; its `get_dao()` constructs
+  DAO publishers, one per resource type.
+
+## The `DaoPublisher` Interface
+
+A `DaoPublisher[Dto]` offers everything a `Dao[Dto]` does — the full set of
+[CRUD and find operations](dao.qmd#crud-operations) with identical semantics and
+[error types](dao.qmd#error-handling) — so it drops into any code written against
+the DAO protocol. Publishing happens as a side effect of the write operations; the
+calling code does not deal with events at all.
+
+On top of the DAO surface, two methods control publishing explicitly:
+
+- `publish_pending()`: publish the changes that have not been published yet — for
+  example because a publish failed, or because automatic publishing is turned off.
+- `republish()`: re-emit the current state of *all* resources, regardless of
+  whether it was published before.
+
+Both are idempotent from the consumers' perspective (consuming the same state
+twice must be safe anyway — see [below](#event-semantics)). Services typically
+expose them through a CLI command that operators run as a job, for instance to
+backfill a newly created consumer service; the
+[Publisher Variants](../developer_help/outbox_v_persistent_pub.qmd#republishing)
+chapter shows how to structure such a command.
+
+## The Factory
+
+DAO publishers are constructed by a factory implementing
+[`DaoPublisherFactoryProtocol`](../../reference/protocols.daopub.DaoPublisherFactoryProtocol.qmd).
+Its `get_dao()` method takes the same arguments as the
+[plain DAO factory](dao.qmd#obtaining-a-dao-the-factory) — `name`, `dto_model`,
+`id_field`, and optional `indexes` — plus three that define the publishing
+behavior:
+
+```python
+user_dao = await dao_publisher_factory.get_dao(
+    name="users",
+    dto_model=User,
+    id_field="user_id",
+    dto_to_event=lambda user: user.model_dump(mode="json", exclude={"internal_notes"}),
+    event_topic="users",
+    autopublish=True,
+)
+```
+
+- `dto_to_event`: a function turning a DTO into the event payload. It decouples
+  what you *store* from what you *expose*: strip internal fields, rename, or
+  reshape as needed. Returning `None` suppresses the event for that change
+  entirely, which allows publishing only a subset of resources.
+- `event_topic`: the topic the events are published to. Use one dedicated topic
+  per resource type, as consumers subscribe to the topic as a whole.
+- `autopublish`: whether every write publishes immediately (the default). When
+  `False`, changes are only persisted, and events are emitted later by an explicit
+  `publish_pending()` call.
+
+The factory validates its inputs like the plain DAO factory does and raises the
+same errors (`IdFieldNotFoundError`, `IdTypeNotSupportedError`).
+
+## Event Semantics
+
+The events form a *changelog* of the resource collection, with a deliberately
+minimal contract that is hardcoded in hexkit rather than configurable:
+
+- Every event's *key* is the resource ID (the value of the DTO's `id_field`),
+  so all changes to one resource share a key and stay ordered within a partition.
+- An insert, update, or upsert produces an event of type **`upserted`** whose
+  payload is the full state of the resource as returned by `dto_to_event`. Events
+  do not describe *what changed* — they carry the entire latest state.
+- A delete produces an event of type **`deleted`** with an empty payload — a
+  *tombstone* whose key tells consumers which resource is gone.
+
+Because every event carries the full state, only the latest event per key
+matters. This makes the topics ideal candidates for
+[Kafka topic compaction](../arch_concepts/event_driven_arch.qmd#topic-compaction-idempotence):
+the broker retains only the newest event per resource, and a new consumer reading
+the compacted topic from the beginning receives exactly the current data set.
+
+Consuming these events is the subject of the [DAO Subscriber](daosubscriber.qmd)
+chapter.
+
+## Failure Model
+
+The point of the outbox pattern is that database write and event publish do not
+need to succeed atomically. The state change is persisted along with a flag
+tracking whether the latest change has been published; when publishing fails, the
+data is safe and the event is merely *pending*. A later `publish_pending()` —
+whether run manually, scheduled as a job, or triggered on service startup —
+brings the event stream back in line with the database.
+
+Two identity details are worth knowing for tracing and debugging:
+
+- The *correlation ID* active during the original write is stored with the
+  resource and re-applied when its events are published or republished, so
+  traces stay consistent even for events re-emitted much later.
+- *Event IDs* are freshly generated on every publish and republish: re-emissions
+  are distinct events (with the same key and payload), not byte-identical copies.
+  This differs from the
+  [`PersistentKafkaPublisher`](../providers/mongokafka.qmd#persistent-publisher),
+  which reuses stored event IDs.
+
+## Available Providers
+
+One implementation ships with hexkit:
+[`MongoKafkaDaoPublisherFactory`](../../reference/providers.mongokafka.MongoKafkaDaoPublisherFactory.qmd)
+from the [MongoDB + Kafka provider](../providers/mongokafka.qmd#outbox-publisher)
+(requiring the `mongodb` and `akafka` extras). It stores resources in MongoDB with
+a small `__metadata__` field (publish status, correlation ID, deletion flag) and
+publishes through Kafka; deleted resources leave a metadata stub behind so that
+deletions survive for republishing. The provider chapter documents these
+mechanics, along with a complete usage example.
+
+For runnable examples, see the
+[mongokafka integration tests](https://github.com/ghga-de/hexkit/blob/main/tests/integration/providers/daopubsub/test_mongokafka_pubsub.py)
+in the hexkit repository.
+
+## Implementing a Custom Provider
+
+Supporting another database/broker combination means subclassing
+`DaoPublisherFactoryProtocol` and implementing `_get_dao()`; the public `get_dao()`
+validates all inputs first, so the implementation can trust its arguments. The
+rules from
+[implementing a custom DAO provider](dao.qmd#implementing-a-custom-provider) apply
+unchanged, plus two specific to publishing:
+
+1. **Honor the event contract.** Publish `upserted` events with the
+   `dto_to_event` payload and `deleted` tombstones, keyed by resource ID, so
+   [`DaoSubscriberProtocol`](daosubscriber.qmd) consumers remain compatible with
+   your provider.
+2. **Persist the publish state.** `publish_pending()` and `republish()` must be
+   able to reconstruct and re-emit events from stored state at any time — that is
+   what makes it an outbox rather than plain publishing.
+
+If you build a provider for a widely used backend combination, please consider
+[contributing it to hexkit](https://github.com/ghga-de/hexkit).

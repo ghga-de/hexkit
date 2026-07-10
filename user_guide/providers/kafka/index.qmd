@@ -1,0 +1,173 @@
+---
+title: "Apache Kafka"
+---
+
+<!--
+ Copyright 2021 - 2026 Universität Tübingen, DKFZ, EMBL, and Universität zu Köln
+ for the German Human Genome-Phenome Archive (GHGA)
+
+ Licensed under the Apache License, Version 2.0 (the "License");
+ you may not use this file except in compliance with the License.
+ You may obtain a copy of the License at
+
+     http://www.apache.org/licenses/LICENSE-2.0
+
+ Unless required by applicable law or agreed to in writing, software
+ distributed under the License is distributed on an "AS IS" BASIS,
+ WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ See the License for the specific language governing permissions and
+ limitations under the License.
+-->
+
+The `akafka` subpackage (`hexkit.providers.akafka`) implements hexkit's event
+protocols on top of [Apache Kafka](https://kafka.apache.org/), using the
+asynchronous [aiokafka](https://aiokafka.readthedocs.io/) client library. It is
+hexkit's production event-streaming backend; the architectural background is covered
+in the [Event-Driven Architecture](../../arch_concepts/event_driven_arch.qmd) chapter.
+
+The subpackage provides:
+
+- [`KafkaEventPublisher`](publisher.qmd) — publishes events, implementing the
+  [`EventPublisherProtocol`](../../../reference/protocols.eventpub.EventPublisherProtocol.qmd).
+- [`KafkaEventSubscriber`](subscriber.qmd) — consumes events and hands them to a
+  service-defined translator implementing the
+  [`EventSubscriberProtocol`](../../../reference/protocols.eventsub.EventSubscriberProtocol.qmd).
+- [`KafkaOutboxSubscriber`](../../protocols/daosubscriber.qmd#running-a-subscriber-the-kafka-provider)
+  — a convenience wrapper for consuming outbox events with translators implementing
+  the [`DaoSubscriberProtocol`](../../protocols/daosubscriber.qmd).
+- [Kafka test utils](#kafka-test-utils) — pytest fixtures and helpers for testing
+  against a real, disposable Kafka broker.
+
+Two hybrid providers combine Kafka with MongoDB and are documented in the
+[MongoDB + Kafka](../mongokafka.qmd) chapter: the outbox publisher
+(`MongoKafkaDaoPublisher`) and the `PersistentKafkaPublisher`.
+
+Install hexkit with the `akafka` extra to use these providers:
+
+```bash
+pip install hexkit[akafka]
+```
+
+## Configuration
+
+All Kafka providers are configured through a single Pydantic settings class,
+[`KafkaConfig`](../../../reference/providers.akafka.KafkaConfig.qmd)
+(`hexkit.providers.akafka.KafkaConfig`). The connection-related parameters, relevant
+to every Kafka provider, are:
+
+| Parameter | Default | Description |
+| --------- | ------- | ----------- |
+| `service_name` | *required* | Name of the service, e.g. `"user-registry"`. Doubles as the Kafka *consumer group ID*, so all instances of a service share the consumption workload. |
+| `service_instance_id` | *required* | Identifier unique to this instance of the service, e.g. `"instance-001"`. The Kafka *client ID* is derived as `<service_name>.<service_instance_id>`. |
+| `kafka_servers` | *required* | List of connection strings for the Kafka bootstrap servers, e.g. `["localhost:9092"]`. |
+| `kafka_security_protocol` | `"PLAINTEXT"` | Either `"PLAINTEXT"` or `"SSL"`. |
+| `kafka_ssl_cafile` | `""` | Path to the certificate authority file used to sign the broker certificates. If empty, the system CA is used if OpenSSL finds one. |
+| `kafka_ssl_certfile` | `""` | Optional client certificate file (including any CA certificates needed to establish its authenticity). |
+| `kafka_ssl_keyfile` | `""` | Optional client private key file. |
+| `kafka_ssl_password` | `""` | Optional password for the client private key. |
+| `kafka_max_message_size` | `1048576` (1 MiB) | The largest transmittable message size in bytes, applied to producers (before compression) and consumers alike. |
+
+`KafkaConfig` carries further parameters that only concern one side of the
+event flow; they are documented where they apply:
+[compression and correlation ID generation](publisher.qmd#configuration) on the
+publisher page, and [retries and the dead letter queue](subscriber.qmd#configuration)
+on the subscriber page.
+
+### Providing Configuration Values
+
+Since `KafkaConfig` is a
+[pydantic-settings](https://docs.pydantic.dev/latest/concepts/pydantic_settings/)
+`BaseSettings` class, every parameter can be supplied as an environment variable
+named after the field (case-insensitive; list values as JSON):
+
+```bash
+export SERVICE_NAME="user-registry"
+export SERVICE_INSTANCE_ID="instance-001"
+export KAFKA_SERVERS='["kafka-server-1:9092", "kafka-server-2:9092"]'
+```
+
+In a typical service, `KafkaConfig` is not instantiated on its own. Instead, the
+service defines one config class inheriting from all the hexkit config classes it
+needs (plus its own settings) and decorates it with hexkit's `config_from_yaml`,
+which layers the configuration sources — keyword arguments override environment
+variables, which override secret files under `/secrets`, which override a config
+YAML, which overrides the defaults:
+
+```python
+from hexkit.config import config_from_yaml
+from hexkit.providers.akafka import KafkaConfig
+
+
+@config_from_yaml(prefix="my_service")
+class Config(KafkaConfig):
+    """Configuration for my service."""
+
+    ...  # further settings, e.g. from other hexkit config classes
+
+
+config = Config()  # reads .my_service.yaml, MY_SERVICE_* env vars, etc.
+```
+
+With a prefix set, environment variables take the form
+`MY_SERVICE_KAFKA_SERVERS='["localhost:9092"]'`, and the config YAML is looked up
+via the `MY_SERVICE_CONFIG_YAML` environment variable or as `.my_service.yaml` in
+the current or home directory.
+
+## Kafka Test Utils
+
+The `hexkit.providers.akafka.testutils` module provides pytest fixtures that spin
+up a disposable Kafka broker in a container, so integration tests exercise real
+broker semantics without external infrastructure. Install the `test-akafka` extra
+to use them (it adds [testcontainers](https://testcontainers-python.readthedocs.io/)
+to the `akafka` extra):
+
+```bash
+pip install hexkit[test-akafka]
+```
+
+Two fixtures work in tandem:
+
+- `kafka_container_fixture`: a session-scoped fixture starting a Kafka
+  testcontainer.
+- `kafka_fixture`: a function-scoped `KafkaFixture` bound to that container. It
+  clears all topics before each test (use `persistent_kafka_fixture` to skip the
+  cleanup) and offers a ready-made `KafkaConfig` plus utility methods.
+
+The `KafkaFixture` lets you publish test events, record what a service publishes,
+and assert expectations:
+
+```python
+import pytest
+
+from hexkit.providers.akafka.testutils import (
+    ExpectedEvent,
+    KafkaFixture,
+    kafka_container_fixture,  # noqa: F401
+    kafka_fixture,  # noqa: F401
+)
+
+
+@pytest.mark.asyncio
+async def test_my_service(kafka: KafkaFixture):
+    # feed an inbound event to the service under test:
+    await kafka.publish_event(
+        payload={"user_id": "abc123", "name": "Jane"},
+        type_="user_created",
+        topic="users",
+        key="abc123",
+    )
+
+    # assert on the events the service publishes in response:
+    async with kafka.expect_events(
+        events=[ExpectedEvent(payload={"user_id": "abc123"}, type_="greeting_sent")],
+        in_topic="greetings",
+    ):
+        ...  # run the service logic that should publish the event
+```
+
+Beyond `publish_event()` and `expect_events()`, the fixture provides
+`record_events(in_topic=...)` for free-form recording and later inspection,
+`clear_topics()` for removing events between test phases, and
+`set_cleanup_policy()` for testing behavior on compacted topics. `kafka.config`
+is a `KafkaConfig` pointing at the containerized broker, ready to be passed to
+the providers under test.

@@ -19,9 +19,28 @@ title: "Providers"
  limitations under the License.
 -->
 
-(intro)
+Providers are hexkit's concrete implementations of its
+[protocols](../protocols/index.qmd), each binding a protocol to a specific
+technology. Application code is written against the protocols; which provider is
+wired in decides the actual infrastructure. Each provider family lives behind an
+optional extra (e.g. `pip install hexkit[akafka,mongodb]`), so services only pull
+in the dependencies they need.
 
 ## Currently Implemented Providers
-- [KafkaEventPublisher]()
+
+- [Apache Kafka](kafka/index.qmd): event publishing and consumption —
+  [`KafkaEventPublisher`](kafka/publisher.qmd),
+  [`KafkaEventSubscriber`](kafka/subscriber.qmd), and the `KafkaOutboxSubscriber` —
+  plus test utilities.
+- [MongoDB](mongodb.qmd): document-database implementations of the DAO and
+  key-value-store protocols.
+- [MongoDB + Kafka](mongokafka.qmd): the outbox publisher
+  (`MongoKafkaDaoPublisher`) and the `PersistentKafkaPublisher`, combining both
+  backends.
+- [S3](s3.qmd): object storage and key-value stores on any S3-compatible backend.
+- [Redis](redis.qmd): key-value stores for fast access to hot values.
+- [Vault](vault.qmd): key-value stores for secrets.
+- [Testing](testing.qmd): in-memory implementations for unit tests, such as the
+  mock DAO and in-memory key-value stores.
 
 ## Adding Providers

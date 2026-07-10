@@ -1,0 +1,230 @@
+---
+title: "DAO Subscriber"
+---
+
+<!--
+ Copyright 2021 - 2026 Universität Tübingen, DKFZ, EMBL, and Universität zu Köln
+ for the German Human Genome-Phenome Archive (GHGA)
+
+ Licensed under the Apache License, Version 2.0 (the "License");
+ you may not use this file except in compliance with the License.
+ You may obtain a copy of the License at
+
+     http://www.apache.org/licenses/LICENSE-2.0
+
+ Unless required by applicable law or agreed to in writing, software
+ distributed under the License is distributed on an "AS IS" BASIS,
+ WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ See the License for the specific language governing permissions and
+ limitations under the License.
+-->
+
+The
+[`DaoSubscriberProtocol`](../../reference/protocols.daosub.DaoSubscriberProtocol.qmd),
+defined in `hexkit.protocols.daosub`, is the consuming half of hexkit's
+[outbox pattern](../arch_concepts/event_driven_arch.qmd#outbox-pattern): a
+translator interface for services that keep their own copy of resources owned by
+another service, kept up to date by consuming the change events that the owning
+service publishes through a [DAO Publisher](daopublisher.qmd).
+
+Where a generic event translator (the
+[`EventSubscriberProtocol`](../providers/kafka/subscriber.qmd#the-translator))
+receives raw events and decides everything itself, a DAO subscriber works at a
+higher level: the provider already knows the outbox event contract, validates the
+payload against your model, and calls one of exactly two methods — *this resource
+changed* or *this resource was deleted*.
+
+## Use Case: Syncing Data Across Services
+
+In a microservice landscape, service B often needs data that service A owns —
+say, a notification service needing user contact details from the user registry.
+Direct API calls would couple the services and make B's availability depend on
+A's. The outbox pattern instead replicates the data: A publishes every state
+change of its resources to a Kafka topic, and B consumes that topic to maintain
+its own local copy, which it can then query freely. The
+[Event-Driven Architecture](../arch_concepts/event_driven_arch.qmd#outbox-pattern)
+chapter discusses the trade-offs.
+
+```{mermaid}
+%%| fig-cap: Service B mirrors resources owned by service A by consuming its outbox events.
+
+sequenceDiagram
+    autonumber
+    participant CoreA as Service A core
+    participant Outbox as DAO publisher (A)
+    participant Kafka as Kafka topic "users"
+    participant Sub as DAO subscriber (B)
+    participant DaoB as Local DAO (B)
+
+    CoreA->>Outbox: upsert(user)
+    Outbox->>Kafka: event type "upserted", key=user_id, full state
+    Kafka->>Sub: changed(resource_id, dto)
+    Sub->>DaoB: upsert local copy
+    CoreA->>Outbox: delete(user_id)
+    Outbox->>Kafka: event type "deleted", key=user_id (tombstone)
+    Kafka->>Sub: deleted(resource_id)
+    Sub->>DaoB: delete local copy
+```
+
+The event stream a DAO subscriber consumes follows the outbox contract described
+in the [DAO Publisher](daopublisher.qmd#event-semantics) chapter: one topic per
+resource type, the resource ID as the event key, and just two event types —
+`upserted`, carrying the full latest state of the resource, and `deleted`, an
+empty-bodied tombstone. There is no "what changed" delta to interpret; consumers
+simply overwrite or drop their local copy.
+
+## Implementing a Subscriber
+
+`DaoSubscriberProtocol` is an abstract base class, generic over the DTO model. An
+implementation provides two class attributes and two methods:
+
+- `event_topic`: the outbox topic to consume from.
+- `dto_model`: a Pydantic model describing the expected event payload. The
+  *provider* validates each incoming payload against it, so your code always
+  receives a typed, validated object.
+- `changed(resource_id, update)`: called for `upserted` events with the validated
+  DTO. One method covers both creation and update — implement it as an upsert.
+- `deleted(resource_id)`: called for `deleted` events.
+
+A complete example that mirrors user data into a local
+[DAO](dao.qmd):
+
+```python
+from pydantic import BaseModel
+
+from hexkit.protocols.dao import Dao, ResourceNotFoundError
+from hexkit.protocols.daosub import DaoSubscriberProtocol
+
+
+class User(BaseModel):
+    """The subset of user data published by the user registry."""
+
+    user_id: str
+    name: str
+    email: str
+
+
+class UserOutboxSubscriber(DaoSubscriberProtocol[User]):
+    """Keeps a local copy of the user registry's data in sync."""
+
+    event_topic = "users"
+    dto_model = User
+
+    def __init__(self, *, user_dao: Dao[User]):
+        self._user_dao = user_dao
+
+    async def changed(self, resource_id: str, update: User) -> None:
+        """Upsert the local copy of the user."""
+        await self._user_dao.upsert(update)
+
+    async def deleted(self, resource_id: str) -> None:
+        """Remove the local copy of the user, tolerating that it may not exist."""
+        try:
+            await self._user_dao.delete(resource_id)
+        except ResourceNotFoundError:
+            pass  # already absent, nothing to do
+```
+
+Note that the `dto_model` describes the *event payload* as published by the
+owning service (its `dto_to_event` output), which is not necessarily the model
+the owning service stores. The two services typically share the payload schema
+through a dedicated contract library.
+
+### Implementations Must Be Idempotent
+
+Outbox events are, by design, re-emittable: the owning service can
+[republish](daopublisher.qmd#the-daopublisher-interface) its data at any time, and
+Kafka's at-least-once delivery can redeliver events after failures. Your
+implementation must therefore tolerate consuming the same event multiple times —
+which the example above achieves naturally by upserting on `changed` and treating
+a missing resource in `deleted` as success.
+
+Republishing also means events may arrive *out of order* relative to their
+original emission (though changes to a single resource keep their order within a
+topic partition, since they share the event key). Avoid logic that depends on
+cross-resource sequencing, and lean on
+[topic compaction](../arch_concepts/event_driven_arch.qmd#topic-compaction-idempotence)
+where the latest state per resource is all that matters.
+
+## Running a Subscriber: the Kafka Provider
+
+The
+[`KafkaOutboxSubscriber`](../../reference/providers.akafka.KafkaOutboxSubscriber.qmd)
+runs one or more DAO subscribers against Kafka. It accepts a sequence of
+translators — at most one per topic — and is configured and operated like the
+[`KafkaEventSubscriber`](../providers/kafka/subscriber.qmd) it wraps:
+
+```python
+from hexkit.providers.akafka import (
+    KafkaConfig,
+    KafkaEventPublisher,
+    KafkaOutboxSubscriber,
+)
+
+config = KafkaConfig(
+    service_name="notification-service",
+    service_instance_id="instance-001",
+    kafka_servers=["localhost:9092"],
+    kafka_enable_dlq=True,
+)
+
+user_subscriber = UserOutboxSubscriber(user_dao=user_dao)
+
+async with (
+    KafkaEventPublisher.construct(config=config) as dlq_publisher,
+    KafkaOutboxSubscriber.construct(
+        config=config,
+        translators=[user_subscriber],
+        dlq_publisher=dlq_publisher,
+    ) as outbox_subscriber,
+):
+    await outbox_subscriber.run()
+```
+
+`run()` consumes indefinitely; `run(forever=False)` handles a single event, which
+is convenient in tests. As with the plain subscriber, a `dlq_publisher` is
+required whenever the dead letter queue is enabled.
+
+Under the hood, the provider wraps the translators in a
+[`ComboTranslator`](../../reference/providers.akafka.ComboTranslator.qmd) and
+drives a regular `KafkaEventSubscriber` with it. This has two practical
+consequences:
+
+- All of the plain subscriber's machinery applies as described in
+  [its chapter](../providers/kafka/subscriber.qmd): consumer groups, offset
+  management with at-least-once delivery, correlation ID propagation, retries,
+  and the DLQ.
+- A `ComboTranslator` can mix DAO subscribers with plain
+  `EventSubscriberProtocol` translators, so a service consuming both outbox and
+  regular events can run everything through one `KafkaEventSubscriber` instead of
+  a separate `KafkaOutboxSubscriber`.
+
+## Error Handling
+
+The division of labor: payload validation is the provider's job, everything after
+that is yours.
+
+- If an `upserted` payload does not validate against `dto_model`, the provider
+  raises a
+  [`DtoValidationError`](../../reference/protocols.daosub.DtoValidationError.qmd)
+  (defined alongside the protocol in `hexkit.protocols.daosub`); `changed()` is
+  never called with malformed data. Custom providers consuming outbox events are
+  expected to follow the same convention.
+- Exceptions raised inside `changed()` or `deleted()` — as well as the
+  `DtoValidationError` itself — flow into the standard
+  [failure handling](../providers/kafka/subscriber.qmd#failure-handling-retries-and-the-dlq)
+  of the underlying subscriber: configurable immediate retries, then either the
+  dead letter queue or a service crash without committing the offset. Persistent
+  validation failures usually indicate a contract mismatch between the services
+  and end up in the DLQ for inspection, without stalling the consumption of other
+  events.
+
+## Testing
+
+The [Kafka test utils](../providers/kafka/index.qmd#kafka-test-utils) cover the
+outbox case as well: publish an `upserted` or `deleted` event with
+`publish_event()` (using the resource ID as `key`) and let a
+`KafkaOutboxSubscriber` consume it with `run(forever=False)`. For runnable
+examples, see the
+[outbox subscriber integration tests](https://github.com/ghga-de/hexkit/blob/main/tests/integration/providers/daopubsub/test_akafka_daosub.py)
+in the hexkit repository.
