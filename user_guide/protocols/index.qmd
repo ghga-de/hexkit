@@ -83,9 +83,20 @@ These interfaces are documented in depth in the dedicated
 [Data Access Objects](dao.qmd) chapter; for the architectural background, see
 [The DAO Pattern](../arch_concepts/dao_pattern.qmd).
 
-### (one section for each protocol)
+### ObjectStorageProtocol
 
-TBD
+The
+[`ObjectStorageProtocol`](../../reference/protocols.objstorage.ObjectStorageProtocol.qmd)
+defines asynchronous operations for S3-like object storage: managing buckets and file
+objects, and orchestrating uploads and downloads through presigned URLs, so that file
+content never flows through the service itself.
+
+The protocol is implemented by the
+[S3 provider](../providers/s3.qmd#s3-object-storage-provider), which works with any
+S3-compatible backend such as AWS S3, MinIO, or Ceph RGW.
+
+This interface is documented in depth in the dedicated
+[Object Storage](objstorage.qmd) chapter.
 
 ## Adding Protocols
 

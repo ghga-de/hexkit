@@ -147,6 +147,7 @@ user_guide:
       - text: "Overview"
         href: protocols/index.qmd
       - protocols/dao.qmd
+      - protocols/objstorage.qmd
   - section: "Providers"
     contents:
       - text: "Overview"
