@@ -1,0 +1,221 @@
+---
+title: "MongoDB + Kafka"
+---
+
+<!--
+ Copyright 2021 - 2026 Universität Tübingen, DKFZ, EMBL, and Universität zu Köln
+ for the German Human Genome-Phenome Archive (GHGA)
+
+ Licensed under the Apache License, Version 2.0 (the "License");
+ you may not use this file except in compliance with the License.
+ You may obtain a copy of the License at
+
+     http://www.apache.org/licenses/LICENSE-2.0
+
+ Unless required by applicable law or agreed to in writing, software
+ distributed under the License is distributed on an "AS IS" BASIS,
+ WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ See the License for the specific language governing permissions and
+ limitations under the License.
+-->
+
+## Outbox Publisher
+
+A common challenge in microservice development is the need to replicate data between services without introducing tight coupling. The solution to this offered by hexkit is a special form of `MongoDbDao` grafted with a `KafkaEventPublisher`, called a `MongoDbDaoPublisher` ("Outbox Publisher"). Contrasted with the other provider in the `MongoKafka` subpackage, the Outbox Publisher is used in place of the basic `MongoDbDao` provider and event publishing occurs "in the background". In addition, instances are created via the factory class, `MongoDbDaoPublisherFactory`. More on that below. Like the Persistent Publisher, the Persistent Publisher also provides methods to publish stored events that haven't been published yet or to publish all events regardless of publish status. Using this provider requires you to install hexkit with both the `akafka` and `mongodb` extras.
+
+### Instantiation/Construction
+
+Construction via factory:
+Use `MongoKafkaDaoPublisherFactory.construct(...).get_dao(...)` with:
+- `name`: MongoDB collection name.
+- `dto_model`: The class representing the domain object, which should inherit from Pydantic's `BaseModel`.
+- `id_field`: Name of the ID field on the DTO (mapped to `_id` in MongoDB). This is used as the event key.
+- `dto_to_event(dto) -> JsonObject | None`: Maps the DTO to the event payload. Return `None` to skip publishing for a given change.
+- `event_topic`: Kafka topic where outbox events are emitted.
+- `autopublish` (default: True): If False, changes are stored first and can be published later using `publish_pending()`.
+- `fields_to_index` *not currently implemented.*
+
+### Behavior
+
+Domain object state changes are captured by the Outbox Publisher and categorized as either an *upsertion* or a *deletion*. This binary categorization is reflected in the Kafka event types that the Outbox Publisher uses, which are hardcoded by hexkit: `CHANGE_EVENT_TYPE` ("changed") and `DELETE_EVENT_TYPE` ("deleted"). But the Outbox Publisher is designed to be able to replay changes, so how are deletions preserved? This is accomplished through additional data that is automatically managed by hexkit and stored along with the domain data in the database. This data is stored in a field named `__metadata__` and tracks whether the data has been published as an event, what the event ID was for the last time the data was published, the correlation ID for the data, and a boolean indicating whether or not the data was deleted. When data managed by an Outbox Publisher is deleted, it is not entirely removed from the database. Instead, the ID field and metadata are kept (all other fields *are* deleted) and the `__metadata__.deleted` field is set to True. Even though the data still partially exists in the database, the Outbox Publisher will raise errors just as if the data did not exist. `get_by_id()` will raise a `ResourceNotFoundError` in this case.
+
+    Metadata stored on documents:
+    - `__metadata__.deleted` (bool): Whether the resource has been deleted.
+    - `__metadata__.published` (bool): Whether the most recent change has been published to Kafka.
+    - `__metadata__.correlation_id` (UUID): Correlation ID captured from context when the change was made; reused on (re)publish for tracing.
+    - `__metadata__.last_event_id` (UUID | None): Event ID of the last emitted outbox event.
+
+When data is either added or modified deleted, the Outbox Publisher feeds the data into the Factory's `dto_to_event()` method to obtain the desired representation for an event. This might match the original data, or it might remove fields, e.g. to avoid transmitting superfluous information. If the result of `dto_to_event()` is `None`, no event is published. When data is deleted, the Outbox Publisher publishes an event with an empty payload but the key set to the ID. Consumers can subscribe to the given outbox topic and perform the suitable action based on whether the event type is "changed" or "deleted". All event publishing depends on `autopublish` being set to True.
+
+Republishing events:
+- `publish_pending()`: Publishes all documents where `__metadata__.published == False` using the stored correlation ID and appropriate event type.
+- `republish()`: Republishes the current state of all documents (change events for non-deleted, tombstones for deleted), again using each document’s stored correlation ID.
+
+Correlation & Event IDs:
+- The current correlation ID is captured and stored on each write.
+- During (re)publish, the stored correlation ID is re-applied to the context so downstream consumers see a consistent trace.
+- Event IDs are generated every time the data is (re)published, and the ID is stored after the event is published. This is different from the Persistent Publisher in that the latter will reuse the same event ID.
+
+
+### Usage example
+The following shows a contrived example of how to use the Outbox Publisher:
+
+```python
+from pydantic import BaseModel
+from uuid import UUID
+
+from hexkit.providers.mongokafka import MongoKafkaDaoPublisherFactory, MongoKafkaConfig
+
+# Define a model
+class User(BaseModel):
+    user_id: UUID
+    name: str
+    email: str
+
+# Determine how to represent the data as a Kafka event
+def user_to_event(user: User) -> dict | None:
+    return {
+        "user_id": str(user.user_id),
+        "name": user.name,
+        "email": user.email,
+    }
+
+# Use MongoKafkaConfig to supply the Factory with the necessary information
+config = MongoKafkaConfig()
+
+# Construct the Factory as an async context manager
+async with MongoKafkaDaoPublisherFactory.construct(config=config) as factory:
+    user_dao = await factory.get_dao(
+        name="users",
+        dto_model=User,
+        id_field="user_id",
+        dto_to_event=user_to_event,
+        event_topic="users.outbox",
+        autopublish=True,
+    )
+
+    # Create or update data -> publishes a CHANGE event
+    await user_dao.upsert(
+        User(
+            user_id=UUID("2e3975db-2c80-49f1-9f6b-cbb0174ca8f3"),
+            name="Jane",
+            email="jane@example.com",
+        )
+    )
+
+    # Delete data -> publishes a DELETE tombstone
+    await user_dao.delete(UUID("2e3975db-2c80-49f1-9f6b-cbb0174ca8f3"))
+
+    # Operational controls
+    await user_dao.publish_pending()  # Drain any unpublished changes
+    await user_dao.republish()        # Replay full current state
+```
+
+## Persistent Publisher
+
+With the basic Kafka publish provider (`KafkaEventPublisher`), event publication is not repeatable. The outbox publisher (`MongoKafkaDaoPublisher`) allows for a version of event publication, but mandates the use of a DAO in domain logic. There are plausible scenarios where the desired behavior is to publish events and persist them in a database via some transparent mechanism. For this, hexkit offers the `PersistentKafkaPublisher` ("Persistent Publisher"). The Persistent Publisher replaces existing usage of the `KafkaEventPublisher` and uses the MongoDB features exposed by hexkit to store a copy of each event as it is published, along with supplementary information such as when the event was published, whether the event was successfully published, the correlation ID associated with the event, and more. Like the Outbox Publisher, the Persistent Publisher also provides methods to publish stored events that haven't been published yet or to publish all events regardless of publish status. Using this provider requires you to install hexkit with both the `akafka` and `mongodb` extras.
+
+To learn more about the distinction between the Persistent Publisher and Outbox Publisher, see [this writeup](../developer_help/outbox_v_persistent_pub.qmd).
+
+### Persistence Model
+The Persistent Publisher stores data according to the Pydantic model defined
+[here](../../reference/providers.mongokafka.PersistentKafkaEvent.qmd):
+
+```python
+class PersistentKafkaEvent(BaseModel):
+    """A model representing a kafka event to be published and stored in the database."""
+
+    compaction_key: str = Field(
+        ...,
+        description="The unique ID of the event. If the topic is set to be compacted,"
+        + " the ID is set to the topic and key in the format <topic>:<key>. Otherwise"
+        + " the ID is set to the actual event ID.",
+    )
+    topic: Ascii = Field(..., description="The event topic")
+    payload: JsonObject = Field(..., description="The event payload")
+    key: Ascii = Field(..., description="The event key")
+    type_: Ascii = Field(..., description="The event type")
+    event_id: UUID4 | None = Field(default=None, description="The event ID")
+    headers: Mapping[str, str] = Field(
+        default_factory=dict,
+        description="Non-standard event headers. Correlation ID, event_id, and event"
+        + " type are transmitted as event headers, but added as such within the publisher"
+        + " protocol. The headers here are any additional header that need to be sent.",
+    )
+    correlation_id: UUID4 = UUID4Field(description="The event correlation ID")
+    created: datetime = Field(
+        ..., description="The timestamp of when the event record was first inserted"
+    )
+    published: bool = Field(False, description="Whether the event has been published")
+```
+
+### Instantiation/Construction
+
+The Persistent Publisher is meant to be used as an async context manager. The instance is created via the `construct()` method.
+
+There are three parameters unique to the Persistent Publisher: `compacted_topics`, `topics_not_stored`, and `collection_name`.
+- `compacted_topics` (set of strings):
+  - Reflects remote topic compaction locally
+  - Pass a set of topics as `compacted_topics` when constructing the publisher.
+  - For those topics, the database uses a deterministic `compaction_key` of `<topic>:<key>` as the document ID, so only the latest event per (topic, key) is stored. This mimics Kafka log compaction on the storage side and makes “republish latest” semantics trivial.
+  - For non-compacted topics, the `compaction_key` is the `event_id` (a UUID), so every event is stored independently. This does mean that, for events in non-compacted topics, the event ID is stored as a UUID4 in the `event_id` field and as a string in the `compaction_key` field.
+
+- `topics_not_stored` (set of strings):
+  - Provides a way to opt out of persistence for specified Kafka topics
+  - Provide a set of topics that should be published but not stored. Those events are delegated to the plain `KafkaEventPublisher` that underpins the Persistent Publisher and will not appear in MongoDB.
+  - `topics_not_stored` and `compacted_topics` must be disjoint; the provider will raise a `ValueError` if there is any overlap.
+
+- `collection_name`:
+  - Determines the name of the collection used for storing events. All events are stored in the same collection.
+  - By default, events are stored in the collection named `{service_name}PersistedEvents` (derived from `MongoKafkaConfig.service_name`).
+  - The MongoDB document ID is `compaction_key`; this is unique by definition and makes writes idempotent for compacted topics.
+
+### Stored information and Considerations:
+- Payload:
+  - The event content, the payload, is stored in the field of the same name.
+  - If developing a database migration that affects persisted events, take care to consider whether the payload itself needs to be updated as well.
+
+- Correlation IDs and headers:
+  - If a correlation ID is present in the context, it’s captured and stored; otherwise, a new one is generated.
+  - On (re)publish, the stored correlation ID is set in context so downstream consumers see a stable trace.
+  - Custom headers you pass are persisted and sent on publish; standard headers (correlation ID, event ID, type) are handled by the publisher protocol.
+
+- Event ID and ordering:
+  - The `created` field contains the timestamp denoting when the event was first published. It is not updated upon republishing.
+  - `publish_pending` loads all documents with `published == false`, sorts by `created` ascending, and publishes them. This ensures that events are published in their original order.
+  - `republish` iterates over all stored events; if an event lacks an `event_id`, it assigns one and marks `published = false` so the update is persisted. Then all events are published as above, regardless of whether they have been published already.
+  - Events published to topics listed in `topics_not_stored` are never written to MongoDB, thus they won’t be affected by `publish_pending` or `republish`.
+
+- Considerations:
+  - DLQ: Avoid using a Persistent Publisher as the DLQ Publisher for an event subscriber instance. Events should only ever be published once to the DLQ.
+  - Idempotence: Think about the consumers of events published by the Persistent Publisher and utilize `compacted_topics` and `topics_not_stored` strategically.
+  - Republishing is usually performed as a one-off command for a service, rather than somewhere in standard operation. But this is a convention, and the methods can be utilized as best fits a given use-case.
+
+### Usage example in service 'abc'
+
+```python
+from hexkit.providers.mongokafka import PersistentKafkaPublisher
+from hexkit.providers.mongodb import MongoDbDaoFactory
+from hexkit.providers.mongokafka import MongoKafkaConfig
+
+# Normally, topics would be defined in configuration. This is only for conciseness:
+COMPACTED_TOPICS = {"users"}
+TOPICS_NOT_STORED = {"notifications"}
+
+@asynccontextmanager
+async def get_persistent_publisher(
+    config: MongoKafkaConfig, dao_factory: MongoDbDaoFactory | None = None
+) -> AsyncGenerator[PersistentKafkaPublisher]:
+    """Construct and return a PersistentKafkaPublisher."""
+    async with (
+        MongoDbDaoFactory.construct(config=config) as _dao_factory,
+        PersistentKafkaPublisher.construct(
+            config=config,
+            dao_factory=_dao_factory,
+            compacted_topics=COMPACTED_TOPICS,
+            topics_not_stored=TOPICS_NOT_STORED
+            collection_name="abcPersistedEvents",
+        ) as persistent_publisher,
+    ):
+        yield persistent_publisher
+```

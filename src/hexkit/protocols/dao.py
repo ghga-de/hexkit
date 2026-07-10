@@ -243,10 +243,10 @@ class Dao(typing.Protocol[Dto]):
         It is expected that at most one resource matches the constraints.
         An exception is raised if no or multiple hits are found.
 
-        The values in the mapping are used to filter the resources, these are
-        assumed to be standard JSON scalar types. Particularly, UUIDs and datetimes
-        must be represented as strings. The behavior for non-scalars types depends
-        on the specific provider.
+        The values in the mapping are used to filter the resources. Provide them
+        using the same Python types as the corresponding DTO model fields, e.g. a
+        UUID object for a UUID field and a datetime object for a datetime field.
+        The behavior for non-scalar values depends on the specific provider.
 
         Args:
             mapping:
@@ -275,10 +275,10 @@ class Dao(typing.Protocol[Dto]):
     ) -> "FindResult[Dto]":
         """Find all resources that match the specified mapping.
 
-        The values in the mapping are used to filter the resources, these are
-        assumed to be standard JSON scalar types. Particularly, UUIDs and datetimes
-        must be represented as strings. The behavior for non-scalar types depends
-        on the specific provider.
+        The values in the mapping are used to filter the resources. Provide them
+        using the same Python types as the corresponding DTO model fields, e.g. a
+        UUID object for a UUID field and a datetime object for a datetime field.
+        The behavior for non-scalar values depends on the specific provider.
 
         Args:
             mapping:

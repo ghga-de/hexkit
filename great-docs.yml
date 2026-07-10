@@ -1,0 +1,395 @@
+# Great Docs Configuration
+# See https://posit-dev.github.io/great-docs/user-guide/configuration.html
+
+# Display Name
+# ------------
+display_name: hexkit
+
+# GitHub Repository
+# -----------------
+# Enables the per-object "view source" links on reference pages (each class,
+# method, and function links to its exact lines on GitHub) and the GitHub navbar
+# widget. Without this, great-docs skips source-link generation entirely.
+repo: "https://github.com/ghga-de/hexkit"
+
+# Source Link Configuration
+# -------------------------
+# `branch: main` pins "view source" links to the published branch rather than the
+# docs feature branch that happens to be checked out at build time.
+#
+# NOTE: hexkit uses a src/ layout, but great-docs builds source URLs from griffe's
+# package-relative path (`hexkit/...`), omitting the `src/` prefix — so the links
+# would 404. The `fix_source_link_paths.py` pre_render hook (below) reinserts it.
+# TODO: Drop the `fix_source_link_paths.py` hook once great-docs ships a release
+# > 0.14.1 that includes the upstream fix (posit-dev/great-docs PR #245, merged
+# 2026-06-30; unreleased as of 0.14.1). It fixes this natively and re-enables the
+# `source.path` override if we ever prefer that over the pre_render workaround.
+source:
+  branch: main
+
+# Pre-render Hooks
+# ----------------
+# Scripts run after the reference pages are generated but before Quarto renders
+# them. `fix_source_link_paths.py` reinserts the `src/` prefix that great-docs
+# omits from "view source" URLs for src/-layout packages (see note above).
+# `add_member_anchor_ids.py` injects the fully qualified anchors (e.g.
+# `#hexkit.protocols.dao.Dao.insert`) that great-docs' automatic API
+# cross-linker promises in objects.json but the generated reference pages do
+# not carry (they only have short ids like `#insert`) — without it, auto-links
+# from user-guide pages land on the right page but do not scroll to the member.
+# Unfixed upstream as of great-docs 0.14.1 (checked issues, PRs, and releases
+# on 2026-07-03).
+pre_render:
+  - scripts/fix_source_link_paths.py
+  - scripts/add_member_anchor_ids.py
+
+# Module Name (optional)
+# ----------------------
+# The importable module is auto-detected from the package name in pyproject.toml
+# (`hexkit`, at src/hexkit, installed editable in the environment). Set `module:`
+# only if the importable name ever diverges from the project name.
+
+# Docstring Parser
+# ----------------
+# The docstring format used in your package (numpy, google, or sphinx)
+parser: google
+
+# Dynamic Introspection
+# ---------------------
+# Use runtime introspection for more accurate documentation (default: true).
+#
+# Kept false for hexkit: dynamic mode resolves every `reference:` entry by
+# attribute access from the top-level package (`getattr(hexkit, "custom_types")`,
+# `getattr(hexkit, "base")`, ...), but `hexkit/__init__.py` intentionally exposes
+# only `__version__` and re-exports no submodules — so resolution fails on the very
+# first entry. (Re-exporting them would eagerly import every provider and thus
+# require all optional extras — akafka, mongodb, s3, ... — to be installed.) With
+# `dynamic: true`, great-docs prints a "Dynamic introspection failed for a resolved
+# item, retrying with static analysis..." warning, then rebuilds the whole
+# reference with static analysis anyway. Setting it false selects static up front:
+# identical output, no warning, single-pass (faster) build.
+dynamic: false
+
+# API Discovery Settings
+# ----------------------
+# Exclude items from auto-documentation
+# exclude:
+#   - InternalClass
+#   - helper_function
+
+# Logo & Favicon
+# ---------------
+# Point to a single logo file (replaces the text title in the navbar):
+# logo: assets/logo.svg
+#
+# For light/dark variants:
+# logo:
+#   light: assets/logo-light.svg
+#   dark: assets/logo-dark.svg
+#
+# To show the text title alongside the logo, add: show_title: true
+
+# Author Information
+# ------------------
+# Author metadata for display in the landing page sidebar
+# You can add additional fields: github, orcid, affiliation, homepage
+authors:
+  - name: German Human Genome Phenome Archive (GHGA)
+    # role omitted on purpose: GHGA is the organization behind hexkit (author and
+    # maintainer), not a named individual, so a "role" label reads oddly. Great-docs
+    # only renders the role line when `role:` is set, so leaving it out hides it.
+    # affiliation:
+    email: contact@ghga.de
+    # github:
+    # orcid:
+    # homepage:
+
+# Funding / Copyright Holder
+# --------------------------
+# Credit the organization that funds or holds copyright for this package.
+# Displays in sidebar and footer. Homepage and ROR provide links.
+# funding:
+#   name: "Posit Software, PBC"
+#   roles:
+#     - Copyright holder
+#     - funder
+#   homepage: https://posit.co
+#   ror: https://ror.org/03wc8by49
+
+# User Guide (narrative docs)
+# ---------------------------
+# Explicit sidebar ordering that mirrors the previous MkDocs nav. Paths are
+# relative to the user_guide/ directory.
+# NOTE: great-docs' user_guide sidebar supports only a single level of sections
+# (a `section:` nested inside another section's `contents:` is silently dropped).
+# Rather than spread providers across many sibling sections, all providers live
+# under one "Providers" section with a single page per backend; the individual
+# providers of each backend are in-page sections, navigable via the on-this-page
+# (right-hand) TOC.
+user_guide:
+  - section: "Overview"
+    contents:
+      - text: "Introduction"
+        href: index.qmd
+      - text: "Structure and Conventions"
+        href: structure.qmd
+  - section: "Architectural Concepts"
+    contents:
+      - text: "Overview"
+        href: arch_concepts/index.qmd
+      - arch_concepts/hexagonal_arch.qmd
+      - arch_concepts/triple_hexagonal_arch.qmd
+      - arch_concepts/dao_pattern.qmd
+      - arch_concepts/event_driven_arch.qmd
+      - arch_concepts/dlq.qmd
+  - section: "Protocols"
+    contents:
+      - text: "Overview"
+        href: protocols/index.qmd
+      - protocols/dao.qmd
+  - section: "Providers"
+    contents:
+      - text: "Overview"
+        href: providers/index.qmd
+      - providers/kafka.qmd
+      - providers/mongodb.qmd
+      - providers/mongokafka.qmd
+      - providers/s3.qmd
+      - providers/redis.qmd
+      - providers/vault.qmd
+      - providers/testing.qmd
+  - section: "Observability Tools"
+    contents:
+      - text: "Overview"
+        href: observability_tools/index.qmd
+      - observability_tools/correlation_ids.qmd
+      - observability_tools/logging.qmd
+  - section: "Developer Help"
+    contents:
+      - text: "Overview"
+        href: developer_help/index.qmd
+      # Short sidebar label; the page keeps its full `title:` as the on-page heading.
+      - text: "Publisher Variants"
+        href: developer_help/outbox_v_persistent_pub.qmd
+      - text: "Test Fixtures"
+        href: developer_help/testing.qmd
+  - section: "Glossary"
+    contents:
+      - text: "Overview"
+        href: glossary/index.qmd
+
+# API Reference Structure
+# -----------------------
+# Customize the sections below to organize your API documentation.
+# - Reorder items within a section to change their display order
+# - Move items between sections or create new sections
+# - Use 'members: false' to exclude methods from documentation
+# - Add 'desc:' to sections for descriptions
+
+# Curated to mirror the breadth of the previous pdoc reference: top-level
+# introspection only finds a handful of public names, so the provider and
+# protocol classes (which live in submodules) are listed explicitly here.
+reference:
+  - title: Core Types & Base Classes
+    desc: Shared type aliases and provider base classes
+    contents:
+      - custom_types.ID
+      - custom_types.JsonObject
+      - custom_types.Ascii
+      - custom_types.AsyncConstructable
+      - custom_types.AsyncContextConstructable
+      - custom_types.KafkaCompressionType
+      - custom_types.PytestScope
+      - base.InboundProviderBase
+
+  - title: General Utilities
+    desc: Dependency-light helper functions and related errors
+    contents:
+      - utils.calc_part_size
+      - utils.check_ascii
+      - utils.validate_fields_in_model
+      - utils.round_datetime_to_ms
+      - utils.now_utc_ms_prec
+      - utils.FieldNotInModelError
+      - utils.NonAsciiStrError
+
+  - title: Correlation IDs
+    desc: Correlation-ID context management and helpers
+    contents:
+      - correlation.get_correlation_id
+      - correlation.new_correlation_id
+      - correlation.validate_correlation_id
+      - correlation.correlation_id_from_str
+      - correlation.set_context_var
+      - correlation.set_correlation_id
+      - correlation.set_new_correlation_id
+      - correlation.CorrelationIdContextError
+      - correlation.InvalidCorrelationIdError
+
+  - title: OpenTelemetry
+    desc: Observability / tracing configuration
+    contents:
+      - opentelemetry.OpenTelemetryConfig
+      - opentelemetry.configure_opentelemetry
+
+  - title: Logging
+    desc: Structured logging configuration and formatters
+    contents:
+      - log.LoggingConfig
+      - log.configure_logging
+      - log.JsonFormatter
+      - log.RecordCompiler
+
+  - title: Protocols — Events
+    desc: Ports for event publishing and subscription
+    contents:
+      - protocols.eventpub.EventPublisherProtocol
+      - protocols.eventsub.EventSubscriberProtocol
+      - protocols.eventsub.DLQSubscriberProtocol
+
+  - title: Protocols — Data Access Objects
+    desc: Ports for DAOs and outbox publishing/subscription
+    contents:
+      - protocols.dao.Dao
+      - protocols.dao.DaoFactoryProtocol
+      - protocols.dao.DaoFactoryBase
+      - protocols.dao.FindResult
+      - protocols.daopub.DaoPublisher
+      - protocols.daopub.DaoPublisherFactoryProtocol
+      - protocols.daosub.DaoSubscriberProtocol
+      - protocols.daosub.DtoValidationError
+      - protocols.dao.DaoError
+      - protocols.dao.ResourceNotFoundError
+      - protocols.dao.ResourceAlreadyExistsError
+      - protocols.dao.UniqueConstraintViolationError
+      - protocols.dao.FindError
+      - protocols.dao.InvalidFindMappingError
+      - protocols.dao.MultipleHitsFoundError
+      - protocols.dao.NoHitsFoundError
+      - protocols.dao.DbTimeoutError
+
+  - title: Protocols — Storage
+    desc: Ports for key-value and object storage
+    contents:
+      - protocols.kvstore.KeyValueStoreProtocol
+      - protocols.objstorage.ObjectStorageProtocol
+      - protocols.objstorage.PresignedPostURL
+
+  - title: Provider — Apache Kafka
+    desc: Event pub/sub backed by Apache Kafka
+    contents:
+      - providers.akafka.KafkaConfig
+      - providers.akafka.KafkaEventPublisher
+      - providers.akafka.KafkaEventSubscriber
+      - providers.akafka.KafkaOutboxSubscriber
+      - providers.akafka.ComboTranslator
+
+  - title: Provider — MongoDB
+    desc: DAO and key-value stores backed by MongoDB
+    contents:
+      - providers.mongodb.MongoDbConfig
+      - providers.mongodb.MongoDbDaoFactory
+      - providers.mongodb.MongoDbDao
+      - providers.mongodb.MongoDbBytesKeyValueStore
+      - providers.mongodb.MongoDbStrKeyValueStore
+      - providers.mongodb.MongoDbJsonKeyValueStore
+      - providers.mongodb.MongoDbDtoKeyValueStore
+
+  - title: Provider — MongoDB + Kafka
+    desc: Persistent / outbox event publishing
+    contents:
+      - providers.mongokafka.MongoKafkaConfig
+      - providers.mongokafka.MongoKafkaDaoPublisherFactory
+      - providers.mongokafka.PersistentKafkaPublisher
+      - providers.mongokafka.PersistentKafkaEvent
+
+  - title: Provider — S3
+    desc: Object storage and key-value stores backed by S3
+    contents:
+      - providers.s3.S3Config
+      - providers.s3.S3ObjectStorage
+      - providers.s3.S3BytesKeyValueStore
+      - providers.s3.S3StrKeyValueStore
+      - providers.s3.S3JsonKeyValueStore
+      - providers.s3.S3DtoKeyValueStore
+
+  - title: Provider — Redis
+    desc: Key-value stores backed by Redis
+    contents:
+      - providers.redis.RedisConfig
+      - providers.redis.RedisBytesKeyValueStore
+      - providers.redis.RedisStrKeyValueStore
+      - providers.redis.RedisJsonKeyValueStore
+      - providers.redis.RedisDtoKeyValueStore
+
+  - title: Provider — HashiCorp Vault
+    desc: Key-value stores backed by Vault
+    contents:
+      - providers.vault.VaultConfig
+      - providers.vault.VaultBytesKeyValueStore
+      - providers.vault.VaultStrKeyValueStore
+      - providers.vault.VaultJsonKeyValueStore
+      - providers.vault.VaultDtoKeyValueStore
+
+  - title: Provider — In-Memory (Testing)
+    desc: In-memory providers and mocks for tests
+    contents:
+      - providers.testing.InMemEventPublisher
+      - providers.testing.InMemEventStore
+      - providers.testing.InMemBytesKeyValueStore
+      - providers.testing.InMemStrKeyValueStore
+      - providers.testing.InMemJsonKeyValueStore
+      - providers.testing.InMemDtoKeyValueStore
+      - providers.testing.new_mock_dao_class
+      - providers.testing.MockDAOEmptyError
+      - providers.testing.TopicExhaustedError
+
+# Site URL
+# --------
+# Canonical address of the deployed documentation site.
+# Required for subdirectory deployments, skills page install commands,
+# .well-known/ discovery, and sitemaps. hexkit deploys to GitHub Pages under the
+# repo-name subpath, so this must be set for correct link/asset resolution.
+site_url: "https://ghga-de.github.io/hexkit/"
+
+# Site Settings
+# -------------
+# site:
+#   theme: flatly              # Quarto theme (default: flatly)
+#   toc: true                  # Show table of contents (default: true)
+#   toc-depth: 2               # TOC heading depth (default: 2)
+#   toc-title: On this page    # TOC title (default: "On this page")
+
+# Custom CSS Overrides
+# --------------------
+# Injected verbatim into <head> after the great-docs theme stylesheet, so these
+# rules override the defaults.
+include_in_header:
+  # Vertically center the navbar title ("hexkit") inside its bordered pill.
+  # The word has ascenders (h, k, t) but no descenders, so its glyphs sit high in
+  # the line box, leaving a larger gap below the text than above. The theme's
+  # default `.navbar-title` padding (3px top / 4px bottom) is bottom-heavy and
+  # compounds this; shifting the padding downward compensates for the roughly
+  # descender-height gap so the text reads as optically centered.
+  - |
+    <style>
+      .navbar .navbar-title {
+        padding-top: 6px;
+        padding-bottom: 1px;
+      }
+    </style>
+
+# Jupyter Kernel
+# --------------
+# Jupyter kernel to use for executing code cells in .qmd files.
+# This is set at the project level so it applies to all pages, including
+# auto-generated API reference pages. Can be overridden in individual .qmd
+# file frontmatter if needed for special cases.
+jupyter: python3
+
+# CLI Documentation
+# -----------------
+# cli:
+#   enabled: true              # Enable CLI documentation
+#   module: my_package.cli     # Module containing Click commands
+#   name: cli                  # Name of the Click command object

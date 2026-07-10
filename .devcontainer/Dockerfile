@@ -5,6 +5,14 @@ ENV PYTHONUNBUFFERED=1
 # Update and upgrade system packages for latest security fixes
 RUN apt-get update && apt-get upgrade -y
 
+# Install Quarto — the rendering engine required by great-docs (docs tooling).
+# Pinned; bump deliberately. See https://quarto.org/docs/download/
+ARG QUARTO_VERSION=1.9.38
+RUN curl -sSL -o /tmp/quarto.deb \
+      "https://github.com/quarto-dev/quarto-cli/releases/download/v${QUARTO_VERSION}/quarto-${QUARTO_VERSION}-linux-amd64.deb" \
+    && dpkg -i /tmp/quarto.deb \
+    && rm -f /tmp/quarto.deb
+
 # Update args in docker-compose.yaml to set the UID/GID of the "vscode" user.
 ARG USER_UID=1000
 ARG USER_GID=$USER_UID

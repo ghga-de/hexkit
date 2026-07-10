@@ -1,12 +1,28 @@
-![tests](https://github.com/ghga-de/hexkit/actions/workflows/tests.yaml/badge.svg)
 [![PyPI version shields.io](https://img.shields.io/pypi/v/hexkit.svg)](https://pypi.python.org/pypi/hexkit/)
 [![PyPI pyversions](https://img.shields.io/pypi/pyversions/hexkit.svg)](https://pypi.python.org/pypi/hexkit/)
+![tests](https://github.com/ghga-de/hexkit/actions/workflows/tests.yaml/badge.svg)
 [![Coverage Status](https://coveralls.io/repos/github/ghga-de/hexkit/badge.svg?branch=main)](https://coveralls.io/github/ghga-de/hexkit?branch=main)
+[![Ruff](https://img.shields.io/endpoint?url=https://raw.githubusercontent.com/astral-sh/ruff/main/assets/badge/v2.json)](https://github.com/astral-sh/ruff)
+[![Checked with mypy](https://www.mypy-lang.org/static/mypy_badge.svg)](https://mypy-lang.org/)
 
 # hexkit
 
-A chassis library for building domain-focused, infrastructure-agnostic, and event-driven
-microservices in Python.
+*A chassis library for building domain-focused, infrastructure-agnostic,
+and event-driven microservices in Python*
+
+Read the short developer summary below, or jump straight to our full
+📖 **[User Guide](https://ghga-de.github.io/hexkit/user-guide/)** to learn the abstract
+concepts and patterns as well as the concrete infrastructure integrations and testing
+tools that hexkit provides for building better microservices.
+
+<!--
+TODO: Reconcile this README with the User Guide (user_guide/). Now that the README is
+also the docs landing page, it overlaps heavily with the User Guide — architecture
+overview, the protocol/provider table, and "getting started" all appear in both. We
+should decide what belongs here (a concise landing plus contributor/dev info) versus
+in the User Guide (the in-depth narrative), so there is less duplication and readers
+have a clear, single place to start.
+-->
 
 ## In a Nutshell
 
@@ -33,20 +49,20 @@ for an individual service is to implement service-specific translators between t
 service's ports and the general-purpose protocols (in addition to implementing the
 domain functionality of the service, of course).
 
-Hexkit is designed as a general-purpose library. However, it currently contains only
+Although hexkit is designed as a general-purpose library, it currently contains only
 a limited collection of protocol-provider pairs that are of immediate interest to the
 authors. We like to add support for more protocols and technologies over time.
 
 The following protocols and providers are currently available:
 
-| Protocol | Providers |
-|---|---|
-| Event Publishing | Apache Kafka |
-| Event Subscription | Apache Kafka |
-| Object Storage | S3(-compatible) |
-| Data Access Object | MongoDB |
+| Protocol           | Providers       |
+| ------------------ | --------------- |
+| Event Publishing   | Apache Kafka    |
+| Event Subscription | Apache Kafka    |
+| Object Storage     | S3(-compatible) |
+| Data Access Object | MongoDB         |
 
-Hexkit does not force you to go all-in on the idea of Triple Hexagonal Architecture.
+You are not forced to go all-in on the idea of Triple Hexagonal Architecture.
 You can use it just for the technologies where you see benefits and use another approach
 for the rest. For example, you could use hexkit for simplifying the exchange of events
 between microservices but use a classical web framework such as FastAPI for designing
@@ -92,17 +108,17 @@ The following extras are available:
 ## Development
 
 For setting up the development environment, we rely on the
-[devcontainer feature](https://code.visualstudio.com/docs/remote/containers) of vscode.
+[devcontainer feature](https://code.visualstudio.com/docs/remote/containers) of VS Code.
 
 To use it, you need Docker and VS Code with the "Remote - Containers" extension
 (`ms-vscode-remote.remote-containers`) installed.
-Then, you just have to open this repo in vscode and run the command
-`Remote-Containers: Reopen in Container` from the vscode "Command Palette".
+Then, you just have to open this repo in VS Code and run the command
+`Remote-Containers: Reopen in Container` from the VS Code "Command Palette".
 
 This will give you a full-fledged, pre-configured development environment including:
 
 - infrastructural dependencies of the service (databases, etc.)
-- all relevant vscode extensions pre-installed
+- all relevant VS Code extensions pre-installed
 - pre-configured linting and auto-formatting
 - a pre-configured debugger
 - automatic license-header insertion
@@ -114,7 +130,7 @@ Additionally, the following convenience command is available inside the devconta
 (please run that if you are starting the devcontainer for the first time
 or if added any python dependencies to the [`./pyproject.toml`](./pyproject.toml))
 
-If you prefer not to use vscode, you could get a similar setup (without the editor
+If you prefer not to use VS Code, you could get a similar setup (without the editor
 specific features) by running the following commands:
 
 ``` bash
@@ -126,6 +142,37 @@ docker build -t hexkit .
 docker run -it hexkit /bin/bash
 
 ```
+
+### Documentation
+
+The narrative docs live under [`./user_guide`](./user_guide) and the site is
+configured by [`./great-docs.yml`](./great-docs.yml); it is built with
+[Great Docs](https://posit-dev.github.io/great-docs/) (which uses Quarto, already
+installed in the devcontainer). Build the site, then serve it locally:
+
+``` bash
+# Build the site into great-docs/_site/
+great-docs build
+
+# Serve the built site at http://localhost:3000
+great-docs preview
+```
+
+`preview` only serves the existing build (it builds first only when no build exists
+yet) and does not watch for changes. Because `great-docs build` clears and
+regenerates the build directory, don't rebuild while a preview is running — instead,
+after editing a page or `great-docs.yml`, stop the preview (`Ctrl+C`), re-run
+`great-docs build`, and start `great-docs preview` again to view your changes.
+
+> **Note:** great-docs' `build --watch` doesn't track edits to your
+> `user_guide/` source (it only watches the generated build directory), so
+> rebuild manually as above. A full rebuild takes ~2 minutes.
+
+## Credits
+
+The hexkit library is developed and maintained by the developer team of GHGA. We would especially
+like to thank its original author, Kersten Breuer, who came up with the idea for the
+library and designed and coded its first versions.
 
 ## License
 

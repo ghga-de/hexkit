@@ -1,0 +1,340 @@
+---
+title: "MongoDB"
+---
+
+<!--
+ Copyright 2021 - 2026 Universität Tübingen, DKFZ, EMBL, and Universität zu Köln
+ for the German Human Genome-Phenome Archive (GHGA)
+
+ Licensed under the Apache License, Version 2.0 (the "License");
+ you may not use this file except in compliance with the License.
+ You may obtain a copy of the License at
+
+     http://www.apache.org/licenses/LICENSE-2.0
+
+ Unless required by applicable law or agreed to in writing, software
+ distributed under the License is distributed on an "AS IS" BASIS,
+ WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ See the License for the specific language governing permissions and
+ limitations under the License.
+-->
+
+## MongoDB DAO
+
+The MongoDB DAO provider implements the [DAO protocol](../protocols/dao.qmd) on top of
+MongoDB, storing each resource as a document in a collection. It consists of
+[`MongoDbDaoFactory`](../../reference/providers.mongodb.MongoDbDaoFactory.qmd), which
+implements the `DaoFactoryProtocol`, and
+[`MongoDbDao`](../../reference/providers.mongodb.MongoDbDao.qmd), the DAO objects it
+produces. This section covers everything MongoDB-specific; the backend-independent
+semantics of the DAO operations are documented in the
+[DAO protocol](../protocols/dao.qmd) chapter.
+
+To use it, install hexkit with the `mongodb` extra:
+
+```sh
+pip install hexkit[mongodb]
+```
+
+### Configuration
+
+Connection parameters are collected in
+[`MongoDbConfig`](../../reference/providers.mongodb.MongoDbConfig.qmd), a
+`pydantic_settings.BaseSettings` class. Inherit your service's config class from it, or
+instantiate it directly:
+
+```python
+from hexkit.providers.mongodb import MongoDbConfig
+
+config = MongoDbConfig(
+    mongo_dsn="mongodb://localhost:27017",
+    db_name="library",
+)
+```
+
+| Parameter | Description |
+| --------- | ----------- |
+| `mongo_dsn` | The MongoDB connection string, possibly including credentials. Stored as a Pydantic `Secret` so it does not leak into logs or error messages. |
+| `db_name` | The name of the database to use on the server. |
+| `mongo_timeout` | Optional timeout in seconds applied to every database operation, covering server selection, connection checkout, and execution. When exceeded, operations raise a `DbTimeoutError`. Defaults to `None` (no timeout). |
+
+### Creating DAOs
+
+The recommended way to set up the factory is the `construct()` async context manager,
+which opens the MongoDB client on entry and closes it on exit:
+
+```python
+from pydantic import BaseModel, ConfigDict, UUID4
+
+from hexkit.protocols.dao import UUID4Field
+from hexkit.providers.mongodb import MongoDbDaoFactory
+
+
+class Book(BaseModel):
+    """A book in our catalog."""
+
+    model_config = ConfigDict(frozen=True)
+
+    id: UUID4 = UUID4Field(description="The ID of the book.")
+    title: str
+    author: str
+    pages: int
+
+
+async with MongoDbDaoFactory.construct(config=config) as dao_factory:
+    book_dao = await dao_factory.get_dao(
+        name="books", dto_model=Book, id_field="id"
+    )
+    # use book_dao here
+```
+
+The `name` passed to `get_dao()` is used directly as the MongoDB collection name, so
+each resource type lives in its own collection. Neither the database nor the
+collection needs to exist beforehand; MongoDB creates both on first write.
+
+If you prefer to manage the client yourself (for example to share one client across
+several components), instantiate the factory directly with a `pymongo`
+`AsyncMongoClient`. The `ConfiguredMongoClient` context manager creates a client with
+the same settings that `construct()` uses:
+
+```python
+from hexkit.providers.mongodb import ConfiguredMongoClient
+
+async with ConfiguredMongoClient(config=config) as client:
+    dao_factory = MongoDbDaoFactory(config=config, client=client)
+```
+
+### How DTOs Map to Documents
+
+The provider converts DTOs to documents with Pydantic's `model_dump()` and renames the
+configured ID field to MongoDB's internal `_id` on the way in (and back on the way
+out). A `Book` with `id=UUID("18d90a54...")` is stored as:
+
+```json
+{
+  "_id": UUID("18d90a54-e79b-4d92-a844-e8fa9dfda2ac"),
+  "title": "Refactoring",
+  "author": "Martin Fowler",
+  "pages": 448
+}
+```
+
+Values keep their Python types during the dump, so they are stored using MongoDB's
+native representations where available: UUIDs become BSON UUIDs (the client is
+configured with the `standard` UUID representation) and datetimes become BSON dates,
+returned as timezone-aware `datetime` objects when read back. Since MongoDB stores
+datetimes with millisecond precision, truncate them accordingly on your DTOs (the
+`hexkit.utils.now_utc_ms_prec` helper creates compliant timestamps), otherwise a value
+may lose precision in the database and no longer compare equal after a roundtrip.
+
+Field types without a BSON equivalent (such as `pathlib.Path`) need a
+`field_serializer` on the DTO model that converts them to something storable; the
+provider raises an error otherwise.
+
+You never interact with `_id` yourself: in DTOs, find mappings, sort specifications,
+and index definitions, always use the field name from your model.
+
+### CRUD Operations
+
+All seven operations of the [DAO protocol](../protocols/dao.qmd#crud-operations) are
+supported, with the semantics and exceptions described there:
+
+```python
+book = Book(title="Refactoring", author="Martin Fowler", pages=448)
+
+# Create (fails with ResourceAlreadyExistsError if the ID is taken):
+await book_dao.insert(book)
+
+# Read (fails with ResourceNotFoundError if the ID is unknown):
+book = await book_dao.get_by_id(book.id)
+
+# Update (fails with ResourceNotFoundError if the ID is unknown):
+await book_dao.update(book.model_copy(update={"pages": 464}))
+
+# Upsert (update or insert, never fails on existence):
+await book_dao.upsert(book)
+
+# Delete (fails with ResourceNotFoundError if the ID is unknown):
+await book_dao.delete(book.id)
+```
+
+Under the hood, `update` and `upsert` replace the whole document; partial updates are
+not part of the DAO abstraction.
+
+### Queries and Filters
+
+The find methods take a `mapping` of field names to expected values, and all entries
+must match (a logical AND). Pass values with the same Python types as on your model:
+a `UUID` for a UUID field, a timezone-aware `datetime` for a datetime field, and so
+on, since matching happens against the natively stored values:
+
+```python
+# Exactly one hit expected (raises NoHitsFoundError / MultipleHitsFoundError):
+book = await book_dao.find_one(mapping={"title": "Refactoring"})
+
+# Zero or more hits, consumed by async iteration:
+async for book in book_dao.find_all(mapping={"author": "Martin Fowler"}):
+    print(book.title)
+```
+
+Mapping keys are validated against the DTO model, and unknown field names raise an
+`InvalidFindMappingError`. Two MongoDB-specific extensions pass through this
+validation:
+
+- **Dot notation** reaches into nested documents. Only the top-level field is
+  validated against the model: `{"address.city": "Tübingen"}`.
+- **MongoDB query operators** can be used as values, giving you access to the
+  [MongoDB query language](https://www.mongodb.com/docs/manual/reference/operator/query/)
+  where simple equality is not enough:
+
+```python
+# Range query:
+thick_books = book_dao.find_all(mapping={"pages": {"$gt": 300}})
+
+# Membership test:
+selected = book_dao.find_all(
+    mapping={"author": {"$in": ["Martin Fowler", "Kent Beck"]}}
+)
+
+# Top-level logical operators work too:
+either = book_dao.find_all(
+    mapping={"$or": [{"author": "Kent Beck"}, {"pages": {"$lt": 100}}]}
+)
+```
+
+Keep in mind that operator-based mappings tie the calling code to MongoDB. That is a
+perfectly reasonable trade-off inside a translator, but if you want your code to stay
+provider-agnostic, stick to plain equality mappings. The
+[in-memory mock DAO](testing.qmd) understands a subset of these operators, so most
+operator-based queries remain testable without a database.
+
+For pagination and sorting, `find_all` accepts `skip`, `limit`, and `sort` arguments,
+and returns a [`FindResult`](../../reference/protocols.dao.FindResult.qmd) that also
+reports the total number of matches:
+
+```python
+result = book_dao.find_all(
+    mapping={"author": "Martin Fowler"},
+    skip=20,
+    limit=10,
+    sort=["title", "-pages"],  # title ascending, then pages descending
+)
+page = await result.to_list()
+total = await result.total_count()  # all matches, ignoring skip and limit
+```
+
+The query is executed lazily as a single `find` with a cursor, so iterating a
+`FindResult` streams documents rather than loading everything into memory;
+`total_count()` triggers one additional count query on first call.
+
+### Defining Indexes
+
+The provider always keeps a unique index on the ID field (MongoDB does this for `_id`
+automatically). Additional indexes are declared with
+[`MongoDbIndex`](../../reference/index.qmd#provider-mongodb) objects passed to
+`get_dao()`, which creates them on the collection when the DAO is constructed
+(creating an index that already exists is a no-op):
+
+```python
+from hexkit.providers.mongodb import MongoDbIndex
+
+book_dao = await dao_factory.get_dao(
+    name="books",
+    dto_model=Book,
+    id_field="id",
+    indexes=[
+        # A simple ascending index over one field:
+        MongoDbIndex(fields="author"),
+        # A compound, unique index (1 = ascending, -1 = descending):
+        MongoDbIndex(
+            fields={"author": 1, "title": -1},
+            properties={"unique": True},
+        ),
+    ],
+)
+```
+
+The `fields` argument takes a single field name (indexed in ascending order) or a
+dictionary mapping field names to sort orders. All field names must exist on the DTO
+model, otherwise `get_dao()` raises an `IndexFieldsInvalidError`; if an index covers
+the ID field, use the model's field name and the provider translates it to `_id`.
+
+The `properties` dictionary is forwarded to pymongo's
+[`create_index()`](https://pymongo.readthedocs.io/en/stable/api/pymongo/collection.html#pymongo.collection.Collection.create_index),
+so all index properties supported there can be used, for example `unique`, `sparse`,
+or `expireAfterSeconds` for TTL indexes.
+
+A unique index is also the mechanism behind `UniqueConstraintViolationError`: writes
+that would break a unique index over non-ID fields raise it, letting you enforce
+uniqueness of, say, an email address at the database level.
+
+### Error Handling
+
+The provider translates pymongo's errors into the exception types of the
+[DAO protocol](../protocols/dao.qmd#error-handling), so calling code never needs to
+import from pymongo:
+
+| Situation | Raised exception |
+| --------- | ---------------- |
+| `get_by_id`, `update`, or `delete` on a missing ID | `ResourceNotFoundError` |
+| `insert` with an already existing ID | `ResourceAlreadyExistsError` |
+| Write breaking a unique index over non-ID fields | `UniqueConstraintViolationError` |
+| Find mapping with unknown field names | `InvalidFindMappingError` |
+| `find_one` matching zero / more than one document | `NoHitsFoundError` / `MultipleHitsFoundError` |
+| Operation exceeding the configured `mongo_timeout` | `DbTimeoutError` |
+| Any other driver-level failure | `DaoError` |
+
+All of these derive from `DaoError`, so `except DaoError` is a safe catch-all for
+database problems.
+
+### Transactions
+
+The `with_transaction()` method declared by the DAO protocol is not yet implemented by
+the MongoDB provider and raises `NotImplementedError`. Every single DAO operation is
+atomic on its own (MongoDB guarantees single-document atomicity), but grouping several
+operations into one transaction is not currently possible through the DAO interface.
+
+### Testing
+
+For integration tests, the `test-mongodb` extra provides pytest fixtures based on
+[testcontainers](https://testcontainers-python.readthedocs.io) that spin up a
+disposable MongoDB instance. The `mongodb_fixture` yields a `MongoDbFixture` whose
+`dao_factory` attribute is a ready-to-use `MongoDbDaoFactory`:
+
+```python
+from hexkit.providers.mongodb.testutils import (
+    MongoDbFixture,
+    mongodb_container_fixture,  # noqa: F401
+    mongodb_fixture,  # noqa: F401
+)
+
+
+async def test_book_dao(mongodb: MongoDbFixture):
+    book_dao = await mongodb.dao_factory.get_dao(
+        name="books", dto_model=Book, id_field="id"
+    )
+    ...
+```
+
+For unit tests that should not touch a database at all, the
+[in-memory mock DAO](testing.qmd) mimics the MongoDB provider's behavior, including a
+subset of the query operators. See also the [MongoDB Test Utils](#mongodb-test-utils)
+section below.
+
+The provider's own
+[integration tests](https://github.com/ghga-de/hexkit/blob/main/tests/integration/providers/dao/test_mongodb_dao.py)
+double as an extensive collection of runnable usage examples.
+
+## MongoDB Migration Tools
+
+## MongoDB KV Store Providers
+
+MongoDB providers implement `KeyValueStoreProtocol` with document-oriented,
+durable persistence.
+
+Available variants are `MongoDbBytesKeyValueStore`, `MongoDbStrKeyValueStore`,
+`MongoDbJsonKeyValueStore`, and `MongoDbDtoKeyValueStore`.
+
+API reference: [hexkit.providers.mongodb](../../reference/index.qmd#provider-mongodb)
+
+## MongoDB Test Utils

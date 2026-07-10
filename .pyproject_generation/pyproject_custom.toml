@@ -97,19 +97,14 @@ legacy_tox_ini = """
 
     [testenv:docs]
     basepython = python3.13
-    allowlist_externals =
-        mv
-        rm
     deps =
         --no-deps -r ./lock/requirements-dev.txt
+    commands_pre =
+        # great-docs (Python >= 3.11 only) is kept out of the shared dev lock so it
+        # does not break the py310 test env; install it here where docs are built.
+        pip install great-docs==0.14.1
     commands =
-        rm -rf site/api
-        pdoc -d google -o docs/api hexkit
-        mv docs/api/index.html docs/api/index.md
-        mkdocs build
-        mv docs/api/index.md docs/api/index.html
-        rm -rf site/api
-        mv docs/api site/api
+        great-docs build
 
     [testenv]
     pass_env =
