@@ -22,6 +22,7 @@ from datetime import datetime
 from typing import Any, TypedDict
 
 from pydantic import BaseModel, Field
+from pymongo.asynchronous.collection import AsyncCollection
 from pymongo.asynchronous.database import AsyncDatabase
 
 from hexkit.providers.mongodb.config import MongoDbConfig
@@ -70,6 +71,18 @@ def _get_db_version_from_records(version_docs: list[DbVersionRecord]) -> int:
         key=lambda doc: (doc["completed"], doc["version"]),
         default={"version": 0},
     )["version"]
+
+
+async def _fetch_version_docs(collection: AsyncCollection) -> list[DbVersionRecord]:
+    """Fetch the DB version records from the version collection.
+
+    The lock document (`_id: 0`) is excluded.
+    """
+    version_docs = []
+    async for doc in collection.find({"_id": {"$ne": 0}}):
+        doc.pop("_id")
+        version_docs.append(DbVersionRecord(**doc))  # type: ignore
+    return version_docs
 
 
 def validate_doc(doc: Document, *, model: type[BaseModel], id_field: str):

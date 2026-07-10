@@ -33,6 +33,7 @@ from ._utils import (
     MigrationConfig,
     MigrationDefinition,
     Reversible,
+    _fetch_version_docs,
     _get_db_version_from_records,
 )
 
@@ -156,12 +157,7 @@ class MigrationManager:
     async def _get_version_docs(self) -> list[DbVersionRecord]:
         """Gets the DB version information from the database."""
         collection = self.db[self.config.db_version_collection]
-        # use a filter to avoid picking up the lock doc, just in case
-        version_docs = []
-        async for doc in collection.find({"_id": {"$ne": 0}}):
-            doc.pop("_id")
-            version_docs.append(DbVersionRecord(**doc))  # type: ignore
-        return version_docs
+        return await _fetch_version_docs(collection)
 
     @asynccontextmanager
     async def _lock_db(self):
