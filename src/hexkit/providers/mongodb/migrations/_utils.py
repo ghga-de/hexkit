@@ -18,16 +18,105 @@ import logging
 from abc import ABC, abstractmethod
 from collections.abc import Awaitable, Callable
 from contextlib import asynccontextmanager
-from typing import Any
+from datetime import datetime
+from typing import Any, TypedDict
 
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
+from pymongo.asynchronous.collection import AsyncCollection
 from pymongo.asynchronous.database import AsyncDatabase
 
-from hexkit.providers.mongodb.provider import document_to_dto, dto_to_document
+from hexkit.providers.mongodb.config import MongoDbConfig
+from hexkit.providers.mongodb.provider import (
+    ConfiguredMongoClient,
+    document_to_dto,
+    dto_to_document,
+)
 
 log = logging.getLogger(__name__)
 
 Document = dict[str, Any]
+
+
+class MigrationConfig(MongoDbConfig):
+    """Minimal configuration required to run the migration process."""
+
+    db_version_collection: str = Field(
+        ...,
+        description="The name of the collection containing DB version information for this service",
+        examples=["ifrsDbVersions"],
+    )
+    migration_wait_sec: int = Field(
+        ...,
+        description="The number of seconds to wait before checking the DB version again",
+        examples=[5, 30, 180],
+    )
+    migration_max_wait_sec: int | None = Field(
+        default=None,
+        description="The maximum number of seconds to wait for migrations to complete"
+        + " before raising an error.",
+        examples=[None, 300, 600, 3600],
+    )
+
+
+class DbVersionRecord(TypedDict):
+    """Model containing information about DB versions and how they were achieved."""
+
+    version: int
+    completed: datetime
+    backward: bool
+    total_duration_ms: int
+
+
+class DbVersionMismatchError(RuntimeError):
+    """Raised when the database is not at the version expected by the service."""
+
+    def __init__(self, *, db_version: int, target_version: int):
+        msg = (
+            f"Database version is {db_version}, but the service expects version"
+            + f" {target_version}."
+        )
+        super().__init__(msg)
+
+
+def _get_db_version_from_records(version_docs: list[DbVersionRecord]) -> int:
+    """Gets the current DB version from the documents found in the version collection."""
+    # Make sure we know what the latest version is, not just the max
+    return max(
+        version_docs,
+        key=lambda doc: (doc["completed"], doc["version"]),
+        default={"version": 0},
+    )["version"]
+
+
+async def _fetch_version_docs(collection: AsyncCollection) -> list[DbVersionRecord]:
+    """Fetch the DB version records from the version collection.
+
+    The lock document (`_id: 0`) is excluded.
+    """
+    version_docs = []
+    async for doc in collection.find({"_id": {"$ne": 0}}):
+        doc.pop("_id")
+        version_docs.append(DbVersionRecord(**doc))  # type: ignore
+    return version_docs
+
+
+async def check_db_version(*, config: MigrationConfig, target_version: int) -> None:
+    """Verify that the database is at `target_version`, raising an error if not.
+
+    This function can be used to verify DB state separately from the core migration logic.
+
+    Raises:
+    - `DbVersionMismatchError`: If the current DB version doesn't match `target_version`.
+    """
+    async with ConfiguredMongoClient(config=config) as client:
+        collection = client[config.db_name][config.db_version_collection]
+        version_docs = await _fetch_version_docs(collection)
+
+    db_version = _get_db_version_from_records(version_docs)
+    if db_version != target_version:
+        raise DbVersionMismatchError(
+            db_version=db_version, target_version=target_version
+        )
 
 
 def validate_doc(doc: Document, *, model: type[BaseModel], id_field: str):

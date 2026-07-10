@@ -16,14 +16,22 @@
 """Database migration tools for MongoDB"""
 
 from ._manager import (
-    MigrationConfig,
     MigrationManager,
     MigrationMap,
     MigrationStepError,
 )
-from ._utils import Document, MigrationDefinition, Reversible, validate_doc
+from ._utils import (
+    DbVersionMismatchError,
+    Document,
+    MigrationConfig,
+    MigrationDefinition,
+    Reversible,
+    check_db_version,
+    validate_doc,
+)
 
 __all__ = [
+    "DbVersionMismatchError",
     "Document",
     "MigrationConfig",
     "MigrationDefinition",
@@ -31,5 +39,6 @@ __all__ = [
     "MigrationMap",
     "MigrationStepError",
     "Reversible",
+    "check_db_version",
     "validate_doc",
 ]

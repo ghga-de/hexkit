@@ -20,17 +20,22 @@ from collections.abc import Mapping
 from contextlib import asynccontextmanager, suppress
 from datetime import datetime, timezone
 from time import perf_counter, time
-from typing import Literal, TypedDict
+from typing import Literal
 
-from pydantic import Field
 from pymongo import AsyncMongoClient
 from pymongo.asynchronous.database import AsyncDatabase
 from pymongo.errors import DuplicateKeyError
 
-from hexkit.providers.mongodb.config import MongoDbConfig
 from hexkit.providers.mongodb.provider import ConfiguredMongoClient
 
-from ._utils import MigrationDefinition, Reversible
+from ._utils import (
+    DbVersionRecord,
+    MigrationConfig,
+    MigrationDefinition,
+    Reversible,
+    _fetch_version_docs,
+    _get_db_version_from_records,
+)
 
 log = logging.getLogger(__name__)
 
@@ -46,36 +51,6 @@ def now_as_utc() -> datetime:
 def duration_in_ms(duration: float) -> int:
     """Returns the duration (seconds) expressed as milliseconds"""
     return int(duration * 1000)
-
-
-class MigrationConfig(MongoDbConfig):
-    """Minimal configuration required to run the migration process."""
-
-    db_version_collection: str = Field(
-        ...,
-        description="The name of the collection containing DB version information for this service",
-        examples=["ifrsDbVersions"],
-    )
-    migration_wait_sec: int = Field(
-        ...,
-        description="The number of seconds to wait before checking the DB version again",
-        examples=[5, 30, 180],
-    )
-    migration_max_wait_sec: int | None = Field(
-        default=None,
-        description="The maximum number of seconds to wait for migrations to complete"
-        + " before raising an error.",
-        examples=[None, 300, 600, 3600],
-    )
-
-
-class DbVersionRecord(TypedDict):
-    """Model containing information about DB versions and how they were achieved."""
-
-    version: int
-    completed: datetime
-    backward: bool
-    total_duration_ms: int
 
 
 class MigrationStepError(RuntimeError):
@@ -111,16 +86,6 @@ class MigrationTimeoutError(RuntimeError):
     def __init__(self, *, limit: int):
         msg = f"Timeout occurred - migration duration exceeded {limit} seconds."
         super().__init__(msg)
-
-
-def _get_db_version_from_records(version_docs: list[DbVersionRecord]) -> int:
-    """Gets the current DB version from the documents found in the version collection."""
-    # Make sure we know what the latest version is, not just the max
-    return max(
-        version_docs,
-        key=lambda doc: (doc["completed"], doc["version"]),
-        default={"version": 0},
-    )["version"]
 
 
 class MigrationManager:
@@ -192,12 +157,7 @@ class MigrationManager:
     async def _get_version_docs(self) -> list[DbVersionRecord]:
         """Gets the DB version information from the database."""
         collection = self.db[self.config.db_version_collection]
-        # use a filter to avoid picking up the lock doc, just in case
-        version_docs = []
-        async for doc in collection.find({"_id": {"$ne": 0}}):
-            doc.pop("_id")
-            version_docs.append(DbVersionRecord(**doc))  # type: ignore
-        return version_docs
+        return await _fetch_version_docs(collection)
 
     @asynccontextmanager
     async def _lock_db(self):
