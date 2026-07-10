@@ -21,6 +21,7 @@ exist and that they are up to date.
 
 import argparse
 import re
+import subprocess
 import sys
 from datetime import date
 from pathlib import Path
@@ -31,75 +32,72 @@ ROOT_DIR = Path(__file__).parent.parent.resolve()
 # file containing the default global copyright notice:
 GLOBAL_COPYRIGHT_FILE_PATH = ROOT_DIR / ".devcontainer" / "license_header.txt"
 
-# exclude files and dirs from license header check:
+# exclude files and dirs from license header check.
+# Note: files ignored by git (see the top-level .gitignore) are excluded
+# automatically, so only tracked files that need exempting are listed here.
 EXCLUDE = [
     ".coveragerc",
     ".devcontainer",
     ".dockerignore",
     ".editorconfig",
-    ".eggs",
     ".git",
     ".github",
     ".flake8",
     ".gitignore",
-    ".mypy_cache",
     ".mypy.ini",
     ".pylintrc",
-    ".pytest_cache",
     ".ruff.toml",
-    ".ruff_cache",
     ".template/.static_files.txt",
     ".template/.static_files_ignore.txt",
     ".template/.mandatory_files.txt",
     ".template/.mandatory_files_ignore.txt",
     ".template/.deprecated_files.txt",
     ".template/.deprecated_files_ignore.txt",
-    ".tox",
-    ".venv",
-    ".vscode",
-    "eggs",
-    "build",
     "config_schema.json",
-    "dist",
     "docs",
-    "develop-eggs",
     "example_config.yaml",
-    "htmlcov",
-    "lib",
-    "lib62",
-    "parts",
-    "pip-wheel-metadata",
-    "sdist",
-    "venv",
-    "wheels",
     "LICENSE",  # is checked but not for the license header
 ]
 
 # exclude file by file ending from license header check:
 EXCLUDE_ENDINGS = [
+    "csv",
+    "fastq",
+    "gif",
+    "gz",
     "html",
+    "ico",
     "in",
     "ini",
+    "ipynb",
     "jinja",
+    "jpeg",
+    "jpg",
     "json",
+    "lock",
     "md",
+    "pdf",
+    "png",
     "pub",
     "pyc",
     "pyd",
-    "typed",
+    "rst",
     "sec",
+    "svg",
+    "tag",
     "toml",
+    "tsv",
     "txt",
+    "typed",
     "xml",
     "yaml",
     "yml",
-    "tsv",
-    "fastq",
-    "gz",
+    "zip",
 ]
 
-# exclude any files with names that match any of the following regex:
-EXCLUDE_PATTERN = [r".*\.egg-info.*", r".*__cache__.*", r".*\.git.*"]
+# exclude any files with names that match any of the following regex
+# (the .git directory itself is not reported by `git check-ignore`):
+EXCLUDE_PATTERN = [r".*\.git.*"]
 
 # The License header, "{year}" will be replaced by current year:
 COPYRIGHT_TEMPLATE = """Copyright {year} {author}
@@ -172,6 +170,43 @@ class UnexpectedBinaryFileError(RuntimeError):
         super().__init__(message)
 
 
+def get_gitignored_files(target_dir: Path, files: list[Path]) -> set[Path]:
+    """Determine which of the given files are ignored by git.
+
+    This uses `git check-ignore` so that the entries of the top-level
+    `.gitignore` (as well as any nested `.gitignore` files, global excludes and
+    `.git/info/exclude`) do not need to be duplicated in `EXCLUDE`.
+
+    Returns an empty set if `target_dir` is not a git repository or git is not
+    available, in which case only the explicit `EXCLUDE` rules take effect.
+    """
+    if not files:
+        return set()
+
+    # feed the paths relative to the repo root on stdin (one per line):
+    rel_paths = [file_.relative_to(target_dir).as_posix() for file_ in files]
+
+    try:
+        result = subprocess.run(
+            ["git", "-C", str(target_dir), "check-ignore", "--stdin"],
+            input="\n".join(rel_paths),
+            capture_output=True,
+            text=True,
+            check=False,
+        )
+    except OSError:
+        # git executable not available: fall back to the explicit EXCLUDE rules.
+        return set()
+
+    # exit code 0: some paths are ignored, 1: none are ignored,
+    # anything else (e.g. 128): an error such as "not a git repository".
+    if result.returncode not in (0, 1):
+        return set()
+
+    # git echoes back the same relative paths that it considers ignored:
+    return {target_dir / line for line in result.stdout.splitlines() if line}
+
+
 def get_target_files(
     target_dir: Path,
     exclude: list[str] = EXCLUDE,
@@ -179,6 +214,10 @@ def get_target_files(
     exclude_pattern: list[str] = EXCLUDE_PATTERN,
 ) -> list[Path]:
     """Get target files that are not match the exclude conditions.
+
+    Files ignored by git (see `get_gitignored_files`) are excluded in addition
+    to the explicit exclude conditions below.
+
     Args:
         target_dir (pathlib.Path): The target dir to search.
         exclude (list[str], optional):
@@ -199,10 +238,14 @@ def get_target_files(
         file_.absolute() for file_ in Path(abs_target_dir).rglob("*") if file_.is_file()
     ]
 
+    # files that are ignored by git are excluded automatically:
+    gitignored = get_gitignored_files(abs_target_dir, all_files)
+
     return [
         file_
         for file_ in all_files
-        if not (
+        if file_ not in gitignored
+        and not (
             any(file_.is_relative_to(excl) for excl in exclude_normalized)
             or any(str(file_).endswith(ending) for ending in exclude_endings)
             or any(re.match(pattern, str(file_)) for pattern in exclude_pattern)
