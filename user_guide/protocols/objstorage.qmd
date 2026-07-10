@@ -1,0 +1,381 @@
+---
+title: "Object Storage"
+---
+
+<!--
+ Copyright 2021 - 2026 Universität Tübingen, DKFZ, EMBL, and Universität zu Köln
+ for the German Human Genome-Phenome Archive (GHGA)
+
+ Licensed under the Apache License, Version 2.0 (the "License");
+ you may not use this file except in compliance with the License.
+ You may obtain a copy of the License at
+
+     http://www.apache.org/licenses/LICENSE-2.0
+
+ Unless required by applicable law or agreed to in writing, software
+ distributed under the License is distributed on an "AS IS" BASIS,
+ WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ See the License for the specific language governing permissions and
+ limitations under the License.
+-->
+
+The
+[`ObjectStorageProtocol`](../../reference/protocols.objstorage.ObjectStorageProtocol.qmd),
+defined in `hexkit.protocols.objstorage`, is hexkit's abstract interface for S3-like
+object storage: *buckets* that hold *file objects*, both addressed by string IDs. It
+lets application code manage buckets, orchestrate uploads and downloads, and inspect
+or delete objects without knowing which storage backend sits behind it. This chapter
+documents the protocol itself; for the production implementation see the
+[S3 provider](../providers/s3.qmd#s3-object-storage-provider).
+
+Unlike the [DAO protocol](dao.qmd), which is partly structural, this is a classic
+abstract base class: providers subclass `ObjectStorageProtocol` and implement its
+abstract methods. All operations are asynchronous.
+
+## Design: The Service Never Touches File Content
+
+The most important thing to understand about this protocol is what it does *not*
+offer: there is no `upload(content)` and no `download() -> bytes`. File content never
+flows through your application. Instead, the service *orchestrates* transfers using
+*presigned URLs*: it asks the storage for a temporary, pre-authorized URL, hands that
+URL to the client (or another service), and the actual bytes travel directly between
+the client and the storage backend. Afterwards, the service can verify the outcome
+through metadata operations like `does_object_exist`, `get_object_size`, or
+`get_object_etag`.
+
+A file upload, for example, plays out like this:
+
+```{mermaid}
+%%| fig-cap: An upload orchestrated via a presigned URL; the file content (5) travels directly between client and storage.
+
+sequenceDiagram
+    autonumber
+    participant Client
+    participant Service as Your service
+    participant Storage as Object storage
+
+    Client->>Service: request file upload
+    Service->>Storage: get_object_upload_url(...)
+    Storage-->>Service: presigned URL
+    Service-->>Client: presigned URL
+    Client->>Storage: POST file content (direct transfer)
+    Client->>Service: report completion
+    Service->>Storage: does_object_exist(...), get_object_size(...)
+```
+
+This design has far-reaching consequences:
+
+- **Services stay stateless and memory-light.** Whether a file is 5 KiB or 5 TiB, the
+  service only ever handles small metadata and URLs.
+- **Transfer traffic bypasses the application.** Bandwidth-heavy uploads and downloads
+  scale with the storage backend, not with your service.
+- **URLs are credentials.** A presigned URL grants time-limited access to exactly one
+  operation on exactly one object, without sharing storage credentials. Every URL has
+  an expiry (`expires_after`, in seconds); the default for uploads and downloads is 24
+  hours (the `DEFAULT_URL_EXPIRATION_PERIOD` constant).
+
+Uploads come in two flavors: a *presigned POST* for uploading an object in one request,
+and a *multipart upload* that splits large files into parts, each uploaded through its
+own presigned URL. Both are covered below.
+
+## Bucket and Object IDs
+
+Every public method validates the given bucket and object IDs before contacting the
+backend, so malformed IDs fail fast and with a clear message, no matter the provider.
+The rules are modeled on AWS naming restrictions:
+
+| ID kind | Rules | Raised on violation |
+| ------- | ----- | ------------------- |
+| Bucket ID | 3-63 lowercase letters, digits, or hyphens; may not start or end with a hyphen | `BucketIdValidationError` |
+| Object ID | 3-255 letters, digits, hyphens, underscores, or dots; may not start or end with a hyphen or a dot | `ObjectIdValidationError` |
+
+Note that the default rules do not allow forward slashes in object IDs, which are
+sometimes used to emulate directories. Providers may relax the rules where the backend
+supports more: the [S3 provider](../providers/s3.qmd#ceph-tenant-buckets), for example,
+additionally accepts Ceph's tenant-prefixed bucket names.
+
+## Bucket Operations
+
+Buckets are flat containers for objects and are managed with four operations:
+
+```python
+if not await storage.does_bucket_exist("inbox"):
+    await storage.create_bucket("inbox")  # BucketAlreadyExistsError if it exists
+
+object_ids = await storage.list_all_object_ids("inbox")
+
+# Refuses to delete a non-empty bucket (raises BucketNotEmptyError):
+await storage.delete_bucket("inbox")
+
+# ...unless the content deletion is requested explicitly:
+await storage.delete_bucket("inbox", delete_content=True)
+```
+
+As with the write operations of the [DAO protocol](dao.qmd#crud-operations),
+destructive operations are deliberately loud: deleting a bucket that still holds
+objects fails with a `BucketNotEmptyError` unless you explicitly pass
+`delete_content=True`.
+
+## Uploading Objects
+
+### Single-Object Uploads via Presigned POST
+
+For files that fit into one request, `get_object_upload_url` returns a
+[`PresignedPostURL`](../../reference/protocols.objstorage.PresignedPostURL.qmd), a
+named tuple carrying the target `url` and a dictionary of `fields` that must accompany
+the POST request as form data:
+
+```python
+# Fails with ObjectAlreadyExistsError if the object exists,
+# or with BucketNotFoundError if the bucket does not:
+presigned_post = await storage.get_object_upload_url(
+    bucket_id="inbox",
+    object_id="sequencing-data-001",
+    expires_after=3600,  # URL validity in seconds (default: 24 hours)
+    max_upload_size=50 * 1024**2,  # optionally cap the upload at 50 MiB
+)
+```
+
+The service then passes `presigned_post.url` and `presigned_post.fields` to whoever
+performs the upload. The uploading side sends a multipart-form POST request, for
+example with `httpx`:
+
+```python
+import httpx
+
+with open("sequencing-data.fastq", "rb") as file:
+    response = httpx.post(
+        presigned_post.url,
+        data=presigned_post.fields,
+        files={"file": file},
+    )
+response.raise_for_status()
+```
+
+The optional `max_upload_size` (in bytes) is enforced by the storage backend itself:
+requests exceeding it are rejected at upload time, protecting you from oversized
+uploads even though the transfer never touches your service.
+
+### Multipart Uploads
+
+Large files are uploaded in parts. The service initiates the upload, hands out one
+presigned URL per part, and finally completes (or aborts) the whole procedure:
+
+```python
+# Initiate (fails with MultiPartUploadAlreadyExistsError if another
+# upload is already active for this object):
+upload_id = await storage.init_multipart_upload(
+    bucket_id="inbox", object_id="sequencing-data-002"
+)
+
+part_size = 16 * 1024**2  # e.g. the DEFAULT_PART_SIZE of 16 MiB
+
+# Hand out one URL per part; the uploading side sends each part
+# as an HTTP PUT request to its URL:
+for part_number in range(1, number_of_parts + 1):
+    part_url = await storage.get_part_upload_url(
+        upload_id=upload_id,
+        bucket_id="inbox",
+        object_id="sequencing-data-002",
+        part_number=part_number,
+        expires_after=3600,  # part URLs default to 1 hour
+    )
+    ...  # transfer the URL to the uploading party
+
+# Complete the upload, verifying the parts that actually arrived
+# (fails with MultiPartUploadConfirmError if they don't add up):
+await storage.complete_multipart_upload(
+    upload_id=upload_id,
+    bucket_id="inbox",
+    object_id="sequencing-data-002",
+    anticipated_part_quantity=number_of_parts,
+    anticipated_part_size=part_size,
+)
+```
+
+The rules of the game:
+
+- **Part numbers** start at 1 and may not exceed 10,000 (the `MAX_FILE_PART_NUMBER`
+  constant); parts should be uploaded in sequence.
+- **All parts except the last** must have the same size, and the last part may not be
+  larger than the others. Passing `anticipated_part_quantity` and
+  `anticipated_part_size` to `complete_multipart_upload` makes the completion verify
+  that exactly the expected parts arrived.
+- **One active upload per object.** Initiating a second multipart upload for the same
+  object raises a `MultiPartUploadAlreadyExistsError`.
+- **Aborting cleans up.** `abort_multipart_upload` cancels the procedure and deletes
+  all content uploaded so far; it raises a `MultiPartUploadAbortError` if parts could
+  not be removed (for example because a part upload was still running).
+- **Integrity checks are optional but available.** `get_part_upload_url` accepts a
+  `part_md5` checksum that the backend verifies when the part arrives.
+
+Choosing a part size involves trade-offs between part count limits and request
+overhead; the `calc_part_size` helper
+[documented with the S3 provider](../providers/s3.qmd#multipart-uploads-and-part-sizing)
+recommends a suitable value for a given file size.
+
+### Inspecting Multipart Uploads
+
+Three operations let you observe ongoing multipart uploads, for example to resume or
+clean up after interruptions:
+
+- `list_multipart_uploads_for_object(bucket_id=..., object_id=...)` returns the IDs of
+  all active uploads for one object.
+- `get_all_multipart_uploads(bucket_id=...)` returns a dictionary mapping upload IDs to
+  object IDs for a whole bucket.
+- `list_parts(bucket_id=..., object_id=..., upload_id=...)` lists the parts uploaded so
+  far as dictionaries with `PartNumber`, `Size`, `ETag`, and `LastModified` keys;
+  `max_parts` and `first_part_no` narrow the selection.
+
+Since the protocol expects one active upload per object, operations that resolve an
+upload by object may raise a `MultipleActiveUploadsError` when they encounter several,
+a state you can resolve by aborting the stale uploads.
+
+## Downloading Objects
+
+Downloads mirror the upload design: `get_object_download_url` returns a presigned URL
+(a plain string this time) from which the object can be fetched with an ordinary HTTP
+GET request:
+
+```python
+# Fails with ObjectNotFoundError if the object does not exist:
+download_url = await storage.get_object_download_url(
+    bucket_id="outbox",
+    object_id="sequencing-data-001",
+    expires_after=3600,  # URL validity in seconds (default: 24 hours)
+)
+```
+
+## Object Management
+
+The remaining operations inspect, copy, and delete objects without transferring their
+content:
+
+| Operation | Description | Raises |
+| --------- | ----------- | ------ |
+| `does_object_exist(bucket_id=..., object_id=...)` | Check whether an object exists. | — |
+| `get_object_etag(bucket_id=..., object_id=...)` | Return the object's etag, useful for change detection. | `ObjectNotFoundError` |
+| `get_object_size(bucket_id=..., object_id=...)` | Return the object's size in bytes. | `ObjectNotFoundError` |
+| `copy_object(source_bucket_id=..., source_object_id=..., dest_bucket_id=..., dest_object_id=...)` | Copy an object to another bucket and/or ID, server-side. | `ObjectNotFoundError`, `ObjectAlreadyExistsError` |
+| `delete_object(bucket_id=..., object_id=...)` | Delete an object. | `ObjectNotFoundError` |
+
+A typical post-upload sequence:
+
+```python
+assert await storage.does_object_exist(
+    bucket_id="inbox", object_id="sequencing-data-001"
+)
+size = await storage.get_object_size(
+    bucket_id="inbox", object_id="sequencing-data-001"
+)
+
+# Move the object to its final destination (copy + delete):
+await storage.copy_object(
+    source_bucket_id="inbox",
+    source_object_id="sequencing-data-001",
+    dest_bucket_id="archive",
+    dest_object_id="sequencing-data-001",
+)
+await storage.delete_object(bucket_id="inbox", object_id="sequencing-data-001")
+```
+
+`copy_object` copies within the storage backend; the content does not pass through
+your service. Backends may internally use a multipart procedure for large copies, so a
+failed copy can leave an unfinished multipart upload behind; with the default
+`abort_failed=True`, the operation cleans that up automatically. Only set
+`abort_failed=False` when other multipart operations may be running concurrently for
+the same destination object, so an unrelated upload is not aborted by accident.
+
+`does_object_exist` also accepts an `object_md5sum` argument intended for verifying
+content integrity, but note that the S3 provider does not implement this check yet and
+raises a `NotImplementedError` when it is passed.
+
+## Error Handling
+
+All errors derive from a common base, `ObjectStorageProtocolError` (a subclass of
+`RuntimeError`), splitting into a bucket branch and an object branch:
+
+- `ObjectStorageProtocolError`: base for everything below
+  - `BucketError`: base for bucket-related errors
+    - `BucketNotFoundError`: the specified bucket does not exist
+    - `BucketAlreadyExistsError`: `create_bucket` on an existing bucket
+    - `BucketNotEmptyError`: `delete_bucket` on a non-empty bucket without
+      `delete_content=True`
+    - `BucketIdValidationError`: the bucket ID violates the naming rules
+  - `ObjectError`: base for object-related errors
+    - `ObjectNotFoundError`: the specified object does not exist
+    - `ObjectAlreadyExistsError`: the target object ID is already taken
+    - `ObjectIdValidationError`: the object ID violates the naming rules
+    - `MultiPartUploadError`: base for multipart upload errors
+      - `MultiPartUploadAlreadyExistsError`: another upload is already active for the
+        object
+      - `MultipleActiveUploadsError`: several active uploads were found where one was
+        expected
+      - `MultiPartUploadNotFoundError`: no upload with the given ID exists for the
+        object
+      - `MultiPartUploadConfirmError`: `complete_multipart_upload` rejected the upload
+        (missing parts, unexpected sizes)
+      - `MultiPartUploadAbortError`: `abort_multipart_upload` could not remove all
+        parts
+
+In contrast to the DAO protocol, these exception classes are *nested* on the
+`ObjectStorageProtocol` class rather than defined at module level, so you access them
+via the class:
+
+```python
+from hexkit.protocols.objstorage import ObjectStorageProtocol
+
+try:
+    await storage.delete_object(bucket_id="inbox", object_id=object_id)
+except ObjectStorageProtocol.ObjectNotFoundError:
+    ...  # already gone, nothing to do
+```
+
+Providers translate their native errors into these types, so error handling written
+against the protocol stays portable across backends.
+
+## Available Providers
+
+One implementation of the protocol ships with hexkit:
+
+- The [S3 provider](../providers/s3.qmd#s3-object-storage-provider)
+  ([`S3ObjectStorage`](../../reference/providers.s3.S3ObjectStorage.qmd)) talks to any
+  storage exposing the S3 API: AWS S3, MinIO, Ceph RGW, LocalStack, and others.
+
+For testing, the
+[S3 test utils](../providers/s3.qmd#s3-object-storage-test-utils) provide pytest
+fixtures that spin up a disposable, LocalStack-backed object storage, so integration
+tests exercise the real protocol semantics without external infrastructure.
+
+For extensive, runnable usage examples, the
+[object storage integration tests](https://github.com/ghga-de/hexkit/blob/main/tests/integration/providers/objstorage/test_s3_objstorage.py)
+in the hexkit repository are a good complement to this guide.
+
+## Implementing a Custom Provider
+
+Supporting a new storage backend means subclassing `ObjectStorageProtocol`. Three
+rules keep a custom provider well-behaved:
+
+1. **Implement the underscore-prefixed abstract methods.** For every public operation
+   there is an abstract counterpart (`_create_bucket`, `_get_object_upload_url`, and
+   so on). The public methods perform ID validation and then delegate, so your
+   implementations can trust their inputs.
+2. **Raise the nested protocol exceptions.** Translate your backend's errors into
+   `ObjectStorageProtocol.BucketNotFoundError` and friends, so error handling written
+   against the protocol keeps working with your provider.
+3. **Keep the class constants unchanged.** `DEFAULT_URL_EXPIRATION_PERIOD`,
+   `DEFAULT_PART_SIZE`, and `MAX_FILE_PART_NUMBER` are part of the contract. The ID
+   validation rules, on the other hand, may be relaxed by overriding the
+   `_re_bucket_id` / `_re_object_id` patterns or the validation classmethods, as the
+   S3 provider does for tenant-prefixed bucket names.
+
+The
+[S3 implementation](https://github.com/ghga-de/hexkit/blob/main/src/hexkit/providers/s3/provider/objstorage.py)
+serves as the reference. To check a new provider for protocol compliance, the
+`typical_workflow` helper from the
+[S3 test utils](../providers/s3.qmd#s3-object-storage-test-utils) runs a complete
+create-upload-copy-download-delete scenario against any `ObjectStorageProtocol`
+implementation.
+
+If you build a provider for a widely used storage backend, please consider
+[contributing it to hexkit](https://github.com/ghga-de/hexkit).

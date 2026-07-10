@@ -119,8 +119,9 @@ venv.bak/
 # Rope project settings
 .ropeproject
 
-# mkdocs documentation
-/site
+# ephemeral documentation directories (mkdocs, Great Docs, etc.)
+/site/
+/great-docs/
 
 # mypy
 .mypy_cache/

@@ -21,6 +21,179 @@ title: "S3"
 
 ## S3 Object Storage Provider
 
+The S3 provider implements the
+[Object Storage protocol](../protocols/objstorage.qmd) on top of the S3 API through
+[`S3ObjectStorage`](../../reference/providers.s3.S3ObjectStorage.qmd). It works with
+any S3-compatible backend: AWS S3 itself, [MinIO](https://min.io),
+[Ceph RGW](https://docs.ceph.com/en/latest/radosgw/), or
+[LocalStack](https://localstack.cloud) for local development and testing. Under the
+hood it uses the synchronous [boto3](https://boto3.amazonaws.com) client, with every
+blocking call wrapped in `asyncio.to_thread`, so all methods are safely awaitable
+without blocking the event loop.
+
+This section covers everything S3-specific; the backend-independent semantics of the
+operations (presigned URLs, multipart uploads, error types) are documented in the
+[Object Storage protocol](../protocols/objstorage.qmd) chapter.
+
+To use it, install hexkit with the `s3` extra:
+
+```sh
+pip install hexkit[s3]
+```
+
+### Configuration
+
+Connection parameters are collected in
+[`S3Config`](../../reference/providers.s3.S3Config.qmd), a
+`pydantic_settings.BaseSettings` class. Inherit your service's config class from it,
+or instantiate it directly:
+
+```python
+from hexkit.providers.s3 import S3Config
+
+config = S3Config(
+    s3_endpoint_url="http://localhost:4566",
+    s3_access_key_id="my-access-key-id",
+    s3_secret_access_key="my-secret-access-key",
+)
+```
+
+| Parameter | Description |
+| --------- | ----------- |
+| `s3_endpoint_url` | The URL of the S3 API endpoint: an AWS regional endpoint, or the address of your MinIO, Ceph, or LocalStack instance. |
+| `s3_access_key_id` | The access key ID, as [used by AWS](https://docs.aws.amazon.com/IAM/latest/UserGuide/id_credentials_access-keys.html). |
+| `s3_secret_access_key` | The secret access key belonging to the access key ID. Stored as a Pydantic `SecretStr` so it does not leak into logs or error messages. |
+| `s3_session_token` | Optional session token for temporary credentials, also stored as a `SecretStr`. Defaults to `None`. |
+| `aws_config_ini` | Optional path to an [AWS config INI file](https://boto3.amazonaws.com/v1/documentation/api/latest/guide/configuration.html#using-a-configuration-file) for advanced botocore settings such as retry behavior or signature versions. Defaults to `None`. |
+
+### Creating the Storage Client
+
+Unlike most other hexkit providers, `S3ObjectStorage` is created with a plain
+constructor rather than an async context manager: it does not hold open connections,
+so there is nothing to enter or close:
+
+```python
+from hexkit.providers.s3 import S3ObjectStorage
+
+storage = S3ObjectStorage(config=config)
+
+await storage.create_bucket("my-bucket")
+```
+
+The resulting object implements the full
+[`ObjectStorageProtocol`](../../reference/protocols.objstorage.ObjectStorageProtocol.qmd)
+and can be passed anywhere the protocol is expected.
+
+### Uploads, Downloads, and Presigned URLs
+
+All operations behave as described in the
+[Object Storage protocol](../protocols/objstorage.qmd) chapter. A condensed
+end-to-end session:
+
+```python
+import httpx
+
+await storage.create_bucket("inbox")
+
+# Presigned POST URL for a single-request upload:
+presigned_post = await storage.get_object_upload_url(
+    bucket_id="inbox", object_id="report-2026-07"
+)
+
+# The client (not the service!) performs the actual upload:
+with open("report.pdf", "rb") as file:
+    httpx.post(
+        presigned_post.url,
+        data=presigned_post.fields,
+        files={"file": file},
+    ).raise_for_status()
+
+# Verify the outcome via metadata:
+assert await storage.does_object_exist(
+    bucket_id="inbox", object_id="report-2026-07"
+)
+size = await storage.get_object_size(bucket_id="inbox", object_id="report-2026-07")
+
+# Presigned URL for downloading (a plain GET URL):
+download_url = await storage.get_object_download_url(
+    bucket_id="inbox", object_id="report-2026-07"
+)
+
+await storage.delete_object(bucket_id="inbox", object_id="report-2026-07")
+```
+
+For the full operation catalog, including bucket management, object copying, and the
+multipart upload flow, see the
+[protocol chapter](../protocols/objstorage.qmd#uploading-objects).
+
+### Multipart Uploads and Part Sizing
+
+The multipart upload flow follows the
+[protocol semantics](../protocols/objstorage.qmd#multipart-uploads). What the S3 API
+adds are hard limits: parts must be between 8 MiB and 4 GiB (except the last one), at
+most 10,000 parts are allowed per upload, and objects may not exceed 5 TiB. The
+[`calc_part_size`](../../reference/utils.calc_part_size.qmd) helper from
+`hexkit.utils` recommends a part size that respects all of these for a given file
+size:
+
+```python
+from hexkit.utils import calc_part_size
+
+part_size = calc_part_size(file_size=file_size)  # raises ValueError above 5 TiB
+
+upload_id = await storage.init_multipart_upload(
+    bucket_id="inbox", object_id="large-dataset-001"
+)
+# ...hand out part URLs and complete as described in the protocol chapter,
+# passing part_size as the anticipated_part_size.
+```
+
+You can also pass a `preferred_part_size`; it is returned unchanged if it satisfies
+the constraints for the given file size and adjusted otherwise. Note that
+`copy_object` uses `calc_part_size` internally, so server-side copies of large
+objects pick a suitable part size automatically.
+
+### Ceph Tenant Buckets
+
+The provider relaxes the protocol's bucket naming rules to additionally accept
+Ceph RGW's multi-tenancy notation, where bucket names are prefixed with a tenant
+name and a colon, as in `my-tenant:my-bucket`. The part after the colon must still
+follow the usual bucket naming rules.
+
+### Error Handling
+
+The provider translates botocore's `ClientError`s into the exception types of the
+[Object Storage protocol](../protocols/objstorage.qmd#error-handling), so calling
+code never needs to import from boto3 or botocore:
+
+| Situation | Raised exception |
+| --------- | ---------------- |
+| Accessing a bucket that does not exist | `BucketNotFoundError` |
+| `create_bucket` with an already existing bucket ID | `BucketAlreadyExistsError` |
+| `delete_bucket` on a non-empty bucket without `delete_content=True` | `BucketNotEmptyError` |
+| Accessing an object that does not exist | `ObjectNotFoundError` |
+| Upload URL or copy destination where the object already exists | `ObjectAlreadyExistsError` |
+| Multipart operation with an unknown upload ID | `MultiPartUploadNotFoundError` |
+| `init_multipart_upload` while another upload is active for the object | `MultiPartUploadAlreadyExistsError` |
+| `complete_multipart_upload` with missing or ill-sized parts | `MultiPartUploadConfirmError` |
+| `abort_multipart_upload` unable to remove all parts | `MultiPartUploadAbortError` |
+| Invalid bucket or object ID (raised before contacting S3) | `BucketIdValidationError` / `ObjectIdValidationError` |
+| Any other bucket-related S3 error | `BucketError` |
+| Any other object-related S3 error | `ObjectError` |
+| Any other S3 error | `ObjectStorageProtocolError` |
+
+Remember that these exception classes are nested on the `ObjectStorageProtocol`
+class, so you catch, for example,
+`ObjectStorageProtocol.ObjectNotFoundError`. One caveat: passing the `object_md5sum`
+argument to `does_object_exist` raises a `NotImplementedError`, as MD5 content
+checking is not implemented by this provider yet.
+
+The provider's own
+[integration tests](https://github.com/ghga-de/hexkit/blob/main/tests/integration/providers/objstorage/test_s3_objstorage.py)
+double as an extensive collection of runnable usage examples; the
+[S3 Object Storage Test Utils](#s3-object-storage-test-utils) section below describes
+the fixtures they build on.
+
 ## S3 KV Store Providers
 
 S3 providers implement `KeyValueStoreProtocol` using S3 objects, which is useful
@@ -32,3 +205,109 @@ Available variants are `S3BytesKeyValueStore`, `S3StrKeyValueStore`,
 API reference: [hexkit.providers.s3](../../reference/index.qmd#provider-s3)
 
 ## S3 Object Storage Test Utils
+
+For integration tests, the `test-s3` extra provides pytest fixtures based on
+[testcontainers](https://testcontainers-python.readthedocs.io) that spin up a
+disposable [LocalStack](https://localstack.cloud) container (image
+`localstack/localstack:4.0.3`) exposing a real S3 API, so tests exercise the actual
+provider without any external infrastructure:
+
+```sh
+pip install hexkit[test-s3]
+```
+
+All utilities live in `hexkit.providers.s3.testutils`.
+
+### Fixtures
+
+The `s3_fixture` yields an `S3Fixture` object (under the fixture name `s3`) that
+bundles a ready-to-use storage client with cleanup helpers. Both the container
+fixture and the storage fixture must be imported into the test module for pytest to
+resolve them, hence the `# noqa: F401` comments:
+
+```python
+from hexkit.providers.s3.testutils import (
+    S3Fixture,
+    s3_container_fixture,  # noqa: F401
+    s3_fixture,  # noqa: F401
+)
+
+
+async def test_upload(s3: S3Fixture):
+    await s3.storage.create_bucket("test-bucket")
+    ...
+```
+
+The fixtures split the work between two scopes:
+
+- `s3_container_fixture` (fixture name `s3_container`) is session-scoped: one
+  LocalStack container is started per test session and reused by all tests.
+- `s3_fixture` (fixture name `s3`) is function-scoped and async: it deletes all
+  buckets before each test, so every test starts from a clean storage.
+  `clean_s3_fixture` is an alias for it.
+- `persistent_s3_fixture` is the variant without cleanup, for tests that
+  intentionally share storage state.
+
+If the default scopes or names do not fit your test setup, the factory functions
+`get_s3_container_fixture`, `get_clean_s3_fixture`, and `get_persistent_s3_fixture`
+create the same fixtures with custom `scope` and `name` arguments.
+
+### The S3Fixture
+
+An `S3Fixture` carries two attributes: `config`, an `S3Config` pointing at the test
+container, and `storage`, a fully configured `S3ObjectStorage`. On top of that it
+offers convenience methods for arranging test state:
+
+- `get_buckets()` lists all currently existing buckets.
+- `populate_buckets(buckets)` creates the given buckets.
+- `populate_file_objects(file_objects)` creates buckets as needed and uploads the
+  given file objects.
+- `empty_buckets(buckets=..., exclude_buckets=...)` deletes all objects from the
+  given buckets (or all buckets).
+- `delete_buckets(buckets=..., exclude_buckets=...)` deletes the given buckets (or
+  all buckets) including their content.
+
+### File Objects and Upload Helpers
+
+Test files are described by `FileObject`, a Pydantic model with `file_path`,
+`bucket_id`, and `object_id` fields plus computed `content` (the file's bytes) and
+`md5` properties. The `temp_file_object` context manager creates one backed by a
+temporary file of a given size, and the `tmp_file` fixture provides a default 5 MiB
+instance:
+
+```python
+from hexkit.providers.s3.testutils import temp_file_object
+
+
+async def test_with_file(s3: S3Fixture):
+    with temp_file_object("test-bucket", "test-object", size=1024) as file:
+        await s3.populate_file_objects([file])
+
+    assert await s3.storage.does_object_exist(
+        bucket_id="test-bucket", object_id="test-object"
+    )
+```
+
+For exercising transfers the way real clients perform them, several helpers issue
+actual HTTP requests against presigned URLs: `upload_file` POSTs a file to a
+`PresignedPostURL`, `multipart_upload_file` runs a complete multipart upload for a
+local file, `upload_part` sends a single part, and `calc_md5` computes checksums for
+integrity assertions.
+
+### Compliance Testing with typical_workflow
+
+The `typical_workflow` coroutine runs an end-to-end scenario — create buckets,
+upload (single-request or multipart), verify, download and check integrity, copy to
+a second bucket, delete — against any `ObjectStorageProtocol` implementation. It
+serves both as a smoke test for your storage setup and as a compliance check when
+[implementing a custom provider](../protocols/objstorage.qmd#implementing-a-custom-provider).
+
+### Multi-Storage Setups
+
+For services that span multiple independent object storages, the
+`s3_multi_container_fixture` starts several LocalStack containers keyed by alias
+(driven by a `storage_aliases` fixture you provide), and the `federated_s3_fixture`
+yields a `FederatedS3Fixture` holding one `S3Fixture` per alias. Persistent variants
+and factory functions exist analogously to the single-storage fixtures.
+
+API reference: [hexkit.providers.s3](../../reference/index.qmd#provider-s3)

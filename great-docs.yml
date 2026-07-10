@@ -147,6 +147,7 @@ user_guide:
       - text: "Overview"
         href: protocols/index.qmd
       - protocols/dao.qmd
+      - protocols/objstorage.qmd
   - section: "Providers"
     contents:
       - text: "Overview"
@@ -376,6 +377,19 @@ include_in_header:
       .navbar .navbar-title {
         padding-top: 6px;
         padding-bottom: 1px;
+      }
+    </style>
+  # The theme turns figures that wrap a mermaid diagram into `display: flex`
+  # to center the diagram, but with the default row direction a figcaption
+  # becomes a second flex child sitting beside the diagram, squeezing it to
+  # half the page width. Stack the flex children vertically instead, so the
+  # caption sits below the diagram as in ordinary image figures.
+  - |
+    <style>
+      .cell-output-display figure.figure:has(.mermaid-js),
+      .cell-output-display figure.figure:has(.mermaid) {
+        flex-direction: column;
+        align-items: center;
       }
     </style>
 
