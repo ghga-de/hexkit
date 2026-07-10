@@ -160,6 +160,7 @@ user_guide:
       - providers/kafka/index.qmd
       - providers/kafka/publisher.qmd
       - providers/kafka/subscriber.qmd
+      - providers/kafka/test_utils.qmd
       - providers/mongodb.qmd
       - providers/mongokafka.qmd
       - providers/s3.qmd

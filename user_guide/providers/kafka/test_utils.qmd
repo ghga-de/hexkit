@@ -1,0 +1,400 @@
+---
+title: "Kafka Test Utils"
+---
+
+<!--
+ Copyright 2021 - 2026 Universität Tübingen, DKFZ, EMBL, and Universität zu Köln
+ for the German Human Genome-Phenome Archive (GHGA)
+
+ Licensed under the Apache License, Version 2.0 (the "License");
+ you may not use this file except in compliance with the License.
+ You may obtain a copy of the License at
+
+     http://www.apache.org/licenses/LICENSE-2.0
+
+ Unless required by applicable law or agreed to in writing, software
+ distributed under the License is distributed on an "AS IS" BASIS,
+ WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ See the License for the specific language governing permissions and
+ limitations under the License.
+-->
+
+The `hexkit.providers.akafka.testutils` module provides pytest fixtures and
+helpers for testing event-driven services against a real, disposable Kafka
+broker. The broker runs in a container managed by
+[testcontainers](https://testcontainers-python.readthedocs.io/), so integration
+tests exercise actual broker semantics — topics, partitions, offsets, retention —
+without any external infrastructure. All that is required is a working Docker
+(or compatible) daemon.
+
+Install hexkit with the `test-akafka` extra to use these utilities (it adds
+testcontainers and the pytest plugins on top of the `akafka` extra):
+
+```bash
+pip install hexkit[test-akafka]
+```
+
+For unit tests that should not touch a broker at all, hexkit also ships an
+[in-memory event publisher](#unit-testing-without-a-broker), described at the
+end of this page.
+
+## The Fixtures
+
+Two fixtures work in tandem, splitting the work between pytest scopes:
+
+- `kafka_container_fixture` (fixture name `kafka_container`) is
+  *session-scoped*: it starts one Kafka test container
+  (`confluentinc/cp-kafka`) per test session, which all tests reuse. Starting
+  the container takes a few seconds, so sharing it keeps the test suite fast.
+- `kafka_fixture` (fixture name `kafka`) is *function-scoped* and async: it
+  yields a [`KafkaFixture`](#the-kafkafixture) bound to that container and
+  clears all topics before each test, so every test starts from an empty
+  broker. `clean_kafka_fixture` is an alias for it.
+- `persistent_kafka_fixture` (also named `kafka`) is the variant *without* the
+  upfront cleanup, for tests that intentionally share broker state — for
+  example, when asserting on events retained in compacted topics across test
+  phases.
+
+Both the container fixture and the `KafkaFixture`-producing fixture must be
+imported into the test module (or a `conftest.py`) for pytest to resolve them,
+hence the `# noqa: F401` comments:
+
+```python
+import pytest
+
+from hexkit.providers.akafka.testutils import (
+    KafkaFixture,
+    kafka_container_fixture,  # noqa: F401
+    kafka_fixture,  # noqa: F401
+)
+
+
+@pytest.mark.asyncio
+async def test_something(kafka: KafkaFixture):
+    ...
+```
+
+If the default scopes or names do not fit your test setup — say, you want a
+module-scoped fixture, or both a clean and a persistent fixture side by side
+(they otherwise collide on the name `kafka`) — the factory functions
+`get_kafka_container_fixture`, `get_clean_kafka_fixture`, and
+`get_persistent_kafka_fixture` create the same fixtures with custom `scope`
+and `name` arguments:
+
+```python
+from hexkit.providers.akafka.testutils import get_clean_kafka_fixture
+
+module_kafka_fixture = get_clean_kafka_fixture(scope="module", name="module_kafka")
+```
+
+## The KafkaFixture
+
+A `KafkaFixture` carries three attributes:
+
+- `config`: a ready-made
+  [`KafkaConfig`](../../../reference/providers.akafka.KafkaConfig.qmd) pointing
+  at the containerized broker — pass it to the providers under test.
+- `kafka_servers`: the bootstrap server list, for constructing your own config
+  (e.g. to add [DLQ settings](subscriber.qmd#configuration)).
+- `publisher`: a started
+  [`KafkaEventPublisher`](../../../reference/providers.akafka.KafkaEventPublisher.qmd)
+  connected to the broker.
+
+On top of that, it offers utility methods for the three things Kafka tests do
+all the time: feeding events in, asserting on events coming out, and resetting
+broker state.
+
+### Publishing Test Events
+
+`publish_event()` publishes a single event through the fixture's built-in
+publisher — typically to feed an inbound event to a subscriber under test:
+
+```python
+await kafka.publish_event(
+    payload={"user_id": "abc123", "name": "Jane"},
+    type_="user_created",
+    topic="users",
+    key="abc123",  # defaults to "test" if omitted
+)
+```
+
+`event_id` and `headers` can be passed as well; by default a fresh event ID and
+correlation ID are generated, just as with a production publisher.
+
+### Asserting on Published Events
+
+`expect_events()` returns an async context manager that records everything
+published to a topic while the `async with` block runs, and on exit checks the
+recorded events against a sequence of `ExpectedEvent`s — raising a
+`ValidationError` (with a diff-friendly message) on any mismatch:
+
+```python
+from hexkit.providers.akafka.testutils import ExpectedEvent
+
+async with kafka.expect_events(
+    events=[ExpectedEvent(payload={"user_id": "abc123"}, type_="greeting_sent")],
+    in_topic="greetings",
+):
+    ...  # run the service logic that should publish exactly this event
+```
+
+The check is strict about count and order: the recorded events must match the
+expected ones one-to-one, in sequence. Per event, the following is compared:
+
+- `payload` and `type_` are always compared. The expected payload may contain
+  the same rich values a publisher accepts (UUIDs, datetimes, ...) — it is
+  normalized with the publisher's JSON serializer before comparison.
+- `key`, `event_id`, and `headers` are optional and only compared when set to
+  a value other than `None`.
+
+Events are recorded without their headers by default. To assert on headers,
+pass `capture_headers=True` — expecting headers without it raises a
+`ValidationError`. (The `type` and `event_id` headers are extracted into their
+own fields and are not part of the compared headers.)
+
+### Recording Events for Inspection
+
+When an exact expectation is too rigid — the number of events varies, or you
+want to assert on selected fields only — `record_events()` provides the same
+recording without the automatic check. It returns an `EventRecorder` whose
+`recorded_events` (a sequence of `RecordedEvent`s with `payload`, `type_`,
+`key`, `event_id`, and optionally `headers` fields) are available after the
+context block exits:
+
+```python
+async with kafka.record_events(in_topic="notifications") as recorder:
+    ...  # run the service logic
+
+assert len(recorder.recorded_events) == 2
+assert recorder.recorded_events[0].type_ == "email_sent"
+```
+
+Both `expect_events()` and `record_events()` only consider events published
+*inside* the context block: on entry, the recorder notes the topic's current
+offsets, and on exit it consumes exactly the events published since then. This
+also means the recorder never waits indefinitely for events that were expected
+but not published — it simply reports the mismatch.
+
+If you need to compare manually recorded events against expectations later,
+the module-level `check_recorded_events()` function performs the same
+validation that `expect_events()` runs on exit.
+
+### Managing Broker State
+
+- `clear_topics(topics=..., exclude_internal=True)` deletes all events from
+  the given topic(s), or from all topics when none are specified (internal
+  `__`-prefixed topics are excluded by default). The `kafka_fixture` calls
+  this before every test; call it yourself to separate phases within one test
+  or when using the persistent fixture. Compacted topics are handled
+  transparently by temporarily switching their cleanup policy.
+- `set_cleanup_policy(topic=..., policy=...)` and `get_cleanup_policy(topic=...)`
+  set or read a topic's `cleanup.policy` — the way to test behavior on
+  compacted topics (see the
+  [persistent publisher](../mongokafka.qmd#persistent-publisher)), e.g.
+  `policy="compact"`.
+- `set_topic_config(topic=..., config={...})` and
+  `get_topic_config(topic=..., config_name=...)` do the same for arbitrary
+  topic configuration values.
+
+## Common Testing Patterns
+
+### Testing the Publishing Side
+
+Wrap the service logic in `expect_events()` and let it assert that the right
+events — and only those — were published:
+
+```python
+@pytest.mark.asyncio
+async def test_greeting_published(kafka: KafkaFixture):
+    async with KafkaEventPublisher.construct(config=kafka.config) as publisher:
+        emitter = GreetingEmitter(config=greeting_config, publisher=publisher)
+
+        async with kafka.expect_events(
+            events=[
+                ExpectedEvent(
+                    payload={"user_id": "abc123", "text": "Hello, Jane!"},
+                    type_="greeting_sent",
+                    key="abc123",
+                )
+            ],
+            in_topic="greetings",
+        ):
+            await emitter.greet(user_id="abc123", name="Jane")
+```
+
+### Testing the Consuming Side
+
+Publish an inbound event with `publish_event()`, then run a real
+[`KafkaEventSubscriber`](subscriber.qmd) with `run(forever=False)`, which
+consumes exactly one event and returns. Assert on the side effects in the
+service's core:
+
+```python
+from hexkit.providers.akafka import KafkaEventSubscriber
+
+
+@pytest.mark.asyncio
+async def test_user_created_consumed(kafka: KafkaFixture):
+    await kafka.publish_event(
+        payload={"user_id": "abc123", "name": "Jane"},
+        type_="user_created",
+        topic="users",
+        key="abc123",
+    )
+
+    registry = InMemUserRegistry()  # test double for the core port
+    translator = UserEventsTranslator(config=user_events_config, registry=registry)
+
+    async with KafkaEventSubscriber.construct(
+        config=kafka.config, translator=translator
+    ) as subscriber:
+        await subscriber.run(forever=False)
+
+    assert registry.has_user("abc123")
+```
+
+### Mocking the Translator
+
+To test event *routing* — that the subscriber picks up the right topics and
+delivers events with the right arguments — a mock can stand in for the
+translator. Any object with `topics_of_interest`, `types_of_interest`, and an
+async `consume()` method satisfies the provider, so an `AsyncMock` works
+directly:
+
+```python
+from unittest.mock import AsyncMock
+
+
+@pytest.mark.asyncio
+async def test_event_reaches_translator(kafka: KafkaFixture):
+    translator = AsyncMock()
+    translator.topics_of_interest = ["users"]
+    translator.types_of_interest = ["user_created"]
+
+    event_id = uuid4()
+    await kafka.publish_event(
+        payload={"user_id": "abc123"},
+        type_="user_created",
+        topic="users",
+        key="abc123",
+        event_id=event_id,
+    )
+
+    async with KafkaEventSubscriber.construct(
+        config=kafka.config, translator=translator
+    ) as subscriber:
+        await subscriber.run(forever=False)
+
+    translator.consume.assert_awaited_once_with(
+        payload={"user_id": "abc123"},
+        type_="user_created",
+        topic="users",
+        key="abc123",
+        event_id=event_id,
+    )
+```
+
+For testing the translator's *logic*, no broker is needed at all — see
+[below](#unit-testing-without-a-broker).
+
+### Testing DLQ Behavior
+
+Failure handling needs a config with the [DLQ enabled](subscriber.qmd#failure-handling-retries-and-the-dlq);
+derive one from the fixture's connection details and record what ends up in the
+DLQ topic:
+
+```python
+config = KafkaConfig(
+    service_name="user-registry",
+    service_instance_id="test",
+    kafka_servers=kafka.kafka_servers,
+    kafka_enable_dlq=True,
+)
+```
+
+For complete examples, see the
+[DLQ integration tests](https://github.com/ghga-de/hexkit/blob/main/tests/integration/providers/eventpubsub/test_akafka_dlqsub.py)
+in the hexkit repository, alongside the
+[pub/sub integration tests](https://github.com/ghga-de/hexkit/blob/main/tests/integration/providers/eventpubsub/test_akafka_pubsub.py)
+that exercise all of the utilities described on this page.
+
+## Testing SSL Connections
+
+The default test container speaks plaintext. To test TLS-secured connections —
+certificate validation, client authentication, the `kafka_ssl_*`
+[configuration parameters](index.qmd#configuration) — the
+`hexkit.providers.akafka.testcontainer` module provides `KafkaSSLContainer`, a
+Kafka test container configured with PEM certificates:
+
+```python
+from hexkit.providers.akafka.testcontainer import KafkaSSLContainer
+
+with KafkaSSLContainer(
+    cert=broker_cert,  # PEM certificate (chain) of the broker
+    key=broker_key,  # PEM private key of the broker
+    password=broker_key_password,
+    trusted=ca_cert,  # trusted CA certificates
+    client_auth="required",  # or "requested" or "none"
+) as kafka_container:
+    kafka_servers = [kafka_container.get_bootstrap_server()]
+    ...  # build a KafkaConfig with kafka_security_protocol="SSL"
+```
+
+This container is not wrapped in a fixture; manage it directly in tests that
+need it.
+
+## Unit Testing Without a Broker
+
+Spinning up a container is worth it for integration tests, but plain unit
+tests are better served without one:
+
+- **Publishing side:** the
+  [`InMemEventPublisher`](../../../reference/providers.testing.InMemEventPublisher.qmd)
+  (from [`hexkit.providers.testing`](../testing.qmd)) implements the
+  [`EventPublisherProtocol`](../../../reference/protocols.eventpub.EventPublisherProtocol.qmd)
+  against an in-memory
+  [`InMemEventStore`](../../../reference/providers.testing.InMemEventStore.qmd)
+  that keeps one queue per topic. Inject it into the code under test in place
+  of a `KafkaEventPublisher` and pop the published events off the store:
+
+  ```python
+  from hexkit.providers.testing import InMemEventPublisher
+
+  publisher = InMemEventPublisher()
+  emitter = GreetingEmitter(config=greeting_config, publisher=publisher)
+
+  await emitter.greet(user_id="abc123", name="Jane")
+
+  event = publisher.event_store.get("greetings")  # raises TopicExhaustedError if empty
+  assert event.type_ == "greeting_sent"
+  assert event.payload == {"user_id": "abc123", "text": "Hello, Jane!"}
+  ```
+
+  Reading from an empty topic raises a
+  [`TopicExhaustedError`](../../../reference/providers.testing.TopicExhaustedError.qmd) —
+  handy for asserting that *nothing* was published. Note that the store is a
+  simple same-thread queue: it is not suitable for inter-thread or
+  inter-process communication, and there is no in-memory subscriber consuming
+  from it.
+
+- **Consuming side:** a translator is an ordinary object — call its `consume()`
+  method directly with a test payload and assert on the effects, no subscriber
+  or broker involved:
+
+  ```python
+  translator = UserEventsTranslator(config=user_events_config, registry=registry)
+
+  await translator.consume(
+      payload={"user_id": "abc123", "name": "Jane"},
+      type_="user_created",
+      topic="users",
+      key="abc123",
+      event_id=uuid4(),
+  )
+
+  assert registry.has_user("abc123")
+  ```
+
+These in-memory approaches verify your logic; they do not verify serialization,
+topic wiring, offset handling, or retry behavior. Cover those with the
+container-based fixtures above.

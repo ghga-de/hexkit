@@ -35,7 +35,7 @@ The subpackage provides:
 - [`KafkaOutboxSubscriber`](../../protocols/daosubscriber.qmd#running-a-subscriber-the-kafka-provider)
   — a convenience wrapper for consuming outbox events with translators implementing
   the [`DaoSubscriberProtocol`](../../protocols/daosubscriber.qmd).
-- [Kafka test utils](#kafka-test-utils) — pytest fixtures and helpers for testing
+- [Kafka test utils](test_utils.qmd) — pytest fixtures and helpers for testing
   against a real, disposable Kafka broker.
 
 Two hybrid providers combine Kafka with MongoDB and are documented in the
@@ -117,57 +117,8 @@ the current or home directory.
 
 The `hexkit.providers.akafka.testutils` module provides pytest fixtures that spin
 up a disposable Kafka broker in a container, so integration tests exercise real
-broker semantics without external infrastructure. Install the `test-akafka` extra
-to use them (it adds [testcontainers](https://testcontainers-python.readthedocs.io/)
-to the `akafka` extra):
-
-```bash
-pip install hexkit[test-akafka]
-```
-
-Two fixtures work in tandem:
-
-- `kafka_container_fixture`: a session-scoped fixture starting a Kafka
-  testcontainer.
-- `kafka_fixture`: a function-scoped `KafkaFixture` bound to that container. It
-  clears all topics before each test (use `persistent_kafka_fixture` to skip the
-  cleanup) and offers a ready-made `KafkaConfig` plus utility methods.
-
-The `KafkaFixture` lets you publish test events, record what a service publishes,
-and assert expectations:
-
-```python
-import pytest
-
-from hexkit.providers.akafka.testutils import (
-    ExpectedEvent,
-    KafkaFixture,
-    kafka_container_fixture,  # noqa: F401
-    kafka_fixture,  # noqa: F401
-)
-
-
-@pytest.mark.asyncio
-async def test_my_service(kafka: KafkaFixture):
-    # feed an inbound event to the service under test:
-    await kafka.publish_event(
-        payload={"user_id": "abc123", "name": "Jane"},
-        type_="user_created",
-        topic="users",
-        key="abc123",
-    )
-
-    # assert on the events the service publishes in response:
-    async with kafka.expect_events(
-        events=[ExpectedEvent(payload={"user_id": "abc123"}, type_="greeting_sent")],
-        in_topic="greetings",
-    ):
-        ...  # run the service logic that should publish the event
-```
-
-Beyond `publish_event()` and `expect_events()`, the fixture provides
-`record_events(in_topic=...)` for free-form recording and later inspection,
-`clear_topics()` for removing events between test phases, and
-`set_cleanup_policy()` for testing behavior on compacted topics. `kafka.config`
-is a `KafkaConfig` pointing at the containerized broker, ready to be passed to
-the providers under test.
+broker semantics without external infrastructure — publish test events, record
+what a service publishes, and assert expectations. The
+[Kafka Test Utils](test_utils.qmd) page documents the fixtures, the
+`KafkaFixture` utility methods, and common testing patterns, including in-memory
+alternatives for broker-less unit tests.

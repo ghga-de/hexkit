@@ -234,7 +234,7 @@ building DLQ-processing services with the
 
 ## Testing
 
-The [Kafka test utils](index.qmd#kafka-test-utils) provide a containerized broker
+The [Kafka test utils](test_utils.qmd) provide a containerized broker
 for integration-testing translators through a real subscriber; `run(forever=False)`
 consumes a single published test event. For runnable examples, see the
 [Kafka pub/sub integration tests](https://github.com/ghga-de/hexkit/blob/main/tests/integration/providers/eventpubsub/test_akafka_pubsub.py)

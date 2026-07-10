@@ -174,7 +174,7 @@ compares the two.
 
 ## Testing
 
-The [Kafka test utils](index.qmd#kafka-test-utils) let you assert on published
+The [Kafka test utils](test_utils.qmd) let you assert on published
 events against a real, containerized broker via `record_events()` and
 `expect_events()`. For runnable end-to-end examples, see the
 [Kafka pub/sub integration tests](https://github.com/ghga-de/hexkit/blob/main/tests/integration/providers/eventpubsub/test_akafka_pubsub.py)
