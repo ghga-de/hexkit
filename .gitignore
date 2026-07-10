@@ -122,6 +122,9 @@ venv.bak/
 # mkdocs documentation
 /site
 
+# Great Docs build directory (ephemeral, regenerated on each build)
+great-docs/
+
 # mypy
 .mypy_cache/
 .dmypy.json
