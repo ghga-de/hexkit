@@ -18,16 +18,58 @@ import logging
 from abc import ABC, abstractmethod
 from collections.abc import Awaitable, Callable
 from contextlib import asynccontextmanager
-from typing import Any
+from datetime import datetime
+from typing import Any, TypedDict
 
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 from pymongo.asynchronous.database import AsyncDatabase
 
+from hexkit.providers.mongodb.config import MongoDbConfig
 from hexkit.providers.mongodb.provider import document_to_dto, dto_to_document
 
 log = logging.getLogger(__name__)
 
 Document = dict[str, Any]
+
+
+class MigrationConfig(MongoDbConfig):
+    """Minimal configuration required to run the migration process."""
+
+    db_version_collection: str = Field(
+        ...,
+        description="The name of the collection containing DB version information for this service",
+        examples=["ifrsDbVersions"],
+    )
+    migration_wait_sec: int = Field(
+        ...,
+        description="The number of seconds to wait before checking the DB version again",
+        examples=[5, 30, 180],
+    )
+    migration_max_wait_sec: int | None = Field(
+        default=None,
+        description="The maximum number of seconds to wait for migrations to complete"
+        + " before raising an error.",
+        examples=[None, 300, 600, 3600],
+    )
+
+
+class DbVersionRecord(TypedDict):
+    """Model containing information about DB versions and how they were achieved."""
+
+    version: int
+    completed: datetime
+    backward: bool
+    total_duration_ms: int
+
+
+def _get_db_version_from_records(version_docs: list[DbVersionRecord]) -> int:
+    """Gets the current DB version from the documents found in the version collection."""
+    # Make sure we know what the latest version is, not just the max
+    return max(
+        version_docs,
+        key=lambda doc: (doc["completed"], doc["version"]),
+        default={"version": 0},
+    )["version"]
 
 
 def validate_doc(doc: Document, *, model: type[BaseModel], id_field: str):

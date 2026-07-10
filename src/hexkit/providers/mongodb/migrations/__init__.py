@@ -16,12 +16,17 @@
 """Database migration tools for MongoDB"""
 
 from ._manager import (
-    MigrationConfig,
     MigrationManager,
     MigrationMap,
     MigrationStepError,
 )
-from ._utils import Document, MigrationDefinition, Reversible, validate_doc
+from ._utils import (
+    Document,
+    MigrationConfig,
+    MigrationDefinition,
+    Reversible,
+    validate_doc,
+)
 
 __all__ = [
     "Document",
