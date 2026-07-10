@@ -1,0 +1,181 @@
+---
+title: "Kafka Event Publisher"
+---
+
+<!--
+ Copyright 2021 - 2026 Universität Tübingen, DKFZ, EMBL, and Universität zu Köln
+ for the German Human Genome-Phenome Archive (GHGA)
+
+ Licensed under the Apache License, Version 2.0 (the "License");
+ you may not use this file except in compliance with the License.
+ You may obtain a copy of the License at
+
+     http://www.apache.org/licenses/LICENSE-2.0
+
+ Unless required by applicable law or agreed to in writing, software
+ distributed under the License is distributed on an "AS IS" BASIS,
+ WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ See the License for the specific language governing permissions and
+ limitations under the License.
+-->
+
+The
+[`KafkaEventPublisher`](../../../reference/providers.akafka.KafkaEventPublisher.qmd)
+is hexkit's provider for publishing events to Apache Kafka. It implements the
+[`EventPublisherProtocol`](../../../reference/protocols.eventpub.EventPublisherProtocol.qmd),
+so application code programs against the protocol and stays independent of the
+event-streaming backend.
+
+In line with the
+[triple hexagonal architecture](../../arch_concepts/triple_hexagonal_arch.qmd),
+services usually do not call the provider directly from their core. Instead, an
+outbound *translator* offers the core a domain-bound API (say,
+`publish_user_created(user)`) and internally maps it to a `publish()` call with the
+right topic, type, and payload — see the
+[producers section](../../arch_concepts/event_driven_arch.qmd#producers) of the
+Event-Driven Architecture chapter. This page describes the provider itself; the
+examples call it directly for brevity.
+
+## Configuration
+
+The publisher is configured with the shared
+[`KafkaConfig`](index.qmd#configuration) class. Beyond the connection parameters,
+three of its fields concern publishing specifically:
+
+| Parameter | Default | Description |
+| --------- | ------- | ----------- |
+| `generate_correlation_id` | `True` | If a publish is attempted without a correlation ID set in the context, generate a new one instead of raising an error. See [below](#headers-and-correlation-ids). |
+| `kafka_max_message_size` | `1048576` (1 MiB) | The largest transmittable message size in bytes, measured *before* compression. When compression is enabled, this may exceed the broker's `message.max.bytes`, which limits the compressed size. |
+| `kafka_compression_type` | `None` | Compression applied by the producer: `None`, `"gzip"`, `"snappy"`, `"lz4"`, or `"zstd"`. If unsure, `zstd` offers a good balance between speed and compression ratio. Consumers decompress transparently, whatever the setting. |
+
+## Creating a Publisher
+
+The provider follows hexkit's async-context-manager construction pattern: the
+context manager starts the underlying `AIOKafkaProducer` on entry and flushes and
+stops it on exit.
+
+```python
+from hexkit.providers.akafka import KafkaConfig, KafkaEventPublisher
+
+config = KafkaConfig(
+    service_name="user-registry",
+    service_instance_id="instance-001",
+    kafka_servers=["localhost:9092"],
+)
+
+async with KafkaEventPublisher.construct(config=config) as publisher:
+    ...  # use the publisher for the lifetime of the service
+```
+
+The publisher is typically constructed once at service startup and shared for the
+whole service lifetime — not opened per event.
+
+## Publishing Events
+
+The single operation is `publish()`, with the event's four essential ingredients
+as required keyword arguments:
+
+```python
+await publisher.publish(
+    payload={"user_id": "abc123", "name": "Jane", "registered": "2026-07-01"},
+    type_="user_created",
+    key="abc123",
+    topic="users",
+)
+```
+
+- `payload`: the event's content as a JSON-serializable dictionary.
+- `type_`: the event type, allowing consumers to distinguish different kinds of
+  events within one topic. Transmitted as an event header.
+- `key`: the event key. Kafka guarantees ordering per key within a partition, so
+  choose the key such that events that must stay in order share it — typically the
+  ID of the affected resource.
+- `topic`: the topic to publish to.
+
+Topic, type, and key must be ASCII-only strings; they are validated before
+anything is sent. The payload is serialized as JSON with a few conveniences on
+top of the standard types: `UUID` and `Path` values are serialized as strings, and
+`date`/`datetime` values as ISO-8601 strings.
+
+The call returns once the broker has acknowledged the event, so a returned
+`publish()` means the event has been durably received by Kafka.
+
+Two optional arguments, `event_id` and `headers`, are covered in the next two
+sections.
+
+## Event IDs
+
+Every event carries a UUID (version 4) identifying it, transmitted in the
+`event_id` header. If you do not pass one, `publish()` generates a fresh one — for
+ordinary publishing you never think about event IDs.
+
+Passing an explicit `event_id` is for cases where the ID must be controlled from
+the outside, chiefly when re-emitting an event that already has an identity. The
+[`PersistentKafkaPublisher`](../mongokafka.qmd#persistent-publisher), for example,
+stores each event's ID and reuses it on republishing, so consumers can recognize
+the event as the same one.
+
+## Headers and Correlation IDs
+
+Along with the payload, each event carries metadata headers. Three header names
+are *reserved* and always set by the provider:
+
+- `type`: the event type passed as `type_`.
+- `event_id`: the event ID, as described above.
+- `correlation_id`: the ID tracing the request flow this event belongs to.
+
+Supplying one of the reserved names yourself in `headers` does not fail, but the
+value is overwritten and a warning is logged. Any other entries in the `headers`
+mapping are transmitted as additional headers; keys and values must be
+ASCII-encodable strings.
+
+The correlation ID is taken from the current async context, where it was set by
+whatever triggered this code path (for example, an inbound REST request or the
+[event subscriber](subscriber.qmd) consuming an upstream event). This is how
+hexkit traces request flows across service boundaries; the
+[Correlation IDs](../../observability_tools/correlation_ids.qmd) chapter explains
+the mechanism. If no correlation ID is set in the context, the behavior depends on
+the `generate_correlation_id` setting:
+
+- `True` (the default): a new correlation ID is generated and used, with an
+  informational log message. Convenient for flows that legitimately originate
+  here.
+- `False`: the publish fails with a `CorrelationIdContextError`. Use this strict
+  mode to catch code paths that forgot to propagate the correlation ID.
+
+## Error Handling
+
+`publish()` validates its inputs before contacting the broker:
+
+- a non-ASCII `topic`, `type_`, or `key` raises a
+  [`NonAsciiStrError`](../../../reference/utils.NonAsciiStrError.qmd);
+- an `event_id` that is not a `UUID` raises a `TypeError`;
+- a payload containing values that are not JSON-serializable (after the
+  conveniences noted above) raises a `TypeError`.
+
+A missing correlation ID raises a
+[`CorrelationIdContextError`](../../../reference/correlation.CorrelationIdContextError.qmd)
+when `generate_correlation_id` is disabled.
+
+Failures at the broker level — connection loss, an event exceeding
+`kafka_max_message_size`, or the broker rejecting the request — surface as
+exceptions from the underlying aiokafka producer (subclasses of
+`aiokafka.errors.KafkaError`). Since `publish()` waits for the broker's
+acknowledgment, no error means the event is safely stored in Kafka; there is no
+silent fire-and-forget failure mode.
+
+Note that a `KafkaEventPublisher` publishes ephemerally: once the call returns,
+the service holds no record of the event, and there is no built-in way to publish
+the same event again. If events must be re-emittable, use the
+[`PersistentKafkaPublisher`](../mongokafka.qmd#persistent-publisher) or, for
+domain-object state, the [outbox publisher](../mongokafka.qmd#outbox-publisher) —
+the [Publisher Variants](../../developer_help/outbox_v_persistent_pub.qmd) chapter
+compares the two.
+
+## Testing
+
+The [Kafka test utils](index.qmd#kafka-test-utils) let you assert on published
+events against a real, containerized broker via `record_events()` and
+`expect_events()`. For runnable end-to-end examples, see the
+[Kafka pub/sub integration tests](https://github.com/ghga-de/hexkit/blob/main/tests/integration/providers/eventpubsub/test_akafka_pubsub.py)
+in the hexkit repository.

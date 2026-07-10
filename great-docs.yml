@@ -147,12 +147,19 @@ user_guide:
       - text: "Overview"
         href: protocols/index.qmd
       - protocols/dao.qmd
+      - protocols/daopublisher.qmd
+      - protocols/daosubscriber.qmd
       - protocols/objstorage.qmd
   - section: "Providers"
     contents:
       - text: "Overview"
         href: providers/index.qmd
-      - providers/kafka.qmd
+      # The Kafka provider spans several pages living in providers/kafka/; they are
+      # listed as flat siblings here because nested sections are unsupported (see
+      # the NOTE above).
+      - providers/kafka/index.qmd
+      - providers/kafka/publisher.qmd
+      - providers/kafka/subscriber.qmd
       - providers/mongodb.qmd
       - providers/mongokafka.qmd
       - providers/s3.qmd

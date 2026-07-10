@@ -1,0 +1,243 @@
+---
+title: "Kafka Event Subscriber"
+---
+
+<!--
+ Copyright 2021 - 2026 Universität Tübingen, DKFZ, EMBL, and Universität zu Köln
+ for the German Human Genome-Phenome Archive (GHGA)
+
+ Licensed under the Apache License, Version 2.0 (the "License");
+ you may not use this file except in compliance with the License.
+ You may obtain a copy of the License at
+
+     http://www.apache.org/licenses/LICENSE-2.0
+
+ Unless required by applicable law or agreed to in writing, software
+ distributed under the License is distributed on an "AS IS" BASIS,
+ WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ See the License for the specific language governing permissions and
+ limitations under the License.
+-->
+
+The
+[`KafkaEventSubscriber`](../../../reference/providers.akafka.KafkaEventSubscriber.qmd)
+is hexkit's provider for consuming events from Apache Kafka. It handles the broker
+mechanics — subscriptions, deserialization, offsets, retries, and the dead letter
+queue — and hands each event to a service-defined *translator* that connects the
+event stream to the service's core logic.
+
+Unlike the [publisher](publisher.qmd), which can be used directly, the subscriber
+always requires a translator: consuming an event only makes sense in terms of what
+the service does with it.
+
+## The Translator
+
+A translator implements the
+[`EventSubscriberProtocol`](../../../reference/protocols.eventsub.EventSubscriberProtocol.qmd)
+(from `hexkit.protocols.eventsub`), which requires:
+
+- `topics_of_interest`: the topics the provider shall subscribe to.
+- `types_of_interest`: the event types to act on. Events of other types are
+  filtered out by the provider and never reach the translator.
+- `_consume_validated()`: the processing logic. It receives the event's `payload`,
+  `type_`, `topic`, `key`, and `event_id` (the public `consume()` method validates
+  these and then delegates).
+
+A typical translator validates the payload against a schema and calls a method on
+one of the service's core ports:
+
+```python
+from pydantic import UUID4, BaseModel, Field, ValidationError
+from pydantic_settings import BaseSettings
+
+from hexkit.custom_types import Ascii, JsonObject
+from hexkit.protocols.eventsub import EventSubscriberProtocol
+
+
+class UserEventsConfig(BaseSettings):
+    """Topic and type settings, kept configurable like all contractual details."""
+
+    users_topic: str = Field(default=..., examples=["users"])
+
+
+class UserCreatedPayload(BaseModel):
+    """Expected payload schema for user_created events."""
+
+    user_id: str
+    name: str
+
+
+class UserEventsTranslator(EventSubscriberProtocol):
+    """Consumes user events and forwards them to the core."""
+
+    def __init__(self, *, config: UserEventsConfig, registry: UserRegistryPort):
+        """Takes the config and an inbound port of the service's core."""
+        self.topics_of_interest = [config.users_topic]
+        self.types_of_interest = ["user_created"]
+        self._registry = registry
+
+    async def _consume_validated(
+        self,
+        *,
+        payload: JsonObject,
+        type_: Ascii,
+        topic: Ascii,
+        key: Ascii,
+        event_id: UUID4,
+    ) -> None:
+        try:
+            user = UserCreatedPayload.model_validate(payload)
+        except ValidationError as error:
+            raise self.MalformedPayloadError(
+                f"Invalid user_created payload: {error}"
+            ) from error
+        await self._registry.register_user(user_id=user.user_id, name=user.name)
+```
+
+Raising an exception signals that consumption failed and triggers the
+[failure handling](#failure-handling-retries-and-the-dlq) described below;
+returning normally signals success. The protocol provides the
+`MalformedPayloadError` class (as an attribute of the translator base class) for
+payloads that do not match the expected schema.
+
+Since consumption is [at-least-once](#offset-management), translators must be
+*idempotent*: processing the same event twice must leave the service in the same
+state as processing it once.
+
+### Combining Multiple Translators
+
+One `KafkaEventSubscriber` takes exactly one translator. To consume several
+concerns through a single consumer, bundle translators with the
+[`ComboTranslator`](../../../reference/providers.akafka.ComboTranslator.qmd): it
+merges their topics of interest and routes each incoming event to the right
+translator based on the event's topic and type. Two translators claiming the same
+topic/type combination raise a `ValueError` at construction time.
+
+A `ComboTranslator` may also include translators implementing the
+[`DaoSubscriberProtocol`](../../protocols/daosubscriber.qmd), so ordinary event
+consumption and [outbox consumption](../../protocols/daosubscriber.qmd) can share
+one consumer.
+
+## Configuration
+
+The subscriber is configured with the shared
+[`KafkaConfig`](index.qmd#configuration) class. Two of the connection parameters
+play a special role on the consuming side:
+
+- `service_name` doubles as the *consumer group ID*. All instances of a service
+  form one consumer group, so each event is processed by only one instance, and
+  the workload is shared.
+- `kafka_max_message_size` bounds the largest fetchable message.
+
+New consumer groups start reading at the earliest available offset, so a freshly
+deployed service works through the retained event history rather than only seeing
+new events.
+
+The remaining consumer-side parameters control failure handling:
+
+| Parameter | Default | Description |
+| --------- | ------- | ----------- |
+| `kafka_max_retries` | `0` | How many times to immediately retry a failed event before giving up. |
+| `kafka_retry_backoff` | `0` | Seconds to wait before the first retry; the wait doubles with each subsequent retry. |
+| `kafka_enable_dlq` | `False` | Whether to publish events to the dead letter queue after retries are exhausted, instead of crashing. |
+| `kafka_dlq_topic` | `"dlq"` | The topic collecting failed events for inspection. |
+
+## Creating and Running a Subscriber
+
+Like all hexkit providers, the subscriber is constructed through an async context
+manager. Passing a `dlq_publisher` — usually a
+[`KafkaEventPublisher`](publisher.qmd) — is required when the DLQ is enabled:
+
+```python
+from hexkit.providers.akafka import (
+    KafkaConfig,
+    KafkaEventPublisher,
+    KafkaEventSubscriber,
+)
+
+config = KafkaConfig(
+    service_name="user-registry",
+    service_instance_id="instance-001",
+    kafka_servers=["localhost:9092"],
+    kafka_enable_dlq=True,
+)
+
+translator = UserEventsTranslator(config=user_events_config, registry=registry)
+
+async with (
+    KafkaEventPublisher.construct(config=config) as dlq_publisher,
+    KafkaEventSubscriber.construct(
+        config=config, translator=translator, dlq_publisher=dlq_publisher
+    ) as subscriber,
+):
+    await subscriber.run()
+```
+
+`run()` blocks and consumes indefinitely — it is the main loop of an event-driven
+service. For tests and one-shot scenarios, `run(forever=False)` consumes exactly
+one event and returns.
+
+The provider subscribes to the translator's `topics_of_interest`. Incoming events
+are screened before they reach the translator: events whose type is not among the
+`types_of_interest`, or which lack a type or correlation ID entirely, are ignored
+(with a log message) and acknowledged. For each accepted event, the provider
+extracts the correlation ID from the event headers and sets it as a context
+variable, so all downstream processing — including any events the service
+publishes in turn — carries the same correlation ID automatically.
+
+## Offset Management
+
+Kafka consumers track their progress through *offsets*. The subscriber disables
+auto-committing and commits offsets explicitly — only after an event has been
+fully handled, meaning the translator returned successfully, the event was ignored
+as not-of-interest, or the event was handed off to the DLQ.
+
+The consequence is an *at-least-once* guarantee: an event is never lost by being
+skipped, but if the service crashes mid-processing, the uncommitted event is
+redelivered after a restart — possibly to another instance in the consumer group.
+Together with event republishing and the [DLQ](#failure-handling-retries-and-the-dlq),
+this is why translators must be idempotent.
+
+## Failure Handling: Retries and the DLQ
+
+Event consumers are long-lived, and a single poison event should not take down the
+whole service. When the translator raises an exception, the subscriber escalates
+in stages:
+
+1. **Immediate retries.** If `kafka_max_retries` is greater than zero, the event
+   is re-attempted up to that many times, waiting `kafka_retry_backoff` seconds
+   before the first retry and doubling the wait each time (a backoff of 2 with
+   three retries waits 2, 4, then 8 seconds).
+2. **Dead letter queue.** If retries are exhausted (or none are configured) and
+   `kafka_enable_dlq` is `True`, the event is published to the `kafka_dlq_topic`
+   via the provided `dlq_publisher`, and consumption continues with the next
+   event. The DLQ event keeps the original payload, type, and key, gets a new
+   event ID, and carries additional headers describing the failure: the exception
+   class and message, the original topic, the original event ID, and the name of
+   the service that failed.
+3. **Crash.** With the DLQ disabled, the exception is re-raised after the retries
+   and the service goes down without committing the offset — the event will be
+   redelivered on restart. This is a reasonable mode for deployments where a
+   supervisor restarts the service and event order matters more than liveness.
+
+Failed events that were parked in the DLQ can be inspected and, once the cause is
+resolved, republished to a service-specific retry topic (`retry-<service_name>`).
+The subscriber automatically subscribes to its retry topic whenever the DLQ is
+enabled and restores each retried event's original topic before passing it to the
+translator, so translators never need to know whether an event arrived directly
+or via the DLQ detour.
+
+The full DLQ lifecycle — inspecting, resolving, and requeueing events, and
+building DLQ-processing services with the
+[`DLQSubscriberProtocol`](../../../reference/protocols.eventsub.DLQSubscriberProtocol.qmd)
+— is described in the [Dead Letter Queue](../../arch_concepts/dlq.qmd) chapter.
+
+## Testing
+
+The [Kafka test utils](index.qmd#kafka-test-utils) provide a containerized broker
+for integration-testing translators through a real subscriber; `run(forever=False)`
+consumes a single published test event. For runnable examples, see the
+[Kafka pub/sub integration tests](https://github.com/ghga-de/hexkit/blob/main/tests/integration/providers/eventpubsub/test_akafka_pubsub.py)
+and the
+[DLQ integration tests](https://github.com/ghga-de/hexkit/blob/main/tests/integration/providers/eventpubsub/test_akafka_dlqsub.py)
+in the hexkit repository.

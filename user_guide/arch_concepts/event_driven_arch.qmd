@@ -43,7 +43,7 @@ However, event-driven architecture also introduces challenges:
 
 ## Abstraction Layers
 
-To simplify Kafka usage in services, hexkit features protocols and providers. Rather than implementing this functionality from scratch in every new project, hexkit provides the `KafkaEventPublisher` and `KafkaEventSubscriber` provider classes, along with a `KafkaConfig` Pydantic configuration class.
+To simplify Kafka usage in services, hexkit features protocols and providers. Rather than implementing this functionality from scratch in every new project, hexkit provides the [`KafkaEventPublisher`](../providers/kafka/publisher.qmd) and [`KafkaEventSubscriber`](../providers/kafka/subscriber.qmd) provider classes, along with a [`KafkaConfig`](../providers/kafka/index.qmd#configuration) Pydantic configuration class.
 
 ### Producers
 
@@ -51,7 +51,7 @@ When a service publishes an event, it uses the `KafkaEventPublisher` provider cl
 
 ### Consumers
 
-While the `KafkaEventPublisher` can be used directly, the `KafkaEventSubscriber` always requires a *translator* to deliver event payloads to the service's core components. The translator is defined outside of hexkit (in the service code, not in hexkit itself) and implements the `EventSubscriberProtocol`. The provider passes the event to the translator through the protocol's `consume` method, which then calls an abstract method implemented by the translator. The translator receives the event and examines its attributes (the topic, payload, key, headers, etc.) to determine processing. Naturally, the actual processing logic varies, but usually the payload is validated against the expected schema and used to call a method in the service's core. When control is returned to the `KafkaEventSubscriber`, the underlying consumer (from `AIOKafka`) saves its offsets, declaring that it has successfully handled the event and is ready for the next.
+While the `KafkaEventPublisher` can be used directly, the `KafkaEventSubscriber` always requires a *translator* to deliver event payloads to the service's core components. The translator is defined outside of hexkit (in the service code, not in hexkit itself) and implements the `EventSubscriberProtocol`. The provider passes the event to the translator through the protocol's `consume` method, which then calls an abstract method implemented by the translator. The translator receives the event and examines its attributes (the topic, payload, key, headers, etc.) to determine processing. Naturally, the actual processing logic varies, but usually the payload is validated against the expected schema and used to call a method in the service's core. When control is returned to the `KafkaEventSubscriber`, the underlying consumer (from `AIOKafka`) saves its offsets, declaring that it has successfully handled the event and is ready for the next. The [Kafka Event Subscriber](../providers/kafka/subscriber.qmd) chapter covers the translator pattern and offset handling in detail.
 
 A diagram illustrating the process of event publishing and consuming, starting with
 the microservice:
@@ -65,6 +65,10 @@ Sometimes services need to access data owned by another service. The challenge o
 - The coupling between services is minimized
 - The data producer remains the single source of truth
 - Kafka events no longer need to be backed up separately from the database
+
+Hexkit's interfaces for the pattern are the [DAO Publisher](../protocols/daopublisher.qmd)
+protocol on the producing side and the [DAO Subscriber](../protocols/daosubscriber.qmd)
+protocol on the consuming side; each has its own chapter.
 
 ### Topic Compaction & Idempotence
 

@@ -83,6 +83,49 @@ These interfaces are documented in depth in the dedicated
 [Data Access Objects](dao.qmd) chapter; for the architectural background, see
 [The DAO Pattern](../arch_concepts/dao_pattern.qmd).
 
+### DaoPublisher and DaoPublisherFactoryProtocol
+
+The [`DaoPublisher`](../../reference/protocols.daopub.DaoPublisher.qmd) protocol
+extends the `Dao` interface with automatic event publishing: every insert, update,
+or delete also emits a change event, implementing the publishing side of the
+[outbox pattern](../arch_concepts/event_driven_arch.qmd#outbox-pattern).
+Instances are constructed by factories described by the
+[`DaoPublisherFactoryProtocol`](../../reference/protocols.daopub.DaoPublisherFactoryProtocol.qmd).
+
+The protocol is implemented by the
+[MongoDB + Kafka provider](../providers/mongokafka.qmd#outbox-publisher) and
+documented in depth in the dedicated [DAO Publisher](daopublisher.qmd) chapter.
+
+### DaoSubscriberProtocol
+
+The
+[`DaoSubscriberProtocol`](../../reference/protocols.daosub.DaoSubscriberProtocol.qmd)
+is the consuming counterpart of the `DaoPublisher`: a translator interface for
+services that mirror resources owned by another service by consuming its outbox
+events. Implementations declare the event topic and payload model and handle just
+two callbacks: `changed()` and `deleted()`.
+
+Translators implementing the protocol are run by the
+[`KafkaOutboxSubscriber`](../providers/kafka/index.qmd) provider and documented in
+depth in the dedicated [DAO Subscriber](daosubscriber.qmd) chapter.
+
+### EventPublisherProtocol and EventSubscriberProtocol
+
+The
+[`EventPublisherProtocol`](../../reference/protocols.eventpub.EventPublisherProtocol.qmd)
+and
+[`EventSubscriberProtocol`](../../reference/protocols.eventsub.EventSubscriberProtocol.qmd)
+(from `hexkit.protocols.eventpub` and `hexkit.protocols.eventsub`) define the
+publishing and consuming of events through an event broker: `publish()` on the one
+side, and translator classes with topics and types of interest plus a `consume()`
+method on the other. They are the foundation of hexkit's
+[event-driven architecture](../arch_concepts/event_driven_arch.qmd) support.
+
+Both are implemented by the [Apache Kafka provider](../providers/kafka/index.qmd);
+see the [Kafka Event Publisher](../providers/kafka/publisher.qmd) and
+[Kafka Event Subscriber](../providers/kafka/subscriber.qmd) chapters, which also
+document the protocol usage itself.
+
 ### ObjectStorageProtocol
 
 The

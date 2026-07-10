@@ -202,7 +202,7 @@ idea.
 
 Because all database access flows through one narrow interface, hexkit can layer
 additional behavior on top of it. The most notable example is the *outbox pattern*: the
-[`DaoPublisher`](../../reference/protocols.daopub.DaoPublisher.qmd) variant of the DAO
+[`DaoPublisher`](../protocols/daopublisher.qmd) variant of the DAO
 automatically publishes an event whenever a resource changes, so other services can
 follow the state of your resources without you writing any publishing code. See the
 [Publisher Variants](../developer_help/outbox_v_persistent_pub.qmd) chapter for when
