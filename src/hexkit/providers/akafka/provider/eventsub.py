@@ -712,7 +712,7 @@ class KafkaEventSubscriber(InboundProviderBase):
 
             try:
                 log.info(
-                    "Ignored event. Topic=%s, type=%s, key=%s, event_id=%s.",
+                    "Consuming event. Topic=%s, type=%s, key=%s, event_id=%s.",
                     event_info.topic,
                     event_info.type_,
                     event.key,
