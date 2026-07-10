@@ -27,12 +27,14 @@ from pymongo.collection import Collection
 
 from hexkit.providers.mongodb import MongoDbConfig
 from hexkit.providers.mongodb.migrations import (
+    DbVersionMismatchError,
     MigrationConfig,
     MigrationDefinition,
     MigrationManager,
     MigrationMap,
     MigrationStepError,
     Reversible,
+    check_db_version,
 )
 from hexkit.providers.mongodb.migrations._manager import MigrationTimeoutError
 from hexkit.providers.mongodb.provider import ConfiguredMongoClient
@@ -637,3 +639,35 @@ async def test_version_in_backwards_migration_error(mongodb: MongoDbFixture):
             config=config, target_version=1, migration_map=migration_map
         )
     assert err.value.args[0] == msg
+
+
+async def test_check_db_version_up_to_date(mongodb: MongoDbFixture):
+    """Ensure check_db_version doesn't raise when the DB is already at the target version."""
+    config = make_migration_config(mongodb.config)
+    migration_map = {2: V2BasicMigration}
+    await run_db_migrations(
+        config=config, target_version=2, migration_map=migration_map
+    )
+
+    await check_db_version(config=config, target_version=2)
+
+
+async def test_check_db_version_mismatch(mongodb: MongoDbFixture):
+    """Ensure that check_db_version raises DbVersionMismatchError when versions differ.
+
+    Covers both an uninitialized DB (no version records at all) and a DB that has
+    been migrated but not to the version the caller expects.
+    """
+    config = make_migration_config(mongodb.config)
+
+    # No migrations have been run yet, so the recorded version is effectively 0
+    with pytest.raises(DbVersionMismatchError):
+        await check_db_version(config=config, target_version=2)
+
+    migration_map = {2: V2BasicMigration}
+    await run_db_migrations(
+        config=config, target_version=2, migration_map=migration_map
+    )
+
+    with pytest.raises(DbVersionMismatchError):
+        await check_db_version(config=config, target_version=3)
