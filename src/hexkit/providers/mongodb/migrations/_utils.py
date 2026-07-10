@@ -26,7 +26,11 @@ from pymongo.asynchronous.collection import AsyncCollection
 from pymongo.asynchronous.database import AsyncDatabase
 
 from hexkit.providers.mongodb.config import MongoDbConfig
-from hexkit.providers.mongodb.provider import document_to_dto, dto_to_document
+from hexkit.providers.mongodb.provider import (
+    ConfiguredMongoClient,
+    document_to_dto,
+    dto_to_document,
+)
 
 log = logging.getLogger(__name__)
 
@@ -63,6 +67,17 @@ class DbVersionRecord(TypedDict):
     total_duration_ms: int
 
 
+class DbVersionMismatchError(RuntimeError):
+    """Raised when the database is not at the version expected by the service."""
+
+    def __init__(self, *, db_version: int, target_version: int):
+        msg = (
+            f"Database version is {db_version}, but the service expects version"
+            + f" {target_version}. Make sure migrations have been applied."
+        )
+        super().__init__(msg)
+
+
 def _get_db_version_from_records(version_docs: list[DbVersionRecord]) -> int:
     """Gets the current DB version from the documents found in the version collection."""
     # Make sure we know what the latest version is, not just the max
@@ -83,6 +98,25 @@ async def _fetch_version_docs(collection: AsyncCollection) -> list[DbVersionReco
         doc.pop("_id")
         version_docs.append(DbVersionRecord(**doc))  # type: ignore
     return version_docs
+
+
+async def check_db_version(*, config: MigrationConfig, target_version: int) -> None:
+    """Verify that the database is at `target_version`, raising an error if not.
+
+    This function can be used to verify DB state separately from the core migration logic.
+
+    Raises:
+    - `DbVersionMismatchError`: If the current DB version doesn't match `target_version`.
+    """
+    async with ConfiguredMongoClient(config=config) as client:
+        collection = client[config.db_name][config.db_version_collection]
+        version_docs = await _fetch_version_docs(collection)
+
+    db_version = _get_db_version_from_records(version_docs)
+    if db_version != target_version:
+        raise DbVersionMismatchError(
+            db_version=db_version, target_version=target_version
+        )
 
 
 def validate_doc(doc: Document, *, model: type[BaseModel], id_field: str):
