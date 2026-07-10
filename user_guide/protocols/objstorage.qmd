@@ -43,6 +43,26 @@ the client and the storage backend. Afterwards, the service can verify the outco
 through metadata operations like `does_object_exist`, `get_object_size`, or
 `get_object_etag`.
 
+A file upload, for example, plays out like this:
+
+```{mermaid}
+%%| fig-cap: An upload orchestrated via a presigned URL; the file content (5) travels directly between client and storage.
+
+sequenceDiagram
+    autonumber
+    participant Client
+    participant Service as Your service
+    participant Storage as Object storage
+
+    Client->>Service: request file upload
+    Service->>Storage: get_object_upload_url(...)
+    Storage-->>Service: presigned URL
+    Service-->>Client: presigned URL
+    Client->>Storage: POST file content (direct transfer)
+    Client->>Service: report completion
+    Service->>Storage: does_object_exist(...), get_object_size(...)
+```
+
 This design has far-reaching consequences:
 
 - **Services stay stateless and memory-light.** Whether a file is 5 KiB or 5 TiB, the
