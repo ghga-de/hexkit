@@ -73,7 +73,7 @@ class DbVersionMismatchError(RuntimeError):
     def __init__(self, *, db_version: int, target_version: int):
         msg = (
             f"Database version is {db_version}, but the service expects version"
-            + f" {target_version}. Make sure migrations have been applied."
+            + f" {target_version}."
         )
         super().__init__(msg)
 

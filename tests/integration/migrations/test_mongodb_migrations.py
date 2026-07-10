@@ -664,10 +664,16 @@ async def test_check_db_version_mismatch(mongodb: MongoDbFixture):
     with pytest.raises(DbVersionMismatchError):
         await check_db_version(config=config, target_version=2)
 
+    # Run a migration to get the DB to version 2
     migration_map = {2: V2BasicMigration}
     await run_db_migrations(
         config=config, target_version=2, migration_map=migration_map
     )
 
+    # Make sure we get an error if DB is behind
     with pytest.raises(DbVersionMismatchError):
         await check_db_version(config=config, target_version=3)
+
+    # Make sure we also get an error if the DB is ahead
+    with pytest.raises(DbVersionMismatchError):
+        await check_db_version(config=config, target_version=1)
