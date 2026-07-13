@@ -31,7 +31,7 @@ in the dependencies they need.
 - [Apache Kafka](kafka/index.qmd): event publishing and consumption —
   [`KafkaEventPublisher`](kafka/publisher.qmd),
   [`KafkaEventSubscriber`](kafka/subscriber.qmd), and the `KafkaOutboxSubscriber` —
-  plus test utilities.
+  plus [test utilities](kafka/test_utils.qmd).
 - [MongoDB](mongodb.qmd): document-database implementations of the DAO and
   key-value-store protocols.
 - [MongoDB + Kafka](mongokafka.qmd): the outbox publisher

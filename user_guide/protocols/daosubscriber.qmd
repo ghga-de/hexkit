@@ -221,7 +221,7 @@ that is yours.
 
 ## Testing
 
-The [Kafka test utils](../providers/kafka/index.qmd#kafka-test-utils) cover the
+The [Kafka test utils](../providers/kafka/test_utils.qmd) cover the
 outbox case as well: publish an `upserted` or `deleted` event with
 `publish_event()` (using the resource ID as `key`) and let a
 `KafkaOutboxSubscriber` consume it with `run(forever=False)`. For runnable
