@@ -186,7 +186,7 @@ validation that `expect_events()` runs on exit.
   `__`-prefixed topics are excluded by default). The `kafka_fixture` calls
   this before every test; call it yourself to separate phases within one test
   or when using the persistent fixture. Compacted topics are handled
-  transparently by temporarily switching their cleanup policy.
+  by temporarily switching their cleanup policy.
 - `set_cleanup_policy(topic=..., policy=...)` and `get_cleanup_policy(topic=...)`
   set or read a topic's `cleanup.policy` — the way to test behavior on
   compacted topics (see the
