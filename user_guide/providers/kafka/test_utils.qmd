@@ -226,8 +226,7 @@ async def test_greeting_published(kafka: KafkaFixture):
 
 Publish an inbound event with `publish_event()`, then run a real
 [`KafkaEventSubscriber`](subscriber.qmd) with `run(forever=False)`, which
-consumes exactly one event and returns. Assert on the side effects in the
-service's core:
+consumes exactly one event and returns. Note that because the consumer waits for an event even if `forever=False`, your tests might hang if no event is published to the specified topic. Assert on the side effects in the service's core:
 
 ```python
 from hexkit.providers.akafka import KafkaEventSubscriber
