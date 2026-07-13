@@ -34,7 +34,7 @@ testcontainers and the pytest plugins on top of the `akafka` extra):
 pip install hexkit[test-akafka]
 ```
 
-For unit tests that should not touch a broker at all, hexkit also ships an
+For unit tests that should not use a live broker, hexkit also ships an
 [in-memory event publisher](#unit-testing-without-a-broker), described at the
 end of this page.
 
