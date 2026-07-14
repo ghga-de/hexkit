@@ -1,0 +1,355 @@
+---
+title: "MongoDB Migrations"
+---
+
+<!--
+ Copyright 2021 - 2026 Universität Tübingen, DKFZ, EMBL, and Universität zu Köln
+ for the German Human Genome-Phenome Archive (GHGA)
+
+ Licensed under the Apache License, Version 2.0 (the "License");
+ you may not use this file except in compliance with the License.
+ You may obtain a copy of the License at
+
+     http://www.apache.org/licenses/LICENSE-2.0
+
+ Unless required by applicable law or agreed to in writing, software
+ distributed under the License is distributed on an "AS IS" BASIS,
+ WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ See the License for the specific language governing permissions and
+ limitations under the License.
+-->
+
+MongoDB itself is schemaless, but the services built with hexkit are not: the
+[DAO pattern](../arch_concepts/dao_pattern.qmd) ties every collection to a Pydantic
+DTO model, and documents written by an older release of a service may no longer
+match the models of a newer one. The `hexkit.providers.mongodb.migrations`
+subpackage provides a versioned migration framework that closes this gap: it
+tracks a version number for the database, runs the migration code needed to reach
+the version a service release expects, and coordinates multiple service instances
+so that migrations run exactly once.
+
+The tooling ships with the regular MongoDB provider extra:
+
+```sh
+pip install hexkit[mongodb]
+```
+
+Working with it involves three pieces:
+
+- a [`MigrationDefinition`](../../reference/providers.mongodb.migrations.MigrationDefinition.qmd)
+  subclass per database version, containing the actual transformation logic,
+- the [`MigrationManager`](../../reference/providers.mongodb.migrations.MigrationManager.qmd),
+  which every service instance runs at startup to apply pending migrations or
+  wait for another instance to finish them,
+- [`MigrationConfig`](../../reference/providers.mongodb.migrations.MigrationConfig.qmd),
+  the configuration class tying it all together.
+
+## How Versioning Works
+
+The framework stores its bookkeeping in a dedicated collection of the service's
+database, named by the `db_version_collection` config option. Every completed
+migration run inserts a record there with the reached `version`, a `completed`
+timestamp, whether the run was `backward`, and its duration. The current database
+version is the `version` of the most recently completed record — not simply the
+highest number, so rollbacks (see
+[Reversible Migrations](#reversible-migrations)) are handled correctly.
+
+**Version 1 is reserved by the framework**: it marks the point where versioning
+was initialized. On the very first run against an unversioned database, the
+manager creates the version collection and records version 1 without running any
+migration code. The first migration you write yourself is therefore always
+version 2.
+
+The same collection also holds a lock document while a migration is in progress,
+which is how concurrently starting service instances avoid migrating twice.
+
+## Configuration
+
+[`MigrationConfig`](../../reference/providers.mongodb.migrations.MigrationConfig.qmd)
+extends [`MongoDbConfig`](../../reference/providers.mongodb.MongoDbConfig.qmd)
+(so it carries `mongo_dsn`, `db_name`, and `mongo_timeout` as described in the
+[MongoDB chapter](mongodb.qmd#configuration)) with three migration-specific
+settings:
+
+| Parameter | Description |
+| --------- | ----------- |
+| `db_version_collection` | Name of the collection holding the DB version records and the migration lock, e.g. `"ifrsDbVersions"`. |
+| `migration_wait_sec` | How many seconds an instance waits between checks while another instance is migrating. |
+| `migration_max_wait_sec` | Upper limit in seconds on that waiting before a `MigrationTimeoutError` is raised. Defaults to `None`, meaning wait indefinitely. |
+
+Inherit your service's config class from `MigrationConfig` instead of
+`MongoDbConfig` to make the additional settings part of the service
+configuration.
+
+## Defining Migrations
+
+Each database version is described by a subclass of
+[`MigrationDefinition`](../../reference/providers.mongodb.migrations.MigrationDefinition.qmd)
+that assigns the `version` class attribute and implements the async `apply()`
+method. `apply()` contains whatever it takes to move the database *from the
+previous version to `version`*:
+
+```python
+from hexkit.providers.mongodb.migrations import Document, MigrationDefinition
+
+from my_service.models import User  # current DTO model of the users collection
+
+
+class V2Migration(MigrationDefinition):
+    """Add the 'is_active' flag introduced in v2 of the service."""
+
+    version = 2
+
+    async def apply(self):
+        async def add_active_flag(doc: Document) -> Document:
+            doc["is_active"] = True
+            return doc
+
+        async with self.auto_finalize(coll_names=["users"], copy_indexes=True):
+            await self.migrate_docs_in_collection(
+                coll_name="users",
+                change_function=add_active_flag,
+                validation_model=User,
+                id_field="user_id",
+            )
+```
+
+Within `apply()`, the base class provides the building blocks described below.
+`self._db` holds the pymongo `AsyncDatabase`, so operations beyond these helpers
+(creating new collections, dropping obsolete ones, etc.) are always possible.
+
+### Transforming Documents
+
+`migrate_docs_in_collection()` is the workhorse: it reads every document of a
+collection, passes it through the given async *change function* (old document in,
+new document out), and writes the results to a *temporary* collection (e.g.
+`tmp_v2_new_users`). The original collection remains untouched at this point.
+Documents are read and inserted in batches; the `batch_size` argument (default
+1000) controls both the cursor batch size and the size of the bulk inserts, which
+is worth tuning for very large documents.
+
+Since change functions operate on raw documents, remember that the document
+contains MongoDB's `_id` field rather than the DTO model's ID field name, and
+values appear as stored in BSON (see
+[How DTOs Map to Documents](mongodb.qmd#how-dtos-map-to-documents)).
+
+### Validating the Results
+
+Passing `validation_model` and `id_field` to `migrate_docs_in_collection()`
+cross-checks every migrated document against the given DTO model: the document
+must populate the model without errors and convert back to the identical
+document. This catches drift between migration code and model definitions early,
+instead of at the first read by the service.
+
+The check only runs when the migration is the *final* one of the run, because
+intermediate versions of a multi-step run generally do not match the models
+currently defined in code (those always describe the latest version). Pass
+`force_validate=True` to validate regardless, e.g. with a model you defined
+locally inside the migration. The underlying helper,
+[`validate_doc`](../../reference/providers.mongodb.migrations.validate_doc.qmd),
+can also be called directly for custom validation logic.
+
+### Staging and Finalizing
+
+Because the transformed documents live in temporary collections, they must be
+*staged* once the transformation is complete:
+
+- `stage_new_collections(coll_names)` moves the original collections aside by
+  renaming them (e.g. `users` → `tmp_v2_old_users`) and renames the temporary
+  new collections to the original names. Staging a collection that does not
+  exist is skipped with a warning, so migrations also run cleanly against an
+  empty database.
+- `drop_old_collections(enforce_indexes=...)` afterwards drops the set-aside
+  originals, making the migration final.
+
+Indexes are **not** carried over automatically when documents are rewritten into
+a new collection. `auto_copy_indexes(coll_names=...)` copies all indexes
+(including their options such as `unique`) from the old to the new collections;
+`copy_indexes()` does the same for a single explicitly named source/destination
+pair. Since dropping the old collections is the point of no return,
+`drop_old_collections(enforce_indexes=True)` refuses to proceed if indexes were
+not copied first — use it whenever the migration leaves the collections' indexes
+applicable; leave it `False` when the migration deliberately changes the index
+layout and you handle index creation yourself.
+
+Rather than calling these steps manually, most migrations should wrap the
+transformation in the `auto_finalize()` context manager, as shown in the example
+above. On a successful exit of the `async with` block it stages the listed
+collections, copies indexes if `copy_indexes=True`, and drops the old
+collections. If anything fails inside the block or during finalization, it
+unstages whatever was already staged and drops the temporary collections, so the
+database is left in its pre-migration state (should that cleanup itself fail, a
+critical log message recommends a database restore).
+
+## Reversible Migrations
+
+Migrations are forward-only by default. To support downgrades — for example, to
+roll back a botched service release — additionally inherit from the
+[`Reversible`](../../reference/providers.mongodb.migrations.Reversible.qmd) mixin
+and implement `unapply()`, which must undo what `apply()` did, moving the
+database back *from `version` to the previous version*:
+
+```python
+from hexkit.providers.mongodb.migrations import (
+    Document,
+    MigrationDefinition,
+    Reversible,
+)
+
+
+class V2Migration(MigrationDefinition, Reversible):
+    version = 2
+
+    async def apply(self):
+        ...  # as above
+
+    async def unapply(self):
+        async def drop_active_flag(doc: Document) -> Document:
+            doc.pop("is_active", None)
+            return doc
+
+        async with self.auto_finalize(coll_names=["users"], copy_indexes=True):
+            await self.migrate_docs_in_collection(
+                coll_name="users",
+                change_function=drop_active_flag,
+            )
+```
+
+All the building blocks above work the same way in `unapply()`; the temporary
+collections are prefixed with `tmp_v2_unapply_` instead of `tmp_v2_` to keep the
+two directions apart.
+
+When the manager finds the database at a *higher* version than the service
+expects, it runs the affected migrations' `unapply()` methods in descending
+order. If one of them is not reversible, the backward migration fails with an
+error — so whether to offer reversibility is decided per migration.
+
+## Running Migrations at Startup
+
+Migrations are not run by a separate deployment step but by the service itself:
+every instance executes the
+[`MigrationManager`](../../reference/providers.mongodb.migrations.MigrationManager.qmd)
+*before* starting its actual work (consuming events, serving requests, etc.).
+The manager is an async context manager; `migrate_or_wait()` does the work:
+
+```python
+from hexkit.providers.mongodb.migrations import MigrationManager
+
+from my_service.config import Config  # inherits from MigrationConfig
+from my_service.migrations import V2Migration, V3Migration
+
+DB_VERSION = 3  # the database version this service release expects
+MIGRATION_MAP = {2: V2Migration, 3: V3Migration}
+
+
+async def run_db_migrations():
+    """Call this before the service begins its main execution loop."""
+    config = Config()
+
+    async with MigrationManager(config, DB_VERSION, MIGRATION_MAP) as mm:
+        await mm.migrate_or_wait()
+```
+
+The `migration_map` gathers all known migration definitions, keyed by the version
+each one migrates *to*. `target_version` is the version this release of the
+service needs. From those, `migrate_or_wait()` determines what to do:
+
+- **Database already at the target version**: return immediately; the service
+  starts right away. This is the steady-state cost of the mechanism — a single
+  read of the version collection.
+- **Database behind the target version**: acquire the migration lock and apply
+  the missing migrations in ascending order (for a database at version 2 and a
+  target of 5, that is versions 3, 4, and 5), then record the new version and
+  release the lock.
+- **Database ahead of the target version**: the same, but backward, calling
+  `unapply()` in descending order down to the target version.
+- **Another instance holds the lock**: sleep `migration_wait_sec` seconds and
+  check again, until the migrations are complete or `migration_max_wait_sec` is
+  exceeded, which raises a `MigrationTimeoutError`.
+
+A missing entry in the migration map raises a `NotImplementedError`, and a
+failing migration step raises a
+[`MigrationStepError`](../../reference/providers.mongodb.migrations.MigrationStepError.qmd)
+naming the version and direction that failed; in both cases the lock is released
+on context exit so other instances are not blocked forever. Since a failed
+instance raises rather than starting the service, deployment tooling can treat
+migration failures like any other startup failure.
+
+## Checking the Database Version
+
+Sometimes a component needs to *verify* the database version without being
+allowed to change anything — a job that runs alongside the service, a readiness
+check, or a tool operating on the same database. The standalone
+[`check_db_version`](../../reference/providers.mongodb.migrations.check_db_version.qmd)
+helper reads the version collection and raises a
+[`DbVersionMismatchError`](../../reference/providers.mongodb.migrations.DbVersionMismatchError.qmd)
+if the current version differs from the expected one:
+
+```python
+from hexkit.providers.mongodb.migrations import check_db_version
+
+await check_db_version(config=config, target_version=3)
+```
+
+## Helpers for the hexkit v6 Upgrade
+
+With hexkit v6, the MongoDB provider switched from storing UUIDs and datetimes as
+strings to MongoDB's native BSON types (see
+[How DTOs Map to Documents](mongodb.qmd#how-dtos-map-to-documents)). Services
+upgrading across that boundary need a migration converting their stored
+documents, which is the same for everyone — so
+`hexkit.providers.mongodb.migrations.helpers` provides prefabricated change
+functions:
+
+- [`convert_uuids_and_datetimes_v6`](../../reference/providers.mongodb.migrations.helpers.convert_uuids_and_datetimes_v6.qmd)
+  is a factory producing a change function that converts the named fields from
+  strings to native UUIDs and from isoformat strings to UTC datetimes with
+  millisecond precision.
+- [`convert_outbox_correlation_id_v6`](../../reference/providers.mongodb.migrations.helpers.convert_outbox_correlation_id_v6.qmd)
+  converts the `__metadata__.correlation_id` of documents in
+  [outbox collections](mongokafka.qmd) to a native UUID.
+- [`convert_persistent_event_v6`](../../reference/providers.mongodb.migrations.helpers.convert_persistent_event_v6.qmd)
+  converts documents of a `PersistentKafkaPublisher` collection, including
+  populating the `event_id` field introduced in v6.
+
+They plug directly into `migrate_docs_in_collection()`:
+
+```python
+from hexkit.providers.mongodb.migrations import MigrationDefinition
+from hexkit.providers.mongodb.migrations.helpers import (
+    convert_uuids_and_datetimes_v6,
+)
+
+from my_service.models import Upload
+
+
+class V2Migration(MigrationDefinition):
+    """Migrate stored documents to the native types used by hexkit v6."""
+
+    version = 2
+
+    async def apply(self):
+        convert = convert_uuids_and_datetimes_v6(
+            uuid_fields=["upload_id"], date_fields=["created"]
+        )
+        async with self.auto_finalize(coll_names=["uploads"], copy_indexes=True):
+            await self.migrate_docs_in_collection(
+                coll_name="uploads",
+                change_function=convert,
+                validation_model=Upload,
+                id_field="upload_id",
+            )
+```
+
+For fields beyond the covered ones, wrap the helper in your own change function
+and apply additional modifications before returning the document.
+
+## Testing Migrations
+
+Migrations are regular code and deserve tests. The
+[MongoDB test fixtures](mongodb.qmd#testing) give each test a disposable
+database: populate collections with documents in the old format, run the
+migration via a `MigrationManager`, and assert on the resulting documents. The
+framework's own
+[integration tests](https://github.com/ghga-de/hexkit/blob/main/tests/integration/migrations/test_mongodb_migrations.py)
+demonstrate this pattern extensively and double as runnable usage examples.

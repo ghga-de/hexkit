@@ -327,6 +327,12 @@ double as an extensive collection of runnable usage examples.
 
 ## MongoDB Migration Tools
 
+When a service's data model evolves, documents already stored in MongoDB must be
+brought into the shape its DTO models now expect. The
+`hexkit.providers.mongodb.migrations` subpackage provides a versioned migration
+framework for exactly that, run by the service itself at startup. It is covered
+in the dedicated [MongoDB Migrations](mongodb_migrations.qmd) chapter.
+
 ## MongoDB KV Store Providers
 
 MongoDB providers implement `KeyValueStoreProtocol` with document-oriented,
