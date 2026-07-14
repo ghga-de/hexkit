@@ -4,7 +4,7 @@ Thank you for your interest in contributing to hexkit!
 
 Although hexkit is designed as a general-purpose library, it currently contains only
 a limited collection of protocol-provider pairs that are of immediate interest to the
-authors. We like to add support for more protocols and technologies over time.
+authors. We would like to add support for more protocols and technologies over time.
 
 Feel free to develop hexagonal components yourself, whether or not you use the base
 classes of hexkit. Not every protocol or provider has to be general-purpose, however,
