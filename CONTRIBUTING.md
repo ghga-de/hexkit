@@ -71,7 +71,8 @@ after editing a page or `great-docs.yml`, stop the preview (`Ctrl+C`), re-run
 
 > **Note:** great-docs' `build --watch` doesn't track edits to your
 > `user_guide/` source (it only watches the generated build directory), so
-> rebuild manually as above. A full rebuild takes ~2 minutes.
+> rebuild manually as above. A full rebuild takes a while, so don't expect
+> your changes to show up immediately.
 
 Note that the repository's `README.md` doubles as the landing page of the
 documentation site, so all links in it must be absolute URLs (repo-relative links
