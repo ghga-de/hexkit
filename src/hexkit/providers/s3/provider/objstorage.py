@@ -824,11 +824,7 @@ class S3ObjectStorage(ObjectStorageProtocol):
     async def _get_object_metadata(
         self, *, bucket_id: str, object_id: str
     ) -> dict[str, Any]:
-        """Returns object metadata without downloading the actual object.
-
-        No bucket/object checks needed: head_object fails itself; on its ambiguous
-        404, a bucket check picks BucketNotFoundError vs ObjectNotFoundError.
-        """
+        """Returns object metadata without downloading the actual object."""
         try:
             return await asyncio.to_thread(
                 self._client.head_object,

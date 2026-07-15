@@ -20,7 +20,7 @@
 
 import re
 from abc import ABC, abstractmethod
-from typing import NamedTuple
+from typing import Any, NamedTuple
 
 __all__ = ["ObjectStorageProtocol", "PresignedPostURL"]
 
@@ -278,6 +278,14 @@ class ObjectStorageProtocol(ABC):
         self._validate_object_id(object_id)
         return await self._get_object_size(bucket_id=bucket_id, object_id=object_id)
 
+    async def get_object_metadata(
+        self, *, bucket_id: str, object_id: str
+    ) -> dict[str, Any]:
+        """Returns object metadata without downloading the actual object."""
+        self._validate_bucket_id(bucket_id)
+        self._validate_object_id(object_id)
+        return await self._get_object_metadata(bucket_id=bucket_id, object_id=object_id)
+
     async def copy_object(
         self,
         *,
@@ -508,6 +516,7 @@ class ObjectStorageProtocol(ABC):
         *To be implemented by the provider. Input validation is done outside of this
         method.*
         """
+        ...
 
     @abstractmethod
     async def _get_object_download_url(
@@ -530,6 +539,7 @@ class ObjectStorageProtocol(ABC):
         *To be implemented by the provider. Input validation is done outside of this
         method.*
         """
+        ...
 
     @abstractmethod
     async def _get_object_size(self, *, bucket_id: str, object_id: str) -> int:
@@ -539,6 +549,13 @@ class ObjectStorageProtocol(ABC):
         *To be implemented by the provider. Input validation is done outside of this
         method.*
         """
+        ...
+
+    @abstractmethod
+    async def _get_object_metadata(
+        self, *, bucket_id: str, object_id: str
+    ) -> dict[str, Any]:
+        """Returns object metadata without downloading the actual object."""
         ...
 
     @abstractmethod
