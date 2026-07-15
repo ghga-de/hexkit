@@ -220,8 +220,8 @@ class S3ObjectStorage(ObjectStorageProtocol):
         # No bucket check needed: deletion raises NoSuchBucket for a missing bucket.
         try:
             bucket = self._resource.Bucket(bucket_id)  # pyright: ignore
-            content = await asyncio.to_thread(bucket.objects.all)
             if delete_content:
+                content = await asyncio.to_thread(bucket.objects.all)
                 await asyncio.to_thread(content.delete)
             await asyncio.to_thread(bucket.delete)
         except botocore.exceptions.ClientError as error:
