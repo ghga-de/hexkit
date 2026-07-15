@@ -16,6 +16,8 @@
 """Mock object storage class"""
 
 from collections import defaultdict
+from contextlib import suppress
+from typing import Any
 from uuid import uuid4
 
 from hexkit.protocols.objstorage import ObjectStorageProtocol, PresignedPostURL
@@ -289,8 +291,8 @@ class InMemObjectStorage(ObjectStorageProtocol):
             `BucketNotFoundError`: If the bucket does not exist.
             `ObjectNotFoundError`: If the object does not exist in the bucket.
         """
-        await self._assert_object_exists(bucket_id=bucket_id, object_id=object_id)
-        self.buckets[bucket_id].remove(object_id)
+        with suppress(KeyError):
+            self.buckets[bucket_id].remove(object_id)
 
     async def _init_multipart_upload(self, *, bucket_id: str, object_id: str) -> str:
         """Initiates a multipart upload procedure. Returns the upload ID.
@@ -426,6 +428,12 @@ class InMemObjectStorage(ObjectStorageProtocol):
         """
         await self._assert_object_exists(bucket_id=bucket_id, object_id=object_id)
         return 1024
+
+    async def _get_object_metadata(
+        self, *, bucket_id: str, object_id: str
+    ) -> dict[str, Any]:
+        await self._assert_object_exists(bucket_id=bucket_id, object_id=object_id)
+        return {"Size": 1024, "Etag": f"etag_for_{object_id}"}
 
     async def _copy_object(
         self,

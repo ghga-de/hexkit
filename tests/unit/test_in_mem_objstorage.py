@@ -63,9 +63,8 @@ async def test_delete_object():
     storage = InMemObjectStorage()
     await storage.create_bucket(bucket_id=BUCKET1)
 
-    # Try to delete non-existent object - should raise error
-    with pytest.raises(InMemObjectStorage.ObjectNotFoundError):
-        await storage.delete_object(bucket_id=BUCKET1, object_id=OBJECT1)
+    # Try to delete non-existent object - should NOT raise an error
+    await storage.delete_object(bucket_id=BUCKET1, object_id=OBJECT1)
 
     # Manually add object and then delete it
     storage.buckets[BUCKET1].add(OBJECT1)
