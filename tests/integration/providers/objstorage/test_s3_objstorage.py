@@ -267,11 +267,6 @@ async def test_handling_non_existing_file_and_bucket(
             bucket_id=existing_bucket_id, object_id=non_existing_object_id
         )
 
-    with pytest.raises(ObjectStorageProtocol.ObjectNotFoundError):
-        await s3.storage.delete_object(
-            bucket_id=existing_bucket_id, object_id=non_existing_object_id
-        )
-
 
 @pytest.mark.parametrize("delete_content", (True, False))
 async def test_delete_non_empty_bucket(

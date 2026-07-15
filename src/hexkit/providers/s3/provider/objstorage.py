@@ -909,9 +909,6 @@ class S3ObjectStorage(ObjectStorageProtocol):
         """Delete an object with the specified id (`object_id`) in the bucket with the
         specified id (`bucket_id`).
         """
-        # Object check needed: DeleteObject reports success even for missing objects.
-        await self._assert_object_exists(bucket_id=bucket_id, object_id=object_id)
-
         try:
             await asyncio.to_thread(
                 self._client.delete_object,
