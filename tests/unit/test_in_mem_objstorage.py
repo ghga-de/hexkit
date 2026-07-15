@@ -61,6 +61,11 @@ async def test_does_object_exist():
 async def test_delete_object():
     """Test deleting an object"""
     storage = InMemObjectStorage()
+
+    # Try to delete an object in a non-existent bucket - should raise an error
+    with pytest.raises(InMemObjectStorage.BucketNotFoundError):
+        await storage.delete_object(bucket_id=BUCKET1, object_id=OBJECT1)
+
     await storage.create_bucket(bucket_id=BUCKET1)
 
     # Try to delete non-existent object - should NOT raise an error
@@ -414,6 +419,23 @@ async def test_get_object_size():
     storage.buckets[BUCKET1].add(OBJECT1)
     size = await storage.get_object_size(bucket_id=BUCKET1, object_id=OBJECT1)
     assert size == 1024
+
+
+async def test_get_object_metadata():
+    """Test the `.get_object_metadata()` method"""
+    storage = InMemObjectStorage()
+    with pytest.raises(InMemObjectStorage.BucketNotFoundError):
+        await storage.get_object_metadata(bucket_id=BUCKET1, object_id=OBJECT1)
+
+    # Create bucket and expect ObjectNotFoundError
+    await storage.create_bucket(bucket_id=BUCKET1)
+    with pytest.raises(InMemObjectStorage.ObjectNotFoundError):
+        await storage.get_object_metadata(bucket_id=BUCKET1, object_id=OBJECT1)
+
+    # Add object and test for success
+    storage.buckets[BUCKET1].add(OBJECT1)
+    metadata = await storage.get_object_metadata(bucket_id=BUCKET1, object_id=OBJECT1)
+    assert metadata == {"ContentLength": 1024, "ETag": f"etag_for_{OBJECT1}"}
 
 
 async def test_copy_object():

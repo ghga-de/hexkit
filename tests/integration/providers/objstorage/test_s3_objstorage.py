@@ -140,6 +140,17 @@ async def test_get_object_size(s3: S3Fixture, tmp_file: FileObject):  # noqa: F8
     assert expected_size == observed_size
 
 
+async def test_get_object_metadata(s3: S3Fixture, tmp_file: FileObject):  # noqa: F811
+    """Test if the get_object_metadata method returns the expected fields."""
+    await s3.populate_file_objects([tmp_file])
+    object_metadata = await s3.storage.get_object_metadata(
+        bucket_id=tmp_file.bucket_id, object_id=tmp_file.object_id
+    )
+
+    assert object_metadata["ContentLength"] == len(tmp_file.content)
+    assert object_metadata["ETag"]
+
+
 async def test_list_all_object_ids(s3: S3Fixture, tmp_file: FileObject):  # noqa: F811
     """Test if listing all object IDs for a bucket works correctly."""
     file_fixture2 = tmp_file.model_copy(deep=True)
@@ -230,13 +241,24 @@ async def test_handling_non_existing_file_and_bucket(
             object_id=non_existing_object_id,
         )
 
+    # deleting a non-existing object in an existing bucket succeeds silently:
+    await s3.storage.delete_object(
+        bucket_id=existing_bucket_id,
+        object_id=non_existing_object_id,
+    )
+
+    with pytest.raises(ObjectStorageProtocol.BucketNotFoundError):
+        await s3.storage.list_all_object_ids(bucket_id=non_existing_bucket_id)
+
+    # the destination object must not exist in the copy scenarios below, since the
+    # destination check runs before the source is inspected:
     with pytest.raises(ObjectStorageProtocol.BucketNotFoundError):
         # copy when source bucket does not exist:
         await s3.storage.copy_object(
             source_bucket_id=non_existing_bucket_id,
             source_object_id=non_existing_object_id,
             dest_bucket_id=existing_bucket_id,
-            dest_object_id=existing_object_id,
+            dest_object_id=non_existing_object_id,
         )
 
     with pytest.raises(ObjectStorageProtocol.ObjectNotFoundError):
@@ -245,7 +267,7 @@ async def test_handling_non_existing_file_and_bucket(
             source_bucket_id=existing_bucket_id,
             source_object_id=non_existing_object_id,
             dest_bucket_id=existing_bucket_id,
-            dest_object_id=existing_object_id,
+            dest_object_id=non_existing_object_id,
         )
 
     with pytest.raises(ObjectStorageProtocol.BucketNotFoundError):
@@ -260,6 +282,21 @@ async def test_handling_non_existing_file_and_bucket(
     with pytest.raises(ObjectStorageProtocol.ObjectNotFoundError):
         await s3.storage.get_object_size(
             bucket_id=existing_bucket_id, object_id=non_existing_object_id
+        )
+
+    with pytest.raises(ObjectStorageProtocol.BucketNotFoundError):
+        await s3.storage.get_object_size(
+            bucket_id=non_existing_bucket_id, object_id=non_existing_object_id
+        )
+
+    with pytest.raises(ObjectStorageProtocol.ObjectNotFoundError):
+        await s3.storage.get_object_metadata(
+            bucket_id=existing_bucket_id, object_id=non_existing_object_id
+        )
+
+    with pytest.raises(ObjectStorageProtocol.BucketNotFoundError):
+        await s3.storage.get_object_metadata(
+            bucket_id=non_existing_bucket_id, object_id=non_existing_object_id
         )
 
     with pytest.raises(ObjectStorageProtocol.ObjectNotFoundError):
