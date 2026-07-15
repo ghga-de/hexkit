@@ -859,14 +859,13 @@ class S3ObjectStorage(ObjectStorageProtocol):
         This only works reliably as long as there are no other ongoing multipart operations for
         the same destination bucket and object ID, in which case this should be set to false.
         """
-        file_size = await self._get_object_size(
-            bucket_id=source_bucket_id, object_id=source_object_id
-        )
-
-        # Destination object check needed: CopyObject silently overwrites; the size
-        # lookup above already validated the source.
+        # Before doing anything else, make sure the target doesn't already exist
         await self._assert_object_not_exists(
             bucket_id=dest_bucket_id, object_id=dest_object_id
+        )
+
+        file_size = await self._get_object_size(
+            bucket_id=source_bucket_id, object_id=source_object_id
         )
         part_size = calc_part_size(file_size=file_size)
 
