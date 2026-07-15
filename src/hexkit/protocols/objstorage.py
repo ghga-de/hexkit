@@ -318,6 +318,9 @@ class ObjectStorageProtocol(ABC):
     async def delete_object(self, *, bucket_id: str, object_id: str) -> None:
         """Delete an object with the specified id (`object_id`) in the bucket with the
         specified id (`bucket_id`).
+
+        Deleting an object that does not exist succeeds silently. However, a
+        `BucketNotFoundError` is raised if the bucket does not exist.
         """
         self._validate_bucket_id(bucket_id)
         self._validate_object_id(object_id)
@@ -601,6 +604,9 @@ class ObjectStorageProtocol(ABC):
     async def _delete_object(self, *, bucket_id: str, object_id: str) -> None:
         """Delete an object with the specified id (`object_id`) in the bucket with the
         specified id (`bucket_id`).
+
+        Deleting an object that does not exist succeeds silently. However, a
+        `BucketNotFoundError` is raised if the bucket does not exist.
 
         *To be implemented by the provider. Input validation is done outside of this
         method.*
