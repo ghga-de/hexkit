@@ -16,6 +16,7 @@
 """Mock object storage class"""
 
 from collections import defaultdict
+from typing import Any
 from uuid import uuid4
 
 from hexkit.protocols.objstorage import ObjectStorageProtocol, PresignedPostURL
@@ -285,12 +286,13 @@ class InMemObjectStorage(ObjectStorageProtocol):
         """Delete an object with the specified id (`object_id`) in the bucket with the
         specified id (`bucket_id`).
 
+        Deleting an object that does not exist succeeds silently.
+
         Raises:
             `BucketNotFoundError`: If the bucket does not exist.
-            `ObjectNotFoundError`: If the object does not exist in the bucket.
         """
-        await self._assert_object_exists(bucket_id=bucket_id, object_id=object_id)
-        self.buckets[bucket_id].remove(object_id)
+        await self._assert_bucket_exists(bucket_id)
+        self.buckets[bucket_id].discard(object_id)
 
     async def _init_multipart_upload(self, *, bucket_id: str, object_id: str) -> str:
         """Initiates a multipart upload procedure. Returns the upload ID.
@@ -426,6 +428,18 @@ class InMemObjectStorage(ObjectStorageProtocol):
         """
         await self._assert_object_exists(bucket_id=bucket_id, object_id=object_id)
         return 1024
+
+    async def _get_object_metadata(
+        self, *, bucket_id: str, object_id: str
+    ) -> dict[str, Any]:
+        """Returns object metadata with the same keys as an S3 `HeadObject` response.
+
+        Raises:
+            `BucketNotFoundError`: If the bucket does not exist.
+            `ObjectNotFoundError`: If the object does not exist in the bucket.
+        """
+        await self._assert_object_exists(bucket_id=bucket_id, object_id=object_id)
+        return {"ContentLength": 1024, "ETag": f"etag_for_{object_id}"}
 
     async def _copy_object(
         self,
