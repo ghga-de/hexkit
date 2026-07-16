@@ -162,6 +162,7 @@ user_guide:
       - providers/kafka/subscriber.qmd
       - providers/kafka/test_utils.qmd
       - providers/mongodb.qmd
+      - providers/mongodb_migrations.qmd
       - providers/mongokafka.qmd
       - providers/s3.qmd
       - providers/redis.qmd
@@ -303,6 +304,21 @@ reference:
       - providers.mongodb.MongoDbStrKeyValueStore
       - providers.mongodb.MongoDbJsonKeyValueStore
       - providers.mongodb.MongoDbDtoKeyValueStore
+
+  - title: MongoDB Migration Tooling
+    desc: Versioned database migration framework for MongoDB
+    contents:
+      - providers.mongodb.migrations.MigrationConfig
+      - providers.mongodb.migrations.MigrationManager
+      - providers.mongodb.migrations.MigrationDefinition
+      - providers.mongodb.migrations.Reversible
+      - providers.mongodb.migrations.check_db_version
+      - providers.mongodb.migrations.validate_doc
+      - providers.mongodb.migrations.MigrationStepError
+      - providers.mongodb.migrations.DbVersionMismatchError
+      - providers.mongodb.migrations.helpers.convert_uuids_and_datetimes_v6
+      - providers.mongodb.migrations.helpers.convert_outbox_correlation_id_v6
+      - providers.mongodb.migrations.helpers.convert_persistent_event_v6
 
   - title: Provider — MongoDB + Kafka
     desc: Persistent / outbox event publishing
