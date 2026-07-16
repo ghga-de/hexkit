@@ -173,6 +173,31 @@ class ComparisonPredicate(Predicate):
         return self._fn(value, self._target_value)
 
 
+class ConjunctionPredicate(Predicate):
+    """A Predicate that is satisfied only if all of its sub-predicates are satisfied.
+
+    Represents a single branch of a logical operator that contains multiple
+    conditions, which MongoDB treats as an implicit $and.
+    """
+
+    def __init__(self, *, conditions: list[Predicate]):
+        """Initialize the predicate with the list of sub-predicates to AND together."""
+        self._conditions = conditions
+
+    def __repr__(self) -> str:
+        return f"{self.__class__.__name__}(conditions={self._conditions})"
+
+    def __eq__(self, other) -> bool:
+        """Two ConjunctionPredicates are equivalent if all conditions are equivalent."""
+        return (
+            isinstance(other, ConjunctionPredicate)
+            and self._conditions == other._conditions
+        )
+
+    def evaluate(self, resource: dict[str, Any]) -> bool:
+        return all(condition.evaluate(resource) for condition in self._conditions)
+
+
 class LogicalPredicate(Predicate):
     """A Predicate that handles MQL logical operators"""
 
@@ -215,7 +240,14 @@ class LogicalPredicate(Predicate):
             if not isinstance(mapping, list) or len(mapping) == 0:
                 raise MQLError(f"The {op} operator must be used with a non-empty list.")
             for condition in mapping:
-                self._conditions.extend(build_predicates(mapping=condition))
+                branch_predicates = build_predicates(mapping=condition)
+                if len(branch_predicates) == 1:
+                    self._conditions.extend(branch_predicates)
+                else:
+                    # A branch with multiple conditions is an implicit $and
+                    self._conditions.append(
+                        ConjunctionPredicate(conditions=branch_predicates)
+                    )
 
     def __repr__(self) -> str:
         return (
