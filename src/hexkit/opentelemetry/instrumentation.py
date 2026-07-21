@@ -56,7 +56,12 @@ def instrument_installed_libraries() -> None:
         except ImportError:
             logger.debug("'%s' not installed, skipping instrumentation.", module_name)
             continue
-        instrumentor_class = getattr(module, class_name)
+        try:
+            instrumentor_class = getattr(module, class_name)
+        except AttributeError:
+            logger.warning(
+                "Could not instrument '%s' for '%s'.", class_name, module_name
+            )
         instrumentor_class().instrument()
         logger.info("Instrumented '%s' for '%s'.", class_name, module_name)
 
