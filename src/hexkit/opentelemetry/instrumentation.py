@@ -91,6 +91,9 @@ def configure_opentelemetry(
 ):
     """Configure all needed parts of OpenTelemetry.
 
+    This needs to be called before constructing any objects that are instrumented, e.g.
+    construction a FastAPI app before running this, will result in missing instrumentation.
+
     Setup of the TracerProvider is done programmatically. If disabled, this is a no-op,
     leaving the default no-op TracerProvider from the OpenTelemetry API in place.
 
