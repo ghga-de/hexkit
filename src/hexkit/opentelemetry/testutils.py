@@ -100,6 +100,7 @@ def _otel_provider_fixture(
         # OpenTelemetry has already been configured (e.g. by the app under test),
         # so attach to its existing TracerProvider instead of replacing it -
         # OpenTelemetry only allows the global TracerProvider to be set once.
+        # Detaching after the test is not possible, as there's no stable public API for that
         provider.add_span_processor(SimpleSpanProcessor(exporter))
 
     yield OpenTelemetryFixture(exporter=exporter)
