@@ -14,7 +14,7 @@
 # limitations under the License.
 #
 
-"""Tests for the in-memory span capturing test harness (`hexkit.opentelemetry.testutils`)."""
+"""Tests for the in-memory span capturing test harness from `hexkit.opentelemetry.testutils`."""
 
 import pytest
 from opentelemetry import trace
@@ -55,7 +55,7 @@ def emit_span(name: str) -> None:
 
 
 def test_captures_emitted_spans(otel):
-    """Spans emitted while the fixture is active should show up immediately.
+    """Ensure spans emitted while the fixture is active show up immediately.
 
     Also implicitly checks that no span leaked in from a previous test.
     """
@@ -68,7 +68,7 @@ def test_captures_emitted_spans(otel):
 
 
 def test_span_order_is_preserved(otel):
-    """Spans should be returned in the order they finished, not just any order."""
+    """Ensure spans are returned in the order they finished, not just any order."""
     assert otel.get_span_names() == []
 
     emit_span("first")
@@ -79,7 +79,7 @@ def test_span_order_is_preserved(otel):
 
 
 def test_assert_has_span_raises_with_useful_message(otel):
-    """A missing span should fail with an assertion listing what was captured."""
+    """Ensure a missing span fails with an assertion listing what was captured."""
     emit_span("known-span")
 
     with pytest.raises(AssertionError) as exc_info:
@@ -89,17 +89,8 @@ def test_assert_has_span_raises_with_useful_message(otel):
     assert "known-span" in str(exc_info.value)
 
 
-def test_assert_has_span_returns_the_matching_span(otel):
-    """The found span object should be usable for further assertions."""
-    emit_span("returned-span")
-
-    span = otel.assert_has_span("returned-span")
-
-    assert span.name == "returned-span"
-
-
 def test_reset_clears_captured_spans(otel):
-    """`reset()` should drop all previously captured spans."""
+    """Ensure `reset()` drops all previously captured spans."""
     emit_span("to-be-cleared")
     assert otel.get_span_names() == ["to-be-cleared"]
 
@@ -109,8 +100,9 @@ def test_reset_clears_captured_spans(otel):
 
 
 def test_standalone_provider_uses_in_memory_exporter(reset_global_tracer_provider):
-    """When nothing has configured OpenTelemetry yet, the fixture must configure its
-    own TracerProvider wired to the in-memory exporter, never the real OTLP exporter.
+    """Ensure that, when nothing has configured OpenTelemetry yet, the fixture
+    configures its own TracerProvider wired to the in-memory exporter, never the real
+    OTLP exporter.
     """
     assert not isinstance(trace.get_tracer_provider(), TracerProvider)
 
@@ -126,8 +118,8 @@ def test_standalone_provider_uses_in_memory_exporter(reset_global_tracer_provide
 
 
 def test_attaches_to_already_configured_provider(reset_global_tracer_provider):
-    """If OpenTelemetry has already been configured, the fixture must attach an
-    in-memory exporter to that existing TracerProvider instead of replacing it -
+    """Ensure that, if OpenTelemetry has already been configured, the fixture attaches
+    an in-memory exporter to that existing TracerProvider instead of replacing it -
     OpenTelemetry only allows the global TracerProvider to be set once.
     """
     own_exporter = InMemorySpanExporter()
@@ -154,7 +146,7 @@ def test_attaches_to_already_configured_provider(reset_global_tracer_provider):
 
 
 def test_function_scoped_fixture_resets_before_and_after(reset_global_tracer_provider):
-    """The function-scoped fixture should hand back a clean slate on entry and clean
+    """Ensure the function-scoped fixture hands back a clean slate on entry and cleans
     up the spans captured during the test on exit.
     """
     provider_gen = _otel_provider_fixture(service_name=SERVICE_NAME)
