@@ -39,9 +39,9 @@ annotated-types==0.7.0 \
     # via
     #   -c lock/requirements-dev.txt
     #   pydantic
-asgiref==3.11.1 \
-    --hash=sha256:5f184dc43b7e763efe848065441eac62229c9f7b0475f41f80e207a114eda4ce \
-    --hash=sha256:e8667a091e69529631969fd45dc268fa79b99c92c5fcdda727757e52146ec133
+asgiref==3.12.1 \
+    --hash=sha256:59dcb51c272ad209d59bed5708a64a333083e86017d7fcdd67498eeab7784340 \
+    --hash=sha256:fe386d1c2bff7259ea95929266d12a8cf9a8b5a1c2598402967d8792e7a7c094
     # via
     #   -c lock/requirements-dev.txt
     #   opentelemetry-instrumentation-asgi
@@ -58,15 +58,15 @@ attrs==26.1.0 \
     #   -c lock/requirements-dev.txt
     #   jsonschema
     #   referencing
-boto3==1.43.45 \
-    --hash=sha256:65e0ae541a9948ac41b706d5c7165d96ebf155812562b6518b862be027ee7347 \
-    --hash=sha256:bb076647526c491ce75cab896543afcda5b81c97d3f8e8da08a033fc1ddb7429
+boto3==1.43.52 \
+    --hash=sha256:1af1950c2b2400267c93d971d588367fc73554e02b4f435a50a5e930a7c93526 \
+    --hash=sha256:3da09a393c050906d407023bee5fb5b5fb333378513af1a1a51159db870b572f
     # via
     #   -c lock/requirements-dev.txt
     #   hexkit (pyproject.toml)
-botocore==1.43.45 \
-    --hash=sha256:a04871d814124e65daf429fb99640def23b8c4d3edc6438603b31f11116d7a67 \
-    --hash=sha256:a2da80ff3caa2873769b9a32ae5f1fb18b3571ab63a981896639955611ca01e6
+botocore==1.43.52 \
+    --hash=sha256:3c25e11796ae6e295f1cc3a7760e808c26c432cd580d6a608f32da24715c389b \
+    --hash=sha256:43715e971b306f86d5918b3b728ec62aae3f4be49e1606058ef1f0b87dcbad9e
     # via
     #   -c lock/requirements-dev.txt
     #   hexkit (pyproject.toml)
@@ -417,9 +417,9 @@ jsonschema-specifications==2025.9.1 \
     # via
     #   -c lock/requirements-dev.txt
     #   jsonschema
-opentelemetry-api==1.43.0 \
-    --hash=sha256:107d0d03857ea8fc7c5fcbbbd83f800c281f0d560553d61c1d675fccfd1761c1 \
-    --hash=sha256:20acf45e9b21851926835292e4045d290acade1edd2ff3de86d2f069687ba1fd
+opentelemetry-api==1.44.0 \
+    --hash=sha256:67647e5e9566edcf421166fdf022b3537f818635daa852b289e34604dc6fb33a \
+    --hash=sha256:94b98c893a91b88657eaac1e3ba89618cdb85be6918196705354f34728b2cdef
     # via
     #   -c lock/requirements-dev.txt
     #   hexkit (pyproject.toml)
@@ -437,40 +437,40 @@ opentelemetry-api==1.43.0 \
     #   opentelemetry-propagator-aws-xray
     #   opentelemetry-sdk
     #   opentelemetry-semantic-conventions
-opentelemetry-distro==0.64b0 \
-    --hash=sha256:8a19716899854245b4028650ec1cca12d89f9be41571bbffe9e539cd55d2fd96 \
-    --hash=sha256:ce97b6cedfcf03dc54035c422485412eda63250e094f4bd63ef57d017d823f3c
+opentelemetry-distro==0.65b0 \
+    --hash=sha256:0e15bb1a54c638e6c361bc66bc43e9de9ead442e1ae06f8099a2c1d27b6ef845 \
+    --hash=sha256:e2fef26fdf72978ab172530c13338aff367edae41ae8d90b7f6133efedde10ab
     # via
     #   -c lock/requirements-dev.txt
     #   hexkit (pyproject.toml)
-opentelemetry-exporter-otlp==1.43.0 \
-    --hash=sha256:65aded6c50ee7dd2b9948c9d0e59ddb4ed4eea6e8532fba95cbe6a4a64a566ba \
-    --hash=sha256:70f3fe740a64596d4157588a2ee7e4fd37d2acc0c0f522a2882b8c29316cd0f0
+opentelemetry-exporter-otlp==1.44.0 \
+    --hash=sha256:4a498fa8d8fd8be9e8e2d175fe5524a3fe581ccffadd8509db86526a5fb97051 \
+    --hash=sha256:af1cde7c33ea8ed624bf04ac49a885730fe44c1f1ad698656e592c38f70ce106
     # via
     #   -c lock/requirements-dev.txt
     #   hexkit (pyproject.toml)
-opentelemetry-exporter-otlp-proto-common==1.43.0 \
-    --hash=sha256:123c3f9cc87218562490c63b36f497bf3a722faf174a515d1443f31ababa6264 \
-    --hash=sha256:c4e32ba6d6b13bdb2b8f6764c4fd28d00192826561aa04f6d14eedfce7ac076f
+opentelemetry-exporter-otlp-proto-common==1.44.0 \
+    --hash=sha256:9a9fe61bba73d802904bc989f1d6b4a7b1ee40f06c40e98d6f85af65aaebb694 \
+    --hash=sha256:dc87a5a5bc58f149a56d1547e4691588fa12994cdc3bc039a694ccb3375862ac
     # via
     #   -c lock/requirements-dev.txt
     #   opentelemetry-exporter-otlp-proto-grpc
     #   opentelemetry-exporter-otlp-proto-http
-opentelemetry-exporter-otlp-proto-grpc==1.43.0 \
-    --hash=sha256:1b3e0627daa9bc21884d4a13946807c255eb558bfe5bdd543dffb6f4c9faee0d \
-    --hash=sha256:6a10d1feacffffda19acacbf277b736094b1e2f4dbb98c90ccb2c6e1962e2ec6
+opentelemetry-exporter-otlp-proto-grpc==1.44.0 \
+    --hash=sha256:40d1ae9e03fcc36de3cbac610cc99f35894938bff9cfd90fc4ec68bd85448463 \
+    --hash=sha256:6a1a645ea182a2f59440c51fa8301d309f3324a8f9d65f8395584b064b67ee4e
     # via
     #   -c lock/requirements-dev.txt
     #   opentelemetry-exporter-otlp
-opentelemetry-exporter-otlp-proto-http==1.43.0 \
-    --hash=sha256:647f603aa8efdbdb4dbff842e0729d0406a6fff26b295a72d3d60e7d963b2610 \
-    --hash=sha256:fa8a42bb7d00ee5391f4c0b04d8e6a46c03caa437903296ab73a81dc11ba118f
+opentelemetry-exporter-otlp-proto-http==1.44.0 \
+    --hash=sha256:838592fce774c1c8bb7b9a0a7facbfa82e17be5a8a4e94cef10cb84ae026bae3 \
+    --hash=sha256:c633d7270ad6b57cd4cfbe8b0007a9e2e7c0cb50bd6c50fe2a7b245f721a09d8
     # via
     #   -c lock/requirements-dev.txt
     #   opentelemetry-exporter-otlp
-opentelemetry-instrumentation==0.64b0 \
-    --hash=sha256:133ab7ffca796557aec059bf6be3190a34b6dea987f25be3d9409e230cbdad8b \
-    --hash=sha256:b47d528dead6271d7743114417eb67fc915bd9258111c48dbf9a4951d2efa88d
+opentelemetry-instrumentation==0.65b0 \
+    --hash=sha256:071d9d9eced9bd6460444ec3b0c77229870ed05a881c22c84fdede58e4eed09b \
+    --hash=sha256:ea967a72b9939b5fcfdad572753b4306c59dcb99e3f382d95dae04286805e137
     # via
     #   -c lock/requirements-dev.txt
     #   hexkit (pyproject.toml)
@@ -482,45 +482,45 @@ opentelemetry-instrumentation==0.64b0 \
     #   opentelemetry-instrumentation-httpx
     #   opentelemetry-instrumentation-pymongo
     #   opentelemetry-instrumentation-redis
-opentelemetry-instrumentation-aiokafka==0.64b0 \
-    --hash=sha256:a5ca0218208f69b8c0604036e4b406cc4925e0af5f0ff4f0bfcc8bf3b23b9948 \
-    --hash=sha256:e2b8154055bd7911248f495e77ce1860ca248cd117bd61080143718a5f023bf0
+opentelemetry-instrumentation-aiokafka==0.65b0 \
+    --hash=sha256:5261119a9f23755b617b3998331ef1ed408f929f686b5d780431c8ec385f91ff \
+    --hash=sha256:dd391f559273b5779fbaea24cd56ea256599242933c5328f152d63d3597faf24
     # via
     #   -c lock/requirements-dev.txt
     #   hexkit (pyproject.toml)
-opentelemetry-instrumentation-asgi==0.64b0 \
-    --hash=sha256:4dd3eee566a4303f8e6b9b84f2a0a7abc57a6640df768926c68a3868bf5b2090 \
-    --hash=sha256:e0840b66e15303a9254b0540946010bd008aa0504f4d89b8e1b7fb63490a36f0
+opentelemetry-instrumentation-asgi==0.65b0 \
+    --hash=sha256:3a845a8ebd1c4ef0d8263401e6545f5b219b2feee612090d50f578a87e71fd65 \
+    --hash=sha256:892bca67c56522ffa85a8a83cf934d7b50b3be2132e45cbee705825f0a5ba426
     # via
     #   -c lock/requirements-dev.txt
     #   opentelemetry-instrumentation-fastapi
-opentelemetry-instrumentation-botocore==0.64b0 \
-    --hash=sha256:d55f359942021457e76a2c4d7d6dd44f6d8f9155f10c81b92922f2e364e470bc \
-    --hash=sha256:e437907352a451c2b9d5b966197cf94785234ef4782ceee5b528d1f8a8875092
+opentelemetry-instrumentation-botocore==0.65b0 \
+    --hash=sha256:64987326ac98a47a85821606a981f5058864de0e98b43c8de892eb0fe625b04e \
+    --hash=sha256:a5e80b9423f8369c9bbc27a64b31f02cc44218633028ad8d1ace0a2a7fc8f4cd
     # via
     #   -c lock/requirements-dev.txt
     #   hexkit (pyproject.toml)
-opentelemetry-instrumentation-fastapi==0.64b0 \
-    --hash=sha256:05f75149929e433c1630de381688e650bf651c1e1cce7f9a7b649a807dac8a98 \
-    --hash=sha256:43cbbfb2d3079dc81104478a2950ae93ac6d0e90a5020fa3987a236f8f2bdef1
+opentelemetry-instrumentation-fastapi==0.65b0 \
+    --hash=sha256:10a3a95486036230413a58fe4fdf4a83fa6bba46918407e527476994bd92bd97 \
+    --hash=sha256:cda2610a0ec1b22d19886f33e4d861e9f5dbb886aeaa3a1263b47aff82c36943
     # via
     #   -c lock/requirements-dev.txt
     #   hexkit (pyproject.toml)
-opentelemetry-instrumentation-httpx==0.64b0 \
-    --hash=sha256:04829e5723941b5ceb0c88b44d63983e226b5c75b2b2e34a57739fdd0e060608 \
-    --hash=sha256:c2cfcd03d3665762860ebd0c28038c6e47fbb48d7942dec31dd75fc634d25c92
+opentelemetry-instrumentation-httpx==0.65b0 \
+    --hash=sha256:400f1b78afa4ee2332b5debe58e1ed1b317913d58812c952576be76660aeadb1 \
+    --hash=sha256:4627aa9c6bb99bf4462c8b565b0ef6aeb9ffad95c6c92868be1ef7895de112ee
     # via
     #   -c lock/requirements-dev.txt
     #   hexkit (pyproject.toml)
-opentelemetry-instrumentation-pymongo==0.64b0 \
-    --hash=sha256:4c7a63ffea7e2ac13e83364bd4ac7216953c5f90b63942b19d5e844e35626571 \
-    --hash=sha256:cb9c49963899fe3a47cba10ac054d87d3de5b180845b87c69adc689bf84c0e4f
+opentelemetry-instrumentation-pymongo==0.65b0 \
+    --hash=sha256:8a43f368f7dd101622d2b5929b0c12c4099a0c4a072284b86d18b75dfee10007 \
+    --hash=sha256:c714006d3075b0d9cd1a5e8091dce139cb58ee1fbc5a23d5c8f8576e9ae14e53
     # via
     #   -c lock/requirements-dev.txt
     #   hexkit (pyproject.toml)
-opentelemetry-instrumentation-redis==0.64b0 \
-    --hash=sha256:5458a541986f665b9d7e641421fa5d0c286f1813b452faab6f84503823719d52 \
-    --hash=sha256:c37e194c1e8ff59944d5c2f18014ee18f244a103958b1f2482099525ae9099f9
+opentelemetry-instrumentation-redis==0.65b0 \
+    --hash=sha256:7d135f61db9d72416e1f382012fbc13de6f5e726491bebd0344a9c42a60e6769 \
+    --hash=sha256:f16409f189092984ff922f26939e7be79509365f5c9d202308c13fddf1368147
     # via
     #   -c lock/requirements-dev.txt
     #   hexkit (pyproject.toml)
@@ -530,26 +530,26 @@ opentelemetry-propagator-aws-xray==1.0.2 \
     # via
     #   -c lock/requirements-dev.txt
     #   opentelemetry-instrumentation-botocore
-opentelemetry-proto==1.43.0 \
-    --hash=sha256:224778df17e1f3fafeaaa21d874236ca5f6ffc2f86e0899298ec7351aac27924 \
-    --hash=sha256:c58f1f7ef84bc7dc2834016c0c37fe0081dde7ca9f6339be1970fbf9cdaaa90d
+opentelemetry-proto==1.44.0 \
+    --hash=sha256:898b155a0e1557afd867478fb6158e8122a46329ca0bb8dc53cc55e98f017f56 \
+    --hash=sha256:c547a79c2f8c0c515d31509154682e5921c7cfd5ca67b70e1f9266e2c3e103f3
     # via
     #   -c lock/requirements-dev.txt
     #   opentelemetry-exporter-otlp-proto-common
     #   opentelemetry-exporter-otlp-proto-grpc
     #   opentelemetry-exporter-otlp-proto-http
-opentelemetry-sdk==1.43.0 \
-    --hash=sha256:d1323a547c1ce69d6a069a17a44b7da82bb8b332051ecb074041f87642c86823 \
-    --hash=sha256:d8187c81c162df9913e4003dd6485f7390d9a24fc17026ec7387b8b8218b08e9
+opentelemetry-sdk==1.44.0 \
+    --hash=sha256:cebe7f65dc12f26ead75c6064de12fd2a9052e5060c0272d402cfa203aae123b \
+    --hash=sha256:df081c4c6bcfdb1211e3e86140376792643128a25f8d72d1d27675936e7e96ad
     # via
     #   -c lock/requirements-dev.txt
     #   hexkit (pyproject.toml)
     #   opentelemetry-distro
     #   opentelemetry-exporter-otlp-proto-grpc
     #   opentelemetry-exporter-otlp-proto-http
-opentelemetry-semantic-conventions==0.64b0 \
-    --hash=sha256:72f76fb2d1582d9d033dd1fcd84532e961e6ff3d90d24ba6fabc72975a83864c \
-    --hash=sha256:ea77e85e354b8f604ddbe5f3d9135216f982fa4d77e5859ac30f6d8a50505aa6
+opentelemetry-semantic-conventions==0.65b0 \
+    --hash=sha256:1cacde7b0ad306f84c5ef08c3dbe1bbaf20165bba6f8bff43b670e555a086bcb \
+    --hash=sha256:f9b2b81e9d5b64f11bc952075e7e9c7fb0aab075c7fd1c46d597f1b919852d60
     # via
     #   -c lock/requirements-dev.txt
     #   opentelemetry-instrumentation
@@ -561,9 +561,9 @@ opentelemetry-semantic-conventions==0.64b0 \
     #   opentelemetry-instrumentation-pymongo
     #   opentelemetry-instrumentation-redis
     #   opentelemetry-sdk
-opentelemetry-util-http==0.64b0 \
-    --hash=sha256:8a86a220dbfc56d736f47f1e5c4e7932a21fcf69052312e1bcf166444dc79322 \
-    --hash=sha256:c1e5350d25507c1afcd6076cf9ac062485a0a4f79cd9971366996fd3056bacdb
+opentelemetry-util-http==0.65b0 \
+    --hash=sha256:7553b606f963097cb190536dc30556cce85090692e471a422fff30ca29b04348 \
+    --hash=sha256:84f82d826978bba416ab453460ff6a7391cdc3534c93a786595e4068680016b7
     # via
     #   -c lock/requirements-dev.txt
     #   opentelemetry-instrumentation-asgi
@@ -1033,9 +1033,9 @@ rpds-py==0.30.0 \
     #   -c lock/requirements-dev.txt
     #   jsonschema
     #   referencing
-s3transfer==0.19.0 \
-    --hash=sha256:777cc2415536f1debadb5c2ef7779275d0fc0fe0e042411cdd6caebeb2685262 \
-    --hash=sha256:ce436931687addc4c1712d52d40b32f53e88315723f107ffa20ba82b05a0f685
+s3transfer==0.19.1 \
+    --hash=sha256:d3d6371dc3f1e5c5427b2b457bcf13bcf87bec334c95aed18642eae61f6926f3 \
+    --hash=sha256:d5fd7005ee39307455ad5f310b5ea67f4b1960d7fed5b3671ee50c249de675de
     # via
     #   -c lock/requirements-dev.txt
     #   boto3
