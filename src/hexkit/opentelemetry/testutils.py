@@ -111,7 +111,7 @@ def get_otel_provider_fixture(
     """Get a fixture with desired scope and name that sets up span capturing.
 
     By default, the session scope is used since only one `TracerProvider` can be
-    configured per process.<
+    configured per process.
     """
     return pytest.fixture(_otel_provider_fixture, scope=scope, name=name)
 
