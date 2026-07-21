@@ -1,6 +1,6 @@
 [project]
 name = "hexkit"
-version = "8.5.0"
+version = "9.0.0"
 description = "A Toolkit for Building Microservices using the Hexagonal Architecture"
 requires-python = ">=3.10"
 classifiers = [
@@ -16,7 +16,7 @@ classifiers = [
     "Intended Audience :: Developers",
 ]
 dependencies = [
-    "opentelemetry-api >=1.39, <2",
+    "opentelemetry-api >=1.44, <2",
     "pydantic >=2.12, <3",
     "pydantic_settings >=2.12, <3",
     "PyYAML >=6, <7",
@@ -29,35 +29,35 @@ mongodb = ["pymongo >=4.16, <5"]
 redis = ["redis >=7.1, <8"]
 vault = ["hvac >=2.4, <3"]
 opentelemetry-base = [
-    "opentelemetry-sdk >=1.39.1, <2",
-    "opentelemetry-exporter-otlp >=1.39.1, <2",
-    "opentelemetry-instrumentation >=0.60b1",
-    "opentelemetry-instrumentation-httpx >=0.60b1",
-    "opentelemetry-distro >=0.60b1",
+    "opentelemetry-sdk >=1.44, <2",
+    "opentelemetry-exporter-otlp >=1.44, <2",
+    "opentelemetry-instrumentation >=0.65b0",
+    "opentelemetry-instrumentation-httpx >=0.65b0",
+    "opentelemetry-distro >=0.65b0",
 ]
 opentelemetry-akafka = [
     "hexkit[opentelemetry-base]",
     "hexkit[akafka]",
-    "opentelemetry-instrumentation-aiokafka >=0.60b1",
+    "opentelemetry-instrumentation-aiokafka >=0.65b0",
 ]
 opentelemetry-mongodb = [
     "hexkit[opentelemetry-base]",
     "hexkit[mongodb]",
-    "opentelemetry-instrumentation-pymongo >=0.60b1",
+    "opentelemetry-instrumentation-pymongo >=0.65b0",
 ]
 opentelemetry-fastapi = [
     "hexkit[opentelemetry-base]",
-    "opentelemetry-instrumentation-fastapi >=0.60b1",
+    "opentelemetry-instrumentation-fastapi >=0.65b0",
 ]
 opentelemetry-s3 = [
     "hexkit[opentelemetry-base]",
     "hexkit[s3]",
-    "opentelemetry-instrumentation-botocore >=0.60b1",
+    "opentelemetry-instrumentation-botocore >=0.65b0",
 ]
 opentelemetry-redis = [
     "hexkit[opentelemetry-base]",
     "hexkit[redis]",
-    "opentelemetry-instrumentation-redis >=0.60b1",
+    "opentelemetry-instrumentation-redis >=0.65b0",
 ]
 opentelemetry = [
     "hexkit[opentelemetry-akafka]",
