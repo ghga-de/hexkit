@@ -31,7 +31,7 @@ from opentelemetry.sdk.trace.export.in_memory_span_exporter import (
 )
 
 from hexkit.custom_types import PytestScope
-from hexkit.providers.opentelemetry import OpenTelemetryConfig, configure_opentelemetry
+from hexkit.opentelemetry import OpenTelemetryConfig, configure_opentelemetry
 
 __all__ = [
     "OpenTelemetryFixture",
