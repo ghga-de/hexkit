@@ -1,6 +1,6 @@
 [project]
 name = "hexkit"
-version = "8.6.0"
+version = "9.0.0"
 description = "A Toolkit for Building Microservices using the Hexagonal Architecture"
 requires-python = ">=3.10"
 classifiers = [
@@ -32,6 +32,7 @@ opentelemetry-base = [
     "opentelemetry-sdk >=1.44, <2",
     "opentelemetry-exporter-otlp >=1.44, <2",
     "opentelemetry-instrumentation >=0.65b0",
+    # opentelemetry-instrumentation-httpx also provides httpx2 instrumentation
     "opentelemetry-instrumentation-httpx >=0.65b0",
     "opentelemetry-distro >=0.65b0",
 ]
@@ -66,7 +67,7 @@ opentelemetry = [
     "hexkit[opentelemetry-s3]",
 ]
 test-akafka = ["hexkit[akafka]", "testcontainers[kafka] >=4.14, <5"]
-test-s3 = ["hexkit[s3]", "testcontainers >=4.14, <5"]
+test-s3 = ["hexkit[s3]", "httpx2 >=2.9.1, <3", "testcontainers >=4.14, <5"]
 test-mongodb = ["hexkit[mongodb]", "testcontainers[mongo] >=4.14, <5"]
 test-redis = ["hexkit[redis]", "testcontainers[redis] >=4.14, <5"]
 test-vault = ["hexkit[vault]", "testcontainers >=4.14, <5"]

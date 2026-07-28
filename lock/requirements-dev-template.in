@@ -16,8 +16,10 @@ ruff>=0.14.14
 click>=8.3
 typer>=0.21.1
 
+httpx2>=2.9.1
+# only needed by scripts/list_outdated_dependencies.py, which is kept in sync with the
+# template repo and still imports httpx - drop this once the template moves to httpx2
 httpx>=0.28.1
-pytest-httpx>=0.36
 
 urllib3>=2.6.3
 requests>=2.32.5
