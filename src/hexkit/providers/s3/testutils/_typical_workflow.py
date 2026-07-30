@@ -28,7 +28,7 @@ from ._utils import (
 )
 
 
-async def typical_workflow(  # noqa: PLR0913
+async def typical_workflow(  # noqa: PLR0913, PLR0917
     storage_client: ObjectStorageProtocol,
     test_file_path: Path,
     test_file_md5: str,

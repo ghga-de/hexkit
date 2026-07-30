@@ -39,7 +39,7 @@ logger = logging.getLogger(__name__)
 # Instrumentation modules corresponding to the `opentelemetry-*` optional extras.
 # Each entry is only instrumented if its module is installed.
 _INSTRUMENTOR_MODULES: tuple[tuple[str, str], ...] = (
-    ("opentelemetry.instrumentation.httpx", "HTTPXClientInstrumentor"),
+    ("opentelemetry.instrumentation.httpx", "HTTPX2ClientInstrumentor"),
     ("opentelemetry.instrumentation.aiokafka", "AIOKafkaInstrumentor"),
     ("opentelemetry.instrumentation.pymongo", "PymongoInstrumentor"),
     ("opentelemetry.instrumentation.fastapi", "FastAPIInstrumentor"),
@@ -62,6 +62,7 @@ def instrument_installed_libraries() -> None:
             logger.warning(
                 "Could not instrument '%s' for '%s'.", class_name, module_name
             )
+            continue
         instrumentor_class().instrument()
         logger.info("Instrumented '%s' for '%s'.", class_name, module_name)
 

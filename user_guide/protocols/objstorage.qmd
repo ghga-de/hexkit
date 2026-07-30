@@ -138,13 +138,13 @@ presigned_post = await storage.get_object_upload_url(
 
 The service then passes `presigned_post.url` and `presigned_post.fields` to whoever
 performs the upload. The uploading side sends a multipart-form POST request, for
-example with `httpx`:
+example with `httpx2`:
 
 ```python
-import httpx
+import httpx2
 
 with open("sequencing-data.fastq", "rb") as file:
-    response = httpx.post(
+    response = httpx2.post(
         presigned_post.url,
         data=presigned_post.fields,
         files={"file": file},
