@@ -34,7 +34,7 @@ class KafkaSSLContainer(KafkaContainer):
 
     SECRETS_PATH = "/etc/kafka/secrets"
 
-    def __init__(  # noqa: C901, PLR0912, PLR0913
+    def __init__(  # noqa: C901, PLR0912, PLR0913, PLR0917
         self,
         image: str = DEFAULT_IMAGE,
         port: int = DEFAULT_PORT,

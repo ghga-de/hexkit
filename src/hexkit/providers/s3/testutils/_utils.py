@@ -14,7 +14,7 @@
 # limitations under the License.
 """Functionality to support S3-related testing"""
 
-# ruff: noqa: PLR0913
+# ruff: noqa: PLR0913, PLR0917
 
 import asyncio
 import hashlib
