@@ -67,7 +67,7 @@ opentelemetry = [
     "hexkit[opentelemetry-s3]",
 ]
 test-akafka = ["hexkit[akafka]", "testcontainers[kafka] >=4.14, <5"]
-test-s3 = ["hexkit[s3]", "httpx2 >=2.9.1, <3", "testcontainers >=4.14, <5"]
+test-s3 = ["hexkit[s3]", "testcontainers >=4.14, <5"]
 test-mongodb = ["hexkit[mongodb]", "testcontainers[mongo] >=4.14, <5"]
 test-redis = ["hexkit[redis]", "testcontainers[redis] >=4.14, <5"]
 test-vault = ["hexkit[vault]", "testcontainers >=4.14, <5"]

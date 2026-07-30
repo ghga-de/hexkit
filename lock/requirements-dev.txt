@@ -694,9 +694,7 @@ httpcore2==2.9.1 \
 httpx2==2.9.1 \
     --hash=sha256:1820fe14a9ab1107bfeff39259987429450b070ec0ff38cc87eb0d8c97fdc71a \
     --hash=sha256:1932a768737e3666291582833da748cc4e563c337cf96706fccc04fa6e58764a
-    # via
-    #   -r lock/requirements-dev-template.in
-    #   hexkit (pyproject.toml)
+    # via -r lock/requirements-dev-template.in
 hvac==2.4.0 \
     --hash=sha256:008db5efd8c2f77bd37d2368ea5f713edceae1c65f11fd608393179478649e0f \
     --hash=sha256:e0056ad9064e7923e874e6769015b032580b639e29246f5ab1044f7959c1c7e0

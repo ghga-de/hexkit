@@ -96,7 +96,6 @@ test-akafka = [
 ]
 test-s3 = [
     "hexkit[s3]",
-    "httpx2 >=2.9.1, <3",
     "testcontainers >=4.14, <5",
 ]
 test-mongodb = [
