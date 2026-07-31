@@ -16,7 +16,7 @@ you implement.
 
 - [Protocols](protocols/index.qmd) — the ports that define hexkit's abstractions
 - [Providers](providers/index.qmd) — concrete backends implementing those protocols
-- [Observability Tools](observability_tools/index.qmd) — correlation IDs and logging
+- [Observability Tools](observability_tools/index.qmd) — correlation IDs, logging, and tracing
 - [Developer Help](developer_help/index.qmd) — practical guidance and test fixtures
 - [Glossary](glossary/index.qmd) — key terms used throughout the docs
 - [API Reference](../reference/index.qmd) — the full class and function reference

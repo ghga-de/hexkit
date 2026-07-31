@@ -19,4 +19,117 @@ title: "Correlation IDs"
  limitations under the License.
 -->
 
-TBD
+In a distributed system, a single user request typically fans out into a chain of
+work: one service handles the request, publishes an event, another service consumes
+it, updates its database, publishes a follow-up event, and so on. A *correlation ID*
+is a unique identifier — in hexkit, a UUID (version 4) — that is attached to such a
+chain at its origin and travels along with it, so that all log messages and events
+belonging to the same original request can be found and correlated across service
+boundaries.
+
+The `hexkit.correlation` module provides the tools for managing correlation IDs,
+and hexkit's providers propagate them automatically, so application code rarely has
+to handle them explicitly.
+
+## How Correlation IDs Are Stored
+
+Within a process, the current correlation ID lives in a
+[`ContextVar`](https://docs.python.org/3/library/contextvars.html)
+(`hexkit.correlation.correlation_id_var`). Context variables are scoped to the
+current async task, so many requests or events can be processed concurrently in the
+same event loop, each seeing only its own correlation ID.
+
+The ID is set with one of two async context managers, which restore the previous
+state on exit:
+
+```python
+from hexkit.correlation import set_correlation_id, set_new_correlation_id
+
+# At the origin of a new request chain, generate a fresh ID:
+async with set_new_correlation_id() as correlation_id:
+    ...  # the new ID is set for everything awaited in here
+
+# When continuing work that already has an ID (e.g. from an inbound event):
+async with set_correlation_id(correlation_id):
+    ...
+```
+
+[`set_correlation_id`](../../reference/correlation.set_correlation_id.qmd) validates
+the given ID and raises an `InvalidCorrelationIdError` if it is not a UUID4.
+
+Inside such a context, the current ID can be retrieved with
+[`get_correlation_id`](../../reference/correlation.get_correlation_id.qmd):
+
+```python
+from hexkit.correlation import get_correlation_id
+
+correlation_id = get_correlation_id()
+```
+
+If no correlation ID is set in the current context, this raises a
+`CorrelationIdContextError` — it is meant for places where an ID is expected to be
+present, like event publishing. Code that merely wants to display the ID if
+available (like the [logging integration](logging.qmd)) can read
+`correlation_id_var.get(None)` directly.
+
+Three small helpers round out the module:
+[`new_correlation_id`](../../reference/correlation.new_correlation_id.qmd) generates
+a fresh UUID4,
+[`validate_correlation_id`](../../reference/correlation.validate_correlation_id.qmd)
+checks that a value is one, and
+[`correlation_id_from_str`](../../reference/correlation.correlation_id_from_str.qmd)
+parses a string representation (raising `InvalidCorrelationIdError` on anything that
+is not a valid UUID4).
+
+## Automatic Propagation
+
+The main benefit of the context-variable approach is that hexkit's providers can
+pick up and propagate the correlation ID without any involvement of application
+code:
+
+- **Event publishing**: The [Kafka event publisher](../providers/kafka/publisher.qmd)
+  stamps the current correlation ID into the `correlation_id` header of every
+  published event. If no ID is set in the context, the behavior depends on the
+  `generate_correlation_id` setting of the Kafka config: if `True` (the default), a
+  new ID is generated on the fly; if `False`, publishing fails with a
+  `CorrelationIdContextError`, which is the stricter choice for services that should
+  only ever act as part of an existing request chain.
+- **Event consumption**: The [Kafka event subscriber](../providers/kafka/subscriber.qmd)
+  requires the `correlation_id` header on every inbound event (events without one
+  are treated as invalid) and sets it as the context correlation ID before invoking
+  the translator. Everything the translator does — logging, database writes,
+  publishing follow-up events — therefore happens under the originating request's
+  ID.
+- **Outbox publishing**: The [MongoDB + Kafka provider](../providers/mongokafka.qmd)
+  stores the correlation ID alongside each outbox document, so that the change
+  events it publishes carry the ID of the request that caused the change, even when
+  they are (re)published later.
+- **Logging**: hexkit's [configurable logging](logging.qmd) includes the current
+  correlation ID in every JSON log line, so log aggregation tools can filter all
+  messages of one request chain across all services.
+
+The one place where services do need to act themselves is the *origin* of a chain:
+wherever a request enters the system from outside (e.g. a REST endpoint) or work
+starts spontaneously (e.g. a cron job), wrap the processing in
+`set_new_correlation_id()` — or in `set_correlation_id()` if the caller already
+supplied an ID, such as via an HTTP header.
+
+## Error Handling
+
+| Situation | Raised exception |
+| --------- | ---------------- |
+| Reading the ID when none is set in the context | `CorrelationIdContextError` |
+| Setting, validating, or parsing a value that is not a UUID4 | `InvalidCorrelationIdError` |
+
+Both derive from `RuntimeError`.
+
+## API Reference
+
+- [`set_new_correlation_id`](../../reference/correlation.set_new_correlation_id.qmd)
+- [`set_correlation_id`](../../reference/correlation.set_correlation_id.qmd)
+- [`get_correlation_id`](../../reference/correlation.get_correlation_id.qmd)
+- [`new_correlation_id`](../../reference/correlation.new_correlation_id.qmd)
+- [`validate_correlation_id`](../../reference/correlation.validate_correlation_id.qmd)
+- [`correlation_id_from_str`](../../reference/correlation.correlation_id_from_str.qmd)
+- [`CorrelationIdContextError`](../../reference/correlation.CorrelationIdContextError.qmd)
+- [`InvalidCorrelationIdError`](../../reference/correlation.InvalidCorrelationIdError.qmd)

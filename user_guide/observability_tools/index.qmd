@@ -19,8 +19,28 @@ title: "Observability Tools"
  limitations under the License.
 -->
 
-(intro here)
+Understanding what a distributed system is doing requires more than each service
+writing its own logs: with many services and instances processing many requests
+concurrently, the individual log lines only become useful once they can be
+attributed to a service and instance, and connected to the request chain they
+belong to. hexkit ships three tools for this, designed to work together and
+requiring almost no code in the services themselves:
+
+- **[Correlation IDs](correlation_ids.qmd)** attach a unique identifier to each
+  request chain at its origin and propagate it automatically across service
+  boundaries, through Kafka event headers and the outbox mechanism.
+- **[Configurable Logging](logging.qmd)** turns Python's standard logging output
+  into structured JSON lines that carry the service name, instance ID, and the
+  current correlation ID, ready for consumption by a log aggregation system.
+- **[OpenTelemetry Tracing](opentelemetry.qmd)** records the operations of a
+  request chain as distributed traces — including timing and causal structure —
+  and propagates the trace context across Kafka events.
+
+Together they make it possible to filter the aggregated logs of an entire
+deployment down to the trail of one original request, and to inspect that
+request's journey through the system as a distributed trace.
 
 ## Features
 - [Correlation IDs](correlation_ids.qmd)
 - [Configurable Logging](logging.qmd)
+- [OpenTelemetry Tracing](opentelemetry.qmd)

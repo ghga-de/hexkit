@@ -174,6 +174,7 @@ user_guide:
         href: observability_tools/index.qmd
       - observability_tools/correlation_ids.qmd
       - observability_tools/logging.qmd
+      - observability_tools/opentelemetry.qmd
   - section: "Developer Help"
     contents:
       - text: "Overview"
