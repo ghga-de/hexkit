@@ -22,7 +22,7 @@ from collections.abc import Sequence
 from pathlib import Path
 from typing import Any, NamedTuple
 
-import httpx
+import httpx2
 from packaging.requirements import Requirement
 
 from script_utils import cli, deps, lock_deps
@@ -86,13 +86,13 @@ def get_deps_dev() -> list[Requirement]:
     return [Requirement(dependency) for dependency in dependencies]
 
 
-def get_version_from_pypi(package_name: str, client: httpx.Client) -> str:
+def get_version_from_pypi(package_name: str, client: httpx2.Client) -> str:
     """Make a call to PyPI to get the version information about `package_name`."""
     try:
         response = client.get(f"https://pypi.org/pypi/{package_name}/json")
         body = response.json()
         version = body["info"]["version"]
-    except (httpx.RequestError, KeyError):
+    except (httpx2.RequestError, KeyError):
         cli.echo_failure(f"Unable to retrieve information for package '{package_name}'")
         sys.exit(1)
 
@@ -104,7 +104,7 @@ def get_outdated_deps(
 ) -> list[OutdatedDep]:
     """Determine which packages have updates available outside of pinned ranges."""
     outdated: list[OutdatedDep] = []
-    with httpx.Client(timeout=10) as client:
+    with httpx2.Client(timeout=10) as client:
         for requirement in requirements:
             pypi_version = get_version_from_pypi(requirement.name, client)
 
