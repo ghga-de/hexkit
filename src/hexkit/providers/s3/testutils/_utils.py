@@ -14,14 +14,14 @@
 # limitations under the License.
 """Functionality to support S3-related testing"""
 
-# ruff: noqa: PLR0913
+# ruff: noqa: PLR0913, PLR0917
 
 import asyncio
 import hashlib
 import os
 from pathlib import Path
 
-import httpx
+import httpx2
 from pydantic import BaseModel, computed_field
 
 from hexkit.protocols.objstorage import ObjectStorageProtocol, PresignedPostURL
@@ -109,7 +109,7 @@ def upload_file(presigned_url: PresignedPostURL, file_path: Path, file_md5: str)
     with open(file_path, "rb") as test_file:
         files = {"file": (str(file_path), test_file)}
         headers = {"ContentMD5": file_md5}
-        response = httpx.post(
+        response = httpx2.post(
             presigned_url.url,
             data=presigned_url.fields,
             files=files,
@@ -135,7 +135,7 @@ async def upload_part(
         part_number=part_number,
     )
     response = await asyncio.to_thread(
-        httpx.put, upload_url, content=content, timeout=TIMEOUT
+        httpx2.put, upload_url, content=content, timeout=TIMEOUT
     )
     response.raise_for_status()
 
@@ -166,7 +166,7 @@ async def upload_part_of_size(
 def upload_part_via_url(*, url: str, size: int):
     """Upload a file part of given size using the given URL."""
     content = b"\0" * size
-    response = httpx.put(url, content=content, timeout=TIMEOUT)
+    response = httpx2.put(url, content=content, timeout=TIMEOUT)
     response.raise_for_status()
 
 
@@ -215,7 +215,7 @@ async def multipart_upload_file(
 
 def download_and_check_test_file(presigned_url: str, expected_md5: str):
     """Download the test file from the specified URL and check its integrity (md5)."""
-    response = httpx.get(presigned_url, timeout=TIMEOUT)
+    response = httpx2.get(presigned_url, timeout=TIMEOUT)
     response.raise_for_status()
 
     observed_md5 = calc_md5(response.content)

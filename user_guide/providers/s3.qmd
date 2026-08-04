@@ -91,7 +91,7 @@ All operations behave as described in the
 end-to-end session:
 
 ```python
-import httpx
+import httpx2
 
 await storage.create_bucket("inbox")
 
@@ -102,7 +102,7 @@ presigned_post = await storage.get_object_upload_url(
 
 # The client (not the service!) performs the actual upload:
 with open("report.pdf", "rb") as file:
-    httpx.post(
+    httpx2.post(
         presigned_post.url,
         data=presigned_post.fields,
         files={"file": file},
