@@ -294,6 +294,20 @@ async def test_with_category_dao(
             ["apples"],
             id="DateEqualityWithNe",
         ),
+        pytest.param(
+            {
+                "count": {"$gte": 40},
+                "$or": [
+                    {"other_data.sold_last_week": {"$in": [12, 25]}},
+                    {
+                        "other_data.sold_last_week": 55,
+                        "other_data.next_restock": {"$ne": None},
+                    },
+                ],
+            },
+            ["apples", "celery", "chain"],
+            id="FieldCombinedWithOrOfInAndNe",
+        ),
     ],
 )
 async def test_with_item_dao(
