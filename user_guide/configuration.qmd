@@ -115,12 +115,27 @@ raises `ConfigYamlDoesNotExist` if no file exists at that given path.
 
 ### The Prefix
 
-The `prefix` argument does double duty: it names the config YAML (`.my_service.yaml`,
-`MY_SERVICE_CONFIG_YAML`) *and* it becomes the environment variable prefix. Once a
-config class is decorated, the unprefixed variables shown above no longer apply —
-the settings are read from `MY_SERVICE_SERVICE_NAME`, `MY_SERVICE_KAFKA_SERVERS`,
-and so on. Nested values use a double underscore as separator, e.g.
+Every name in this section is derived from the `prefix` passed to the decorator, so
+the `my_service` and `MY_SERVICE` below are not fixed strings but come from the
+`@config_from_yaml(prefix="my_service")` in the example above. The prefix does double
+duty: it names the config YAML (`.my_service.yaml`, or `MY_SERVICE_CONFIG_YAML` to
+point somewhere else) *and* it becomes the environment variable prefix, so the
+settings are read from `MY_SERVICE_SERVICE_NAME`, `MY_SERVICE_KAFKA_SERVERS`, and so
+on. The unprefixed variables shown further above no longer apply once a config class
+is decorated. Nested values use a double underscore as separator, e.g.
 `MY_SERVICE_SOME_OBJECT__SOME_FIELD`. The prefix defaults to `ghga_services`.
+
+The prefix is conventionally written in lower case and appears upper-cased in some
+of these places but not others. It is worth getting this right, because a mismatch
+fails silently: the value is simply not picked up and the setting falls back to its
+default.
+
+| Where | Casing |
+| ----- | ------ |
+| The `prefix` argument | Taken verbatim; lower-case `snake_case` by convention, since it also becomes part of a file name. |
+| `.{prefix}.yaml` | Verbatim, hence `.my_service.yaml`. A prefix given as `MY_SERVICE` would require the file to be named `.MY_SERVICE.yaml`. |
+| `{PREFIX}_CONFIG_YAML` | Always upper case, whatever the casing of the prefix itself: `MY_SERVICE_CONFIG_YAML`. This name is looked up directly in the environment, so `my_service_config_yaml` has no effect. |
+| Setting variables | Matched case-insensitively, so `MY_SERVICE_KAFKA_SERVERS` and `my_service_kafka_servers` are equivalent. Upper case is the convention. |
 
 ::: {.callout-note}
 Config classes produced by `config_from_yaml` are **frozen**: their fields cannot be
