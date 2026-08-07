@@ -86,8 +86,13 @@ default no-op tracer remains in place — all instrumentation calls in hexkit an
 service become inert, with negligible overhead. If enabled, it sets up a
 `TracerProvider` carrying the service name as its resource attribute, installs the
 sampler and exporter described below, and finally auto-instruments every supported
-library that is installed (matching the extras above) — instrumentation libraries
-that are not installed are silently skipped.
+library that is installed (matching the extras above).
+
+Instrumentation libraries that are not installed are skipped with a `DEBUG` message,
+while each library that is instrumented is reported at `INFO` level — so the default
+log level shows exactly what ended up being traced. If an installed instrumentation
+library does not expose the instrumentor class hexkit expects, for instance after an
+incompatible upgrade, that library is skipped with a `WARNING` instead.
 
 ::: {.callout-warning}
 `configure_opentelemetry` must run **before** any objects to be instrumented are
