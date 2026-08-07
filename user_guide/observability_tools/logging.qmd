@@ -65,7 +65,10 @@ config = LoggingConfig(
 
 `TRACE` is a custom level that hexkit registers below `DEBUG` (numeric value 5).
 Since importing `hexkit.log` registers the level name, `getLevelName("TRACE")` and
-level-based filtering work with it like with the built-in levels.
+level-based filtering work with it like with the built-in levels. hexkit itself does
+not log at this level — it is offered for services that want a tier below `DEBUG` for
+particularly fine-grained output, so setting `log_level` to `TRACE` only adds records
+that the service or a library emits.
 
 ## Setting Up Logging
 
