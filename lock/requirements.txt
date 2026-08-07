@@ -58,15 +58,15 @@ attrs==26.1.0 \
     #   -c lock/requirements-dev.txt
     #   jsonschema
     #   referencing
-boto3==1.43.59 \
-    --hash=sha256:4e9b14f89adc1a533c89312e86d8e00455a6f15d398796d92f9191b06e56b401 \
-    --hash=sha256:58b9635deebf075c1c3d76df78df08eb2979c2a74283194676783a0bff3b4557
+boto3==1.43.61 \
+    --hash=sha256:67f1544ef97caddd6d0ebd613010981e3990ac843bc010cc202a88b489b182a0 \
+    --hash=sha256:a818a2ed37ff555c8c710f9c308a5407ef325c43f4162d7f5ce961e20440ca18
     # via
     #   -c lock/requirements-dev.txt
     #   hexkit (pyproject.toml)
-botocore==1.43.59 \
-    --hash=sha256:21393c35d23b19d7ba95cc4156b59f4013f80696d667997e1abd9d4e29651708 \
-    --hash=sha256:8016da69ecc1d705249a8ef13548d3c95eec87ac1cd26133a8bdfa73ca175be0
+botocore==1.43.61 \
+    --hash=sha256:167c8626661561958a8b5d2066e478113c5789a79e6fbc711b249f2c3d5bca5f \
+    --hash=sha256:23a9e8578b08bfb83953d32a08b304bb2cb7a7e2607a44b212c1a39862c2024e
     # via
     #   -c lock/requirements-dev.txt
     #   hexkit (pyproject.toml)

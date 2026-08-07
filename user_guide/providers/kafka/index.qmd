@@ -75,23 +75,10 @@ on the subscriber page.
 
 ### Providing Configuration Values
 
-Since `KafkaConfig` is a
-[pydantic-settings](https://docs.pydantic.dev/latest/concepts/pydantic_settings/)
-`BaseSettings` class, every parameter can be supplied as an environment variable
-named after the field (case-insensitive; list values as JSON):
-
-```bash
-export SERVICE_NAME="user-registry"
-export SERVICE_INSTANCE_ID="instance-001"
-export KAFKA_SERVERS='["kafka-server-1:9092", "kafka-server-2:9092"]'
-```
-
 In a typical service, `KafkaConfig` is not instantiated on its own. Instead, the
 service defines one config class inheriting from all the hexkit config classes it
-needs (plus its own settings) and decorates it with hexkit's `config_from_yaml`,
-which layers the configuration sources — keyword arguments override environment
-variables, which override secret files under `/secrets`, which override a config
-YAML, which overrides the defaults:
+needs and decorates it with `config_from_yaml` to draw the values from environment
+variables, secret files, and a config YAML:
 
 ```python
 from hexkit.config import config_from_yaml
@@ -108,10 +95,8 @@ class Config(KafkaConfig):
 config = Config()  # reads .my_service.yaml, MY_SERVICE_* env vars, etc.
 ```
 
-With a prefix set, environment variables take the form
-`MY_SERVICE_KAFKA_SERVERS='["localhost:9092"]'`, and the config YAML is looked up
-via the `MY_SERVICE_CONFIG_YAML` environment variable or as `.my_service.yaml` in
-the current or home directory.
+See the [Configuration](../../configuration.qmd) chapter for the full precedence of
+configuration sources and the role of the prefix.
 
 ## Kafka Test Utils
 

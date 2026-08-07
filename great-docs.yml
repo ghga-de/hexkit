@@ -133,6 +133,8 @@ user_guide:
         href: index.qmd
       - text: "Structure and Conventions"
         href: structure.qmd
+      - text: "Configuration"
+        href: configuration.qmd
   - section: "Architectural Concepts"
     contents:
       - text: "Overview"
@@ -174,6 +176,7 @@ user_guide:
         href: observability_tools/index.qmd
       - observability_tools/correlation_ids.qmd
       - observability_tools/logging.qmd
+      - observability_tools/opentelemetry.qmd
   - section: "Developer Help"
     contents:
       - text: "Overview"
@@ -211,6 +214,13 @@ reference:
       - custom_types.KafkaCompressionType
       - custom_types.PytestScope
       - base.InboundProviderBase
+
+  - title: Configuration
+    desc: Layering of configuration sources for service config classes
+    contents:
+      - config.config_from_yaml
+      - config.get_default_config_yaml
+      - config.ConfigYamlDoesNotExist
 
   - title: General Utilities
     desc: Dependency-light helper functions and related errors

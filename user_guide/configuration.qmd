@@ -1,0 +1,173 @@
+---
+title: "Configuration"
+---
+
+<!--
+ Copyright 2021 - 2026 Universität Tübingen, DKFZ, EMBL, and Universität zu Köln
+ for the German Human Genome-Phenome Archive (GHGA)
+
+ Licensed under the Apache License, Version 2.0 (the "License");
+ you may not use this file except in compliance with the License.
+ You may obtain a copy of the License at
+
+     http://www.apache.org/licenses/LICENSE-2.0
+
+ Unless required by applicable law or agreed to in writing, software
+ distributed under the License is distributed on an "AS IS" BASIS,
+ WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ See the License for the specific language governing permissions and
+ limitations under the License.
+-->
+
+Every hexkit component that needs settings — each provider, plus the observability
+tools — ships its own configuration class, such as `KafkaConfig`, `MongoDbConfig`,
+or `LoggingConfig`. This chapter describes what those classes have in common: how a
+service combines them into a single config class, and where their values come from
+at runtime. The individual parameters are documented in the chapter for each
+component.
+
+## Config Classes
+
+All hexkit config classes are
+[pydantic-settings](https://docs.pydantic.dev/latest/concepts/pydantic_settings/)
+`BaseSettings` classes. The practical consequence is that you never have to write
+code to read settings from the environment: every parameter can be supplied as an
+environment variable named after the field (case-insensitive, with list and object
+values given as JSON), and only the values you do not supply fall back to their
+defaults.
+
+```bash
+export SERVICE_NAME="user-registry"
+export SERVICE_INSTANCE_ID="instance-001"
+export KAFKA_SERVERS='["kafka-server-1:9092", "kafka-server-2:9092"]'
+```
+
+For a quick script or a test, a config class can also be instantiated directly with
+keyword arguments:
+
+```python
+from hexkit.providers.mongodb import MongoDbConfig
+
+config = MongoDbConfig(
+    mongo_dsn="mongodb://localhost:27017",
+    db_name="library",
+)
+```
+
+## Composing a Service Config
+
+In a real service, the hexkit config classes are not instantiated on their own.
+Instead, the service defines *one* config class that inherits from every hexkit
+config class it needs and adds its own settings:
+
+```python
+from hexkit.log import LoggingConfig
+from hexkit.providers.akafka import KafkaConfig
+from hexkit.providers.mongodb import MongoDbConfig
+
+
+class Config(KafkaConfig, MongoDbConfig, LoggingConfig):
+    """Configuration for my service."""
+
+    ...  # further settings specific to this service
+```
+
+The resulting class carries the union of all parameters, so the service is
+configured through one object and one set of environment variables. This is also
+what makes the config dump at startup (see [Logging](observability_tools/logging.qmd))
+a complete record of how an instance is running.
+
+## Configuration Sources
+
+Environment variables alone are often not enough for a deployed service, which
+typically draws its settings from a file, its secrets from somewhere else, and only
+a few values from the environment. hexkit's
+[`config_from_yaml`](../reference/config.config_from_yaml.qmd) decorator layers
+these sources onto a config class:
+
+```python
+from hexkit.config import config_from_yaml
+
+
+@config_from_yaml(prefix="my_service")
+class Config(KafkaConfig, MongoDbConfig, LoggingConfig):
+    """Configuration for my service."""
+
+    ...  # further settings specific to this service
+
+
+config = Config()  # reads .my_service.yaml, MY_SERVICE_* env vars, etc.
+```
+
+Values are resolved from the following sources, each overriding the ones below it:
+
+| Priority | Source |
+| -------- | ------ |
+| 1 | Keyword arguments passed to the constructor. |
+| 2 | Environment variables, prefixed as described below. |
+| 3 | Secret files in a dotenv file, `.env` in the current directory or `/secrets/.env` (configurable via the decorator's `dotenv_prefix`). |
+| 4 | A config YAML at the path given by the `{PREFIX}_CONFIG_YAML` environment variable. |
+| 5 | A config YAML named `.{prefix}.yaml` in the current directory, else in the home directory. |
+| 6 | The defaults declared on the config classes. |
+
+A path passed as `Config(config_yaml=...)` replaces the lookup in rows 4 and 5, and
+raises `ConfigYamlDoesNotExist` if no file exists at that given path.
+
+### The Prefix
+
+Every name in this section is derived from the `prefix` passed to the decorator, so
+the `my_service` and `MY_SERVICE` below are not fixed strings but come from the
+`@config_from_yaml(prefix="my_service")` in the example above. The prefix does double
+duty: it names the config YAML (`.my_service.yaml`, or `MY_SERVICE_CONFIG_YAML` to
+point somewhere else) *and* it becomes the environment variable prefix, so the
+settings are read from `MY_SERVICE_SERVICE_NAME`, `MY_SERVICE_KAFKA_SERVERS`, and so
+on. The unprefixed variables shown further above no longer apply once a config class
+is decorated. Nested values use a double underscore as separator, e.g.
+`MY_SERVICE_SOME_OBJECT__SOME_FIELD`. The prefix defaults to `ghga_services`.
+
+The prefix is conventionally written in lower case and appears upper-cased in some
+of these places but not others. It is worth getting this right, because a mismatch
+fails silently: the value is simply not picked up and the setting falls back to its
+default.
+
+| Where | Casing |
+| ----- | ------ |
+| The `prefix` argument | Taken verbatim; lower-case `snake_case` by convention, since it also becomes part of a file name. |
+| `.{prefix}.yaml` | Verbatim, hence `.my_service.yaml`. A prefix given as `MY_SERVICE` would require the file to be named `.MY_SERVICE.yaml`. |
+| `{PREFIX}_CONFIG_YAML` | Always upper case, whatever the casing of the prefix itself: `MY_SERVICE_CONFIG_YAML`. This name is looked up directly in the environment, so `my_service_config_yaml` has no effect. |
+| Setting variables | Matched case-insensitively, so `MY_SERVICE_KAFKA_SERVERS` and `my_service_kafka_servers` are equivalent. Upper case is the convention. |
+
+::: {.callout-note}
+Config classes produced by `config_from_yaml` are **frozen**: their fields cannot be
+reassigned after construction. Configuration is read once at startup and stays fixed
+for the lifetime of the process; to vary it in tests, construct a new instance
+instead of mutating an existing one.
+:::
+
+## Secrets
+
+Parameters holding credentials are declared with Pydantic's `Secret` types —
+`SecretStr` for `kafka_ssl_password`, `s3_secret_access_key`, `s3_session_token`,
+`vault_role_id`, and `vault_secret_id`, and `Secret[...]` for the `mongo_dsn` and
+`redis_url` connection strings, which may carry credentials themselves. Their values
+are masked whenever the config is rendered — in `repr()` output, in error messages,
+and in the configuration dump that
+[`configure_logging`](observability_tools/logging.qmd#setting-up-logging) emits at
+startup — so credentials do not end up in the logs.
+
+Reading the value requires an explicit `.get_secret_value()`, which keeps accidental
+exposure from being a one-liner:
+
+```python
+dsn = config.mongo_dsn.get_secret_value()
+```
+
+This protection only extends as far as the type declarations. Settings a service
+adds to its own config class are masked only if the service declares them as
+`Secret` types too, so it is worth checking new credential-like fields against this
+list.
+
+## API Reference
+
+- [`config_from_yaml`](../reference/config.config_from_yaml.qmd)
+- [`get_default_config_yaml`](../reference/config.get_default_config_yaml.qmd)

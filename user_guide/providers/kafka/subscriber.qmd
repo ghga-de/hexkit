@@ -181,9 +181,10 @@ The provider subscribes to the translator's `topics_of_interest`. Incoming event
 are screened before they reach the translator: events whose type is not among the
 `types_of_interest`, or which lack a type or correlation ID entirely, are ignored
 (with a log message) and acknowledged. For each accepted event, the provider
-extracts the correlation ID from the event headers and sets it as a context
-variable, so all downstream processing — including any events the service
-publishes in turn — carries the same correlation ID automatically.
+extracts the [correlation ID](../../observability_tools/correlation_ids.qmd) from
+the event headers and sets it as a context variable, so all downstream processing —
+including any events the service publishes in turn — carries the same correlation
+ID automatically.
 
 ## Offset Management
 

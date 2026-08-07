@@ -19,4 +19,158 @@ title: "Configurable Logging"
  limitations under the License.
 -->
 
-TBD
+Logs are only useful in a distributed system if they can be collected, searched, and
+correlated in a log aggregation system — and that works best when every service logs
+in the same shape and is configured in the same way. If each service hand-rolled its
+own logging setup, formats and configuration options would inevitably drift apart
+across the deployment. hexkit therefore centralizes logging in the `hexkit.log`
+module: every hexkit-based service draws its settings from the same `LoggingConfig`
+fields and emits the same output shape, so operators deal with a single format and a
+single set of configuration options, no matter which service a log line comes from.
+
+Concretely, the module sets up Python's standard `logging` machinery so that every
+log line comes out as structured JSON, enriched with the service name, instance ID,
+and the current [correlation ID](correlation_ids.qmd) — everything needed to
+attribute log lines to their origin and to the request chain they belong to, without
+any per-service parsing rules.
+
+The module is part of hexkit's core, so no extra is needed. Services keep using the
+standard library as usual, i.e. `logging.getLogger(__name__)` and the familiar logging
+calls, and only call hexkit once at startup to configure the output.
+
+## Configuration
+
+All settings are collected in
+[`LoggingConfig`](../../reference/log.LoggingConfig.qmd). Inherit your service's
+config class from it (see [Configuration](../configuration.qmd)), or instantiate it
+directly:
+
+```python
+from hexkit.log import LoggingConfig
+
+config = LoggingConfig(
+    log_level="INFO",
+    service_name="my-cool-special-service",
+    service_instance_id="germany-bw-instance-001",
+)
+```
+
+| Parameter | Description |
+| --------- | ----------- |
+| `log_level` | The minimum log level to capture: `CRITICAL`, `ERROR`, `WARNING`, `INFO` (the default), `DEBUG`, or `TRACE`. |
+| `service_name` | The name of the (micro-)service, included in every log message. Required. |
+| `service_instance_id` | A string uniquely identifying this instance among all instances of the service, included in every log message. Required. |
+| `log_format` | If set, replaces the JSON output with a classic [format string](https://docs.python.org/3/library/logging.html#logrecord-attributes) (see [Plain-Text Output](#plain-text-output)). Defaults to `None`. |
+| `log_traceback` | Whether to include exception tracebacks in log messages. Defaults to `True`. |
+
+`TRACE` is a custom level that hexkit registers below `DEBUG` (numeric value 5).
+Since importing `hexkit.log` registers the level name, `getLevelName("TRACE")` and
+level-based filtering work with it like with the built-in levels. hexkit itself does
+not log at this level — it is offered for services that want a tier below `DEBUG` for
+particularly fine-grained output, so setting `log_level` to `TRACE` only adds records
+that the service or a library emits.
+
+## Setting Up Logging
+
+Call [`configure_logging`](../../reference/log.configure_logging.qmd) once at
+service startup:
+
+```python
+from hexkit.log import configure_logging
+
+configure_logging(config=config)
+```
+
+This attaches a handler that writes to standard error, applying the configured
+level and format. By default the root logger is configured, so records from all
+loggers in the service (including those of libraries) are captured; pass an
+explicit `logger` argument to configure only a specific logger instead.
+
+Right after setup, one `INFO` message ("Logging configured, complete configuration
+in details") is emitted with the full dump of the passed config object in its
+`details`. Since services typically pass their complete service config (which
+inherits from `LoggingConfig`), this documents the exact configuration each
+instance is running with. Fields declared with Pydantic's `Secret` types are masked
+in this dump — which covers hexkit's own credential parameters, and any a service
+declares the same way (see [Secrets](../configuration.qmd#secrets)).
+
+Note that `configure_logging` adds a handler on each call, so calling it twice
+would duplicate every log line — call it exactly once per process.
+
+## JSON Output Format
+
+With the default configuration, each log record is written as a single-line JSON
+object (pretty-printed here for readability):
+
+```json
+{
+  "timestamp": "2026-07-31T12:34:56.789Z",
+  "service": "my-cool-special-service",
+  "instance": "germany-bw-instance-001",
+  "level": "WARNING",
+  "name": "my_service.core.books",
+  "correlation_id": "0b8ecf6a-799a-4b54-98cc-de1b571246f7",
+  "message": "Book with ID 42 not found",
+  "details": {}
+}
+```
+
+The fields are:
+
+| Field | Description |
+| ----- | ----------- |
+| `timestamp` | Time of logging in ISO 8601 format with millisecond precision, always in UTC (`Z` suffix), regardless of the host's timezone. |
+| `service` | The configured `service_name`. |
+| `instance` | The configured `service_instance_id`. |
+| `level` | The log level name, e.g. `INFO` or `ERROR`. |
+| `name` | The name of the logger that emitted the record, conventionally the module path. |
+| `correlation_id` | The [correlation ID](correlation_ids.qmd) set in the current context, or `null` if none is set. |
+| `message` | The logged message with any printf-style arguments already interpolated. |
+| `details` | Any additional values passed via `extra` (see below). |
+| `exception` | Only present when an exception was logged (see below). |
+
+### Adding Details
+
+Anything passed to a logging call via the standard `extra` mechanism ends up in the
+`details` object instead of being discarded:
+
+```python
+log.info("Book checked out", extra={"book_id": book.id, "user": user.name})
+```
+
+Values that are not JSON-serializable (UUIDs, datetimes, arbitrary objects) are
+converted with `repr()`, so logging them never raises.
+
+### Exceptions
+
+When an exception is logged — via `log.exception(...)` or `exc_info=True` — the
+output gains an `exception` object with the exception `type` and `message`, plus
+the formatted `traceback` unless `log_traceback` is disabled. Turning
+`log_traceback` off is useful where tracebacks are considered too verbose or too
+revealing for the log sink at hand.
+
+## Plain-Text Output
+
+Setting `log_format` switches from JSON to plain-text output using the standard
+`logging.Formatter` syntax. In addition to the
+[standard record attributes](https://docs.python.org/3/library/logging.html#logrecord-attributes),
+the hexkit-specific attributes `timestamp`, `service`, `instance`, `level`,
+`correlation_id`, and `details` are available:
+
+```python
+config = LoggingConfig(
+    service_name="my-cool-special-service",
+    service_instance_id="germany-bw-instance-001",
+    log_format="%(timestamp)s - %(service)s - %(level)s - %(message)s",
+)
+```
+
+This is mainly intended for local development, where a compact human-readable line
+beats JSON; deployed services should stick with the default JSON output.
+
+## API Reference
+
+- [`LoggingConfig`](../../reference/log.LoggingConfig.qmd)
+- [`configure_logging`](../../reference/log.configure_logging.qmd)
+- [`JsonFormatter`](../../reference/log.JsonFormatter.qmd)
+- [`RecordCompiler`](../../reference/log.RecordCompiler.qmd)

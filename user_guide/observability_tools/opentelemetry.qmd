@@ -1,0 +1,182 @@
+---
+title: "OpenTelemetry Tracing"
+---
+
+<!--
+ Copyright 2021 - 2026 Universität Tübingen, DKFZ, EMBL, and Universität zu Köln
+ for the German Human Genome-Phenome Archive (GHGA)
+
+ Licensed under the Apache License, Version 2.0 (the "License");
+ you may not use this file except in compliance with the License.
+ You may obtain a copy of the License at
+
+     http://www.apache.org/licenses/LICENSE-2.0
+
+ Unless required by applicable law or agreed to in writing, software
+ distributed under the License is distributed on an "AS IS" BASIS,
+ WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ See the License for the specific language governing permissions and
+ limitations under the License.
+-->
+
+[OpenTelemetry](https://opentelemetry.io/) (often abbreviated *OTel*) is an
+open-source, vendor-neutral observability framework hosted by the CNCF. It defines a
+common data model and wire protocol (OTLP) for telemetry — traces, metrics, and logs
+— together with SDKs and auto-instrumentation libraries for many languages, so that
+telemetry can be collected once and sent to any compatible backend (Jaeger, Grafana
+Tempo, and many commercial offerings). The
+[OpenTelemetry documentation](https://opentelemetry.io/docs/) is the place to learn
+about its concepts in depth.
+
+hexkit uses OpenTelemetry for **distributed tracing**: recording each operation as a
+*span* (with timing, attributes, and outcome) and linking spans into a *trace* that
+follows one request across service boundaries. Where [correlation IDs](correlation_ids.qmd)
+and [structured logs](logging.qmd) answer *which log lines belong to this request*,
+traces answer *what happened when, where the time went, and what called what* — the
+three tools complement each other.
+
+## Installation
+
+The core `hexkit` package depends only on the lightweight `opentelemetry-api`, so
+tracing support is opt-in via extras. Each provider-specific extra bundles
+`opentelemetry-base` (SDK, OTLP exporter, and base instrumentation) with the
+auto-instrumentation library for that backend:
+
+| Extra | Instruments |
+| ----- | ----------- |
+| `opentelemetry-base` | The OpenTelemetry SDK, OTLP export, and `httpx` instrumentation. |
+| `opentelemetry-akafka` | Apache Kafka event publishing/consuming via `aiokafka`. |
+| `opentelemetry-mongodb` | MongoDB operations via `pymongo`. |
+| `opentelemetry-fastapi` | Inbound HTTP requests of FastAPI apps. |
+| `opentelemetry-s3` | S3 object storage operations via `botocore`. |
+| `opentelemetry-redis` | Redis operations. |
+| `opentelemetry` | Umbrella extra combining `akafka`, `mongodb`, `fastapi`, and `s3` (not `redis`). |
+
+For example, a service using Kafka and MongoDB would install:
+
+```sh
+pip install hexkit[opentelemetry-akafka,opentelemetry-mongodb]
+```
+
+## Configuration
+
+Settings are collected in
+[`OpenTelemetryConfig`](../../reference/opentelemetry.OpenTelemetryConfig.qmd), to be
+inherited by your service config class (see
+[Configuration](../configuration.qmd)):
+
+| Parameter | Description |
+| --------- | ----------- |
+| `enable_opentelemetry` | Master switch; defaults to `False`, in which case no setup code runs and tracing stays disabled. |
+| `otel_trace_sampling_rate` | The proportion of traces to sample, between `0` and `1`. Defaults to `1.0` (sample everything). Note that `0` records no spans but does not disable the OpenTelemetry machinery itself — use `enable_opentelemetry` for that. |
+
+## Setting Up Tracing
+
+Call
+[`configure_opentelemetry`](../../reference/opentelemetry.configure_opentelemetry.qmd)
+once at service startup:
+
+```python
+from hexkit.opentelemetry import configure_opentelemetry
+
+configure_opentelemetry(service_name="my-cool-special-service", config=config)
+```
+
+If `enable_opentelemetry` is `False`, this is a no-op and the OpenTelemetry API's
+default no-op tracer remains in place — all instrumentation calls in hexkit and your
+service become inert, with negligible overhead. If enabled, it sets up a
+`TracerProvider` carrying the service name as its resource attribute, installs the
+sampler and exporter described below, and finally auto-instruments every supported
+library that is installed (matching the extras above).
+
+Instrumentation libraries that are not installed are skipped with a `DEBUG` message,
+while each library that is instrumented is reported at `INFO` level — so the default
+log level shows exactly what ended up being traced. If an installed instrumentation
+library does not expose the instrumentor class hexkit expects, for instance after an
+incompatible upgrade, that library is skipped with a `WARNING` instead.
+
+::: {.callout-warning}
+`configure_opentelemetry` must run **before** any objects to be instrumented are
+constructed. This matters most for FastAPI, whose instrumentation replaces the
+`FastAPI` class itself, so only apps constructed after this call are traced — an app
+created earlier silently misses its instrumentation, with no error or warning to
+point at the cause.
+:::
+
+### Span Export
+
+Finished spans are batched (via a `BatchSpanProcessor`) and exported with OTLP over
+HTTP. The exporter itself is configured through OpenTelemetry's standard
+`OTEL_*` environment variables rather than hexkit config — most importantly
+`OTEL_EXPORTER_OTLP_ENDPOINT` for the address of the collector or tracing backend to
+send spans to. See the
+[OTLP exporter configuration docs](https://opentelemetry.io/docs/languages/sdk-configuration/otlp-exporter/)
+for the full list.
+
+### Sampling
+
+hexkit installs a `ParentBasedTraceIdRatio` sampler: the configured
+`otel_trace_sampling_rate` decides probabilistically whether a *new* trace is
+sampled, while spans that continue an existing trace follow the sampling decision of
+their parent span. Within one service this always yields complete traces. Across
+service boundaries, note that each service applies its own rate to traces it starts,
+so with differing rates a downstream service's traces may be sampled at its
+upstream's rate. Keeping the default of `1.0` everywhere sidesteps this; lowering
+the rate per service is a way to introduce head sampling later when trace volume
+becomes a concern.
+
+## Traces Across Kafka Events
+
+Traces would be of limited use in an event-driven system if they broke at every
+broker hop, so hexkit propagates the trace context through Kafka events, analogous
+to how [correlation IDs](correlation_ids.qmd) travel:
+
+- On the publishing side, the `aiokafka` instrumentation (from the
+  `opentelemetry-akafka` extra) injects the current trace context into the headers
+  of every produced event.
+- On the consuming side, hexkit's Kafka event subscriber extracts the context from
+  the event headers and starts its consumer span
+  (`KafkaEventSubscriber._consume_event`) as a child of the producer's span.
+
+The translator code handling the event therefore runs inside the same trace as the
+code that published it, and any events it publishes in turn extend that trace
+further downstream.
+
+## Testing
+
+The `hexkit.opentelemetry.testutils` module (added in hexkit 9) provides pytest
+fixtures for asserting on emitted spans without a collector: spans are captured
+in-memory and available immediately, instead of being batched and exported over the
+network. Import both fixtures — the session-scoped `otel_provider_fixture` sets up
+the capturing (attaching to the app's `TracerProvider` if the code under test has
+already configured one), and the function-scoped `otel_fixture` hands each test a
+clean slate:
+
+```python
+from hexkit.opentelemetry.testutils import (
+    OpenTelemetryFixture,
+    otel_fixture,  # noqa: F401
+    otel_provider_fixture,  # noqa: F401
+)
+
+
+def test_event_consumption_is_traced(otel: OpenTelemetryFixture):
+    ...  # exercise code that should emit spans
+
+    span = otel.assert_has_span("KafkaEventSubscriber._consume_event")
+    assert span.attributes
+```
+
+The `OpenTelemetryFixture` offers `get_finished_spans()` and `get_span_names()`
+(both in completion order), `assert_has_span(name)` to look up a span or fail with
+the list of captured names, and `reset()` to clear the buffer mid-test. To use
+different fixture scopes or names, create your own fixtures with
+`get_otel_provider_fixture()` and `get_otel_fixture()`. Since OpenTelemetry allows
+setting the global `TracerProvider` only once per process, the capturing setup is
+session-scoped by default and cannot be detached again — which is also why these
+utilities are meant for test code only.
+
+## API Reference
+
+- [`OpenTelemetryConfig`](../../reference/opentelemetry.OpenTelemetryConfig.qmd)
+- [`configure_opentelemetry`](../../reference/opentelemetry.configure_opentelemetry.qmd)
