@@ -111,7 +111,7 @@ Values are resolved from the following sources, each overriding the ones below i
 | 6 | The defaults declared on the config classes. |
 
 A path passed as `Config(config_yaml=...)` replaces the lookup in rows 4 and 5, and
-raises `ConfigYamlDoesNotExist` if no file is there.
+raises `ConfigYamlDoesNotExist` if no file exists at that given path.
 
 ### The Prefix
 
