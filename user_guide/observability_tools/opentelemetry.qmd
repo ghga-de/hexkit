@@ -96,8 +96,10 @@ incompatible upgrade, that library is skipped with a `WARNING` instead.
 
 ::: {.callout-warning}
 `configure_opentelemetry` must run **before** any objects to be instrumented are
-constructed. In particular, a FastAPI app created before this call will silently
-miss its instrumentation.
+constructed. This matters most for FastAPI, whose instrumentation replaces the
+`FastAPI` class itself, so only apps constructed after this call are traced — an app
+created earlier silently misses its instrumentation, with no error or warning to
+point at the cause.
 :::
 
 ### Span Export
