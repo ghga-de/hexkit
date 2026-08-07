@@ -39,8 +39,8 @@ pip install hexkit[mongodb]
 ### Configuration
 
 Connection parameters are collected in
-[`MongoDbConfig`](../../reference/providers.mongodb.MongoDbConfig.qmd), a
-`pydantic_settings.BaseSettings` class. Inherit your service's config class from it, or
+[`MongoDbConfig`](../../reference/providers.mongodb.MongoDbConfig.qmd). Inherit your
+service's config class from it (see [Configuration](../configuration.qmd)), or
 instantiate it directly:
 
 ```python

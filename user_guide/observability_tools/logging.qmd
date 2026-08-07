@@ -41,9 +41,9 @@ calls, and only call hexkit once at startup to configure the output.
 ## Configuration
 
 All settings are collected in
-[`LoggingConfig`](../../reference/log.LoggingConfig.qmd), a
-`pydantic_settings.BaseSettings` class. Inherit your service's config class from it,
-or instantiate it directly:
+[`LoggingConfig`](../../reference/log.LoggingConfig.qmd). Inherit your service's
+config class from it (see [Configuration](../configuration.qmd)), or instantiate it
+directly:
 
 ```python
 from hexkit.log import LoggingConfig
@@ -87,8 +87,9 @@ Right after setup, one `INFO` message ("Logging configured, complete configurati
 in details") is emitted with the full dump of the passed config object in its
 `details`. Since services typically pass their complete service config (which
 inherits from `LoggingConfig`), this documents the exact configuration each
-instance is running with. Values of Pydantic's `Secret*` types are masked in this
-dump, so credentials do not leak into the logs.
+instance is running with. Fields declared with Pydantic's `Secret` types are masked
+in this dump — which covers hexkit's own credential parameters, and any a service
+declares the same way (see [Secrets](../configuration.qmd#secrets)).
 
 Note that `configure_logging` adds a handler on each call, so calling it twice
 would duplicate every log line — call it exactly once per process.

@@ -44,9 +44,9 @@ pip install hexkit[s3]
 ### Configuration
 
 Connection parameters are collected in
-[`S3Config`](../../reference/providers.s3.S3Config.qmd), a
-`pydantic_settings.BaseSettings` class. Inherit your service's config class from it,
-or instantiate it directly:
+[`S3Config`](../../reference/providers.s3.S3Config.qmd). Inherit your service's
+config class from it (see [Configuration](../configuration.qmd)), or instantiate it
+directly:
 
 ```python
 from hexkit.providers.s3 import S3Config
