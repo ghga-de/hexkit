@@ -1,3 +1,13 @@
+> [!IMPORTANT]
+> **hexkit has moved.** Development continues in the GHGA monorepo at
+> [ghga-de/ghga](https://github.com/ghga-de/ghga), under
+> [`libs/hexkit`](https://github.com/ghga-de/ghga/tree/main/libs/hexkit), and the
+> documentation is now published at <https://ghga-de.github.io/ghga/hexkit/>.
+> This repository is being archived and will become read-only; please open issues
+> and pull requests in the monorepo. The `hexkit` package on PyPI is unaffected and
+> continues to be released from there. Links to the old documentation site keep
+> working — they redirect to the new one.
+
 [![PyPI version shields.io](https://img.shields.io/pypi/v/hexkit.svg)](https://pypi.python.org/pypi/hexkit/)
 [![PyPI pyversions](https://img.shields.io/pypi/pyversions/hexkit.svg)](https://pypi.python.org/pypi/hexkit/)
 ![tests](https://github.com/ghga-de/hexkit/actions/workflows/tests.yaml/badge.svg)
