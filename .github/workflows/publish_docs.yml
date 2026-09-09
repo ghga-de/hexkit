@@ -23,10 +23,10 @@ concurrency:
 # metadata of hexkit 9.0.0 and 9.0.1.
 #
 # Archiving disables Actions while leaving Pages serving the last deployment, so this
-# workflow no longer builds the docs: it deploys a site of redirect stubs, generated
-# from a committed list of the old site's paths. That deploy is the final one and
-# cannot be redone, which is why it depends on nothing but Python's standard library —
-# no great-docs, no Quarto, no dependency lock that has to keep resolving.
+# workflow no longer builds the docs: it deploys a two-page redirect site, whose
+# 404.html rewrites any requested path onto the new site. That deploy is the final one
+# and cannot be redone, which is why it depends on nothing but Python's standard
+# library — no great-docs, no Quarto, no dependency lock that has to keep resolving.
 
 jobs:
   build:
