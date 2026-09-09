@@ -22,3 +22,5 @@ example_data/README.md
 .readme_generation/readme_template.md
 
 lock/requirements-dev-template.in
+
+.gitignore

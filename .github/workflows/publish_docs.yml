@@ -16,41 +16,35 @@ concurrency:
   group: "pages"
   cancel-in-progress: false
 
+# hexkit has moved into the GHGA monorepo (https://github.com/ghga-de/ghga, under
+# libs/hexkit), which now builds and publishes this documentation to
+# https://ghga-de.github.io/ghga/hexkit/. This repository is being archived, but its
+# Pages site has to keep resolving, because the old URL is part of the immutable PyPI
+# metadata of hexkit 9.0.0 and 9.0.1.
+#
+# Archiving disables Actions while leaving Pages serving the last deployment, so this
+# workflow no longer builds the docs: it deploys a two-page redirect site, whose
+# 404.html rewrites any requested path onto the new site. That deploy is the final one
+# and cannot be redone, which is why it depends on nothing but Python's standard
+# library — no great-docs, no Quarto, no dependency lock that has to keep resolving.
+
 jobs:
   build:
     runs-on: ubuntu-latest
     steps:
       - name: Checkout
         uses: actions/checkout@v5
-        with:
-          fetch-depth: 0  # full history for accurate page timestamps and git refs
-
-      - name: Setup Python
-        uses: actions/setup-python@v6
-        with:
-          python-version: '3.13'
-
-      - name: Install dependencies
-        run: |
-          pip install -e .
-          pip install --no-deps -r ./lock/requirements-dev.txt
-          # great-docs (Python >= 3.11 only) is kept out of the shared dev lock so it
-          # does not break the py310 test env; install it here where docs are built.
-          pip install great-docs==0.14.1
-
-      - name: Set up Quarto
-        uses: quarto-dev/quarto-actions/setup@v2
 
       - name: Setup Pages
         uses: actions/configure-pages@v5
 
-      - name: Build docs with Great Docs
-        run: great-docs build
+      - name: Generate redirect site
+        run: ./scripts/generate_redirect_site.py ./_redirect_site
 
       - name: Upload artifact
         uses: actions/upload-pages-artifact@v4
         with:
-          path: ./great-docs/_site
+          path: ./_redirect_site
 
   deploy:
     environment:
